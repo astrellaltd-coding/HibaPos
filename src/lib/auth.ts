@@ -58,6 +58,19 @@ export type SessionPayload = {
   exp: number;
 };
 
+/** The user snapshot fetched fresh in getSession (NOT stored in the cookie —
+ *  attached to the in-memory return only so withAuth/withAuthParams skip
+ *  the second db.user.findUnique they previously did per request). */
+export type AuthUser = {
+  id: string;
+  username: string;
+  name: string;
+  role: string;
+  active: boolean;
+};
+
+export type SessionWithUser = SessionPayload & { user: AuthUser };
+
 function sign(data: string): string {
   return createHmac("sha256", SESSION_SECRET!).update(data).digest("hex");
 }
@@ -119,7 +132,7 @@ export async function createSession(payload: Omit<SessionPayload, "exp" | "sessi
   });
 }
 
-export async function getSession(): Promise<SessionPayload | null> {
+export async function getSession(): Promise<SessionWithUser | null> {
   const store = await cookies();
   const token = store.get(SESSION_COOKIE)?.value;
   if (!token) return null;
@@ -134,16 +147,29 @@ export async function getSession(): Promise<SessionPayload | null> {
   });
   if (!sessionRow) return null; // revoked
   if (sessionRow.expiresAt < new Date()) return null; // expired
-  // Verify the user is still active (cookie may outlive deactivation)
+  // Fetch the user ONCE here so withAuth/withAuthParams don't re-query on
+  // every authed request (was a double DB lookup — ~2x user queries per request).
   const user = await db.user.findUnique({
     where: { id: payload.userId },
-    select: { active: true, lockedUntil: true },
+    select: { id: true, username: true, name: true, role: true, active: true, lockedUntil: true },
   });
   if (!user || !user.active) return null;
   if (user.lockedUntil && user.lockedUntil > new Date()) return null;
+  // Attach the user snapshot to the return so callers can use it directly
+  // (NOT stored in the cookie — the signed payload stays minimal).
+  const sessionWithUser: SessionWithUser = {
+    ...payload,
+    user: {
+      id: user.id,
+      username: user.username,
+      name: user.name,
+      role: user.role,
+      active: user.active,
+    },
+  };
   // Touch lastActivityAt (sliding activity tracker). Best-effort, non-blocking.
   db.session.update({ where: { id: payload.sessionId }, data: { lastActivityAt: new Date() } }).catch(() => {});
-  return payload;
+  return sessionWithUser;
 }
 
 export async function destroySession(): Promise<void> {

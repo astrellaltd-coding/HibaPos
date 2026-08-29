@@ -19,6 +19,12 @@ export type ApprovalPayload = {
   nonce: string;
 };
 
+// Single-use enforcement. NOTE: the `consumed` Set is in-memory, so a
+// process restart loses the consumed-state — a token can be replayed
+// once within its 60s TTL after a restart. This is an accepted
+// trade-off for the intended single-tenant local-POS deployment
+// (restarts are rare and operator-initiated). If this app is ever
+// multi-instance / resold, persist `consumed` to a DB table.
 const consumed = new Set<string>();
 
 export class ApprovalError extends Error {

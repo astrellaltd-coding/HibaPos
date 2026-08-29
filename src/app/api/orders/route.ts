@@ -52,7 +52,18 @@ const checkoutIntentSchema = z.object({
 export const GET = withAuth(async (req) => {
   const url = new URL(req.url);
   const shiftId = url.searchParams.get("shiftId");
-  const status = url.searchParams.get("status");
+  const statusRaw = url.searchParams.get("status");
+  // Validate status against the OrderStatus enum before casting —
+  // an invalid value previously threw PrismaClientValidationError → 500.
+  const STATUS_ENUM = z.enum(["COMPLETED", "REFUNDED", "CANCELLED", "PENDING"]);
+  const statusParse = statusRaw ? STATUS_ENUM.safeParse(statusRaw) : null;
+  if (statusRaw && !statusParse?.success) {
+    return NextResponse.json(
+      { error: `Statut invalide : ${statusRaw} (valeurs acceptées : COMPLETED, REFUNDED, CANCELLED, PENDING)` },
+      { status: 400 },
+    );
+  }
+  const status = statusParse?.data;
   // Guard: `Number("") === 0` — an empty `limit=` param previously produced
   // `take: 0` (empty list). Default to 50 for non-positive/NaN values.
   const limitRaw = Number(url.searchParams.get("limit") ?? "50");
@@ -63,7 +74,7 @@ export const GET = withAuth(async (req) => {
   const orders = await db.order.findMany({
     where: {
       ...(shiftId ? { shiftId } : {}),
-      ...(status ? { status: status as "COMPLETED" | "REFUNDED" | "CANCELLED" | "PENDING" } : {}),
+      ...(status ? { status } : {}),
       ...(from || to
         ? {
             createdAt: {

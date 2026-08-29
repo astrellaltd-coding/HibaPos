@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { withAuth } from "@/lib/api-handler";
+import { withAuth, parseJson } from "@/lib/api-handler";
+import { z } from "zod";
 import { readdirSync, promises as fs } from "fs";
 import { existsSync, statSync } from "fs";
 import path from "path";
@@ -119,12 +120,16 @@ export const DELETE = withAuth(async (req, { user }) => {
     return NextResponse.json({ error: "Reserve au manager" }, { status: 403 });
   }
 
-  const body = await req.json().catch(() => null);
-  if (!body?.url || typeof body.url !== "string") {
-    return NextResponse.json({ error: "url requis" }, { status: 400 });
+  const body = (await parseJson(req)) as { url?: string } | null;
+  const schema = z.object({ url: z.string().min(1, "url requis") });
+  const parsed = schema.safeParse(body ?? {});
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: parsed.error.issues[0]?.message ?? "url requis" },
+      { status: 400 },
+    );
   }
-
-  const { url } = body as { url: string };
+  const { url } = parsed.data;
 
   if (!url.startsWith("/uploads/")) {
     return NextResponse.json({ error: "URL non autorisee" }, { status: 400 });

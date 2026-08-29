@@ -26,11 +26,7 @@ export async function POST() {
     if (!session) {
       return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
     }
-    const user = await db.user.findUnique({
-      where: { id: session.userId },
-      select: { role: true },
-    });
-    if (user?.role !== "SUPER_ADMIN") {
+    if (session.user.role !== "SUPER_ADMIN") {
       return NextResponse.json(
         { error: "Réservé au super administrateur" },
         { status: 403 },

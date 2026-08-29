@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { withAuth, parseJson } from "@/lib/api-handler";
+import { z } from "zod";
 import { computeShiftReport } from "@/lib/services/reports";
 import { audit } from "@/lib/services/audit";
+
+const xReportPostSchema = z.object({
+  shiftId: z.string().min(1, "shiftId requis"),
+});
 
 async function getXReport(shiftId?: string | null) {
   if (!shiftId) {
@@ -40,8 +45,15 @@ export const GET = withAuth(async (req) => {
 
 export const POST = withAuth(
   async (req, { user }) => {
-    const body = await parseJson(req).catch(() => ({})) as Record<string, unknown>;
-    const shiftId = typeof body.shiftId === "string" ? body.shiftId : null;
+    const body = (await parseJson(req)) as Record<string, unknown> | null;
+    const parsed = xReportPostSchema.safeParse(body ?? {});
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues[0]?.message ?? "Invalide" },
+        { status: 400 },
+      );
+    }
+    const { shiftId } = parsed.data;
     const result = await getXReport(shiftId);
     if (result.error) return NextResponse.json({ error: result.error }, { status: result.status });
     await audit("REPORT_X_GENERATED", "Report", null, { shiftId }, user.id);

@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { withAuth, parseJson } from "@/lib/api-handler";
+import { z } from "zod";
 import { generateZReport } from "@/lib/services/reports";
 import { audit } from "@/lib/services/audit";
+
+const zReportPostSchema = z.object({
+  shiftId: z.string().min(1, "shiftId requis"),
+  closingFloat: z.number().int().min(0, "closingFloat requis (en centimes)"),
+});
 
 // Z reports are immutable fiscal close-out records with full financial
 // history (cash variance, VAT breakdowns) — manager-level data. The UI
@@ -51,12 +57,15 @@ export const GET = withAuth(
 
 export const POST = withAuth(
   async (req, { user }) => {
-    const body = await parseJson(req) as Record<string, unknown>;
-    const shiftId = typeof body.shiftId === "string" ? body.shiftId : "";
-    const closingFloat = typeof body.closingFloat === "number" ? body.closingFloat : NaN;
-    if (!shiftId || Number.isNaN(closingFloat)) {
-      return NextResponse.json({ error: "shiftId et closingFloat requis" }, { status: 400 });
+    const body = (await parseJson(req)) as Record<string, unknown> | null;
+    const parsed = zReportPostSchema.safeParse(body ?? {});
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues[0]?.message ?? "Invalide" },
+        { status: 400 },
+      );
     }
+    const { shiftId, closingFloat } = parsed.data;
     const result = await generateZReport(shiftId, closingFloat, user.id);
     await audit("REPORT_Z_GENERATED", "ZReport", result.z.id, { shiftId }, user.id);
     return NextResponse.json(result);

@@ -1,7 +1,6 @@
 // Helpers for building authenticated API route handlers.
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { db } from "@/lib/db";
 import type { SessionPayload } from "@/lib/auth";
 import type { Role } from "@/types/api";
 
@@ -24,20 +23,13 @@ export function withAuth<T>(
     if (!session) {
       return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
     }
-    const user = await db.user.findUnique({
-      where: { id: session.userId },
-      select: { id: true, username: true, name: true, role: true, active: true, lockedUntil: true },
-    });
-    if (!user || !user.active) {
-      return NextResponse.json({ error: "Utilisateur inactif" }, { status: 401 });
-    }
-    if (user.lockedUntil && user.lockedUntil > new Date()) {
-      return NextResponse.json({ error: "Compte verrouillé. Réessayez plus tard." }, { status: 423 });
-    }
-    if (options?.roles && !options.roles.includes(user.role)) {
+    // getSession already fetched + verified the user (active, not locked).
+    // Reuse it instead of a second db.user.findUnique per request.
+    const user = session.user;
+    if (options?.roles && !options.roles.includes(user.role as Role)) {
       return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
     }
-    return handler(req, { session, user });
+    return handler(req, { session, user: { id: user.id, username: user.username, name: user.name, role: user.role as Role, active: user.active } });
   };
 }
 
@@ -51,17 +43,8 @@ export function withAuthParams<T>(
     if (!session) {
       return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
     }
-    const user = await db.user.findUnique({
-      where: { id: session.userId },
-      select: { id: true, username: true, name: true, role: true, active: true, lockedUntil: true },
-    });
-    if (!user || !user.active) {
-      return NextResponse.json({ error: "Utilisateur inactif" }, { status: 401 });
-    }
-    if (user.lockedUntil && user.lockedUntil > new Date()) {
-      return NextResponse.json({ error: "Compte verrouillé. Réessayez plus tard." }, { status: 423 });
-    }
-    if (options?.roles && !options.roles.includes(user.role)) {
+    const user = session.user;
+    if (options?.roles && !options.roles.includes(user.role as Role)) {
       return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
     }
     const rawParams = await reqCtx.params;
@@ -69,7 +52,7 @@ export function withAuthParams<T>(
     for (const [k, v] of Object.entries(rawParams)) {
       params[k] = Array.isArray(v) ? v[0] : v;
     }
-    return handler(req, { session, user, params });
+    return handler(req, { session, user: { id: user.id, username: user.username, name: user.name, role: user.role as Role, active: user.active }, params });
   };
 }
 

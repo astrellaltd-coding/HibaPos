@@ -34,12 +34,16 @@ export async function getSettings(): Promise<SettingsInput> {
 export async function saveSettings(input: Partial<SettingsInput>): Promise<SettingsInput> {
   const current = await getSettings();
   const merged = { ...current, ...input };
+  // Write only the keys that actually changed — avoids upserting
+  // every setting on every save (write amplification).
   for (const [key, value] of Object.entries(merged)) {
-    await db.setting.upsert({
-      where: { key },
-      create: { key, value: JSON.stringify(value) },
-      update: { value: JSON.stringify(value) },
-    });
+    if (JSON.stringify(current[key as keyof SettingsInput]) !== JSON.stringify(value)) {
+      await db.setting.upsert({
+        where: { key },
+        create: { key, value: JSON.stringify(value) },
+        update: { value: JSON.stringify(value) },
+      });
+    }
   }
   return merged;
 }
