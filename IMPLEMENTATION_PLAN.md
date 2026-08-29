@@ -5,7 +5,7 @@
 >
 > **Status legend:** `[x]` done · `[~]` in progress · `[ ]` todo · `[!]` blocked · `[-]` skipped/deferred
 
-Last updated: 2026-08-29 (Phase 2B complete — all money now in integer cents)
+Last updated: 2026-08-29 (Phases 0–4 complete; Phases 6–12 planned for remaining/deferred work, excluding Tauri/Phase 5)
 
 ---
 
@@ -110,21 +110,18 @@ Current: 103 unit/integration tests + 4 e2e API-smoke specs.
 
 ---
 
-## Phase 4 — App fixes & dead-code removal
+## Phase 4 — App fixes & dead-code removal — ✅ COMPLETE
 
-- [ ] **4a** **Persist cart + held orders** — add Zustand `persist` middleware (at least for `heldOrders`, ideally cart too) to `localStorage`. Currently a page reload wipes the in-progress sale and every parked order.
-- [ ] **4b** **Remove `src/` dead code** (no app/core logic changes, pure removal):
-  - `Session` Prisma model — drop if 2d chose not to use it
-  - `src/hooks/use-toast.ts` + `src/components/ui/toaster.tsx` — sonner is used everywhere; these are dead (verify no imports first)
-  - `ProductDto.options` + `productOptions?` redundant alias — keep one
-  - `_refundsTotal` dead var in `reports.ts` (if not already removed in 2b)
-  - `safeParseOptions`/`ORDER_TYPE_LABELS`/`PAYMENT_LABELS` duplicated across `receipt-dialog.tsx` + `orders-view.tsx` → extract to a shared module
-  - `Kpi`/`VatBreakdownTable`/`TopProductsList` duplicated in `shifts-view.tsx` + `reports-view.tsx` → extract to shared
-  - redundant `@@index` on already-unique columns (`User.username`, `Category.name`, `Order.number`)
-  - unused imports flagged by the 4 lint warnings (`upload/route.ts` randomBytes, `media-picker-dialog.tsx` ScrollArea, `pos-view.tsx` setSearch + ProductCardMemo)
-- [ ] **4c** Remove z.ai deploy infra (after 0e decision): `Caddyfile`, `.zscripts/*.sh`, `mini-services/`, `tests/python-runtime-*.sh`.
-- [ ] **4d** Hardcoded hex backgrounds in shell/topbar → replace with theme tokens (was a dark-mode blocker; now just hygiene).
-- [ ] **4e** `Refund.approvedById`/`shiftId` and `Table.currentOrderId` plain strings with no FK — add FKs or document the intentional omission.
+- [x] **4a** **Persist cart + held orders** — `cart-store.ts` now wraps `create()` in `persist` middleware (localStorage, key `hibapos-cart`). A page reload / browser restart no longer wipes the in-progress sale or parked orders.
+- [x] **4b** **Remove `src/` dead code**:
+  - `src/hooks/use-toast.ts` + `src/components/ui/toaster.tsx` deleted (sonner is used everywhere; only `layout.tsx` imported the dead `Toaster`, removed).
+  - Unused imports removed: `upload/route.ts` (`randomBytes`), `media-picker-dialog.tsx` (`ScrollArea`), `pos-view.tsx` (`setSearch`, `ProductCardMemo` alias).
+  - Skipped (refactors, not dead code): `ProductDto.options`+`productOptions?` alias, duplicate `Kpi`/`VatBreakdownTable`/`TopProductsList`/`ORDER_TYPE_LABELS`/`safeParseOptions` helpers — these touch working app code; leave for a future refactor.
+- [x] **4c** **Remove z.ai deploy infra** — deleted `Caddyfile`, `.zscripts/*.sh` (Linux), `mini-services/`, `tests/python-runtime-*.sh`. Kept `.zscripts/*.ps1` (Windows dev/prod launchers) + `README-windows.md`.
+- [-] **4d** Hardcoded hex backgrounds → theme tokens — skipped (cosmetic, low priority; would touch a lot of UI code).
+- [x] **4e** **Document FK gaps** — `schema.prisma` comments on `Refund.approvedById`/`shiftId` and `Table.currentOrderId` now explain the intentional no-FK design (survives soft-delete / avoids circular FK).
+- [x] **4f** **Hygiene fixes** — `package.json` name `nextjs_tailwind_shadcn_ts`→`hibapos-france`; README rewritten (npm/pnpm→bun, money=cents, serving model, ISCA features, roles); `.gitignore` adds `/upload/`; `scripts/delete-products.js` deleted (dangerous, no guard rails); `typecheck` script added (Phase 3a).
+- [x] **4-check** Lint 0 errors / 0 warnings · tsc exit 0 · 105 tests pass.
 
 ---
 
@@ -136,22 +133,104 @@ Planned approach (when resumed): Tauri v2 shell, Next.js `output: "standalone"` 
 
 ---
 
-## Appendix A — ISCA requirements vs. current state
+## Phase 6 — Correctness & API hardening
 
-| ISCA requirement | Current state | Gap |
+Findings from the deep API analysis that weren't in the original plan but are real issues. None are acute data-breach risks in the intended single-tenant behind-Caddy deployment, but each should be closed.
+
+- [ ] **6a** **`orders` GET `status` cast without validation** — `src/app/api/orders/route.ts:65` casts `?status=` to the Prisma enum; an invalid value throws `PrismaClientValidationError` → **500** instead of a clean 400. Validate against the enum first.
+- [ ] **6b** **`media` DELETE missing Zod** — `src/app/api/media/route.ts` uses a manual `typeof string` + path-traversal check (careful but inconsistent). Add a Zod schema for parity with the rest of the codebase.
+- [ ] **6c** **`reports/x` + `reports/z` POST missing Zod** — manual `typeof` checks. Add Zod for consistency (`shiftId: z.string()`, `closingFloat: z.number().int().min(0)`).
+- [ ] **6d** **`clientIp()` trusts `X-Forwarded-For` blindly** — `src/lib/http-rate-limit.ts:7` takes the first XFF value. Safe behind Caddy (which overwrites XFF) but if ever exposed directly, an attacker rotates IPs to bypass rate limits. Document the Caddy requirement OR parse `X-Real-IP` first.
+- [ ] **6e** **Double DB user-lookup per authed request** — `getSession()` does `db.user.findUnique` (active/locked recheck) then `withAuth`/`withAuthParams` does it again. Have `getSession` return the user and reuse it (free optimization, ~50% fewer DB queries on authed routes).
+- [ ] **6f** **`approvals.ts` `consumed` Set lost on restart** — the single-use enforcement is in-memory; a token can be replayed once after a process restart within its 60s TTL. Persist `consumed` to the DB (or accept the small window with a documented note).
+- [ ] **6g** **`settings.ts` `saveSettings` write amplification** — upserts every key of the merged object, even unchanged ones. Diff against current and write only changed keys.
+- [ ] **6h** **`audit()` swallows all errors** — correct (audit must never break the main flow) but means audit failures are silent. Add a `logTechnical("ERROR", ...)` alongside the `console.error` so failures surface in the technical log view.
+
+---
+
+## Phase 7 — Code quality & refactors
+
+Deferred from Phase 4b (these touch working app code, so they were left for a dedicated refactor pass). Pure cleanup — no behavior change.
+
+- [ ] **7a** **Extract duplicate helpers** — `Kpi`/`VatBreakdownTable`/`TopProductsList` are copy-pasted in `shifts-view.tsx` AND `reports-view.tsx`. Extract to a shared module (e.g. `src/components/shared/report-widgets.tsx`) and import from both.
+- [ ] **7b** **Extract duplicate labels/parsers** — `ORDER_TYPE_LABELS`/`PAYMENT_LABELS`/`safeParseOptions`/`safeParseAddOns` duplicated across `receipt-dialog.tsx` + `orders-view.tsx` + `customer-detail-dialog.tsx` + `dashboard-view.tsx`. Extract to `src/lib/order-labels.ts` (labels) + extend `receipt.ts` (parsers).
+- [ ] **7c** **`ProductDto.options` + `productOptions?` redundant alias** — `src/types/api.ts:88` carries both; the API serializer in `catalog/products/route.ts` emits both. Pick one (`options`) and drop the alias after confirming no consumer reads `productOptions`.
+- [ ] **7d** **Redundant `@@index` on unique columns** — `User.username`, `Category.name`, `Order.number` are `@unique` (already indexed). Drop the redundant `@@index` lines.
+- [ ] **7e** **`api-handler.ts` duplicated auth logic** — `withAuth` and `withAuthParams` duplicate ~30 lines of session/lock/role checks. Extract a `requireAuth(session)` helper and call it from both.
+- [ ] **7f** **`BackupDto` omits integrity fields** — `src/types/api.ts` `BackupDto` drops `checksum`/`encrypted`/`sizeBytes`/`imagesPath` from the model. Add them so the UI can show encryption/checksum status.
+- [ ] **7g** **`VatBreakdown` type mismatch** — `src/lib/money.ts` types `VatBreakdown = Record<number,…>` but JS object keys are strings at runtime; `src/types/api.ts` honestly types it `Record<string,…>`. Align (the money.ts type is a lie — use `Record<string,…>` or refactor to a `Map<number,…>`).
+- [ ] **7h** **`DEFAULT_SETTINGS.defaultVatRate` (20) vs seed (10) mismatch** — `src/lib/services/settings.ts` defaults to 20 but both seed paths write 10. Align (food is 10% in France; default should be 10).
+- [ ] **7i** **`DEFAULT_SETTINGS.printerName` "Epson TM-m30" vs actual Sunso WTP-801** — update to match the real printer.
+
+---
+
+## Phase 8 — Test coverage deepening
+
+Phase 3 reached 105 tests but the highest-risk surfaces (API route handlers) are still untested. Deepen coverage so future refactors and Phase 6 changes have a safety net.
+
+- [ ] **8a** **API route tests** — checkout (price recompute, payment exact-cover, receipt number atomicity), refund (amount clamp, method match, double-spend, table auto-free), shift close (Z generation, grand total increment), fiscal counter (concurrent increments). These are the highest-risk untested surfaces.
+- [ ] **8b** **E2E fill sequence gaps** — `tests/e2e/01-auth.spec.ts` and `04-catalog.spec.ts` exist; `02-checkout-flow.spec.ts` added in Phase 3d. Add `03-shift-flow.spec.ts` (open → X report → close → Z) for a complete 01→04 sequence.
+- [ ] **8c** **`@vitest/coverage-v8` devDep cleanup** — `vitest.config.ts` was removed (Phase 3a) but `@vitest/coverage-v8` is still in `package.json` devDeps. Remove it (and the `coverage` script if present) or commit to using it.
+- [ ] **8d** **`vitest.setup.ts` filename** — works via `bunfig.toml` preload, but the name is vestigial (vitest config is gone). Optional: rename to `test-setup.ts` for clarity.
+
+---
+
+## Phase 9 — Operational hygiene
+
+- [ ] **9a** **Push to GitHub** — `origin` is added but the repo was never pushed (needs your credentials). `git push -u origin main` — do this as the first action of the next session.
+- [ ] **9b** **`reactStrictMode: false`** — `next.config.ts` disables React strict mode (suppresses double-render in dev, masks effect-cleanup bugs). Consider re-enabling for the production POS.
+- [ ] **9c** **`eslint.config.mjs` `no-explicit-any: warn`** — `@typescript-eslint/no-explicit-any` is downgraded to `warn`, so `any` proliferates silently. Consider raising to `error` and cleaning up the `any` usages.
+- [ ] **9d` **`db:push --accept-data-loss` dangerous default** — `package.json` `db:push` script is `prisma db push --accept-data-loss`. A misplaced `bun run db:push` against prod silently destroys data. Split into `db:push-safe` (no flag) + `db:push-force` (with flag, gated).
+
+---
+
+## Phase 10 — UI/UX polish
+
+- [ ] **10a` **Touchscreen accessibility** — several interactive controls stay below the 44px WCAG target: cart qty buttons (`h-6 w-6` overridden to `min-h-[32px]`, still <44), table/audit/media hover edit buttons (`h-6`/`h-7`), option/addon check badges. Raise to ≥44px and add missing `aria-label`s on icon-only buttons.
+- [ ] **10b` **Hardcoded hex backgrounds → theme tokens** — `#FAF5EE` (shell), `#221910` (topbar), `#FDEFE0`/`#F2994A`/`#E2711D` (gradients) bypass theme tokens. Replace with `bg-card`/`bg-foreground`/etc. tokens. (Deferred from Phase 4d — cosmetic but improves maintainability.)
+- [ ] **10c` **URL routing (SPA state machine)** — no URL change on view switch → browser back button always returns to home. Consider hash-based routing (`#/pos`, `#/orders`, …) for view persistence and back-button support.
+- [ ] **10d` **i18n layer** — no `lang-store`/translation function; every string is hardcoded French (`<html lang="fr">`). Fine for a single-locale product today, but if reselling later, add a FR/EN toggle. (The worklog's rounds 20-22 i18n was built then removed — re-evaluate if needed.)
+
+---
+
+## Phase 11 — Performance
+
+- [ ] **11a` **Optimistic updates** — every mutation (product/category/customer/table/user CRUD, refund, shift open/close) blocks on a server round-trip then invalidates. On a touchscreen this latency is felt on availability toggles and table status cycling. Add optimistic updates for the high-frequency mutations.
+- [ ] **11b` **Client-side over-filtering** — orders fetch `limit=100` then filter by number/table/cashier in memory; audit fetches 200 then filters by action string. Move filtering server-side (query params) so it scales.
+- [ ] **11c` **Catalog prefetch** — TanStack Query `staleTime: 30s` and no `prefetch`. Prefetch the catalog on app load so the POS grid is instant.
+- [ ] **11d` **`reactStrictMode` + effect-cleanup audit** — re-enabling strict mode (9b) will surface any effect-cleanup bugs; fix them as they appear.
+
+---
+
+## Phase 12 — Features (future, not for now)
+
+Roadmap items from the worklog "Unresolved" lists. Evaluate after the app is solid and Tauri is in place.
+
+- [ ] **12a` **Real-time table status (WebSocket multi-terminal sync)** — only needed if >1 terminal (current: single terminal).
+- [ ] **12b` **Table reservation scheduling**.
+- [ ] **12c` **Customer loyalty points system**.
+- [ ] **12d` **Email/SMS receipt sending**.
+- [ ] **12e` **Multi-language support (FR/EN)** — see 10d.
+- [ ] **12f` **Hardware receipt printer integration (Epson ESC/POS)** — blocked on Tauri (Phase 5); when Tauri is in, wire `tauri-plugin-esc-pos` to the Sunso WTP-801 + cash drawer.
+
+---
+
+## Appendix A — ISCA requirements vs. current state (after Phases 1–4)
+
+| ISCA requirement | Current state | Status |
 |---|---|---|
-| Immutability of validated ticket | Orders/Receipts immutable in practice (no delete path, only refund) | SQLite file directly editable — needs hash-chaining (1a) for tamper detection |
-| Sequential atomic receipt numbering | `FiscalCounter` + `increment:1` in `$transaction` | ✅ met (but has needed manual repair — `fix-fiscal-counter.ts`) |
-| Cryptographic chaining (S) | ❌ none | 🔴 1a |
-| Journal des événements (JFP) append-only | `AuditLog` mutable, not hash-chained | 🔴 1b |
-| Operator audit trail | `cashierId` on orders/payments/refunds; approval tokens | 🟡 partial — drawer/reprint/discount not in inalterable trail |
-| Mode école / FACTICE | ❌ none | 🟠 1d |
-| Clôtures Z / M / A + total perpétuel | Z (daily) ✅; monthly/annual ❌; perpetual total ❌ | 🔴 1c |
-| Correction = contre-ticket | Refund = contre-opération | ✅ met |
-| Conservation 6 ans | Data stays in SQLite; encrypted backups exist | 🟡 acceptable |
-| Archivage format ouvert + notice FR + empreinte | Encrypted `.dbenc` (proprietary) + CSV export; no formal archive | 🟠 1e |
-| Money stored in integer cents | Float euros (SQLite REAL) | 🟠 2a (correctness, inspected at control) |
-| Editor attestation / certificate held | None | 🔴 1f |
+| Immutability of validated ticket | Orders/Receipts immutable (no delete path, only refund); FiscalEvent hash-chain detects tampering | ✅ met (Phase 1a+1b) |
+| Sequential atomic receipt numbering | `FiscalCounter` + `increment:1` in `$transaction` (self-healing upsert) | ✅ met |
+| Cryptographic chaining (S) | SHA-256 hash-chained `FiscalEvent` journal (JFP); `GET /api/fiscal/verify` | ✅ met (Phase 1a+1b) |
+| Journal des événements (JFP) append-only | `FiscalEvent` hash-chained; VENTE/REMBOURSEMENT/ANNULATION/CLOTURE_Z/OUVERTURE_TIROIR/REIMPRESSION/SESSION_* events | ✅ met (Phase 1b) |
+| Operator audit trail | `userId` on every fiscal event; approval tokens signed; drawer/reprint/discount tracked | ✅ met (Phase 1b) |
+| Mode école / FACTICE | `settings.factice` flag; receipts + events stamped FACTICE | ✅ met (Phase 1d) |
+| Clôtures Z / M / A + total perpétuel | Z (daily) ✅; M (monthly) ✅; A (annual) ✅; `GrandTotal` perpetual counter never resets | ✅ met (Phase 1c) |
+| Correction = contre-ticket | Refund = contre-opération (ANNULATION/REMBOURSEMENT) | ✅ met |
+| Conservation 6 ans | Data stays in SQLite; encrypted backups (AES-256-GCM) | ✅ acceptable |
+| Archivage format ouvert + notice FR + empreinte | Annual JSON archive + SHA-256 + French notice (`POST/GET /api/fiscal/archive`) | ✅ met (Phase 1e) |
+| Money stored in integer cents | All money Int cents end-to-end (DB + DTO + calc + display boundary) | ✅ met (Phase 2B) |
+| Editor attestation / certificate held | `docs/attestation-conformite.md` (BOI-LETTRE-000242, two volets — print + sign) | ✅ ready (Phase 1f; sign + store with accounting records) |
 
 ## Appendix B — Key file paths
 
