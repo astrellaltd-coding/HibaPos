@@ -58,6 +58,9 @@ server.log
 db/
 backups/
 
+# Runtime uploads (user-uploaded images — must not be committed)
+/upload/
+
 # Z.ai artifacts
 _archive/
 download/

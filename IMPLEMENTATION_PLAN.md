@@ -5,7 +5,7 @@
 >
 > **Status legend:** `[x]` done · `[~]` in progress · `[ ]` todo · `[!]` blocked · `[-]` skipped/deferred
 
-Last updated: 2026-08-29 (Phase 3 complete, 2B next)
+Last updated: 2026-08-29 (Phase 2B complete — all money now in integer cents)
 
 ---
 
@@ -83,7 +83,17 @@ The 4 conditions (art. 286-I-3° bis CGI, BOI-TVA-DECLA-30-10-30): **I**naltéra
   - [x] **2g** Validation: `checkoutSchema` superRefine requires `customerId` for LIVRAISON; `update-images` now uses Zod.
   - [x] **2h** Defensive parsing: `receipt.ts` JSON.parse wrapped in try/catch; `csv-export.ts` LIVRAISON label fixed.
   - **2A check**: lint 0 errors · tsc exit 0 · 69 tests pass.
-- [ ] **2B** Integer-cents migration — **DEFERRED to after Phase 3** (test coverage needed as safety net first). Float + round2 mitigation is tolerable for a single restaurant in the interim.
+- [x] **2B** Integer-cents migration — COMPLETE (commit `720660a`). All money stored and computed as INTEGER CENTS end-to-end:
+  - Schema: every Float money column → Int (cents) across Product/OptionChoice/AddOn/CategoryOptionChoice/CategoryAddOn/Shift/Order/OrderItem/Payment/Refund/ZReport/GrandTotal/MonthlyClose/AnnualClose.
+  - `money.ts`: `splitVat`/`addToVatBreakdown` operate in cents (integer arithmetic, no float drift); `sum2` is a plain integer sum; `round2` retained for the euros display boundary only.
+  - `format.ts`: `formatEuro(cents)` divides by 100 — single display-boundary conversion point.
+  - `reports.ts` + `fiscal.ts`: calc paths in cents; pro-rata scaling rounds to nearest cent.
+  - `orders/route.ts`: checkout calc in cents (server-authoritative); payment exact-cover check in cents; receipt snapshot + fiscal event + grand total in cents.
+  - `validation.ts`: all price Zod schemas require `z.number().int()` (product, addon, option, payment, refund, shift, checkout).
+  - Frontend: `cart-store` math in cents; discount/payment/shifts dialogs convert euros↔cents at the boundary; products/categories views convert at load/submit; `Money`/`formatEuro` display cents unchanged.
+  - Seed data converted to cents (e.g. Double Cheese 7.5→750); fresh baseline migration `20260829112122_init_integer_cents` (old migrations dropped — v0 reset).
+  - Tests: `money.test.ts`, `cart-store*.test.ts`, `validation.test.ts`, `fiscal.test.ts`, `receipt.test.ts` (snapshot regenerated) all updated to cents. 105 tests pass.
+  - **2B-check**: lint 0 errors · tsc exit 0 · 105 tests pass.
 
 ---
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 import type { ProductDto, AddOnDto } from "@/types/api";
 
 export type CartOption = {
@@ -64,14 +65,16 @@ type CartState = {
   deleteHeld: (id: string) => void;
 };
 
-export const useCartStore = create<CartState>((set) => ({
-  items: [],
-  orderType: "DINE_IN",
-  tableLabel: "",
-  customerId: null,
-  discountTotal: 0,
-  notes: "",
-  heldOrders: [],
+export const useCartStore = create<CartState>()(
+  persist(
+    (set) => ({
+      items: [],
+      orderType: "DINE_IN",
+      tableLabel: "",
+      customerId: null,
+      discountTotal: 0,
+      notes: "",
+      heldOrders: [],
   addItem: (item) =>
     set((s) => {
       // Merge identical lines (same product + same options + same addons + same notes)
@@ -165,7 +168,24 @@ export const useCartStore = create<CartState>((set) => ({
     }),
   deleteHeld: (id) =>
     set((s) => ({ heldOrders: s.heldOrders.filter((h) => h.id !== id) })),
-}));
+    }),
+    {
+      name: "hibapos-cart",
+      // Persist the in-progress sale + held orders so a page reload or
+      // browser restart doesn't wipe them. Exclude nothing — all fields
+      // are small and user-relevant.
+      partialize: (s) => ({
+        items: s.items,
+        orderType: s.orderType,
+        tableLabel: s.tableLabel,
+        customerId: s.customerId,
+        discountTotal: s.discountTotal,
+        notes: s.notes,
+        heldOrders: s.heldOrders,
+      }),
+    },
+  ),
+);
 
 export function recalculateUnitPrice(
   item: CartItem,

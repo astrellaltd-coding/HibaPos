@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/dialog";
 
 export function PosView() {
-  const { setView, posSearch: search, setPosSearch: setSearch } = useAppStore();
+  const { setView, posSearch: search } = useAppStore();
   const { addItem, items, orderType, setOrderType, holdCurrent, heldOrders } = useCartStore();
   const [activeCategory, setActiveCategory] = useState<string>("all");
   const [activeSubCategory, setActiveSubCategory] = useState<string | null>(null);
@@ -435,7 +435,6 @@ const ProductCard = memo(function ProductCard({ product, onClick }: { product: P
   );
 });
 // `React.memo` default — re-render only when `product` or `onClick` change.
-const ProductCardMemo = ProductCard;
 
 function ShiftHint({ onClick }: { onClick: () => void }) {
   const { data: shift } = useQuery({

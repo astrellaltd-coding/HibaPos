@@ -3,7 +3,6 @@ import { writeFile, mkdir } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
 import { withAuth } from "@/lib/api-handler";
-import { randomBytes } from "crypto";
 
 const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads");
 const MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB

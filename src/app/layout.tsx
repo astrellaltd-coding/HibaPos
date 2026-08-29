@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Caveat } from "next/font/google";
 import "./globals.css";
-import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { Providers } from "@/components/providers";
 
@@ -41,7 +40,6 @@ export default function RootLayout({
       >
         <Providers>
           {children}
-          <Toaster />
           <SonnerToaster richColors position="top-center" />
         </Providers>
       </body>

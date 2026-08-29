@@ -256,7 +256,7 @@ model Table {
   sortOrder      Int         @default(0)
   active         Boolean     @default(true)
   notes          String?
-  currentOrderId String?     // link to active order when occupied
+  currentOrderId String?     // link to active order when occupied — plain id, NO FK (intentional: avoids circular FK with Order; integrity maintained by the app clearing currentOrderId when a table is freed)
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 
@@ -399,9 +399,9 @@ model Refund {
   orderId   String
   amount    Int // cents
   reason    String
-  approvedById String? // manager who approved the refund
+  approvedById String? // manager who approved the refund — plain id, NO FK (intentional: approver may be deleted via soft-delete, refund must survive intact)
   cashierId String
-  shiftId   String?  // the shift that issued the refund — FK omitted intentionally (= order.shiftId when valid, see refund route)
+  shiftId   String?  // the shift that issued the refund — plain id, NO FK (intentional: = order.shiftId when valid; FK omitted so a shift can be hard-deleted without blocking refund history)
   method    PaymentMethod? // refund channel; null on legacy rows; reports treat null as CASH for backward-compat
   fiscalEventId String? // link to the FiscalEvent (REMBOURSEMENT/ANNULATION) journal entry (plain id, no FK)
   createdAt DateTime @default(now())

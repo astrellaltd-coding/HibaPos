@@ -13,14 +13,14 @@ used during dev / DB repair. Safe to delete after running.
 | `inspect-db.ts` | Prints table counts and recent rows — debugging utility for the operator. | `bunx tsx scripts/inspect-db.ts` |
 | `inspect-options.ts` | Prints each product's option groups + choices in a tabular view. | `bunx tsx scripts/inspect-options.ts` |
 | `inspect-product.ts` | Prints a single product's full graph (options, add-ons, category). | `bunx tsx scripts/inspect-product.ts <product-id>` |
-| `delete-products.js` | Mass-deletes products by name pattern. **No guard rails — use with caution; targets prod catalog.** | `node scripts/delete-products.js "<name-pattern>"` |
+| `fix-duplicate-product-options.ts` | Deletes product-level option groups that duplicate inherited category globals (has `--dry` mode). | `bunx tsx scripts/fix-duplicate-product-options.ts` |
+| `fix-fiscal-counter.ts` | Syncs `FiscalCounter` to actual `max(number)` of orders/shifts/zReports (fiscal-integrity repair). | `bunx tsx scripts/fix-fiscal-counter.ts` |
 
 ## Notes
 
 - These scripts import `@prisma/client` directly (not `src/lib/db`) so they
   don't pull Next.js server-only modules into a CLI context.
-- They're ignored by eslint (`eslint.config.mjs` → `ignores: ["scripts/**"]`)
-  and by vitest (`vitest.config.ts` → `src/**/*.test.ts` only).
+- They're ignored by eslint (`eslint.config.mjs` → `ignores: ["scripts/**"]`).
 - The replacement seed orchestrator is `prisma/seed.ts` invoked via
-  `npm run db:seed` (Prisma `db seed` command) — prefer that over
+  `bun run db:seed` (Prisma `db seed` command) — prefer that over
   `scripts/seed-users.ts` for first-boot or DB reset.

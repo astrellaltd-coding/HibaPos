@@ -6,7 +6,6 @@ import { api } from "@/lib/api-client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { Upload, Loader2, Search, X, Images, Folder } from "lucide-react";
 import { cn } from "@/lib/utils";
