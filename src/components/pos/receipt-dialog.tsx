@@ -8,44 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Printer, CheckCircle2, Download } from "lucide-react";
 import { formatDateTime, formatEuro } from "@/lib/format";
 import { downloadReceipt } from "@/lib/receipt";
+import { ORDER_TYPE_LABELS, PAYMENT_LABELS_FULL } from "@/lib/order-labels";
+import { safeParseOptions, safeParseAddOns } from "@/lib/order-parsers";
 import { useEffect } from "react";
-
-const METHOD_LABELS: Record<string, string> = {
-  CASH: "Espèces",
-  CARD: "Carte",
-  VOUCHER: "Bon / Ticket",
-};
-
-const ORDER_TYPE_LABELS: Record<OrderDto["orderType"], string> = {
-  DINE_IN: "Sur place",
-  TAKEAWAY: "À emporter",
-  LIVRAISON: "Livraison",
-};
 
 // Mirror orders-view.tsx safeParse helpers. Used to guard receipt rendering
 // against malformed server JSON (a single corrupt line item shouldn't crash
 // the entire modal).
-type ParsedOption = { group: string; choice: string };
-type ParsedAddOn = { name: string; price: number };
-function safeParseOptions(json: string | null): ParsedOption[] {
-  if (!json) return [];
-  try {
-    const v = JSON.parse(json);
-    return Array.isArray(v) ? (v as ParsedOption[]) : [];
-  } catch {
-    return [];
-  }
-}
-function safeParseAddOns(json: string | null): ParsedAddOn[] {
-  if (!json) return [];
-  try {
-    const v = JSON.parse(json);
-    return Array.isArray(v) ? (v as ParsedAddOn[]) : [];
-  } catch {
-    return [];
-  }
-}
-
 export function ReceiptDialog({
   order,
   open,
@@ -175,7 +144,7 @@ export function ReceiptDialog({
           {order.payments.map((p) => (
             <div key={p.id}>
               <div className="flex justify-between">
-                <span>{METHOD_LABELS[p.method] ?? p.method}</span>
+                <span>{PAYMENT_LABELS_FULL[p.method] ?? p.method}</span>
                 <span>{formatEuro(p.amount)}</span>
               </div>
               {p.method === "CASH" && (p.tendered ?? 0) > 0 && (

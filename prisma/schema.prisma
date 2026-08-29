@@ -32,7 +32,7 @@ model User {
   pinHash        String
   name           String
   role           UserRole  @default(MANAGER)
-  active         Boolean   @default(true)
+  active          Boolean   @default(true)
   failedAttempts Int       @default(0)
   lockedUntil    DateTime?
   lastLoginAt    DateTime?
@@ -47,8 +47,6 @@ model User {
   auditLogs      AuditLog[]
   backups        Backup[]   @relation("BackupBy")
   sessions       Session[]
-
-  @@index([username])
 }
 
 model Session {
@@ -86,7 +84,6 @@ model Category {
   optionGroups   CategoryOptionGroup[]
   addOns         CategoryAddOn[]
 
-  @@index([name])
   @@index([parentId])
 }
 
@@ -345,7 +342,6 @@ model Order {
   refunds  Refund[]
   receipt  Receipt?
 
-  @@index([number])
   @@index([createdAt])
   @@index([customerId])
   @@index([status])

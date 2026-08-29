@@ -15,12 +15,8 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Money } from "@/components/shared/money";
 import { formatEuro, formatDateTime, formatRelativeDateTime } from "@/lib/format";
+import { ORDER_TYPE_LABELS } from "@/lib/order-labels";
 
-const ORDER_TYPE_LABELS: Record<string, string> = {
-  DINE_IN: "Sur place",
-  TAKEAWAY: "À emporter",
-  LIVRAISON: "Livraison",
-};
 import {
   Phone,
   Mail,
@@ -244,7 +240,7 @@ export function CustomerDetailDialog({
                               {order.status === "COMPLETED" ? "Terminée" : "Remboursée"}
                             </Badge>
                             <span className="text-xs text-muted-foreground">
-                              {ORDER_TYPE_LABELS[order.orderType]}
+                              {ORDER_TYPE_LABELS[order.orderType as "DINE_IN" | "TAKEAWAY" | "LIVRAISON"]}
                               {order.tableLabel ? ` · ${order.tableLabel}` : ""}
                             </span>
                           </div>

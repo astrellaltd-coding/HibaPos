@@ -61,7 +61,7 @@ const DEFAULT_SIZES: SizeForm[] = [
 // VAT is generally 10% (handled via settings), except for bottled drinks (5.5%)
 
 function productToSizes(product: ProductDto): SizeForm[] | null {
-  const opts = product.productOptions ?? product.options;
+  const opts = product.options;
   const tg = opts.find((g) => g.name === SIZE_GROUP_NAME);
   if (!tg || tg.choices.length < 2) return null;
   const pickupBase = product.pickupPrice ?? 0;
@@ -358,7 +358,7 @@ function ProductFormDialog({
 
   // Other option groups (excluding "Taille")
   const [groups, setGroups] = useState<GroupForm[]>(
-    (product?.productOptions ?? product?.options ?? [])
+    (product?.options ?? [])
       .filter((g: OptionGroupDto) => g.name !== SIZE_GROUP_NAME)
       .map((g: OptionGroupDto) => ({
         name: g.name,

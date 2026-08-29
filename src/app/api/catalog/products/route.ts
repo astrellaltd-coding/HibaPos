@@ -147,7 +147,6 @@ function serialize(p: ProductWithRelations): ProductDto {
     inheritCategoryGlobals: inheritGlobals,
     sortOrder: p.sortOrder,
     options: [...categoryOptions, ...productOptions],
-    productOptions: productOptions,
     addOns: [...categoryAddOns, ...productAddOns],
     category: p.category
       ? { id: p.category.id, name: p.category.name, color: p.category.color }

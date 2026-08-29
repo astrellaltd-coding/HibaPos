@@ -85,7 +85,6 @@ export type ProductDto = {
   inheritCategoryGlobals: boolean;
   sortOrder: number;
   options: OptionGroupDto[];
-  productOptions?: OptionGroupDto[];
   addOns: AddOnDto[];
   category?: { id: string; name: string; color: string };
 };
@@ -271,6 +270,10 @@ export type BackupDto = {
   id: string;
   filename: string;
   size: number;
+  checksum: string | null; // SHA-256 of plaintext (integrity verification)
+  encrypted: boolean; // AES-256-GCM at-rest encryption flag
+  sizeBytes: number | null; // size after encryption
+  imagesPath: string | null; // path to included uploads archive (if any)
   createdAt: string;
   createdBy?: { name: string } | null;
 };

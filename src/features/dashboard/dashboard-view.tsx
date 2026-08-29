@@ -41,12 +41,7 @@ import {
   Legend,
 } from "recharts";
 import { cn } from "@/lib/utils";
-
-const PAYMENT_LABELS: Record<string, string> = {
-  CASH: "Espèces",
-  CARD: "Carte",
-  VOUCHER: "Bon",
-};
+import { PAYMENT_LABELS } from "@/lib/order-labels";
 
 const PAYMENT_COLORS: Record<string, string> = {
   CASH: "var(--chart-1)",

@@ -56,6 +56,8 @@ import {
 import { useCartStore } from "@/store/cart-store";
 import { useAppStore } from "@/store/app-store";
 import { downloadReceipt } from "@/lib/receipt";
+import { PAYMENT_LABELS, ORDER_TYPE_LABELS } from "@/lib/order-labels";
+import { safeParseOptions, safeParseAddOns } from "@/lib/order-parsers";
 import { ManagerApprovalDialog, type ApprovedManager } from "@/components/pos/manager-approval-dialog";
 import type { SettingsDto } from "@/types/api";
 // uuid replaced with built-in crypto.randomUUID()
@@ -77,12 +79,6 @@ type DetailedOrderDto = OrderDto & {
 };
 
 type StatusFilter = "ALL" | "COMPLETED" | "REFUNDED";
-
-const PAYMENT_LABELS: Record<string, string> = {
-  CASH: "Espèces",
-  CARD: "Carte",
-  VOUCHER: "Bon",
-};
 
 function paymentIcon(method: string) {
   switch (method) {
@@ -125,12 +121,6 @@ function paymentBadge(method: string) {
   );
 }
 
-const ORDER_TYPE_LABELS: Record<OrderDto["orderType"], string> = {
-  DINE_IN: "Sur place",
-  TAKEAWAY: "À emporter",
-  LIVRAISON: "Livraison",
-};
-
 function orderTypeBadge(orderType: OrderDto["orderType"]) {
   const Icon = orderType === "DINE_IN" ? Utensils : orderType === "LIVRAISON" ? MapPin : ShoppingBag;
   const styles: Record<OrderDto["orderType"], string> = {
@@ -143,29 +133,6 @@ function orderTypeBadge(orderType: OrderDto["orderType"]) {
       <Icon className="h-3 w-3" /> {ORDER_TYPE_LABELS[orderType]}
     </Badge>
   );
-}
-
-type ParsedOption = { group: string; choice: string; priceModifier?: number };
-type ParsedAddOn = { id?: string | null; name: string; price: number };
-
-function safeParseOptions(json: string | null): ParsedOption[] {
-  if (!json) return [];
-  try {
-    const v = JSON.parse(json);
-    return Array.isArray(v) ? (v as ParsedOption[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-function safeParseAddOns(json: string | null): ParsedAddOn[] {
-  if (!json) return [];
-  try {
-    const v = JSON.parse(json);
-    return Array.isArray(v) ? (v as ParsedAddOn[]) : [];
-  } catch {
-    return [];
-  }
 }
 
 export function OrdersView() {

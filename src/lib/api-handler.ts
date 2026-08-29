@@ -1,14 +1,14 @@
 // Helpers for building authenticated API route handlers.
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import type { SessionPayload } from "@/lib/auth";
+import type { SessionPayload, AuthUser } from "@/lib/auth";
 import type { Role } from "@/types/api";
 
 export type RequestContext = { params: Promise<Record<string, string | string[]>> };
 
 export type AuthContext = {
   session: SessionPayload;
-  user: { id: string; username: string; name: string; role: Role; active: boolean };
+  user: AuthUser;
 };
 
 type Handler<T> = (req: NextRequest, ctx: AuthContext) => Promise<T>;
@@ -23,13 +23,11 @@ export function withAuth<T>(
     if (!session) {
       return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
     }
-    // getSession already fetched + verified the user (active, not locked).
-    // Reuse it instead of a second db.user.findUnique per request.
     const user = session.user;
     if (options?.roles && !options.roles.includes(user.role as Role)) {
       return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
     }
-    return handler(req, { session, user: { id: user.id, username: user.username, name: user.name, role: user.role as Role, active: user.active } });
+    return handler(req, { session, user });
   };
 }
 
@@ -52,7 +50,7 @@ export function withAuthParams<T>(
     for (const [k, v] of Object.entries(rawParams)) {
       params[k] = Array.isArray(v) ? v[0] : v;
     }
-    return handler(req, { session, user: { id: user.id, username: user.username, name: user.name, role: user.role as Role, active: user.active }, params });
+    return handler(req, { session, user, params });
   };
 }
 

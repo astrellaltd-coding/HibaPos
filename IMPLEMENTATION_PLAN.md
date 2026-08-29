@@ -5,7 +5,7 @@
 >
 > **Status legend:** `[x]` done · `[~]` in progress · `[ ]` todo · `[!]` blocked · `[-]` skipped/deferred
 
-Last updated: 2026-08-29 (Phases 0–4 complete; Phases 6–12 planned for remaining/deferred work, excluding Tauri/Phase 5)
+Last updated: 2026-08-29 (Phase 6 complete)
 
 ---
 
@@ -133,18 +133,19 @@ Planned approach (when resumed): Tauri v2 shell, Next.js `output: "standalone"` 
 
 ---
 
-## Phase 6 — Correctness & API hardening
+## Phase 6 — Correctness & API hardening — ✅ COMPLETE
 
 Findings from the deep API analysis that weren't in the original plan but are real issues. None are acute data-breach risks in the intended single-tenant behind-Caddy deployment, but each should be closed.
 
-- [ ] **6a** **`orders` GET `status` cast without validation** — `src/app/api/orders/route.ts:65` casts `?status=` to the Prisma enum; an invalid value throws `PrismaClientValidationError` → **500** instead of a clean 400. Validate against the enum first.
-- [ ] **6b** **`media` DELETE missing Zod** — `src/app/api/media/route.ts` uses a manual `typeof string` + path-traversal check (careful but inconsistent). Add a Zod schema for parity with the rest of the codebase.
-- [ ] **6c** **`reports/x` + `reports/z` POST missing Zod** — manual `typeof` checks. Add Zod for consistency (`shiftId: z.string()`, `closingFloat: z.number().int().min(0)`).
-- [ ] **6d** **`clientIp()` trusts `X-Forwarded-For` blindly** — `src/lib/http-rate-limit.ts:7` takes the first XFF value. Safe behind Caddy (which overwrites XFF) but if ever exposed directly, an attacker rotates IPs to bypass rate limits. Document the Caddy requirement OR parse `X-Real-IP` first.
-- [ ] **6e** **Double DB user-lookup per authed request** — `getSession()` does `db.user.findUnique` (active/locked recheck) then `withAuth`/`withAuthParams` does it again. Have `getSession` return the user and reuse it (free optimization, ~50% fewer DB queries on authed routes).
-- [ ] **6f** **`approvals.ts` `consumed` Set lost on restart** — the single-use enforcement is in-memory; a token can be replayed once after a process restart within its 60s TTL. Persist `consumed` to the DB (or accept the small window with a documented note).
-- [ ] **6g** **`settings.ts` `saveSettings` write amplification** — upserts every key of the merged object, even unchanged ones. Diff against current and write only changed keys.
-- [ ] **6h** **`audit()` swallows all errors** — correct (audit must never break the main flow) but means audit failures are silent. Add a `logTechnical("ERROR", ...)` alongside the `console.error` so failures surface in the technical log view.
+- [x] **6a** **`orders` GET `status` cast without validation** — added a Zod enum check (`COMPLETED`/`REFUNDED`/`CANCELLED`/`PENDING`) before the cast; an invalid value now returns **400** instead of `PrismaClientValidationError` → 500.
+- [x] **6b** **`media` DELETE missing Zod** — added `z.object({ url: z.string().min(1) })` schema replacing the manual `typeof string` check.
+- [x] **6c** **`reports/x` + `reports/z` POST missing Zod** — added Zod schemas (`shiftId: z.string().min(1)`, `closingFloat: z.number().int().min(0)` for Z) replacing the manual `typeof` checks.
+- [x] **6d** **`clientIp()` trusts `X-Forwarded-For` blindly** — now prefers `X-Real-IP` (set by Caddy in the approved serving model) and falls back to the first XFF hop only when X-Real-IP is absent. Documented the Caddy requirement.
+- [x] **6e** **Double DB user-lookup per authed request** — `getSession()` now fetches the user once and attaches it to the return as `SessionWithUser`; `withAuth`/`withAuthParams` reuse `session.user` instead of re-querying. Eliminates ~50% of the DB user queries on authed routes. (Also simplified `api/seed/route.ts` to use `session.user.role`.)
+- [x] **6f** **`approvals.ts` `consumed` Set lost on restart** — documented the accepted trade-off (in-memory `consumed` lost on restart → a token can be replayed once within its 60s TTL; acceptable for single-tenant local-POS with rare operator-initiated restarts; persist to DB if ever multi-instance/resold).
+- [x] **6g** **`settings.ts` `saveSettings` write amplification** — now diffs against current and upserts only the changed keys.
+- [x] **6h** **`audit()` swallows all errors** — now calls `logTechnical("ERROR", ...)` alongside `console.error` so silent audit failures surface in the technical log view (SUPER_ADMIN).
+- [x] **6-check** Lint 0 errors / 0 warnings · tsc exit 0 · 105 tests pass.
 
 ---
 
