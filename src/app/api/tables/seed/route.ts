@@ -24,10 +24,13 @@ export const POST = withAuth(async (_req, { user }) => {
     { label: "T8", seats: 8, zone: "Terrasse", sortOrder: 8 },
   ];
 
-  for (const t of defaultTables) {
-    await db.table.create({ data: t });
-  }
+  // Atomic seed — all-or-nothing.
+  await db.$transaction(async (tx) => {
+    for (const t of defaultTables) {
+      await tx.table.create({ data: t });
+    }
+  });
 
   await audit("TABLES_SEEDED", "Table", null, { count: defaultTables.length }, user.id);
   return NextResponse.json({ ok: true, created: defaultTables.length });
-});
+}, { roles: ["SUPER_ADMIN", "MANAGER"] });

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { withAuthParams, parseJson } from "@/lib/api-handler";
-import { hashPin } from "@/lib/auth";
+import { hashPin, revokeAllUserSessions } from "@/lib/auth";
 import { z } from "zod";
 import { audit } from "@/lib/services/audit";
 
@@ -33,6 +33,11 @@ export const PUT = withAuthParams(async (req, { user, params }) => {
     data,
     select: { id: true, username: true, name: true, role: true, active: true, createdAt: true },
   });
+  // Revoke all sessions for this user if deactivated or PIN changed — the
+  // signed cookie alone would otherwise remain valid for its full 12h TTL.
+  if (parsed.data.active === false || parsed.data.pin) {
+    await revokeAllUserSessions(params.id);
+  }
   await audit("USER_UPDATED", "User", updated.id, { fields: Object.keys(data) }, user.id);
   return NextResponse.json(updated);
 });
@@ -55,6 +60,8 @@ export const DELETE = withAuthParams(async (_req, { user, params }) => {
     where: { id: params.id },
     data: { active: false },
   });
+  // Revoke all active sessions for the deactivated user.
+  await revokeAllUserSessions(params.id);
   await audit("USER_DEACTIVATED", "User", params.id, { username: target?.username }, user.id);
   return NextResponse.json({ ok: true });
 });

@@ -16,9 +16,6 @@ const updateSchema = z.object({
 });
 
 export const PUT = withAuthParams(async (req, { user, params }) => {
-  if (user.role !== "SUPER_ADMIN") {
-    return NextResponse.json({ error: "Réservé au super administrateur" }, { status: 403 });
-  }
   const body = await parseJson(req);
   const parsed = updateSchema.safeParse(body);
   if (!parsed.success) {
@@ -30,10 +27,10 @@ export const PUT = withAuthParams(async (req, { user, params }) => {
 });
 
 export const DELETE = withAuthParams(async (_req, { user, params }) => {
-  if (user.role !== "SUPER_ADMIN") {
-    return NextResponse.json({ error: "Réservé au super administrateur" }, { status: 403 });
+  if (user.role !== "SUPER_ADMIN" && user.role !== "MANAGER") {
+    return NextResponse.json({ error: "Réservé au manager" }, { status: 403 });
   }
   await db.table.delete({ where: { id: params.id } });
   await audit("TABLE_DELETED", "Table", params.id, null, user.id);
   return NextResponse.json({ ok: true });
-});
+}, { roles: ["SUPER_ADMIN", "MANAGER"] });

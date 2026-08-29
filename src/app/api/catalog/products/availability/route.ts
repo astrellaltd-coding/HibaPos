@@ -11,23 +11,24 @@ const schema = z.object({
 });
 
 export const POST = withAuth(async (req, { user }) => {
-  if (user.role !== "SUPER_ADMIN") {
-    return NextResponse.json({ error: "Réservé au super administrateur" }, { status: 403 });
-  }
   const body = await parseJson(req);
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: "Format invalide" }, { status: 400 });
   }
 
-  let updated = 0;
-  for (const u of parsed.data.updates) {
-    const result = await db.product.updateMany({
-      where: { id: u.id },
-      data: { available: u.available },
-    });
-    updated += result.count;
-  }
+  // Atomic bulk toggle — all-or-nothing (prevents partial updates on failure).
+  const updated = await db.$transaction(async (tx) => {
+    let count = 0;
+    for (const u of parsed.data.updates) {
+      const result = await tx.product.updateMany({
+        where: { id: u.id },
+        data: { available: u.available },
+      });
+      count += result.count;
+    }
+    return count;
+  });
 
   await audit(
     "PRODUCT_AVAILABILITY_UPDATED",
@@ -38,7 +39,7 @@ export const POST = withAuth(async (req, { user }) => {
   );
 
   return NextResponse.json({ ok: true, updated });
-});
+}, { roles: ["SUPER_ADMIN", "MANAGER"] });
 
 // Get products that are currently out of stock (unavailable).
 export const GET = withAuth(async () => {

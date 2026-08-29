@@ -31,12 +31,20 @@ export function renderReceipt(order: OrderDto, settings?: Partial<SettingsDto>):
   for (const item of order.items) {
     lines.push(leftRight(`${item.quantity}× ${item.productName}`, formatEuro(item.lineTotal)));
     if (item.optionsJson) {
-      const opts = JSON.parse(item.optionsJson) as { group: string; choice: string }[];
-      for (const o of opts) lines.push(`  · ${o.choice}`);
+      try {
+        const opts = JSON.parse(item.optionsJson) as { group: string; choice: string }[];
+        for (const o of opts) lines.push(`  · ${o.choice}`);
+      } catch {
+        lines.push("  · (options illisibles)");
+      }
     }
     if (item.addOnsJson) {
-      const adds = JSON.parse(item.addOnsJson) as { name: string; price: number }[];
-      for (const a of adds) lines.push(`  + ${a.name} (${formatEuro(a.price)})`);
+      try {
+        const adds = JSON.parse(item.addOnsJson) as { name: string; price: number }[];
+        for (const a of adds) lines.push(`  + ${a.name} (${formatEuro(a.price)})`);
+      } catch {
+        lines.push("  + (suppléments illisibles)");
+      }
     }
   }
 

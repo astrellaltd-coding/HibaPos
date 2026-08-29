@@ -1,7 +1,7 @@
 // Auth utilities: PIN hashing (scrypt) and signed session cookies.
 // Server-only module.
 
-import { randomBytes, scryptSync, timingSafeEqual } from "crypto";
+import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from "crypto";
 import { createHmac } from "crypto";
 import { cookies } from "next/headers";
 import { db } from "@/lib/db";
@@ -21,13 +21,19 @@ if (SESSION_SECRET.length < 32) {
   );
 }
 
+// Scrypt parameters — OWASP 2024 recommended (N=2^17, r=8, p=1). The default
+// (N=2^14) is too weak for a 6-digit PIN keyspace (10^6); with N=2^17 an
+// offline brute-force of the full PIN space from a stolen DB takes hours
+// instead of seconds. maxmem must be raised to accommodate the larger N.
+const SCRYPT_OPTS = { N: 1 << 17, r: 8, p: 1, maxmem: 1 << 30 } as const;
+
 // ---------------------------------------------------------------------------
 // PIN hashing
 // ---------------------------------------------------------------------------
 
 export function hashPin(pin: string): string {
   const salt = randomBytes(16).toString("hex");
-  const hash = scryptSync(pin, salt, 64).toString("hex");
+  const hash = scryptSync(pin, salt, 64, SCRYPT_OPTS).toString("hex");
   return `${salt}:${hash}`;
 }
 
@@ -35,16 +41,17 @@ export function verifyPin(pin: string, stored: string): boolean {
   const [salt, hash] = stored.split(":");
   if (!salt || !hash) return false;
   const hashBuf = Buffer.from(hash, "hex");
-  const testBuf = scryptSync(pin, salt, 64);
+  const testBuf = scryptSync(pin, salt, 64, SCRYPT_OPTS);
   if (hashBuf.length !== testBuf.length) return false;
   return timingSafeEqual(hashBuf, testBuf);
 }
 
 // ---------------------------------------------------------------------------
-// Signed session cookie
+// Signed session cookie + server-side session rows (revocation)
 // ---------------------------------------------------------------------------
 
 export type SessionPayload = {
+  sessionId: string; // links to the Session table row (per-session revocation)
   userId: string;
   username: string;
   role: string;
@@ -80,8 +87,10 @@ function decodeSession(token: string): SessionPayload | null {
   }
 }
 
-export async function createSession(payload: Omit<SessionPayload, "exp">): Promise<void> {
-  const token = encodeSession({ ...payload, exp: Date.now() + SESSION_TTL_MS });
+export async function createSession(payload: Omit<SessionPayload, "exp" | "sessionId">): Promise<void> {
+  const sessionId = randomUUID();
+  const exp = Date.now() + SESSION_TTL_MS;
+  const token = encodeSession({ ...payload, sessionId, exp });
   const store = await cookies();
   // Cookie `secure` flag: default SECURE (safe for production HTTPS). Only
   // when APP_URL explicitly declares plain http:// (Tauri webview, Caddy :81
@@ -97,6 +106,17 @@ export async function createSession(payload: Omit<SessionPayload, "exp">): Promi
     path: "/",
     maxAge: SESSION_TTL_MS / 1000,
   });
+  // Persist the server-side session row so it can be revoked individually
+  // (logout, admin force-logout, PIN change). The signed cookie alone was
+  // valid for its full 12h TTL with no per-session revocation before this.
+  await db.session.create({
+    data: {
+      id: sessionId,
+      userId: payload.userId,
+      expiresAt: new Date(exp),
+      device: store.get("user-agent")?.value?.slice(0, 120) ?? null,
+    },
+  });
 }
 
 export async function getSession(): Promise<SessionPayload | null> {
@@ -105,6 +125,15 @@ export async function getSession(): Promise<SessionPayload | null> {
   if (!token) return null;
   const payload = decodeSession(token);
   if (!payload) return null;
+  // Check the server-side session row exists and is not expired — this is
+  // the revocation point: deleting the row (logout / revokeAllUserSessions)
+  // invalidates the cookie even before its 12h expiry.
+  const sessionRow = await db.session.findUnique({
+    where: { id: payload.sessionId },
+    select: { expiresAt: true },
+  });
+  if (!sessionRow) return null; // revoked
+  if (sessionRow.expiresAt < new Date()) return null; // expired
   // Verify the user is still active (cookie may outlive deactivation)
   const user = await db.user.findUnique({
     where: { id: payload.userId },
@@ -112,12 +141,26 @@ export async function getSession(): Promise<SessionPayload | null> {
   });
   if (!user || !user.active) return null;
   if (user.lockedUntil && user.lockedUntil > new Date()) return null;
+  // Touch lastActivityAt (sliding activity tracker). Best-effort, non-blocking.
+  db.session.update({ where: { id: payload.sessionId }, data: { lastActivityAt: new Date() } }).catch(() => {});
   return payload;
 }
 
 export async function destroySession(): Promise<void> {
   const store = await cookies();
+  const token = store.get(SESSION_COOKIE)?.value;
+  if (token) {
+    const payload = decodeSession(token);
+    if (payload) {
+      await db.session.deleteMany({ where: { id: payload.sessionId } }).catch(() => {});
+    }
+  }
   store.delete(SESSION_COOKIE);
+}
+
+/** Revoke every active session for a user (used on deactivation / PIN reset). */
+export async function revokeAllUserSessions(userId: string): Promise<void> {
+  await db.session.deleteMany({ where: { userId, expiresAt: { gt: new Date() } } }).catch(() => {});
 }
 
 export { SESSION_COOKIE };

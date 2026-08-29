@@ -167,6 +167,17 @@ export const checkoutSchema = z.object({
   payments: z.array(paymentSchema).min(1, "Au moins un paiement"),
   notes: z.string().max(500).optional().nullable(),
   discountTotal: z.number().min(0).default(0),
+}).superRefine((data, ctx) => {
+  // Livraison requires a customer with name + phone + address (art. 286 / French
+  // delivery regulation). The server route also enforces this, but declaring it
+  // here keeps the shared schema honest with its own stated contract.
+  if (data.orderType === "LIVRAISON" && !data.customerId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Un client est obligatoire pour une livraison.",
+      path: ["customerId"],
+    });
+  }
 });
 export type CheckoutInput = z.infer<typeof checkoutSchema>;
 

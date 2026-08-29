@@ -28,6 +28,7 @@ export async function computeShiftReport(shiftId: string): Promise<SalesReport> 
 
   let salesTotal = 0;
   let discountsTotal = 0;
+  let salesCount = 0;
   const vatBreakdown: VatBreakdown = {};
   const productAgg: Record<string, { name: string; quantity: number; total: number }> = {};
 
@@ -36,6 +37,9 @@ export async function computeShiftReport(shiftId: string): Promise<SalesReport> 
     // Skip orders that have refunds totaling the full amount.
     const orderRefundsTotal = order.refunds.reduce((acc, r) => acc + r.amount, 0);
     if (orderRefundsTotal >= order.total - 0.001) continue;
+
+    // This order counts toward salesCount (it's not fully refunded).
+    salesCount += 1;
 
     // Per-line scaling for partial refunds (cash/drawer reconciliation is
     // handled separately below via method-filtered refund sums; product/VAT
@@ -68,25 +72,23 @@ export async function computeShiftReport(shiftId: string): Promise<SalesReport> 
     }
   }
 
-  // Payments
+  // Payments — gross by method.
   const payments = orders.flatMap((o) => o.payments);
   const cashTotal = sum2(payments.filter((p) => p.method === "CASH").map((p) => p.amount));
   const cardTotal = sum2(payments.filter((p) => p.method === "CARD").map((p) => p.amount));
   const voucherTotal = sum2(payments.filter((p) => p.method === "VOUCHER").map((p) => p.amount));
 
-  // Cash drawer reconciliation: only CASH refunds reduce expected cash.
+  // Refunds by method — net each total so the report ties out cleanly.
   // Legacy rows with `method === null` are treated as CASH (preserves prior
   // behaviour for refunds issued before the method column existed).
   const refunds = orders.flatMap((o) => o.refunds);
   const cashRefundsTotal = sum2(
-    refunds
-      .filter((r) => r.method === "CASH" || r.method === null)
-      .map((r) => r.amount),
+    refunds.filter((r) => r.method === "CASH" || r.method === null).map((r) => r.amount),
   );
-  const _refundsTotal = sum2(refunds.map((r) => r.amount)); // total refunded across methods
+  const cardRefundsTotal = sum2(refunds.filter((r) => r.method === "CARD").map((r) => r.amount));
+  const voucherRefundsTotal = sum2(refunds.filter((r) => r.method === "VOUCHER").map((r) => r.amount));
 
   const vatTotal = round2(Object.values(vatBreakdown).reduce((acc, v) => acc + v.vat, 0));
-  const salesCount = orders.filter((o) => o.status === "COMPLETED").length;
   const expectedCash = round2(shift.openingFloat + cashTotal - cashRefundsTotal);
   const topProducts = Object.values(productAgg)
     .sort((a, b) => b.quantity - a.quantity)
@@ -97,9 +99,10 @@ export async function computeShiftReport(shiftId: string): Promise<SalesReport> 
     salesTotal,
     salesCount,
     vatTotal,
-    cashTotal,
-    cardTotal,
-    voucherTotal,
+    // Net each payment method by its own refunds so the report ties out.
+    cashTotal: round2(cashTotal - cashRefundsTotal),
+    cardTotal: round2(cardTotal - cardRefundsTotal),
+    voucherTotal: round2(voucherTotal - voucherRefundsTotal),
     discountsTotal,
     openingFloat: shift.openingFloat,
     expectedCash,

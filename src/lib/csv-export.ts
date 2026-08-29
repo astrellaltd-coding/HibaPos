@@ -81,7 +81,7 @@ export function exportDashboardCSV(data: DashboardDto): string {
     rows.push([
       o.number,
       formatDateTime(o.createdAt),
-      o.orderType === "DINE_IN" ? "Sur place" : "À emporter",
+      o.orderType === "DINE_IN" ? "Sur place" : o.orderType === "TAKEAWAY" ? "À emporter" : "Livraison",
       o.tableLabel ?? "",
       o.itemCount,
       formatEuro(o.total),

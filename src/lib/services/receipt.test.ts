@@ -134,10 +134,11 @@ describe("renderReceipt", () => {
         },
       ],
     };
-    // renderReceipt uses JSON.parse (fiscal path is server-authoritative;
-    // malformed data would be a DB corruption). The function should throw —
-    // but it's caught at the API route level. We just assert the throw
-    // happens so the receipt isn't silently broken.
-    expect(() => renderReceipt(malformed, baseSettings)).toThrow();
+    // Defensive parsing: a corrupted optionsJson column should NOT break
+    // receipt rendering/printing — the receipt degrades gracefully with a
+    // "(options illisibles)" placeholder line instead of throwing.
+    const text = renderReceipt(malformed, baseSettings);
+    expect(text).toContain("(options illisibles)");
+    expect(() => renderReceipt(malformed, baseSettings)).not.toThrow();
   });
 });
