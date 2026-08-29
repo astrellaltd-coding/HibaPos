@@ -72,7 +72,7 @@ async function deriveKey(secret: string, salt: Buffer): Promise<Buffer> {
 /** Encrypt a single input file → outputPath (buffered). Format:
  *   salt(16) || iv(12) || authTag(16) || ciphertext
  */
-async function encryptFile(
+export async function encryptFile(
   inputPath: string,
   outputPath: string,
   secret: string,
@@ -89,7 +89,7 @@ async function encryptFile(
 }
 
 /** Decrypt a file written by `encryptFile` (buffered). */
-async function decryptFile(
+export async function decryptFile(
   inputPath: string,
   outputPath: string,
   secret: string,

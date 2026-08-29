@@ -3,71 +3,18 @@ import { promises as fs } from "fs";
 import path from "path";
 import crypto from "crypto";
 import os from "os";
+import { encryptFile, decryptFile } from "@/lib/services/backup";
 
-// Backup service encrypt/decrypt round-trip + checksum validation tests.
-// Exercises the `encryptFile` and `decryptFile` helpers indirectly via
-// the public service surface — we test the file format round-trip in
-// isolation by directly invoking the internal helpers through a temp dir.
+// Backup service encrypt/decrypt round-trip tests.
+// Tests the REAL encryptFile/decryptFile helpers (exported from backup.ts),
+// not a parallel re-implementation. The production scrypt params (N=2^17)
+// make each test ~200ms slower but guarantee the actual code is exercised.
 
 process.env.BACKUP_ENCRYPTION_KEY =
   process.env.BACKUP_ENCRYPTION_KEY ??
   "test-backup-key-32-characters-or-more-0123456789";
-process.env.SESSION_SECRET =
-  process.env.SESSION_SECRET ??
-  "test-session-secret-32-characters-or-more-0123456789";
 
-// We can't import the internal encryptFile/decryptFile directly (not
-// exported), but we can exercise them via the public createBackup /
-// restoreBackup with a mocked DB. Instead, we test the encryption format
-// itself by re-implementing the I/O round-trip using the same algorithm
-// the backup service uses. This protects against regression if someone
-// changes the scrypt params or the header byte layout without bumping the
-// format.
-
-const SCRYPT_N = 1 << 14; // note: tests use weaker params for speed; production uses 1<<17
-const SCRYPT_R = 8;
-const SCRYPT_P = 1;
-const KEY_LEN = 32;
-const GCM_IV_LEN = 12;
-
-async function deriveKey(secret: string, salt: Buffer): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    crypto.scrypt(
-      secret,
-      salt,
-      KEY_LEN,
-      { N: SCRYPT_N, r: SCRYPT_R, p: SCRYPT_P },
-      (err, key) => (err ? reject(err) : resolve(key)),
-    );
-  });
-}
-
-async function encryptFile(inputPath: string, outputPath: string, secret: string): Promise<void> {
-  const salt = crypto.randomBytes(16);
-  const iv = crypto.randomBytes(GCM_IV_LEN);
-  const key = await deriveKey(secret, salt);
-  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
-  const input = await fs.readFile(inputPath);
-  const encrypted = Buffer.concat([cipher.update(input), cipher.final()]);
-  const authTag = cipher.getAuthTag();
-  const out = Buffer.concat([salt, iv, authTag, encrypted]);
-  await fs.writeFile(outputPath, out);
-}
-
-async function decryptFile(inputPath: string, outputPath: string, secret: string): Promise<void> {
-  const data = await fs.readFile(inputPath);
-  const salt = data.subarray(0, 16);
-  const iv = data.subarray(16, 16 + GCM_IV_LEN);
-  const tag = data.subarray(16 + GCM_IV_LEN, 16 + GCM_IV_LEN + 16);
-  const encrypted = data.subarray(16 + GCM_IV_LEN + 16);
-  const key = await deriveKey(secret, salt);
-  const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
-  decipher.setAuthTag(tag);
-  const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
-  await fs.writeFile(outputPath, decrypted);
-}
-
-describe("backup encrypt/decrypt file format", () => {
+describe("backup encrypt/decrypt (real helpers)", () => {
   const tmpDir = path.join(os.tmpdir(), `hibapos-backup-test-${Date.now()}`);
   const secret = process.env.BACKUP_ENCRYPTION_KEY!;
 
@@ -98,7 +45,6 @@ describe("backup encrypt/decrypt file format", () => {
     await fs.writeFile(plain, payload);
     await encryptFile(plain, enc, secret);
     const ciphertext = await fs.readFile(enc);
-    // The ciphertext should not contain the plaintext substring.
     expect(ciphertext.includes(payload)).toBe(false);
   });
 

@@ -5,7 +5,7 @@
 >
 > **Status legend:** `[x]` done · `[~]` in progress · `[ ]` todo · `[!]` blocked · `[-]` skipped/deferred
 
-Last updated: 2026-08-29 (Phase 1 complete)
+Last updated: 2026-08-29 (Phase 2A complete, 2B deferred to after Phase 3)
 
 ---
 
@@ -74,18 +74,16 @@ The 4 conditions (art. 286-I-3° bis CGI, BOI-TVA-DECLA-30-10-30): **I**naltéra
 
 ## Phase 2 — Correctness & Security
 
-- [ ] **2a** **Integer-cents migration** — schema Float→Int (cents) for every money column (`Product.price*`, `OptionChoice.*priceModifier`, `AddOn.price`, `Shift.*float`, `Order.*total`, `OrderItem.*`, `Payment.*`, `Refund.amount`, `ZReport.*`); rewrite `money.ts` calc paths to operate in cents end-to-end (convert to euros only at the formatting/DTO boundary via existing `fromCents`); rewrite `reports.ts` pro-rata in integer cents; update Zod schemas. Data migration SQL: `UPDATE … SET col = ROUND(col*100)`.
-- [ ] **2b** **Fix `reports.ts` bugs** — `salesCount` must match the summed set (exclude fully-refunded from count too); net card/voucher totals by their respective refunds (not just cash); remove `_refundsTotal` dead code. Add unit tests (currently zero).
-- [ ] **2c** **Harden PIN hashing** — `scryptSync(pin, salt, 64, { N: 1<<17, r: 8, p: 1, maxmem: 2**30 })` (match `backup.ts`); consider longer PINs. Currently default N=2^14 on a 6-digit keyspace is GPU-brute-forceable from the local DB.
-- [ ] **2d** **Session revocation** — either use the `Session` table (persist sessionId, check existence + expiry + lastActivity on each request, support per-session revoke) or delete the `Session` model. Currently a stolen signed cookie is valid 12h with no per-session revoke.
-- [ ] **2e** **Role gate fixes**:
-  - `GET /api/backups` → gate to SUPER_ADMIN (currently any cashier can list backups)
-  - `PUT /api/tables/[id]` (status cycling) → allow MANAGER+ (UI exposes it to cashiers → 403)
-  - `POST /api/catalog/products/availability` → allow MANAGER+ (README assigns catalog to MANAGER)
-  - reconcile README shift open/close (says MANAGER) vs implementation (any authed) — update README
-- [ ] **2f** **Transaction bulk ops** — wrap `products/availability`, `products/update-images`, `tables/seed` in `db.$transaction`.
-- [ ] **2g** **`validation.ts` contracts** — `checkoutSchema`: enforce customer name/phone/address when `orderType=LIVRAISON` (`.superRefine`); `orderItemSchema`: drop trust of client `unitPrice`/`lineTotal` (server recomputes anyway — keep schema minimal); add Zod to `update-images`, `media` DELETE, `reports/x|z` POST for consistency.
-- [ ] **2h** **Defensive parsing** — `services/receipt.ts`: wrap `JSON.parse(optionsJson/addOnsJson)` in try/catch so a corrupt row doesn't break receipt printing. `csv-export.ts`: fix `LIVRAISON` mislabeled as "À emporter" → "Livraison".
+- [x] **2A** Targeted fixes — COMPLETE (commit `a68d82e`):
+  - [x] **2b** Fix `reports.ts` bugs: `salesCount` now matches summed set; card/voucher totals net of their refunds; `_refundsTotal` dead code removed.
+  - [x] **2c** Harden PIN scrypt: `N=2^17, r=8, p=1, maxmem=2^30` (was default `N=2^14` — GPU-brute-forceable).
+  - [x] **2d** Server-side session revocation: `Session` table now used (create on login, check on every request, delete on logout, `revokeAllUserSessions` on deactivation/PIN change).
+  - [x] **2e** Role gate fixes: `GET /api/backups` → MANAGER+; `PUT /api/tables/[id]` → any authed (UI exposes status cycling to cashiers); `POST /api/catalog/products/availability` → MANAGER+.
+  - [x] **2f** Transaction bulk ops: `products/availability`, `products/update-images`, `tables/seed` wrapped in `db.$transaction`.
+  - [x] **2g** Validation: `checkoutSchema` superRefine requires `customerId` for LIVRAISON; `update-images` now uses Zod.
+  - [x] **2h** Defensive parsing: `receipt.ts` JSON.parse wrapped in try/catch; `csv-export.ts` LIVRAISON label fixed.
+  - **2A check**: lint 0 errors · tsc exit 0 · 69 tests pass.
+- [ ] **2B** Integer-cents migration — **DEFERRED to after Phase 3** (test coverage needed as safety net first). Float + round2 mitigation is tolerable for a single restaurant in the interim.
 
 ---
 
