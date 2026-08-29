@@ -73,3 +73,20 @@ export async function nextZReportNumber(tx: Tx): Promise<number> {
   });
   return updated.lastZReportNumber;
 }
+
+/** Next FiscalEvent journal sequence — atomic gapless increment inside a
+ *  Prisma transaction. Used by appendFiscalEvent to order the hash chain. */
+export async function nextFiscalEventSequence(tx: Tx): Promise<number> {
+  const updated = await tx.fiscalCounter.upsert({
+    where: { id: "singleton" },
+    create: {
+      id: "singleton",
+      lastReceiptNumber: 0,
+      lastShiftNumber: 0,
+      lastZReportNumber: 0,
+      lastFiscalEventSequence: 1,
+    },
+    update: { lastFiscalEventSequence: { increment: 1 } },
+  });
+  return updated.lastFiscalEventSequence;
+}

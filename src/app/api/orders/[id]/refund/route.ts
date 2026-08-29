@@ -4,6 +4,8 @@ import { withAuthParams, parseJson } from "@/lib/api-handler";
 import { refundSchema } from "@/lib/validation";
 import { round2 } from "@/lib/money";
 import { verifyApprovalToken, ApprovalError } from "@/lib/approvals";
+import { appendFiscalEvent, addRefundToGrandTotal } from "@/lib/services/fiscal";
+import { getSettings } from "@/lib/services/settings";
 import type { PaymentMethod } from "@prisma/client";
 
 /** In-transaction validation failure with an HTTP status. */
@@ -105,6 +107,7 @@ export const POST = withAuthParams(async (req, { user, params }) => {
   }
 
   let refund;
+  const settings = await getSettings();
   try {
     refund = await db.$transaction(async (tx) => {
     // Re-read refunds + order INSIDE the transaction: the pre-tx
@@ -183,6 +186,31 @@ export const POST = withAuthParams(async (req, { user, params }) => {
         }),
       },
     });
+
+    // --- Fiscal journal (JFP) — correction tracée (ISCA inaltérabilité) ---
+    // A refund is a contre-opération: it never erases the original ticket, it
+    // appends a new chained event. Full refund → ANNULATION, partial → REMBOURSEMENT.
+    const ev = await appendFiscalEvent(tx, {
+      type: fullyRefunded ? "ANNULATION" : "REMBOURSEMENT",
+      userId: user.id,
+      factice: settings.factice ?? false,
+      orderId: order.id,
+      refundId: r.id,
+      shiftId: order.shift?.id ?? null,
+      data: {
+        orderNumber: order.number,
+        refundId: r.id,
+        amount: parsed.data.amount,
+        reason: parsed.data.reason,
+        method: refundMethod,
+        cashierId: user.id,
+        approverId: refundApproverId,
+        totalRefunded,
+        fullyRefunded,
+      },
+    });
+    await tx.refund.update({ where: { id: r.id }, data: { fiscalEventId: ev.id } });
+    await addRefundToGrandTotal(tx, parsed.data.amount);
 
     return r;
     });

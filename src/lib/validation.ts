@@ -191,5 +191,6 @@ export const settingsSchema = z.object({
   receiptWidth: z.number().int().min(32).max(80).default(80),
   discountApprovalThreshold: z.number().min(0).max(100).default(20),
   autoPrint: z.boolean().default(false),
+  factice: z.boolean().default(false),
 });
 export type SettingsInput = z.infer<typeof settingsSchema>;

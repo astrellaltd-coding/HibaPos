@@ -2,6 +2,8 @@
 import { db } from "@/lib/db";
 import { round2, splitVat, addToVatBreakdown, sum2, type VatBreakdown } from "@/lib/money";
 import { nextZReportNumber } from "@/lib/services/sequence";
+import { appendFiscalEvent } from "@/lib/services/fiscal";
+import { getSettings } from "@/lib/services/settings";
 
 export type SalesReport = {
   salesTotal: number;
@@ -117,6 +119,7 @@ export async function generateZReport(shiftId: string, closingFloat: number, clo
 
   const report = await computeShiftReport(shiftId);
   const cashVariance = round2(closingFloat - report.expectedCash);
+  const settings = await getSettings();
 
   const z = await db.$transaction(async (tx) => {
     const number = await nextZReportNumber(tx);
@@ -152,6 +155,32 @@ export async function generateZReport(shiftId: string, closingFloat: number, clo
         salesCount: report.salesCount,
       },
     });
+
+    // --- Fiscal journal (JFP) — clôture journalière scellée (ISCA conservation) ---
+    const ev = await appendFiscalEvent(tx, {
+      type: "CLOTURE_Z",
+      userId: closedById,
+      factice: settings.factice ?? false,
+      zReportId: zReport.id,
+      shiftId,
+      data: {
+        zReportNumber: number,
+        shiftId,
+        salesTotal: report.salesTotal,
+        salesCount: report.salesCount,
+        vatTotal: report.vatTotal,
+        cashTotal: report.cashTotal,
+        cardTotal: report.cardTotal,
+        voucherTotal: report.voucherTotal,
+        discountsTotal: report.discountsTotal,
+        openingFloat: report.openingFloat,
+        expectedCash: report.expectedCash,
+        closingFloat,
+        cashVariance,
+      },
+    });
+    await tx.zReport.update({ where: { id: zReport.id }, data: { fiscalEventId: ev.id } });
+
     return zReport;
   });
 

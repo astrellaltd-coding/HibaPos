@@ -60,8 +60,8 @@ type VatRow = { ht: number; vat: number; ttc: number };
 function varianceTone(v: number) {
   if (v === 0) return "text-muted-foreground";
   return v > 0
-    ? "text-emerald-600 dark:text-emerald-400"
-    : "text-rose-600 dark:text-rose-400";
+    ? "text-emerald-600"
+    : "text-rose-600";
 }
 
 function varianceLabel(v: number) {
@@ -84,9 +84,9 @@ function Kpi({
     tone === "primary"
       ? "text-primary"
       : tone === "emerald"
-        ? "text-emerald-600 dark:text-emerald-400"
+        ? "text-emerald-600"
         : tone === "rose"
-          ? "text-rose-600 dark:text-rose-400"
+          ? "text-rose-600"
           : "text-foreground";
   return (
     <div className="rounded-xl border border-border bg-card p-4 shadow-sm">

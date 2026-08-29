@@ -148,6 +148,7 @@ export type OrderDto = {
   total: number;
   notes: string | null;
   itemCount: number;
+  fiscalEventId: string | null;
   createdAt: string;
   completedAt: string | null;
   refundedAt: string | null;
@@ -247,6 +248,7 @@ export type ZReportDto = {
   cashVariance: number;
   vatBreakdown: Record<string, { ht: number; vat: number; ttc: number }>;
   topProducts: { name: string; quantity: number; total: number }[];
+  fiscalEventId: string | null;
 };
 
 export type SettingsDto = {
@@ -262,6 +264,7 @@ export type SettingsDto = {
   receiptWidth: number;
   discountApprovalThreshold: number; // percent (e.g. 20 = 20%)
   autoPrint: boolean;
+  factice: boolean; // FACTICE / SIMULATION mode — stamps receipts + fiscal events
 };
 
 export type BackupDto = {
@@ -286,4 +289,106 @@ export type TableDto = {
   currentOrderId: string | null;
   createdAt: string;
   updatedAt: string;
+};
+
+// ---------------------------------------------------------------------------
+// Fiscal journal (JFP) — ISCA compliance (art. 286-I-3° bis CGI)
+// ---------------------------------------------------------------------------
+
+export type FiscalEventType =
+  | "VENTE"
+  | "ANNULATION"
+  | "REMBOURSEMENT"
+  | "CLOTURE_Z"
+  | "CLOTURE_M"
+  | "CLOTURE_A"
+  | "OUVERTURE_TIROIR"
+  | "REIMPRESSION"
+  | "SESSION_OPEN"
+  | "SESSION_CLOSE"
+  | "SESSION_LOCK"
+  | "ARCHIVE_GENEREE";
+
+export type FiscalEventDto = {
+  id: string;
+  sequence: number;
+  type: FiscalEventType;
+  orderId: string | null;
+  refundId: string | null;
+  zReportId: string | null;
+  shiftId: string | null;
+  closeId: string | null;
+  archiveId: string | null;
+  userId: string | null;
+  factice: boolean;
+  timestamp: string;
+  dataJson: string;
+  previousHash: string | null;
+  hash: string;
+};
+
+export type GrandTotalDto = {
+  totalSales: number;
+  totalOrders: number;
+  totalVat: number;
+  totalCash: number;
+  totalCard: number;
+  totalVoucher: number;
+  totalRefunded: number;
+  lastUpdatedAt: string | null;
+};
+
+export type MonthlyCloseDto = {
+  id: string;
+  period: string;
+  year: number;
+  month: number;
+  salesTotal: number;
+  salesCount: number;
+  vatTotal: number;
+  cashTotal: number;
+  cardTotal: number;
+  voucherTotal: number;
+  discountsTotal: number;
+  sealedAt: string;
+  sealedById: string;
+  previousHash: string | null;
+  hash: string;
+  fiscalEventId: string | null;
+};
+
+export type AnnualCloseDto = {
+  id: string;
+  period: string;
+  year: number;
+  salesTotal: number;
+  salesCount: number;
+  vatTotal: number;
+  cashTotal: number;
+  cardTotal: number;
+  voucherTotal: number;
+  discountsTotal: number;
+  sealedAt: string;
+  sealedById: string;
+  previousHash: string | null;
+  hash: string;
+  fiscalEventId: string | null;
+};
+
+export type FiscalArchiveDto = {
+  id: string;
+  year: number;
+  filename: string;
+  checksum: string;
+  sizeBytes: number;
+  generatedAt: string;
+  generatedById: string;
+  fiscalEventId: string | null;
+};
+
+export type FiscalChainStatus = {
+  ok: boolean;
+  eventsChecked: number;
+  firstBreakAt: number | null;
+  lastSequence: number;
 };

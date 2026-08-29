@@ -64,15 +64,15 @@ function varianceStyle(v: number | null | undefined) {
   }
   if (v > 0) {
     return {
-      cls: "text-emerald-600 dark:text-emerald-400",
+      cls: "text-emerald-600",
       label: "Excédent",
-      badge: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
+      badge: "bg-emerald-500/15 text-emerald-700",
     };
   }
   return {
-    cls: "text-rose-600 dark:text-rose-400",
+    cls: "text-rose-600",
     label: "Manquant",
-    badge: "bg-rose-500/15 text-rose-700 dark:text-rose-300",
+    badge: "bg-rose-500/15 text-rose-700",
   };
 }
 
@@ -266,7 +266,7 @@ export function ShiftsView() {
                       </TableCell>
                       <TableCell>
                         {s.status === "OPEN" ? (
-                          <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+                          <Badge className="bg-emerald-500/15 text-emerald-700">
                             Ouverte
                           </Badge>
                         ) : (
@@ -354,9 +354,9 @@ function Kpi({
     tone === "primary"
       ? "text-primary"
       : tone === "emerald"
-        ? "text-emerald-600 dark:text-emerald-400"
+        ? "text-emerald-600"
         : tone === "rose"
-          ? "text-rose-600 dark:text-rose-400"
+          ? "text-rose-600"
           : "text-foreground";
   return (
     <div className="rounded-xl border border-border bg-background p-4">
@@ -461,7 +461,7 @@ function OpenShiftCard({
     <section className="rounded-xl border-2 border-emerald-500/40 bg-emerald-500/5 p-5 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-start gap-4">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-600">
             <Clock className="h-5 w-5" />
           </div>
           <div>
@@ -469,7 +469,7 @@ function OpenShiftCard({
               <h2 className="text-base font-semibold text-foreground">
                 Caisse #{shift.number} — en cours
               </h2>
-              <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+              <Badge className="bg-emerald-500/15 text-emerald-700">
                 Ouverte
               </Badge>
             </div>
@@ -526,7 +526,7 @@ function OpenShiftCard({
       </div>
 
       {xError && (
-        <p className="mt-3 rounded-lg bg-rose-500/10 px-3 py-2 text-xs text-rose-700 dark:text-rose-300">
+        <p className="mt-3 rounded-lg bg-rose-500/10 px-3 py-2 text-xs text-rose-700">
           Impossible de charger le rapport X en temps réel.
         </p>
       )}
@@ -826,7 +826,7 @@ function ZReportSuccessDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+            <CheckCircle2 className="h-5 w-5 text-emerald-600" />
             Caisse clôturée — Rapport Z #{z.number}
           </DialogTitle>
           <DialogDescription>

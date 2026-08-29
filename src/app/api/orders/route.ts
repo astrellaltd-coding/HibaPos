@@ -5,7 +5,8 @@ import { z } from "zod";
 import { nextReceiptNumber } from "@/lib/services/sequence";
 import { renderReceipt } from "@/lib/services/receipt";
 import { getSettings } from "@/lib/services/settings";
-import { round2, addToVatBreakdown } from "@/lib/money";
+import { appendFiscalEvent, incrementGrandTotal } from "@/lib/services/fiscal";
+import { round2, addToVatBreakdown, sum2 } from "@/lib/money";
 import { verifyApprovalToken, ApprovalError } from "@/lib/approvals";
 
 // Server-authoritative checkout intent schema.
@@ -462,6 +463,39 @@ export const POST = withAuth(async (req, { user }) => {
         printStatus: "PENDING",
         reprintCount: 0,
       },
+    });
+
+    // --- Fiscal journal (JFP) — ISCA sécurisation/inaltérabilité ---
+    // Append a hash-chained VENTE event + update the perpetual grand total,
+    // atomically with the order so the journal can never desync from sales.
+    const payCash = sum2(payments.filter((p) => p.method === "CASH").map((p) => p.amount));
+    const payCard = sum2(payments.filter((p) => p.method === "CARD").map((p) => p.amount));
+    const payVoucher = sum2(payments.filter((p) => p.method === "VOUCHER").map((p) => p.amount));
+    const ev = await appendFiscalEvent(tx, {
+      type: "VENTE",
+      userId: user.id,
+      factice: settings.factice ?? false,
+      orderId: created.id,
+      shiftId: shift.id,
+      data: {
+        orderNumber: number,
+        total: totalAfterDiscount,
+        subtotal,
+        vatTotal,
+        discountTotal,
+        itemCount,
+        orderType,
+        payments: payments.map((p) => ({ method: p.method, amount: p.amount })),
+        cashierId: user.id,
+      },
+    });
+    await tx.order.update({ where: { id: created.id }, data: { fiscalEventId: ev.id } });
+    await incrementGrandTotal(tx, {
+      total: totalAfterDiscount,
+      vatTotal,
+      cash: payCash,
+      card: payCard,
+      voucher: payVoucher,
     });
 
     // Audit inside transaction

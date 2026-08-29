@@ -329,6 +329,7 @@ model Order {
   total          Float       @default(0) // TTC
   notes          String?
   itemCount      Int         @default(0)
+  fiscalEventId  String?     // link to the FiscalEvent (VENTE) journal entry (plain id, no FK by design)
   createdAt      DateTime    @default(now())
   completedAt    DateTime?
   refundedAt     DateTime?
@@ -400,6 +401,7 @@ model Refund {
   cashierId String
   shiftId   String?  // the shift that issued the refund — FK omitted intentionally (= order.shiftId when valid, see refund route)
   method    PaymentMethod? // refund channel; null on legacy rows; reports treat null as CASH for backward-compat
+  fiscalEventId String? // link to the FiscalEvent (REMBOURSEMENT/ANNULATION) journal entry (plain id, no FK)
   createdAt DateTime @default(now())
 
   order   Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
@@ -448,6 +450,7 @@ model ZReport {
   cashVariance     Float
   topProductsJson  String? // JSON snapshot
   vatBreakdownJson String? // {rate: {base, vat, ttc}}
+  fiscalEventId    String? // link to the FiscalEvent (CLOTURE_Z) journal entry (plain id, no FK)
 
   shift Shift @relation(fields: [shiftId], references: [id], onDelete: Restrict)
 }
@@ -457,10 +460,11 @@ model ZReport {
 // ---------------------------------------------------------------------------
 
 model FiscalCounter {
-  id                String @id @default("singleton")
-  lastReceiptNumber Int    @default(0)
-  lastShiftNumber   Int    @default(0)
-  lastZReportNumber Int    @default(0)
+  id                     String @id @default("singleton")
+  lastReceiptNumber      Int    @default(0)
+  lastShiftNumber        Int    @default(0)
+  lastZReportNumber      Int    @default(0)
+  lastFiscalEventSequence Int   @default(0) // gapless sequence for the FiscalEvent journal (JFP)
 }
 
 // ---------------------------------------------------------------------------
@@ -511,4 +515,108 @@ model TechnicalLog {
 
   @@index([createdAt])
   @@index([level])
+}
+
+// ---------------------------------------------------------------------------
+// Fiscal journal (JFP) — ISCA compliance (art. 286-I-3° bis CGI)
+// Hash-chained, append-only journal of every fiscal event. Each event embeds
+// the SHA-256 hash of the previous event so any retrospective tampering is
+// detectable (verifyFiscalChain). Orders/Refunds/ZReports reference their
+// entry via fiscalEventId (plain id, no FK — the journal is immutable).
+// ---------------------------------------------------------------------------
+
+model FiscalEvent {
+  id           String   @id @default(cuid())
+  sequence     Int      @unique // gapless monotonic journal sequence
+  type         String   // VENTE | ANNULATION | REMBOURSEMENT | CLOTURE_Z | CLOTURE_M | CLOTURE_A | OUVERTURE_TIROIR | REIMPRESSION | SESSION_OPEN | SESSION_CLOSE | SESSION_LOCK | ARCHIVE_GENEREE
+  orderId      String?
+  refundId     String?
+  zReportId    String?
+  shiftId      String?
+  closeId      String?  // monthly/annual close id (CLOTURE_M / CLOTURE_A)
+  archiveId    String?  // fiscal archive id (ARCHIVE_GENEREE)
+  userId       String?  // operator who triggered the event
+  factice      Boolean  @default(false) // FACTICE / SIMULATION mode flag
+  timestamp    DateTime @default(now())
+  dataJson     String   // canonical (sorted-key) JSON payload for audit/reconstruction
+  previousHash String?  // hash of the previous FiscalEvent (null for the first event)
+  hash         String   // SHA-256(previousHash + sequence + type + timestamp + dataJson)
+
+  @@index([timestamp])
+  @@index([type])
+}
+
+// Perpetual grand total — cumulative since the beginning of time, NEVER resets
+// (survives software updates / version changes). Incremented atomically on
+// each sale; never decremented by refunds (refunds are corrections tracked
+// separately in monthly/annual closes).
+model GrandTotal {
+  id            String   @id @default("singleton")
+  totalSales    Float    @default(0) // gross cumulative TTC sales
+  totalOrders   Int      @default(0)
+  totalVat      Float    @default(0)
+  totalCash     Float    @default(0)
+  totalCard     Float    @default(0)
+  totalVoucher  Float    @default(0)
+  totalRefunded Float    @default(0) // cumulative refunded amount (for reconciliation)
+  lastUpdatedAt DateTime @default(now())
+}
+
+// Sealed monthly clôture (C = conservation). One per "YYYY-MM" period.
+model MonthlyClose {
+  id              String   @id @default(cuid())
+  period          String   @unique // "YYYY-MM"
+  year            Int
+  month           Int      // 1-12
+  salesTotal      Float
+  salesCount      Int
+  vatTotal        Float
+  cashTotal       Float
+  cardTotal       Float
+  voucherTotal    Float
+  discountsTotal  Float
+  vatBreakdownJson String
+  topProductsJson  String
+  dataJson        String   // canonical payload used to compute the hash (for chain verification)
+  sealedAt        DateTime @default(now())
+  sealedById      String
+  previousHash    String?
+  hash            String
+  fiscalEventId   String?  // link to the FiscalEvent (CLOTURE_M) journal entry
+
+  @@index([year])
+}
+
+// Sealed annual clôture (A = archivage). One per "YYYY" period.
+model AnnualClose {
+  id              String   @id @default(cuid())
+  period          String   @unique // "YYYY"
+  year            Int
+  salesTotal      Float
+  salesCount      Int
+  vatTotal        Float
+  cashTotal       Float
+  cardTotal       Float
+  voucherTotal    Float
+  discountsTotal  Float
+  vatBreakdownJson String
+  topProductsJson  String
+  dataJson        String   // canonical payload used to compute the hash (for chain verification)
+  sealedAt        DateTime @default(now())
+  sealedById      String
+  previousHash    String?
+  hash            String
+  fiscalEventId   String?  // link to the FiscalEvent (CLOTURE_A) journal entry
+}
+
+// Record of a generated annual fiscal archive (open format + SHA-256 + FR notice).
+model FiscalArchive {
+  id            String   @id @default(cuid())
+  year          Int      @unique
+  filename      String
+  checksum      String   // SHA-256 of the archive content
+  sizeBytes     Int
+  generatedAt   DateTime @default(now())
+  generatedById String
+  fiscalEventId String?  // link to the FiscalEvent (ARCHIVE_GENEREE) journal entry
 }

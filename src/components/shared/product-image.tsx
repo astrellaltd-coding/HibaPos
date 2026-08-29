@@ -20,7 +20,7 @@ export function ProductImage({
 
   if (isEmoji) {
     return (
-      <div className={cn("flex items-center justify-center bg-gradient-to-br from-amber-50 to-orange-100/60 dark:from-amber-950/30 dark:to-orange-950/20", className)}>
+      <div className={cn("flex items-center justify-center bg-gradient-to-br from-amber-50 to-orange-100/60", className)}>
         <span className={cn("select-none", glyphClassName)}>{image || "🍽️"}</span>
       </div>
     );

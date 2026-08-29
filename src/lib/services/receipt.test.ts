@@ -24,6 +24,7 @@ const baseOrder: TestOrder = {
   total: 22.5,
   notes: null,
   itemCount: 4,
+  fiscalEventId: null,
   createdAt: "2026-08-14T12:30:00.000Z",
   completedAt: "2026-08-14T12:30:00.000Z",
   refundedAt: null,

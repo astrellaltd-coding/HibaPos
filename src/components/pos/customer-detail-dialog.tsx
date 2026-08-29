@@ -129,7 +129,7 @@ export function CustomerDetailDialog({
               </div>
 
               {detail.notes && (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
                   <p className="font-medium">Note</p>
                   <p className="mt-0.5">{detail.notes}</p>
                 </div>

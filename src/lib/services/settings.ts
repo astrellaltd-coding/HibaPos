@@ -15,6 +15,7 @@ export const DEFAULT_SETTINGS: SettingsInput = {
   receiptWidth: 80,
   discountApprovalThreshold: 20,
   autoPrint: false,
+  factice: false,
 };
 
 export async function getSettings(): Promise<SettingsInput> {

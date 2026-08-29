@@ -54,23 +54,23 @@ const EMPTY_FORM: TableForm = { label: "", seats: 4, zone: "Salle", sortOrder: 0
 const STATUS_CONFIG: Record<TableStatus, { label: string; color: string; bg: string; border: string; icon: typeof CheckCircle2 }> = {
   FREE: {
     label: "Libre",
-    color: "text-emerald-700 dark:text-emerald-400",
-    bg: "bg-emerald-50 dark:bg-emerald-950/30",
-    border: "border-emerald-300 dark:border-emerald-800",
+    color: "text-emerald-700",
+    bg: "bg-emerald-50",
+    border: "border-emerald-300",
     icon: CheckCircle2,
   },
   OCCUPIED: {
     label: "Occupée",
-    color: "text-amber-700 dark:text-amber-400",
-    bg: "bg-amber-50 dark:bg-amber-950/30",
-    border: "border-amber-300 dark:border-amber-800",
+    color: "text-amber-700",
+    bg: "bg-amber-50",
+    border: "border-amber-300",
     icon: Clock3,
   },
   RESERVED: {
     label: "Réservée",
-    color: "text-sky-700 dark:text-sky-400",
-    bg: "bg-sky-50 dark:bg-sky-950/30",
-    border: "border-sky-300 dark:border-sky-800",
+    color: "text-sky-700",
+    bg: "bg-sky-50",
+    border: "border-sky-300",
     icon: Users,
   },
 };
@@ -335,9 +335,9 @@ function StatPill({
 }) {
   const tones = {
     muted: "bg-muted text-muted-foreground",
-    emerald: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400",
-    amber: "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400",
-    sky: "bg-sky-50 text-sky-700 dark:bg-sky-950/30 dark:text-sky-400",
+    emerald: "bg-emerald-50 text-emerald-700",
+    amber: "bg-amber-50 text-amber-700",
+    sky: "bg-sky-50 text-sky-700",
   };
   return (
     <div className={cn("flex items-center gap-2.5 rounded-xl border border-border px-4 py-2.5", tones[tone])}>
@@ -424,7 +424,7 @@ function TableCard({
       {table.status === "OCCUPIED" && (
         <button
           onClick={() => onStatusChange("FREE")}
-          className="mt-1.5 flex items-center justify-center gap-1 rounded-lg bg-emerald-100 px-2 py-1 text-[11px] font-semibold text-emerald-700 transition-all hover:bg-emerald-200 active:scale-95 dark:bg-emerald-950/40 dark:text-emerald-400 dark:hover:bg-emerald-900/50"
+          className="mt-1.5 flex items-center justify-center gap-1 rounded-lg bg-emerald-100 px-2 py-1 text-[11px] font-semibold text-emerald-700 transition-all hover:bg-emerald-200 active:scale-95"
           title="Libérer la table"
         >
           <Unlock className="h-3 w-3" />

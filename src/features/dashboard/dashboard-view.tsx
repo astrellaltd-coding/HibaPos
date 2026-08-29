@@ -218,16 +218,16 @@ export function DashboardView() {
 
       {/* Out-of-stock alert */}
       {outOfStock && outOfStock.length > 0 && (
-        <div className="flex items-start gap-3 rounded-xl border border-rose-300 bg-rose-50 px-4 py-3 text-sm dark:border-rose-900 dark:bg-rose-950/30">
+        <div className="flex items-start gap-3 rounded-xl border border-rose-300 bg-rose-50 px-4 py-3 text-sm">
           <div className="relative mt-0.5">
-            <AlertTriangle className="h-5 w-5 shrink-0 text-rose-600 dark:text-rose-400" />
+            <AlertTriangle className="h-5 w-5 shrink-0 text-rose-600" />
             <span className="absolute -right-0.5 -top-0.5 flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-75" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-rose-500" />
             </span>
           </div>
           <div className="flex-1">
-            <p className="font-semibold text-rose-700 dark:text-rose-300">
+            <p className="font-semibold text-rose-700">
               {outOfStock.length} produit{outOfStock.length > 1 ? "s" : ""} épuisé{outOfStock.length > 1 ? "s" : ""}
             </p>
             <p className="text-muted-foreground">

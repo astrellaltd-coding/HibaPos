@@ -9,6 +9,14 @@ export function renderReceipt(order: OrderDto, settings?: Partial<SettingsDto>):
   const center = (str: string) => " ".repeat(Math.max(0, Math.floor((w - str.length) / 2))) + str;
   const leftRight = (l: string, r: string) => l + " ".repeat(Math.max(1, w - l.length - r.length)) + r;
 
+  // FACTICE / SIMULATION stamp — required by ISCA when the caisse runs in
+  // school/test mode so demo tickets are never mistaken for real fiscal ones.
+  if (s.factice) {
+    lines.push(center("*** FACTICE — SIMULATION ***"));
+    lines.push(center("TICKET NON VALABLE"));
+    lines.push("");
+  }
+
   lines.push(center(s.restaurantName ?? "HibaPOS France"));
   if (s.restaurantAddress) lines.push(center(s.restaurantAddress));
   if (s.restaurantPhone) lines.push(center(`Tél : ${s.restaurantPhone}`));
