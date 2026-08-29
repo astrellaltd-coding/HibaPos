@@ -5,7 +5,7 @@
 >
 > **Status legend:** `[x]` done · `[~]` in progress · `[ ]` todo · `[!]` blocked · `[-]` skipped/deferred
 
-Last updated: 2026-08-29 (Phase 6 complete)
+Last updated: 2026-08-29 (Phase 7 complete)
 
 ---
 
@@ -149,19 +149,20 @@ Findings from the deep API analysis that weren't in the original plan but are re
 
 ---
 
-## Phase 7 — Code quality & refactors
+## Phase 7 — Code quality & refactors — ✅ COMPLETE
 
 Deferred from Phase 4b (these touch working app code, so they were left for a dedicated refactor pass). Pure cleanup — no behavior change.
 
-- [ ] **7a** **Extract duplicate helpers** — `Kpi`/`VatBreakdownTable`/`TopProductsList` are copy-pasted in `shifts-view.tsx` AND `reports-view.tsx`. Extract to a shared module (e.g. `src/components/shared/report-widgets.tsx`) and import from both.
-- [ ] **7b** **Extract duplicate labels/parsers** — `ORDER_TYPE_LABELS`/`PAYMENT_LABELS`/`safeParseOptions`/`safeParseAddOns` duplicated across `receipt-dialog.tsx` + `orders-view.tsx` + `customer-detail-dialog.tsx` + `dashboard-view.tsx`. Extract to `src/lib/order-labels.ts` (labels) + extend `receipt.ts` (parsers).
-- [ ] **7c** **`ProductDto.options` + `productOptions?` redundant alias** — `src/types/api.ts:88` carries both; the API serializer in `catalog/products/route.ts` emits both. Pick one (`options`) and drop the alias after confirming no consumer reads `productOptions`.
-- [ ] **7d** **Redundant `@@index` on unique columns** — `User.username`, `Category.name`, `Order.number` are `@unique` (already indexed). Drop the redundant `@@index` lines.
-- [ ] **7e** **`api-handler.ts` duplicated auth logic** — `withAuth` and `withAuthParams` duplicate ~30 lines of session/lock/role checks. Extract a `requireAuth(session)` helper and call it from both.
-- [ ] **7f** **`BackupDto` omits integrity fields** — `src/types/api.ts` `BackupDto` drops `checksum`/`encrypted`/`sizeBytes`/`imagesPath` from the model. Add them so the UI can show encryption/checksum status.
-- [ ] **7g** **`VatBreakdown` type mismatch** — `src/lib/money.ts` types `VatBreakdown = Record<number,…>` but JS object keys are strings at runtime; `src/types/api.ts` honestly types it `Record<string,…>`. Align (the money.ts type is a lie — use `Record<string,…>` or refactor to a `Map<number,…>`).
-- [ ] **7h** **`DEFAULT_SETTINGS.defaultVatRate` (20) vs seed (10) mismatch** — `src/lib/services/settings.ts` defaults to 20 but both seed paths write 10. Align (food is 10% in France; default should be 10).
-- [ ] **7i** **`DEFAULT_SETTINGS.printerName` "Epson TM-m30" vs actual Sunso WTP-801** — update to match the real printer.
+- [x] **7a** **Extract duplicate helpers** — `Kpi`/`VatBreakdownTable`/`TopProductsList` extracted to `src/components/shared/report-widgets.tsx`; `shifts-view.tsx` + `reports-view.tsx` now import from it.
+- [x] **7b** **Extract duplicate labels/parsers** — `ORDER_TYPE_LABELS`/`PAYMENT_LABELS` (+`PAYMENT_LABELS_FULL`) extracted to `src/lib/order-labels.ts`; `safeParseOptions`/`safeParseAddOns` extracted to `src/lib/order-parsers.ts`; `receipt-dialog.tsx` + `orders-view.tsx` + `customer-detail-dialog.tsx` + `dashboard-view.tsx` now import from them.
+- [x] **7c** **`ProductDto.productOptions` alias dropped** — removed from `types/api.ts`; API serializers (`catalog/products/route.ts` + `[id]/route.ts`) no longer emit `productOptions`; `products-view.tsx` reads `product.options` directly.
+- [x] **7d** **Redundant `@@index` removed** — `User.username`, `Category.name`, `Order.number` were already `@unique` (indexed). Migration `20260829165200_drop_redundant_indexes`.
+- [x] **7e** **`api-handler.ts` dedup** — the double user-lookup was already eliminated in Phase 6e; the remaining role-check dedup is inlined (~5 lines each, acceptable). A `requireAuth` helper was attempted but added more complexity than it saved — reverted to the inlined form.
+- [x] **7f** **`BackupDto` integrity fields** — added `checksum`/`encrypted`/`sizeBytes`/`imagesPath` to `types/api.ts` so the UI can show encryption/checksum status.
+- [x] **7g** **`VatBreakdown` type aligned** — `src/lib/money.ts` now types `VatBreakdown = Record<string,…>` (was `Record<number,…>` — a type lie since JS object keys are always strings at runtime). Callers that iterate keys coerce with `Number()`.
+- [x] **7h** **`DEFAULT_SETTINGS.defaultVatRate` 20→10** — food is 10% TVA in France; default now matches both seed paths.
+- [x] **7i** **`DEFAULT_SETTINGS.printerName` "Epson TM-m30"→"Sunso WTP-801"** — matches the actual printer.
+- [x] **7-check** Lint 0 errors · tsc exit 0 · 105 tests pass.
 
 ---
 

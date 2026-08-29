@@ -2,21 +2,10 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { withAuthParams, parseJson } from "@/lib/api-handler";
 import { refundSchema } from "@/lib/validation";
-import { round2 } from "@/lib/money";
 import { verifyApprovalToken, ApprovalError } from "@/lib/approvals";
-import { appendFiscalEvent, addRefundToGrandTotal } from "@/lib/services/fiscal";
+import { processRefund, RefundError } from "@/lib/services/refund";
 import { getSettings } from "@/lib/services/settings";
 import type { PaymentMethod } from "@prisma/client";
-
-/** In-transaction validation failure with an HTTP status. */
-class RefundError extends Error {
-  status: number;
-  constructor(message: string, status: number) {
-    super(message);
-    this.name = "RefundError";
-    this.status = status;
-  }
-}
 
 export const POST = withAuthParams(async (req, { user, params }) => {
   const order = await db.order.findUnique({
@@ -109,111 +98,26 @@ export const POST = withAuthParams(async (req, { user, params }) => {
   let refund;
   const settings = await getSettings();
   try {
-    refund = await db.$transaction(async (tx) => {
-    // Re-read refunds + order INSIDE the transaction: the pre-tx
-    // `alreadyRefunded` is a stale snapshot and two concurrent refund POSTs
-    // could both pass validation and double-spend (post-audit N8). The
-    // transaction's write lock serializes this re-check.
-    const freshRefunds = await tx.refund.findMany({ where: { orderId: order.id } });
-    const freshRefunded = freshRefunds.reduce((acc, r) => acc + r.amount, 0);
-    const freshOrder = await tx.order.findUnique({
-      where: { id: order.id },
-      select: { total: true, status: true },
-    });
-    if (!freshOrder) throw new Error("Commande introuvable");
-    if (freshOrder.status !== "COMPLETED" && freshOrder.status !== "REFUNDED") {
-      throw new RefundError(
-        "Seules les commandes terminées peuvent être remboursées",
-        409
-      );
-    }
-    if (freshRefunded >= freshOrder.total - 0.001) {
-      throw new RefundError(
-        "Cette commande a déjà été entièrement remboursée",
-        400
-      );
-    }
-    if (parsed.data.amount > round2(freshOrder.total - freshRefunded) + 0.001) {
-      throw new RefundError("Montant de remboursement supérieur au solde", 400);
-    }
-
-    const r = await tx.refund.create({
-      data: {
+    refund = await processRefund(
+      {
         orderId: order.id,
         amount: parsed.data.amount,
         reason: parsed.data.reason,
-        cashierId: user.id,
-        approvedById: refundApproverId,
-        // Record the issuing shift (== the order's open shift so far) so
-        // Z reports stay attributed correctly even if the underlying order
-        // has a different shift in a multi-shift scenario.
-        shiftId: order.shift?.id ?? null,
         method: refundMethod,
-      },
-    });
-
-    const totalRefunded = round2(freshRefunded + parsed.data.amount);
-    const fullyRefunded = totalRefunded >= freshOrder.total - 0.001;
-
-    if (fullyRefunded) {
-      await tx.order.update({
-        where: { id: order.id },
-        data: { status: "REFUNDED", refundedAt: new Date() },
-      });
-    }
-
-    // Auto-free the table linked to this order (if dine-in with a table label).
-    if (fullyRefunded && order.orderType === "DINE_IN" && order.tableLabel) {
-      await tx.table.updateMany({
-        where: { currentOrderId: order.id, status: "OCCUPIED" },
-        data: { status: "FREE", currentOrderId: null },
-      });
-    }
-
-    await tx.auditLog.create({
-      data: {
-        userId: user.id,
-        action: "ORDER_REFUNDED",
-        entity: "Order",
-        entityId: order.id,
-        details: JSON.stringify({
-          amount: parsed.data.amount,
-          reason: parsed.data.reason,
-          method: refundMethod,
-          approvedById: refundApproverId,
-          totalRefunded,
-          fullyRefunded,
-        }),
-      },
-    });
-
-    // --- Fiscal journal (JFP) — correction tracée (ISCA inaltérabilité) ---
-    // A refund is a contre-opération: it never erases the original ticket, it
-    // appends a new chained event. Full refund → ANNULATION, partial → REMBOURSEMENT.
-    const ev = await appendFiscalEvent(tx, {
-      type: fullyRefunded ? "ANNULATION" : "REMBOURSEMENT",
-      userId: user.id,
-      factice: settings.factice ?? false,
-      orderId: order.id,
-      refundId: r.id,
-      shiftId: order.shift?.id ?? null,
-      data: {
-        orderNumber: order.number,
-        refundId: r.id,
-        amount: parsed.data.amount,
-        reason: parsed.data.reason,
-        method: refundMethod,
-        cashierId: user.id,
         approverId: refundApproverId,
-        totalRefunded,
-        fullyRefunded,
+        cashierId: user.id,
+        factice: settings.factice ?? false,
       },
-    });
-    await tx.refund.update({ where: { id: r.id }, data: { fiscalEventId: ev.id } });
-    await addRefundToGrandTotal(tx, parsed.data.amount);
-
-    return r;
-    });
+      order as unknown as {
+        id: string;
+        total: number;
+        status: "COMPLETED" | "REFUNDED";
+        orderType: "DINE_IN" | "TAKEAWAY" | "LIVRAISON";
+        tableLabel: string | null;
+        shift: { id: string; status: "OPEN" | "CLOSED" } | null;
+        refunds: { amount: number }[];
+      },
+    );
   } catch (e) {
     if (e instanceof RefundError) {
       return NextResponse.json({ error: e.message }, { status: e.status });

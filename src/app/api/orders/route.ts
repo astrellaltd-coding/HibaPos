@@ -6,6 +6,7 @@ import { nextReceiptNumber } from "@/lib/services/sequence";
 import { renderReceipt } from "@/lib/services/receipt";
 import { getSettings } from "@/lib/services/settings";
 import { appendFiscalEvent, incrementGrandTotal } from "@/lib/services/fiscal";
+import { computeLinePricing } from "@/lib/services/pricing";
 import { sum2, addToVatBreakdown } from "@/lib/money";
 import { verifyApprovalToken, ApprovalError } from "@/lib/approvals";
 
@@ -162,143 +163,23 @@ export const POST = withAuth(async (req, { user }) => {
       );
     }
 
-    // Sub-categories are folders: products inherit options/add-ons from the parent category.
-    const effectiveCategory = product.category?.parent ?? product.category;
-
-    // Determine base price by order type
-    let basePrice = product.price;
-    if (orderType === "TAKEAWAY" && product.pickupPrice != null) {
-      basePrice = product.pickupPrice;
-    } else if (orderType === "LIVRAISON" && product.deliveryPrice != null) {
-      basePrice = product.deliveryPrice;
+    // Server-authoritative line pricing (pure function — see services/pricing.ts).
+    const lineResult = computeLinePricing(itemIntent, product, orderType);
+    if ("error" in lineResult) {
+      return NextResponse.json({ error: lineResult.error }, { status: 400 });
     }
-
-    // Merge category options + product options for validation.
-    // Products marked `inheritCategoryGlobals=false` skip the category-level
-    // groups/add-ons entirely and only use their own.
-    const allOptions = [
-      ...(product.inheritCategoryGlobals ? (effectiveCategory?.optionGroups ?? []) : []),
-      ...(product.options ?? []),
-    ];
-
-    // Validate and apply options
-    let optionsModifier = 0;
-    const chosenOptions: { group: string; choice: string; priceModifier: number }[] = [];
-    const selectedOptionIds = new Set(itemIntent.optionIds);
-
-    for (const group of allOptions) {
-      const selectedInGroup = group.choices.filter((c: { id: string }) => selectedOptionIds.has(c.id));
-      if (group.required && selectedInGroup.length === 0) {
-        return NextResponse.json(
-          { error: `Option obligatoire manquante : ${group.name}` },
-          { status: 400 }
-        );
-      }
-      if (!group.multiple && selectedInGroup.length > 1) {
-        return NextResponse.json(
-          { error: `Une seule sélection autorisée pour : ${group.name}` },
-          { status: 400 }
-        );
-      }
-      for (const choice of selectedInGroup) {
-        // Pick the modifier appropriate to the orderType, mirroring the
-        // serializer in catalog/products/route.ts exactly:
-        //   - A choice carrying an ABSOLUTE price (CategoryOptionChoice
-        //     pickupPrice / deliveryPrice — e.g. the "Taille" size group)
-        //     REPLACES the mode's base price. The effective modifier is
-        //     (absolute − modeBase), NOT the raw absolute value.
-        //   - Otherwise use the mode-specific modifier, falling back to the
-        //     default priceModifier.
-        const c = choice as {
-          priceModifier: number;
-          pickupPriceModifier?: number | null;
-          deliveryPriceModifier?: number | null;
-          pickupPrice?: number | null;
-          deliveryPrice?: number | null;
-          name: string;
-        };
-        let modifier = c.priceModifier;
-        if (c.pickupPrice != null) {
-          // Absolute choice price (category-level only). deliveryPrice
-          // defaults to the pickup absolute when unset (serializer parity).
-          const absPickup = c.pickupPrice;
-          const absDelivery = c.deliveryPrice != null ? c.deliveryPrice : absPickup;
-          if (orderType === "TAKEAWAY") {
-            modifier = absPickup - basePrice;
-          } else if (orderType === "LIVRAISON") {
-            modifier = absDelivery - basePrice;
-          } else {
-            // DINE_IN: serializer relativizes against the dine-in base.
-            modifier = absPickup - product.price;
-          }
-        } else if (orderType === "TAKEAWAY" && c.pickupPriceModifier != null) {
-          modifier = c.pickupPriceModifier;
-        } else if (orderType === "LIVRAISON" && c.deliveryPriceModifier != null) {
-          modifier = c.deliveryPriceModifier;
-        }
-        optionsModifier += modifier;
-        chosenOptions.push({ group: group.name, choice: choice.name, priceModifier: modifier });
-      }
-    }
-
-    // Merge category addon IDs + product addon IDs for validation.
-    // Products marked `inheritCategoryGlobals=false` skip the category-level
-    // add-ons entirely and only use their own ProductAddon relations.
-    const categoryAddonIds = new Set(
-      product.inheritCategoryGlobals
-        ? (effectiveCategory?.addOns ?? []).map((a: { id: string }) => a.id)
-        : []
-    );
-    const productAddonIds = new Set(product.productAddons.map((pa) => pa.addonId));
-    const availableAddonIds = new Set([...categoryAddonIds, ...productAddonIds]);
-
-    // Build a lookup map for all valid add-ons.
-    const addonMap = new Map<string, { id: string; name: string; price: number; active: boolean }>();
-    if (product.inheritCategoryGlobals) {
-      for (const a of effectiveCategory?.addOns ?? []) {
-        addonMap.set(a.id, a);
-      }
-    }
-    for (const pa of product.productAddons) {
-      addonMap.set(pa.addon.id, pa.addon);
-    }
-
-    // Validate and apply addons
-    let addonsTotal = 0;
-    const chosenAddons: { id: string | null; name: string; price: number }[] = [];
-
-    for (const aIntent of itemIntent.addons) {
-      if (!availableAddonIds.has(aIntent.addonId)) {
-        return NextResponse.json(
-          { error: `Supplément non disponible pour ce produit : ${aIntent.addonId}` },
-          { status: 400 }
-        );
-      }
-      const addon = addonMap.get(aIntent.addonId);
-      if (!addon || !addon.active) {
-        return NextResponse.json(
-          { error: `Supplément introuvable ou inactif : ${aIntent.addonId}` },
-          { status: 400 }
-        );
-      }
-      addonsTotal += addon.price * aIntent.quantity;
-      chosenAddons.push({ id: addon.id, name: addon.name, price: addon.price });
-    }
-
-    const unitPrice = basePrice + optionsModifier;
-    const lineTotal = (unitPrice + addonsTotal) * itemIntent.quantity;
-    subtotal += lineTotal;
+    subtotal += lineResult.lineTotal;
     itemCount += itemIntent.quantity;
 
     orderItemsData.push({
       productId: product.id,
       productName: product.name,
-      unitPrice,
+      unitPrice: lineResult.unitPrice,
       quantity: itemIntent.quantity,
-      lineTotal,
+      lineTotal: lineResult.lineTotal,
       vatRate: product.vatRate,
-      optionsJson: chosenOptions.length ? JSON.stringify(chosenOptions) : null,
-      addOnsJson: chosenAddons.length ? JSON.stringify(chosenAddons) : null,
+      optionsJson: lineResult.optionsJson,
+      addOnsJson: lineResult.addOnsJson,
       notes: itemIntent.notes ?? null,
     });
   }

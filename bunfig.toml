@@ -6,4 +6,4 @@
 # test collection (they throw at import time on missing/too-short secrets).
 
 [test]
-preload = ["./vitest.setup.ts"]
+preload = ["./test-setup.ts"]
