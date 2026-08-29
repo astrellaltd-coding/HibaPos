@@ -1,0 +1,514 @@
+// HibaPOS France — Prisma Schema
+// Point of Sale system for a single fast-food restaurant in France.
+// SQLite is used as the local database (Tauri-friendly).
+
+// NOTE: All money is currently stored as Float euros. Future migration to integer cents
+// (per Doc 014/020) is planned as a separate schema evolution.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Auth & Users
+// ---------------------------------------------------------------------------
+
+enum UserRole {
+  SUPER_ADMIN
+  MANAGER
+  CASHIER
+}
+
+model User {
+  id             String    @id @default(cuid())
+  username       String    @unique
+  pinHash        String
+  name           String
+  role           UserRole  @default(MANAGER)
+  active         Boolean   @default(true)
+  failedAttempts Int       @default(0)
+  lockedUntil    DateTime?
+  lastLoginAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  openedShifts   Shift[]    @relation("ShiftOpenedBy")
+  closedShifts   Shift[]    @relation("ShiftClosedBy")
+  orders         Order[]    @relation("OrderCashier")
+  payments       Payment[]  @relation("PaymentCashier")
+  refunds        Refund[]   @relation("RefundBy")
+  auditLogs      AuditLog[]
+  backups        Backup[]   @relation("BackupBy")
+  sessions       Session[]
+
+  @@index([username])
+}
+
+model Session {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
+  lastActivityAt DateTime @default(now())
+  expiresAt      DateTime
+  device         String?  // user-agent hint
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+// ---------------------------------------------------------------------------
+// Catalog: Categories, Products, Options, Add-ons
+// ---------------------------------------------------------------------------
+
+model Category {
+  id             String              @id @default(cuid())
+  name           String              @unique
+  color          String              @default("#f59e0b")
+  icon           String?             // lucide icon name (preferred) or emoji fallback
+  sortOrder      Int                 @default(0)
+  active         Boolean             @default(true)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  parentId       String?
+  parent         Category?           @relation("CategoryChildren", fields: [parentId], references: [id], onDelete: SetNull)
+  children       Category[]          @relation("CategoryChildren")
+
+  products       Product[]
+  optionGroups   CategoryOptionGroup[]
+  addOns         CategoryAddOn[]
+
+  @@index([name])
+  @@index([parentId])
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  price       Float // TTC (euro) — primary price for POS
+  pickupPrice  Float? // TTC price for takeaway (if different from default)
+  deliveryPrice Float? // TTC price for delivery (future)
+  vatRate     Float   @default(20.0) // French VAT: 20% standard, 10% food, 5.5%
+  categoryId  String
+  image       String? // url or data path
+  active      Boolean  @default(true)
+  available   Boolean  @default(true) // 86'd / out of stock toggle
+  inheritCategoryGlobals Boolean @default(true) // inherits category-level options & add-ons
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  category     Category      @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  options      OptionGroup[]
+  orderItems   OrderItem[]
+  productAddons ProductAddon[]
+
+  @@index([categoryId])
+  @@index([name])
+}
+
+// Junction: which add-ons are available for which product
+model ProductAddon {
+  productId String
+  addonId   String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  addon     AddOn   @relation(fields: [addonId], references: [id], onDelete: Cascade)
+
+  @@id([productId, addonId])
+}
+
+// A product can have option groups (e.g. "Cuisson", "Sauce", "Taille")
+model OptionGroup {
+  id          String  @id @default(cuid())
+  productId   String
+  name        String
+  required    Boolean @default(false)
+  multiple    Boolean @default(false) // single vs multi select
+  sortOrder   Int     @default(0)
+
+  product Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  choices OptionChoice[]
+
+  @@index([productId])
+}
+
+model OptionChoice {
+  id                    String  @id @default(cuid())
+  groupId               String
+  name                  String
+  priceModifier         Float   @default(0) // added to base price
+  pickupPriceModifier   Float?  // override for takeaway
+  deliveryPriceModifier Float?  // override for delivery
+  image                 String? // optional thumbnail shown in POS picker
+  sortOrder             Int     @default(0)
+
+  group OptionGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@index([groupId])
+}
+
+// Standalone add-ons (extras) shown in POS
+model AddOn {
+  id            String         @id @default(cuid())
+  name          String
+  price         Float
+  image         String?
+  active        Boolean        @default(true)
+  sortOrder     Int            @default(0)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  productAddons ProductAddon[]
+}
+
+// Global option groups for a category (shared by all products in that category)
+model CategoryOptionGroup {
+  id          String              @id @default(cuid())
+  categoryId  String
+  category    Category            @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  name        String
+  required    Boolean             @default(false)
+  multiple    Boolean             @default(false)
+  sortOrder   Int                 @default(0)
+  choices     CategoryOptionChoice[]
+
+  @@index([categoryId])
+}
+
+model CategoryOptionChoice {
+  id                    String              @id @default(cuid())
+  groupId               String
+  group                 CategoryOptionGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  name                  String
+  priceModifier         Float               @default(0)
+  pickupPriceModifier   Float?
+  deliveryPriceModifier Float?
+  pickupPrice           Float?              // absolute fixed price for takeaway (overrides modifier logic)
+  deliveryPrice         Float?              // absolute fixed price for delivery
+  image                 String?             // optional thumbnail shown in POS picker
+  sortOrder             Int                 @default(0)
+
+  @@index([groupId])
+}
+
+// Global add-ons for a category (shared by all products in that category)
+model CategoryAddOn {
+  id         String   @id @default(cuid())
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  name       String
+  price      Float
+  image      String?
+  sortOrder  Int      @default(0)
+  active     Boolean  @default(true)
+
+  @@index([categoryId])
+}
+
+// ---------------------------------------------------------------------------
+// Customers
+// ---------------------------------------------------------------------------
+
+model Customer {
+  id         String   @id @default(cuid())
+  name       String
+  phone      String?
+  email      String?
+  address    String?
+  postalCode String?  // code postal (French delivery requirement)
+  notes      String?
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  orders Order[]
+
+  @@index([phone])
+  @@index([name])
+  @@index([active])
+}
+
+// ---------------------------------------------------------------------------
+// Tables (dine-in table management)
+// ---------------------------------------------------------------------------
+
+enum TableStatus {
+  FREE
+  OCCUPIED
+  RESERVED
+}
+
+model Table {
+  id             String      @id @default(cuid())
+  label          String      @unique // e.g. "T1", "Terrasse 2"
+  seats          Int         @default(4)
+  status         TableStatus @default(FREE)
+  zone           String?     // e.g. "Salle", "Terrasse", "Bar"
+  sortOrder      Int         @default(0)
+  active         Boolean     @default(true)
+  notes          String?
+  currentOrderId String?     // link to active order when occupied
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@index([status])
+  @@index([active])
+}
+
+// ---------------------------------------------------------------------------
+// Shifts (caisse)
+// ---------------------------------------------------------------------------
+
+enum ShiftStatus {
+  OPEN
+  CLOSED
+}
+
+model Shift {
+  id            String      @id @default(cuid())
+  number        Int         @unique // sequential shift number
+  status        ShiftStatus @default(OPEN)
+  openedById    String
+  openedAt      DateTime    @default(now())
+  closedById    String?
+  closedAt      DateTime?
+  openingFloat  Float       @default(0)
+  closingFloat  Float?
+  expectedCash  Float?
+  cashVariance  Float?
+  salesTotal    Float?
+  salesCount    Int?
+  notes         String?
+
+  openedBy User @relation("ShiftOpenedBy", fields: [openedById], references: [id])
+  closedBy User? @relation("ShiftClosedBy", fields: [closedById], references: [id])
+
+  orders Order[]
+  zReport ZReport?
+
+  @@index([status])
+  @@index([openedById])
+}
+
+// ---------------------------------------------------------------------------
+// Orders & Payments
+// ---------------------------------------------------------------------------
+
+enum OrderStatus {
+  PENDING
+  COMPLETED
+  REFUNDED
+  CANCELLED
+}
+
+enum OrderType {
+  DINE_IN
+  TAKEAWAY
+  LIVRAISON // delivery — requires customer name + phone + address
+}
+
+model Order {
+  id             String      @id @default(cuid())
+  number         Int         @unique // sequential receipt number
+  shiftId        String
+  cashierId      String
+  customerId     String?
+  status         OrderStatus @default(COMPLETED)
+  orderType      OrderType   @default(DINE_IN)
+  tableLabel     String? // free text table / order number
+  subtotal       Float       @default(0) // HT + options (excl VAT)
+  vatTotal       Float       @default(0)
+  discountTotal  Float       @default(0)
+  total          Float       @default(0) // TTC
+  notes          String?
+  itemCount      Int         @default(0)
+  createdAt      DateTime    @default(now())
+  completedAt    DateTime?
+  refundedAt     DateTime?
+
+  shift    Shift     @relation(fields: [shiftId], references: [id], onDelete: Restrict)
+  cashier  User      @relation("OrderCashier", fields: [cashierId], references: [id])
+  customer Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  items    OrderItem[]
+  payments Payment[]
+  refunds  Refund[]
+  receipt  Receipt?
+
+  @@index([number])
+  @@index([createdAt])
+  @@index([customerId])
+  @@index([status])
+}
+
+model OrderItem {
+  id          String  @id @default(cuid())
+  orderId     String
+  productId   String?
+  productName String
+  unitPrice   Float // TTC unit price (base + options)
+  quantity    Int
+  lineTotal   Float
+  vatRate     Float?  // snapshot of VAT rate at time of sale
+  optionsJson String? // JSON snapshot of chosen options
+  addOnsJson  String? // JSON snapshot of chosen add-ons
+  notes       String?
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  VOUCHER
+}
+
+model Payment {
+  id        String        @id @default(cuid())
+  orderId   String
+  method    PaymentMethod
+  amount    Float         // amount applied to the bill
+  tendered  Float?        // cash handed over (cash only)
+  change    Float?        // change returned (cash only)
+  cashierId String
+  createdAt DateTime      @default(now())
+
+  order   Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  cashier User  @relation("PaymentCashier", fields: [cashierId], references: [id])
+
+  @@index([orderId])
+  @@index([cashierId])
+}
+
+model Refund {
+  id        String   @id @default(cuid())
+  orderId   String
+  amount    Float
+  reason    String
+  approvedById String? // manager who approved the refund
+  cashierId String
+  shiftId   String?  // the shift that issued the refund — FK omitted intentionally (= order.shiftId when valid, see refund route)
+  method    PaymentMethod? // refund channel; null on legacy rows; reports treat null as CASH for backward-compat
+  createdAt DateTime @default(now())
+
+  order   Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  cashier User  @relation("RefundBy", fields: [cashierId], references: [id])
+
+  @@index([orderId])
+  @@index([cashierId])
+  @@index([shiftId])
+}
+
+// ---------------------------------------------------------------------------
+// Receipts (immutable snapshot of printed receipt)
+// ---------------------------------------------------------------------------
+
+model Receipt {
+  id            String   @id @default(cuid())
+  orderId       String   @unique
+  order         Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  receiptNumber Int      // not @unique — original order.number is already unique
+  content       String   // full rendered plain-text receipt snapshot
+  printStatus   String   @default("PENDING") // PENDING | PRINTED | FAILED
+  printedAt     DateTime?
+  reprintCount  Int      @default(0)
+  createdAt     DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Reports (Z Report is immutable, one per closed shift)
+// ---------------------------------------------------------------------------
+
+model ZReport {
+  id               String   @id @default(cuid())
+  shiftId          String   @unique
+  number           Int      @unique
+  generatedAt      DateTime @default(now())
+  salesTotal       Float
+  salesCount       Int
+  vatTotal         Float
+  cashTotal        Float
+  cardTotal        Float
+  voucherTotal     Float
+  discountsTotal   Float
+  openingFloat     Float
+  expectedCash     Float
+  closingFloat     Float
+  cashVariance     Float
+  topProductsJson  String? // JSON snapshot
+  vatBreakdownJson String? // {rate: {base, vat, ttc}}
+
+  shift Shift @relation(fields: [shiftId], references: [id], onDelete: Restrict)
+}
+
+// ---------------------------------------------------------------------------
+// Fiscal Counter (singleton for gapless receipt / Z numbering)
+// ---------------------------------------------------------------------------
+
+model FiscalCounter {
+  id                String @id @default("singleton")
+  lastReceiptNumber Int    @default(0)
+  lastShiftNumber   Int    @default(0)
+  lastZReportNumber Int    @default(0)
+}
+
+// ---------------------------------------------------------------------------
+// Audit log & Settings & Backups
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String // e.g. ORDER_CREATED, SHIFT_OPENED, USER_CREATED
+  entity    String
+  entityId  String?
+  details   String? // JSON string
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([userId])
+}
+
+model Setting {
+  key   String @id
+  value String // JSON-encoded value
+}
+
+model Backup {
+  id          String   @id @default(cuid())
+  filename    String
+  size        Int
+  checksum    String?  // SHA-256 of plaintext
+  encrypted   Boolean  @default(false)
+  sizeBytes   Int?     // size after encryption
+  imagesPath  String?  // path to included uploads directory
+  createdAt   DateTime @default(now())
+  createdById String?
+
+  createdBy User? @relation("BackupBy", fields: [createdById], references: [id], onDelete: SetNull)
+}
+
+model TechnicalLog {
+  id         String   @id @default(cuid())
+  level      String   // INFO | WARN | ERROR
+  source     String   // module name
+  message    String
+  stackTrace String?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([level])
+}

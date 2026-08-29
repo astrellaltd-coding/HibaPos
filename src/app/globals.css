@@ -1,0 +1,215 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-inter);
+  --font-mono: ui-monospace, "Courier New", monospace;
+  --font-handwritten: var(--font-caveat);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+/* HibaPOS France — Amber POS theme.
+   Warm, premium, touchscreen-friendly. Calm neutrals + amber accent. */
+:root {
+  --radius: 0.75rem;
+  --background: oklch(0.99 0.004 80);
+  --foreground: oklch(0.21 0.02 60);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.21 0.02 60);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.21 0.02 60);
+  --primary: oklch(0.71 0.17 58);
+  --primary-foreground: oklch(0.99 0.01 80);
+  --secondary: oklch(0.96 0.02 80);
+  --secondary-foreground: oklch(0.3 0.03 60);
+  --muted: oklch(0.965 0.012 80);
+  --muted-foreground: oklch(0.52 0.02 60);
+  --accent: oklch(0.95 0.04 75);
+  --accent-foreground: oklch(0.35 0.06 55);
+  --destructive: oklch(0.58 0.22 27);
+  --border: oklch(0.91 0.01 80);
+  --input: oklch(0.92 0.01 80);
+  --ring: oklch(0.71 0.17 58);
+  --chart-1: oklch(0.71 0.17 58);
+  --chart-2: oklch(0.6 0.13 150);
+  --chart-3: oklch(0.55 0.16 250);
+  --chart-4: oklch(0.78 0.16 80);
+  --chart-5: oklch(0.65 0.2 30);
+  --sidebar: oklch(0.22 0.02 60);
+  --sidebar-foreground: oklch(0.96 0.01 80);
+  --sidebar-primary: oklch(0.71 0.17 58);
+  --sidebar-primary-foreground: oklch(0.99 0.01 80);
+  --sidebar-accent: oklch(0.28 0.02 60);
+  --sidebar-accent-foreground: oklch(0.96 0.01 80);
+  --sidebar-border: oklch(0.32 0.02 60);
+  --sidebar-ring: oklch(0.71 0.17 58);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html, body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "tnum" 1;
+    overscroll-behavior: none;
+    overflow: hidden;
+    height: 100%;
+    touch-action: none;
+  }
+  /* Numeric tabular figures for prices/quantities in POS. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Premium warm POS card — soft cream surface, layered warm shadows,
+   ambient orange glow, gentle hover lift. */
+@layer components {
+  .pos-card {
+    background: linear-gradient(145deg, #FFFDF9 0%, #FFF7EC 100%);
+    border: 1px solid rgba(243, 182, 95, 0.14);
+    border-radius: 22px;
+    box-shadow:
+      0 1px 4px rgba(90, 60, 30, 0.04),
+      0 8px 20px rgba(90, 60, 30, 0.05),
+      0 0 20px rgba(255, 145, 30, 0.06),
+      inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    transition:
+      transform 250ms cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 250ms cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 250ms ease;
+    position: relative;
+    overflow: hidden;
+  }
+  .pos-card:hover {
+    transform: translateY(-4px) scale(1.02);
+    border-color: rgba(243, 182, 95, 0.22);
+    box-shadow:
+      0 4px 10px rgba(90, 60, 30, 0.06),
+      0 16px 36px rgba(90, 60, 30, 0.09),
+      0 0 32px rgba(255, 145, 30, 0.11),
+      inset 0 1px 0 rgba(255, 255, 255, 1);
+  }
+  .pos-card .card-icon {
+    transition: transform 300ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .pos-card:hover .card-icon {
+    transform: scale(1.08) rotate(2deg);
+  }
+  .pos-card .card-arrow {
+    transition: background-color 300ms ease, transform 300ms ease;
+  }
+  .pos-card:hover .card-arrow {
+    background-color: rgba(243, 182, 95, 0.2);
+    transform: translateX(2px);
+  }
+
+  /* Premium module card — warm cream gradient, ambient orange glow,
+     subtle border, smooth hover lift. Matches hero card visual language. */
+  .module-card {
+    background: linear-gradient(160deg, #fffdf9 0%, #fff7ec 100%);
+    border: 1px solid rgba(220, 155, 80, 0.12);
+    border-radius: 22px;
+    box-shadow:
+      0 1px 4px rgba(80, 50, 20, 0.05),
+      0 8px 20px rgba(80, 50, 20, 0.06),
+      0 4px 14px rgba(255, 140, 30, 0.06),
+      0 0 18px rgba(255, 140, 30, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    transition:
+      transform 250ms cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 250ms cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 250ms ease;
+  }
+  .module-card:hover {
+    transform: translateY(-4px) scale(1.02);
+    border-color: rgba(220, 155, 80, 0.24);
+    box-shadow:
+      0 4px 10px rgba(80, 50, 20, 0.08),
+      0 18px 36px rgba(80, 50, 20, 0.10),
+      0 8px 22px rgba(255, 140, 30, 0.12),
+      0 0 32px rgba(255, 140, 30, 0.15),
+      inset 0 1px 0 rgba(255, 255, 255, 1);
+  }
+}
+
+/* Custom scrollbar — hidden but functional. */
+@layer utilities {
+  .scroll-thin {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scroll-thin::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Receipt printing — only the receipt paper prints. */
+@page {
+  size: 80mm auto;
+  margin: 4mm;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #receipt-print,
+  #receipt-print * {
+    visibility: visible;
+  }
+  #receipt-print {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 80mm;
+    padding: 4mm;
+  }
+  .receipt-paper {
+    font-family: ui-monospace, "Courier New", monospace;
+  }
+}

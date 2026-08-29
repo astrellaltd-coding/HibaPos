@@ -1,0 +1,9 @@
+# Bun runtime configuration.
+# The `test` npm script runs `bun test src`, which uses Bun's built-in test
+# runner (vitest-compatible imports are redirected to bun:test). Bun does NOT
+# read vitest.config.ts's `setupFiles` — preload the env-var defaults here so
+# module-level guards in auth.ts / approvals.ts / backup.ts don't trip during
+# test collection (they throw at import time on missing/too-short secrets).
+
+[test]
+preload = ["./vitest.setup.ts"]

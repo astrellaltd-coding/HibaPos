@@ -1,0 +1,289 @@
+// Shared API response types (mirror of Prisma models, JSON-serializable).
+export type Role = "SUPER_ADMIN" | "MANAGER" | "CASHIER";
+
+export type UserDto = {
+  id: string;
+  username: string;
+  name: string;
+  role: Role;
+  active: boolean;
+  createdAt: string;
+};
+
+export type CategoryOptionGroupDto = {
+  id: string;
+  name: string;
+  required: boolean;
+  multiple: boolean;
+  sortOrder: number;
+  choices: {
+    id: string;
+    name: string;
+    priceModifier: number;
+    pickupPriceModifier?: number | null;
+    deliveryPriceModifier?: number | null;
+    image?: string | null;
+    sortOrder: number;
+  }[];
+};
+
+export type CategoryAddOnDto = {
+  id: string;
+  name: string;
+  price: number;
+  image: string | null;
+  sortOrder: number;
+  active: boolean;
+};
+
+export type CategoryDto = {
+  id: string;
+  name: string;
+  color: string;
+  icon: string | null;
+  sortOrder: number;
+  active: boolean;
+  parentId: string | null;
+  parentName?: string | null;
+  children?: { id: string; name: string }[];
+  productCount?: number;
+  optionGroups?: CategoryOptionGroupDto[];
+  addOns?: CategoryAddOnDto[];
+};
+
+export type OptionGroupDto = {
+  id: string;
+  name: string;
+  required: boolean;
+  multiple: boolean;
+  sortOrder: number;
+  choices: {
+    id: string;
+    name: string;
+    priceModifier: number;
+    pickupPriceModifier?: number | null;
+    deliveryPriceModifier?: number | null;
+    pickupPrice?: number | null;
+    deliveryPrice?: number | null;
+    image?: string | null;
+    sortOrder: number;
+  }[];
+};
+
+export type ProductDto = {
+  id: string;
+  name: string;
+  description: string | null;
+  price: number;
+  pickupPrice: number | null;
+  deliveryPrice: number | null;
+  vatRate: number;
+  categoryId: string;
+  image: string | null;
+  active: boolean;
+  available: boolean;
+  inheritCategoryGlobals: boolean;
+  sortOrder: number;
+  options: OptionGroupDto[];
+  productOptions?: OptionGroupDto[];
+  addOns: AddOnDto[];
+  category?: { id: string; name: string; color: string };
+};
+
+export type AddOnDto = {
+  id: string;
+  name: string;
+  price: number;
+  image: string | null;
+  active: boolean;
+  sortOrder: number;
+};
+
+export type CustomerDto = {
+  id: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  notes: string | null;
+  createdAt: string;
+  orderCount?: number;
+};
+
+export type OrderItemDto = {
+  id: string;
+  productId: string | null;
+  productName: string;
+  unitPrice: number;
+  quantity: number;
+  lineTotal: number;
+  optionsJson: string | null;
+  addOnsJson: string | null;
+  notes: string | null;
+};
+
+export type PaymentMethod = "CASH" | "CARD" | "VOUCHER";
+
+export type PaymentDto = {
+  id: string;
+  method: "CASH" | "CARD" | "VOUCHER";
+  amount: number; // applied to bill
+  tendered: number | null; // cash handed over
+  change: number | null; // change returned
+  createdAt: string;
+};
+
+export type OrderDto = {
+  id: string;
+  number: number;
+  shiftId: string;
+  cashierId: string;
+  customerId: string | null;
+  status: "PENDING" | "COMPLETED" | "REFUNDED" | "CANCELLED";
+  orderType: "DINE_IN" | "TAKEAWAY" | "LIVRAISON";
+  tableLabel: string | null;
+  subtotal: number;
+  vatTotal: number;
+  discountTotal: number;
+  total: number;
+  notes: string | null;
+  itemCount: number;
+  createdAt: string;
+  completedAt: string | null;
+  refundedAt: string | null;
+  items: OrderItemDto[];
+  payments: PaymentDto[];
+  cashier?: { name: string; username: string };
+  customer?: { name: string } | null;
+  shift?: { number: number };
+};
+
+export type ShiftDto = {
+  id: string;
+  number: number;
+  status: "OPEN" | "CLOSED";
+  openedById: string;
+  openedAt: string;
+  closedById: string | null;
+  closedAt: string | null;
+  openingFloat: number;
+  closingFloat: number | null;
+  expectedCash: number | null;
+  cashVariance: number | null;
+  salesTotal: number | null;
+  salesCount: number | null;
+  notes: string | null;
+  openedBy?: { name: string; username: string };
+  closedBy?: { name: string; username: string } | null;
+};
+
+export type AuditLogDto = {
+  id: string;
+  userId: string | null;
+  action: string;
+  entity: string;
+  entityId: string | null;
+  details: string | null;
+  createdAt: string;
+  user?: { name: string; username: string } | null;
+};
+
+export type DashboardDto = {
+  todaySales: number;
+  todayOrders: number;
+  todayItems: number;
+  avgTicket: number;
+  cashSales: number;
+  cardSales: number;
+  currentShift: ShiftDto | null;
+  hourly: { hour: number; sales: number; orders: number }[];
+  topProducts: { name: string; quantity: number; total: number }[];
+  topCategories: { name: string; color: string; revenue: number; quantity: number }[];
+  paymentBreakdown: { method: string; amount: number; count: number }[];
+  recentOrders: OrderDto[];
+  comparison?: {
+    lastWeekDaySales: number;
+    lastWeekDayCount: number;
+    todayVsLastWeekDayPct: number | null;
+    thisWeekSales: number;
+    lastWeekSales: number;
+    thisWeekOrdersCount: number;
+    lastWeekOrdersCount: number;
+    weekVsLastWeekPct: number | null;
+  };
+};
+
+export type XReportDto = {
+  shift: ShiftDto;
+  salesTotal: number;
+  salesCount: number;
+  vatTotal: number;
+  cashTotal: number;
+  cardTotal: number;
+  voucherTotal: number;
+  discountsTotal: number;
+  openingFloat: number;
+  expectedCash: number;
+  vatBreakdown: Record<string, { ht: number; vat: number; ttc: number }>;
+  topProducts: { name: string; quantity: number; total: number }[];
+  generatedAt: string;
+};
+
+export type ZReportDto = {
+  id: string;
+  number: number;
+  shift: ShiftDto;
+  generatedAt: string;
+  salesTotal: number;
+  salesCount: number;
+  vatTotal: number;
+  cashTotal: number;
+  cardTotal: number;
+  voucherTotal: number;
+  discountsTotal: number;
+  openingFloat: number;
+  expectedCash: number;
+  closingFloat: number;
+  cashVariance: number;
+  vatBreakdown: Record<string, { ht: number; vat: number; ttc: number }>;
+  topProducts: { name: string; quantity: number; total: number }[];
+};
+
+export type SettingsDto = {
+  restaurantName: string;
+  restaurantAddress: string | null;
+  restaurantPhone: string | null;
+  restaurantSiret: string | null;
+  restaurantTva: string | null;
+  footerNote: string | null;
+  defaultVatRate: number;
+  currency: string;
+  printerName: string | null;
+  receiptWidth: number;
+  discountApprovalThreshold: number; // percent (e.g. 20 = 20%)
+  autoPrint: boolean;
+};
+
+export type BackupDto = {
+  id: string;
+  filename: string;
+  size: number;
+  createdAt: string;
+  createdBy?: { name: string } | null;
+};
+
+export type TableStatus = "FREE" | "OCCUPIED" | "RESERVED";
+
+export type TableDto = {
+  id: string;
+  label: string;
+  seats: number;
+  status: TableStatus;
+  zone: string | null;
+  sortOrder: number;
+  active: boolean;
+  notes: string | null;
+  currentOrderId: string | null;
+  createdAt: string;
+  updatedAt: string;
+};

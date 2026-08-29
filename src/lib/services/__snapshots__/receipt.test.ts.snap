@@ -1,0 +1,55 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`renderReceipt > produces a consistent snapshot for a standard order 1`] = `
+"               HibaPOS Test
+         12 Rue Test, 75001 Paris
+           Tél : 01 23 45 67 89
+            SIRET : TEST-SIRET
+------------------------------------------
+Ticket N° 42              14/08/2026 13:30
+Caissier : Admin                 Caisse #7
+Type : Sur place                Table : T1
+------------------------------------------
+2× Double Cheese                   19,80 €
+  · À point
+  + Bacon (1,50 €)
+1× Coca-Cola                        2,70 €
+------------------------------------------
+Sous-total                         22,50 €
+dont TVA                            2,05 €
+TOTAL                              22,50 €
+------------------------------------------
+Paiements
+Espèces                            22,50 €
+  Reçu 25,00 € — Rendu 2,50 €
+------------------------------------------
+                4 articles
+         Merci de votre visite !"
+`;
+
+exports[`renderReceipt produces a consistent snapshot for a standard order 1`] = `
+"               HibaPOS Test
+         12 Rue Test, 75001 Paris
+           Tél : 01 23 45 67 89
+            SIRET : TEST-SIRET
+------------------------------------------
+Ticket N° 42              14/08/2026 12:30
+Caissier : Admin                 Caisse #7
+Type : Sur place                Table : T1
+------------------------------------------
+2× Double Cheese                   19,80 €
+  · À point
+  + Bacon (1,50 €)
+1× Coca-Cola                        2,70 €
+------------------------------------------
+Sous-total                         22,50 €
+dont TVA                            2,05 €
+TOTAL                              22,50 €
+------------------------------------------
+Paiements
+Espèces                            22,50 €
+  Reçu 25,00 € — Rendu 2,50 €
+------------------------------------------
+                4 articles
+         Merci de votre visite !"
+`;
