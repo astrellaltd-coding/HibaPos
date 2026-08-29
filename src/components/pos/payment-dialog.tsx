@@ -7,6 +7,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { formatEuro } from "@/lib/format";
+import { toCents } from "@/lib/money";
 import { useCartStore, computeCartTotals } from "@/store/cart-store";
 import { useAppStore } from "@/store/app-store";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -14,10 +15,9 @@ import { api, ApiError } from "@/lib/api-client";
 import type { OrderDto, PaymentMethod, SettingsDto } from "@/types/api";
 import { Banknote, CreditCard, Ticket, Plus, Trash2, Loader2, CheckCircle2, Coins } from "lucide-react";
 import { toast } from "sonner";
-import { round2 } from "@/lib/money";
 import { ManagerApprovalDialog, type ApprovedManager } from "@/components/pos/manager-approval-dialog";
 
-type PayLine = { method: PaymentMethod; amount: number; tendered?: number };
+type PayLine = { method: PaymentMethod; amount: number; tendered?: number }; // cents
 
 const METHODS: { method: PaymentMethod; label: string; icon: typeof Banknote; color: string }[] = [
   { method: "CASH", label: "Espèces", icon: Banknote, color: "text-emerald-600" },
@@ -59,20 +59,20 @@ export function PaymentDialog({
   });
   const qc = useQueryClient();
 
-  const paid = useMemo(() => round2(lines.reduce((acc, l) => acc + l.amount, 0)), [lines]);
-  const remaining = round2(Math.max(0, total - paid));
+  const paid = useMemo(() => lines.reduce((acc, l) => acc + l.amount, 0), [lines]);
+  const remaining = Math.max(0, total - paid);
 
-  // Total cash tendered across all CASH lines (actual cash received).
+  // Total cash tendered across all CASH lines (actual cash received) — cents.
   const cashTendered = useMemo(
-    () => round2(lines.filter((l) => l.method === "CASH").reduce((acc, l) => acc + (l.tendered ?? l.amount), 0)),
+    () => lines.filter((l) => l.method === "CASH").reduce((acc, l) => acc + (l.tendered ?? l.amount), 0),
     [lines],
   );
-  // Cash portion of the order covered by CASH lines.
+  // Cash portion of the order covered by CASH lines — cents.
   const cashCovered = useMemo(
-    () => round2(lines.filter((l) => l.method === "CASH").reduce((acc, l) => acc + l.amount, 0)),
+    () => lines.filter((l) => l.method === "CASH").reduce((acc, l) => acc + l.amount, 0),
     [lines],
   );
-  const change = round2(Math.max(0, cashTendered - cashCovered));
+  const change = Math.max(0, cashTendered - cashCovered);
 
   const reset = () => {
     setLines([]);
@@ -88,20 +88,28 @@ export function PaymentDialog({
 
   const addPayment = (amount: number) => {
     if (amount <= 0) return;
-    const currentPaid = round2(lines.reduce((acc, l) => acc + l.amount, 0));
-    const currentRemaining = round2(Math.max(0, total - currentPaid));
+    const currentPaid = lines.reduce((acc, l) => acc + l.amount, 0);
+    const currentRemaining = Math.max(0, total - currentPaid);
     if (currentRemaining <= 0) return;
 
     if (activeMethod === "CASH" && amount > currentRemaining) {
       // Overpayment: cap the order-covered amount, record what the customer actually gave.
-      setLines((l) => [...l, { method: activeMethod, amount: currentRemaining, tendered: round2(amount) }]);
+      setLines((l) => [...l, { method: activeMethod, amount: currentRemaining, tendered: amount }]);
     } else {
-      setLines((l) => [...l, { method: activeMethod, amount: round2(Math.min(amount, currentRemaining)) }]);
+      setLines((l) => [...l, { method: activeMethod, amount: Math.min(amount, currentRemaining) }]);
     }
     setCustomAmount("");
   };
 
-  const quickCash = [remaining, round2(Math.ceil(remaining)), round2(Math.ceil(remaining / 5) * 5), round2(Math.ceil(remaining / 10) * 10), 5, 10, 20, 50].filter((v, i, arr) => v > 0 && arr.indexOf(v) === i);
+  // Quick-cash buttons: show EURO amounts to the cashier but push CENTS to addPayment.
+  // `remaining` is cents; the quick values are euro-facing helpers derived from it.
+  const quickCash = [
+    remaining,
+    Math.ceil(remaining / 100) * 100,
+    Math.ceil(remaining / 500) * 500,
+    Math.ceil(remaining / 1000) * 1000,
+    500, 1000, 2000, 5000,
+  ].filter((v, i, arr) => v > 0 && arr.indexOf(v) === i);
 
   const removeLine = (idx: number) => setLines((l) => l.filter((_, i) => i !== idx));
 
@@ -117,7 +125,7 @@ export function PaymentDialog({
   // approves. State (`approvalToken`) is intentionally NOT read here for the
   // gate: when this closure was created, state was still null.
   const finalize = async (tokenArg?: string) => {
-    if (paid < total - 0.01) {
+    if (paid < total - 1) { // within 1 cent
       toast.error("Paiement insuffisant");
       return;
     }
@@ -277,7 +285,8 @@ export function PaymentDialog({
                   if (e.key === "Enter" && customAmount) {
                     // "0" or invalid input is a no-op — a phantom 0.01 € line
                     // silently corrupts `paid`/`change` (post-audit N2).
-                    const n = Number(customAmount);
+                    // Custom amount is entered in EUROS; convert to cents.
+                    const n = toCents(Number(customAmount.replace(",", ".")));
                     if (Number.isFinite(n) && n > 0) addPayment(n);
                   }
                 }}
@@ -295,7 +304,8 @@ export function PaymentDialog({
                     else if (remaining > 0) addPayment(remaining);
                     return;
                   }
-                  const n = Number(customAmount);
+                  // Custom amount is entered in EUROS; convert to cents.
+                  const n = toCents(Number(customAmount.replace(",", ".")));
                   if (Number.isFinite(n) && n > 0) addPayment(n);
                 }}
               >

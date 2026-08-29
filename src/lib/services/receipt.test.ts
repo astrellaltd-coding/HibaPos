@@ -18,10 +18,10 @@ const baseOrder: TestOrder = {
   status: "COMPLETED",
   orderType: "DINE_IN",
   tableLabel: "T1",
-  subtotal: 22.5,
-  vatTotal: 2.05,
+  subtotal: 2250,  // 22.50 € in cents
+  vatTotal: 205,   // 2.05 € in cents
   discountTotal: 0,
-  total: 22.5,
+  total: 2250,
   notes: null,
   itemCount: 4,
   fiscalEventId: null,
@@ -33,14 +33,14 @@ const baseOrder: TestOrder = {
       id: "oi-1",
       productId: "p1",
       productName: "Double Cheese",
-      unitPrice: 9.9,
+      unitPrice: 990,   // 9.90 € in cents
       quantity: 2,
-      lineTotal: 19.8,
+      lineTotal: 1980,  // 19.80 € in cents
       optionsJson: JSON.stringify([
         { group: "Cuisson", choice: "À point" },
       ]),
       addOnsJson: JSON.stringify([
-        { id: "add1", name: "Bacon", price: 1.5 },
+        { id: "add1", name: "Bacon", price: 150 }, // 1.50 € in cents
       ]),
       notes: null,
     },
@@ -48,9 +48,9 @@ const baseOrder: TestOrder = {
       id: "oi-2",
       productId: "p2",
       productName: "Coca-Cola",
-      unitPrice: 2.7,
+      unitPrice: 270,  // 2.70 € in cents
       quantity: 1,
-      lineTotal: 2.7,
+      lineTotal: 270,
       optionsJson: null,
       addOnsJson: null,
       notes: null,
@@ -60,9 +60,9 @@ const baseOrder: TestOrder = {
     {
       id: "pay-1",
       method: "CASH",
-      amount: 22.5,
-      tendered: 25,
-      change: 2.5,
+      amount: 2250,  // 22.50 € in cents
+      tendered: 2500, // 25.00 € in cents
+      change: 250,   // 2.50 € in cents
       createdAt: "2026-08-14T12:30:00.000Z",
     },
   ],

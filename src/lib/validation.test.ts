@@ -123,7 +123,7 @@ describe("settingsSchema", () => {
 
 describe("refundSchema", () => {
   it("accepts a valid refund", () => {
-    const r = refundSchema.safeParse({ amount: 5.5, reason: "Client insatisfait" });
+    const r = refundSchema.safeParse({ amount: 550, reason: "Client insatisfait" });
     expect(r.success).toBe(true);
   });
 
@@ -147,7 +147,7 @@ describe("productSchema", () => {
   it("accepts a valid product", () => {
     const r = productSchema.safeParse({
       name: "Double Cheese",
-      price: 9.9,
+      price: 990,
       categoryId: "cat-1",
     });
     expect(r.success).toBe(true);

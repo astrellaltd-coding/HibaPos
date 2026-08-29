@@ -92,7 +92,7 @@ export function AddonsView() {
     setEditing(a);
     setForm({
       name: a.name,
-      price: a.price,
+      price: a.price / 100, // cents → euros for the form input
       image: a.image ?? "➕",
       active: a.active,
       sortOrder: a.sortOrder,
@@ -146,7 +146,7 @@ export function AddonsView() {
     try {
       const payload = {
         name: form.name.trim(),
-        price: Number(form.price) || 0,
+        price: Math.round(Number(form.price) * 100) || 0, // euros → cents
         image: form.image.trim() || null,
         active: form.active,
         sortOrder: Number(form.sortOrder) || 0,

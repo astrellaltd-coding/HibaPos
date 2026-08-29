@@ -1,9 +1,11 @@
 // HibaPOS France — Prisma Schema
 // Point of Sale system for a single fast-food restaurant in France.
-// SQLite is used as the local database (Tauri-friendly).
+// SQLite is used as the local database.
 
-// NOTE: All money is currently stored as Float euros. Future migration to integer cents
-// (per Doc 014/020) is planned as a separate schema evolution.
+// NOTE: All money is stored as INTEGER CENTS (e.g. 1250 = 12.50 €).
+// The API DTO also transports cents. The frontend converts cents→euros
+// for display via formatEuro(). This eliminates float representation
+// and arithmetic drift in fiscal calculations (ISCA / TVA reconciliation).
 
 generator client {
   provider = "prisma-client-js"
@@ -92,9 +94,9 @@ model Product {
   id          String   @id @default(cuid())
   name        String
   description String?
-  price       Float // TTC (euro) — primary price for POS
-  pickupPrice  Float? // TTC price for takeaway (if different from default)
-  deliveryPrice Float? // TTC price for delivery (future)
+  price       Int // TTC cents (primary POS price)
+  pickupPrice  Int? // TTC cents for takeaway (if different from default)
+  deliveryPrice Int? // TTC cents for delivery
   vatRate     Float   @default(20.0) // French VAT: 20% standard, 10% food, 5.5%
   categoryId  String
   image       String? // url or data path
@@ -143,9 +145,9 @@ model OptionChoice {
   id                    String  @id @default(cuid())
   groupId               String
   name                  String
-  priceModifier         Float   @default(0) // added to base price
-  pickupPriceModifier   Float?  // override for takeaway
-  deliveryPriceModifier Float?  // override for delivery
+  priceModifier         Int   @default(0) // cents added to base price
+  pickupPriceModifier   Int?  // cents override for takeaway
+  deliveryPriceModifier Int?  // cents override for delivery
   image                 String? // optional thumbnail shown in POS picker
   sortOrder             Int     @default(0)
 
@@ -158,7 +160,7 @@ model OptionChoice {
 model AddOn {
   id            String         @id @default(cuid())
   name          String
-  price         Float
+  price         Int // cents
   image         String?
   active        Boolean        @default(true)
   sortOrder     Int            @default(0)
@@ -187,11 +189,11 @@ model CategoryOptionChoice {
   groupId               String
   group                 CategoryOptionGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
   name                  String
-  priceModifier         Float               @default(0)
-  pickupPriceModifier   Float?
-  deliveryPriceModifier Float?
-  pickupPrice           Float?              // absolute fixed price for takeaway (overrides modifier logic)
-  deliveryPrice         Float?              // absolute fixed price for delivery
+  priceModifier         Int   @default(0) // cents
+  pickupPriceModifier   Int?  // cents override for takeaway
+  deliveryPriceModifier Int?  // cents override for delivery
+  pickupPrice           Int?              // absolute fixed price in cents for takeaway (overrides modifier logic)
+  deliveryPrice         Int?              // absolute fixed price in cents for delivery
   image                 String?             // optional thumbnail shown in POS picker
   sortOrder             Int                 @default(0)
 
@@ -204,7 +206,7 @@ model CategoryAddOn {
   categoryId String
   category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   name       String
-  price      Float
+  price      Int // cents
   image      String?
   sortOrder  Int      @default(0)
   active     Boolean  @default(true)
@@ -279,11 +281,11 @@ model Shift {
   openedAt      DateTime    @default(now())
   closedById    String?
   closedAt      DateTime?
-  openingFloat  Float       @default(0)
-  closingFloat  Float?
-  expectedCash  Float?
-  cashVariance  Float?
-  salesTotal    Float?
+  openingFloat  Int       @default(0) // cents
+  closingFloat  Int?
+  expectedCash  Int?
+  cashVariance  Int?
+  salesTotal    Int?
   salesCount    Int?
   notes         String?
 
@@ -323,10 +325,10 @@ model Order {
   status         OrderStatus @default(COMPLETED)
   orderType      OrderType   @default(DINE_IN)
   tableLabel     String? // free text table / order number
-  subtotal       Float       @default(0) // HT + options (excl VAT)
-  vatTotal       Float       @default(0)
-  discountTotal  Float       @default(0)
-  total          Float       @default(0) // TTC
+  subtotal       Int       @default(0) // cents HT + options (excl VAT)
+  vatTotal       Int       @default(0) // cents
+  discountTotal  Int       @default(0) // cents
+  total          Int       @default(0) // cents TTC
   notes          String?
   itemCount      Int         @default(0)
   fiscalEventId  String?     // link to the FiscalEvent (VENTE) journal entry (plain id, no FK by design)
@@ -354,9 +356,9 @@ model OrderItem {
   orderId     String
   productId   String?
   productName String
-  unitPrice   Float // TTC unit price (base + options)
+  unitPrice   Int // TTC cents unit price (base + options)
   quantity    Int
-  lineTotal   Float
+  lineTotal   Int // cents
   vatRate     Float?  // snapshot of VAT rate at time of sale
   optionsJson String? // JSON snapshot of chosen options
   addOnsJson  String? // JSON snapshot of chosen add-ons
@@ -379,9 +381,9 @@ model Payment {
   id        String        @id @default(cuid())
   orderId   String
   method    PaymentMethod
-  amount    Float         // amount applied to the bill
-  tendered  Float?        // cash handed over (cash only)
-  change    Float?        // change returned (cash only)
+  amount    Int         // cents applied to bill
+  tendered  Int?        // cents handed over (cash only)
+  change    Int?        // cents returned (cash only)
   cashierId String
   createdAt DateTime      @default(now())
 
@@ -395,7 +397,7 @@ model Payment {
 model Refund {
   id        String   @id @default(cuid())
   orderId   String
-  amount    Float
+  amount    Int // cents
   reason    String
   approvedById String? // manager who approved the refund
   cashierId String
@@ -437,17 +439,17 @@ model ZReport {
   shiftId          String   @unique
   number           Int      @unique
   generatedAt      DateTime @default(now())
-  salesTotal       Float
+  salesTotal       Int
   salesCount       Int
-  vatTotal         Float
-  cashTotal        Float
-  cardTotal        Float
-  voucherTotal     Float
-  discountsTotal   Float
-  openingFloat     Float
-  expectedCash     Float
-  closingFloat     Float
-  cashVariance     Float
+  vatTotal         Int
+  cashTotal        Int
+  cardTotal        Int
+  voucherTotal     Int
+  discountsTotal   Int
+  openingFloat     Int
+  expectedCash     Int
+  closingFloat     Int
+  cashVariance     Int
   topProductsJson  String? // JSON snapshot
   vatBreakdownJson String? // {rate: {base, vat, ttc}}
   fiscalEventId    String? // link to the FiscalEvent (CLOTURE_Z) journal entry (plain id, no FK)
@@ -552,13 +554,13 @@ model FiscalEvent {
 // separately in monthly/annual closes).
 model GrandTotal {
   id            String   @id @default("singleton")
-  totalSales    Float    @default(0) // gross cumulative TTC sales
-  totalOrders   Int      @default(0)
-  totalVat      Float    @default(0)
-  totalCash     Float    @default(0)
-  totalCard     Float    @default(0)
-  totalVoucher  Float    @default(0)
-  totalRefunded Float    @default(0) // cumulative refunded amount (for reconciliation)
+  totalSales    Int    @default(0) // gross cumulative TTC cents
+  totalOrders   Int    @default(0)
+  totalVat      Int    @default(0) // cents
+  totalCash     Int    @default(0) // cents
+  totalCard     Int    @default(0) // cents
+  totalVoucher  Int    @default(0) // cents
+  totalRefunded Int    @default(0) // cumulative refunded cents (for reconciliation)
   lastUpdatedAt DateTime @default(now())
 }
 
@@ -568,13 +570,13 @@ model MonthlyClose {
   period          String   @unique // "YYYY-MM"
   year            Int
   month           Int      // 1-12
-  salesTotal      Float
+  salesTotal      Int
   salesCount      Int
-  vatTotal        Float
-  cashTotal       Float
-  cardTotal       Float
-  voucherTotal    Float
-  discountsTotal  Float
+  vatTotal        Int
+  cashTotal       Int
+  cardTotal       Int
+  voucherTotal    Int
+  discountsTotal  Int
   vatBreakdownJson String
   topProductsJson  String
   dataJson        String   // canonical payload used to compute the hash (for chain verification)
@@ -592,13 +594,13 @@ model AnnualClose {
   id              String   @id @default(cuid())
   period          String   @unique // "YYYY"
   year            Int
-  salesTotal      Float
+  salesTotal      Int
   salesCount      Int
-  vatTotal        Float
-  cashTotal       Float
-  cardTotal       Float
-  voucherTotal    Float
-  discountsTotal  Float
+  vatTotal        Int
+  cashTotal       Int
+  cardTotal       Int
+  voucherTotal    Int
+  discountsTotal  Int
   vatBreakdownJson String
   topProductsJson  String
   dataJson        String   // canonical payload used to compute the hash (for chain verification)

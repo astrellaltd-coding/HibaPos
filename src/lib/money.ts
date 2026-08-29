@@ -1,6 +1,8 @@
 // Money & VAT utilities for HibaPOS France.
-// All amounts are manipulated cleanly in Euros or exact integer cents.
-// Calculations round cleanly to avoid floating point drift.
+// All amounts are stored and computed as INTEGER CENTS (e.g. 1250 = 12.50 €).
+// The API DTO transports cents; the frontend converts to euros for display
+// via formatEuro(). Integer-cent arithmetic eliminates float drift in
+// fiscal calculations (ISCA / TVA reconciliation).
 
 /** Convert a euro decimal amount (e.g. 12.50) to integer cents (e.g. 1250). */
 export function toCents(euros: number): number {
@@ -12,42 +14,43 @@ export function fromCents(cents: number): number {
   return Math.round(cents) / 100;
 }
 
-/** Round to 2 decimals (banker-style half-up). */
+/** Round to 2 decimals (half-up). Used at the euros display boundary only. */
 export function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
 /**
- * Split a TTC amount into HT (base) and VAT, given a VAT rate (%).
- * base = ttc / (1 + rate/100)
- * vat  = ttc - base
+ * Split a TTC amount (in CENTS) into HT (base) and VAT, given a VAT rate (%).
+ *   baseCents = round(ttcCents / (1 + rate/100))
+ *   vatCents  = ttcCents - baseCents
+ * All values are integer cents — no float drift.
  */
-export function splitVat(ttc: number, vatRate: number): { ht: number; vat: number; ttc: number } {
-  const base = round2(ttc / (1 + vatRate / 100));
-  const vat = round2(ttc - base);
-  return { ht: base, vat, ttc: round2(ttc) };
+export function splitVat(ttcCents: number, vatRate: number): { ht: number; vat: number; ttc: number } {
+  const base = Math.round(ttcCents / (1 + vatRate / 100));
+  const vat = ttcCents - base;
+  return { ht: base, vat, ttc: ttcCents };
 }
 
-/** Build a VAT breakdown map keyed by rate. */
+/** Build a VAT breakdown map keyed by rate. All amounts in cents. */
 export type VatBreakdown = Record<number, { ht: number; vat: number; ttc: number }>;
 
 export function addToVatBreakdown(
   breakdown: VatBreakdown,
-  ttc: number,
+  ttcCents: number,
   vatRate: number,
 ): VatBreakdown {
-  const key = round2(vatRate);
+  const key = Math.round(vatRate);
   const existing = breakdown[key] ?? { ht: 0, vat: 0, ttc: 0 };
-  const { ht, vat } = splitVat(ttc, vatRate);
+  const { ht, vat } = splitVat(ttcCents, vatRate);
   breakdown[key] = {
-    ht: round2(existing.ht + ht),
-    vat: round2(existing.vat + vat),
-    ttc: round2(existing.ttc + ttc),
+    ht: existing.ht + ht,
+    vat: existing.vat + vat,
+    ttc: existing.ttc + ttcCents,
   };
   return breakdown;
 }
 
-/** Sum an array of numbers with rounding. */
+/** Sum an array of integer cents. No rounding needed (integers are exact). */
 export function sum2(nums: number[]): number {
-  return round2(nums.reduce((acc, n) => acc + n, 0));
+  return nums.reduce((acc, n) => acc + n, 0);
 }

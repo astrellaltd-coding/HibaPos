@@ -15,10 +15,16 @@ describe("toCents and fromCents", () => {
     expect(fromCents(1000)).toBe(10);
     expect(fromCents(0)).toBe(0);
   });
+
+  it("round-trips without drift for typical POS amounts", () => {
+    for (const euros of [9.9, 7.5, 11.5, 0.5, 1.8, 2.2, 250.0]) {
+      expect(fromCents(toCents(euros))).toBeCloseTo(euros, 10);
+    }
+  });
 });
 
 describe("round2", () => {
-  it("rounds to 2 decimals (banker half-up)", () => {
+  it("rounds to 2 decimals (half-up)", () => {
     expect(round2(1.005)).toBe(1.01);
     expect(round2(1.004)).toBe(1.0);
     expect(round2(10.999)).toBe(11.0);
@@ -26,43 +32,50 @@ describe("round2", () => {
   });
 });
 
-describe("splitVat", () => {
-  it("splits 10% VAT correctly", () => {
-    const result = splitVat(11, 10);
-    expect(result.ht).toBe(10);
-    expect(result.vat).toBe(1);
-    expect(result.ttc).toBe(11);
+describe("splitVat (cents)", () => {
+  it("splits 10% VAT correctly (1100 cents = 11.00 € TTC)", () => {
+    const result = splitVat(1100, 10);
+    expect(result.ht).toBe(1000);
+    expect(result.vat).toBe(100);
+    expect(result.ttc).toBe(1100);
   });
 
-  it("splits 20% VAT correctly", () => {
-    const result = splitVat(12, 20);
-    expect(result.ht).toBe(10);
-    expect(result.vat).toBe(2);
-    expect(result.ttc).toBe(12);
+  it("splits 20% VAT correctly (1200 cents = 12.00 € TTC)", () => {
+    const result = splitVat(1200, 20);
+    expect(result.ht).toBe(1000);
+    expect(result.vat).toBe(200);
+    expect(result.ttc).toBe(1200);
+  });
+
+  it("splits 5.5% VAT correctly (550 cents = 5.50 € TTC)", () => {
+    const result = splitVat(550, 5.5);
+    expect(result.ttc).toBe(550);
+    expect(result.ht + result.vat).toBe(550);
   });
 });
 
-describe("addToVatBreakdown", () => {
-  it("accumulates VAT by rate", () => {
+describe("addToVatBreakdown (cents)", () => {
+  it("accumulates VAT by rate in cents", () => {
     const map: VatBreakdown = {};
-    addToVatBreakdown(map, 10, 10); // 10% VAT on 10€ TTC
+    addToVatBreakdown(map, 1000, 10); // 10% VAT on 1000 cents TTC
     expect(map[10]).toBeDefined();
     expect(map[10].vat).toBeGreaterThan(0);
-    addToVatBreakdown(map, 5, 20); // 20% VAT on 5€ TTC
+    addToVatBreakdown(map, 500, 20); // 20% VAT on 500 cents TTC
     expect(map[20]).toBeDefined();
   });
 
-  it("sums to correct totals for mixed rates", () => {
+  it("sums to correct totals for mixed rates (cents)", () => {
     const map: VatBreakdown = {};
-    addToVatBreakdown(map, 11, 10); // 10€ HT + 1€ VAT
-    addToVatBreakdown(map, 12, 20); // 10€ HT + 2€ VAT
-    expect(round2(map[10].ht + map[20].ht)).toBe(20);
-    expect(round2(map[10].vat + map[20].vat)).toBe(3);
+    addToVatBreakdown(map, 1100, 10); // 1000¢ HT + 100¢ VAT
+    addToVatBreakdown(map, 1200, 20); // 1000¢ HT + 200¢ VAT
+    expect(sum2([map[10].ht, map[20].ht])).toBe(2000);
+    expect(sum2([map[10].vat, map[20].vat])).toBe(300);
   });
 });
 
-describe("sum2", () => {
-  it("sums with rounding", () => {
-    expect(sum2([1.111, 2.222])).toBe(3.33);
+describe("sum2 (cents)", () => {
+  it("sums integer cents exactly", () => {
+    expect(sum2([111, 222])).toBe(333);
+    expect(sum2([100, 200, 350])).toBe(650);
   });
 });

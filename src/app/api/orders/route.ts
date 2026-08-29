@@ -6,7 +6,7 @@ import { nextReceiptNumber } from "@/lib/services/sequence";
 import { renderReceipt } from "@/lib/services/receipt";
 import { getSettings } from "@/lib/services/settings";
 import { appendFiscalEvent, incrementGrandTotal } from "@/lib/services/fiscal";
-import { round2, addToVatBreakdown, sum2 } from "@/lib/money";
+import { sum2, addToVatBreakdown } from "@/lib/money";
 import { verifyApprovalToken, ApprovalError } from "@/lib/approvals";
 
 // Server-authoritative checkout intent schema.
@@ -32,7 +32,7 @@ const checkoutIntentSchema = z.object({
   discount: z
     .object({
       type: z.enum(["PERCENT", "AMOUNT"]),
-      value: z.number().min(0),
+      value: z.number().int().min(0), // cents (AMOUNT) or percent×100 (PERCENT) — see server calc
       approvedById: z.string().optional(), // legacy — only honored for MANAGER+/SUPER_ADMIN callers
       approvalToken: z.string().optional(), // recommended: signed single-use token from /api/auth/approve
     })
@@ -42,8 +42,8 @@ const checkoutIntentSchema = z.object({
     .array(
       z.object({
         method: z.enum(["CASH", "CARD", "VOUCHER"]),
-        amount: z.number().min(0.01),
-        tendered: z.number().min(0).optional(),
+        amount: z.number().int().min(1), // cents (min 1 cent)
+        tendered: z.number().int().min(0).optional(), // cents
       })
     )
     .min(1, "Au moins un paiement"),
@@ -210,15 +210,15 @@ export const POST = withAuth(async (req, { user }) => {
         if (c.pickupPrice != null) {
           // Absolute choice price (category-level only). deliveryPrice
           // defaults to the pickup absolute when unset (serializer parity).
-          const absPickup = Number(c.pickupPrice);
-          const absDelivery = c.deliveryPrice != null ? Number(c.deliveryPrice) : absPickup;
+          const absPickup = c.pickupPrice;
+          const absDelivery = c.deliveryPrice != null ? c.deliveryPrice : absPickup;
           if (orderType === "TAKEAWAY") {
-            modifier = round2(absPickup - basePrice);
+            modifier = absPickup - basePrice;
           } else if (orderType === "LIVRAISON") {
-            modifier = round2(absDelivery - basePrice);
+            modifier = absDelivery - basePrice;
           } else {
             // DINE_IN: serializer relativizes against the dine-in base.
-            modifier = round2(absPickup - product.price);
+            modifier = absPickup - product.price;
           }
         } else if (orderType === "TAKEAWAY" && c.pickupPriceModifier != null) {
           modifier = c.pickupPriceModifier;
@@ -274,9 +274,9 @@ export const POST = withAuth(async (req, { user }) => {
       chosenAddons.push({ id: addon.id, name: addon.name, price: addon.price });
     }
 
-    const unitPrice = round2(basePrice + optionsModifier);
-    const lineTotal = round2((unitPrice + addonsTotal) * itemIntent.quantity);
-    subtotal = round2(subtotal + lineTotal);
+    const unitPrice = basePrice + optionsModifier;
+    const lineTotal = (unitPrice + addonsTotal) * itemIntent.quantity;
+    subtotal += lineTotal;
     itemCount += itemIntent.quantity;
 
     orderItemsData.push({
@@ -292,12 +292,14 @@ export const POST = withAuth(async (req, { user }) => {
     });
   }
 
-  // Compute discount server-side
+  // Compute discount server-side (all values in cents)
   let discountTotal = 0;
   if (discount) {
     if (discount.type === "PERCENT") {
-      discountTotal = round2((subtotal * Math.min(discount.value, 100)) / 100);
+      // Percent discount: subtotal * value / 100 — round to nearest cent.
+      discountTotal = Math.round((subtotal * Math.min(discount.value, 100)) / 100);
     } else {
+      // Amount discount: clamped to subtotal (can't discount more than the order).
       discountTotal = Math.min(discount.value, subtotal);
     }
   }
@@ -340,13 +342,13 @@ export const POST = withAuth(async (req, { user }) => {
     discountApproverId = user.id;
   }
 
-  // Validate payments cover the total exactly.
-  const totalAfterDiscount = round2(subtotal - discountTotal);
-  const paidTotal = round2(payments.reduce((acc, p) => acc + p.amount, 0));
+  // Validate payments cover the total exactly (cents).
+  const totalAfterDiscount = subtotal - discountTotal;
+  const paidTotal = sum2(payments.map((p) => p.amount));
   if (paidTotal !== totalAfterDiscount) {
     return NextResponse.json(
       {
-        error: `Paiement incorrect : ${paidTotal.toFixed(2)} € ≠ ${totalAfterDiscount.toFixed(2)} €`,
+        error: `Paiement incorrect : ${(paidTotal / 100).toFixed(2)} € ≠ ${(totalAfterDiscount / 100).toFixed(2)} €`,
       },
       { status: 400 }
     );
@@ -373,14 +375,16 @@ export const POST = withAuth(async (req, { user }) => {
   const order = await db.$transaction(async (tx) => {
     const number = await nextReceiptNumber(tx);
 
-    // VAT on net-of-discount amounts (distribute discount pro-rata per line)
+    // VAT on net-of-discount amounts (distribute discount pro-rata per line).
+    // All values are cents; the ratio multiplication may produce a fractional
+    // cent — round to the nearest integer cent.
     const vatBreakdown: Record<number, { ht: number; vat: number; ttc: number }> = {};
     const discountRatio = subtotal > 0 ? discountTotal / subtotal : 0;
     for (const item of orderItemsData) {
-      const netLineTotal = round2(item.lineTotal * (1 - discountRatio));
+      const netLineTotal = Math.round(item.lineTotal * (1 - discountRatio));
       addToVatBreakdown(vatBreakdown, netLineTotal, item.vatRate);
     }
-    const vatTotal = round2(Object.values(vatBreakdown).reduce((acc, v) => acc + v.vat, 0));
+    const vatTotal = sum2(Object.values(vatBreakdown).map((v) => v.vat));
 
     const created = await tx.order.create({
       data: {
@@ -425,7 +429,7 @@ export const POST = withAuth(async (req, { user }) => {
           method: p.method,
           amount: p.amount,
           tendered: p.tendered ?? null,
-          change: p.tendered ? round2(p.tendered - p.amount) : null,
+          change: p.tendered ? p.tendered - p.amount : null,
           cashierId: user.id,
         },
       });

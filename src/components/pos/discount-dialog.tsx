@@ -9,6 +9,7 @@ import { api } from "@/lib/api-client";
 import type { SettingsDto } from "@/types/api";
 import { Tag, AlertCircle } from "lucide-react";
 import { formatEuro } from "@/lib/format";
+import { toCents } from "@/lib/money";
 
 export function DiscountDialog({
   open,
@@ -24,19 +25,22 @@ export function DiscountDialog({
     queryFn: () => api.get<SettingsDto>("/api/settings"),
   });
 
-  const [value, setValue] = useState<number>(discountTotal);
+  // The input works in EUROS for the user; `value` is stored in euros until
+  // `apply()` converts to cents via `toCents()` before pushing to the cart store.
+  const discountEuros = discountTotal > 0 ? discountTotal / 100 : 0;
+  const [value, setValue] = useState<number>(discountEuros);
   const [needsApproval, setNeedsApproval] = useState(false);
 
   const threshold = settings?.discountApprovalThreshold ?? 20;
   const percent = subtotal > 0 ? Math.round((value / subtotal) * 1000) / 10 : 0;
 
   const handleChange = (v: number) => {
-    setValue(Math.max(0, Math.min(subtotal, v)));
-    setNeedsApproval(subtotal > 0 && (v / subtotal) * 100 > threshold);
+    setValue(Math.max(0, Math.min(subtotal / 100, v)));
+    setNeedsApproval(subtotal > 0 && (v / (subtotal / 100)) * 100 > threshold);
   };
 
   const apply = () => {
-    setDiscount(value);
+    setDiscount(toCents(value));
     onOpenChange(false);
   };
 
@@ -54,11 +58,11 @@ export function DiscountDialog({
             <p className="text-2xl font-bold">{formatEuro(subtotal)}</p>
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium">Montant de la remise</label>
+            <label className="text-sm font-medium">Montant de la remise (€)</label>
             <input
               type="number"
               min={0}
-              max={subtotal}
+              max={subtotal / 100}
               step={0.5}
               value={value || ""}
               onChange={(e) => handleChange(Number(e.target.value) || 0)}
@@ -80,7 +84,7 @@ export function DiscountDialog({
           <Button variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
             Annuler
           </Button>
-          <Button className="flex-1" onClick={apply} disabled={value > subtotal}>
+          <Button className="flex-1" onClick={apply} disabled={toCents(value) > subtotal}>
             Appliquer
           </Button>
         </DialogFooter>

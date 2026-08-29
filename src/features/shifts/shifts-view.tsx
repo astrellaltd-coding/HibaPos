@@ -577,8 +577,8 @@ function OpenShiftDialog({
               value={floatStr}
               onChange={(e) => setFloatStr(e.target.value)}
             />
-            <p className="text-xs text-muted-foreground">
-              Valeur : <Money amount={floatNum} className="font-medium text-foreground" />
+              <p className="text-xs text-muted-foreground">
+              Valeur : <Money amount={Math.round(floatNum * 100)} className="font-medium text-foreground" />
             </p>
           </div>
           <div className="grid gap-2">
@@ -597,7 +597,7 @@ function OpenShiftDialog({
             Annuler
           </Button>
           <Button
-            onClick={() => onSubmit({ openingFloat: floatNum, notes: notes.trim() || undefined })}
+            onClick={() => onSubmit({ openingFloat: Math.round(floatNum * 100), notes: notes.trim() || undefined })}
             disabled={loading}
           >
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
@@ -655,7 +655,7 @@ function CloseShiftForm({
   onSubmit: (v: { closingFloat: number; notes?: string }) => void;
   onCancel: () => void;
 }) {
-  const [countedStr, setCountedStr] = useState(round2(expectedCash).toFixed(2));
+  const [countedStr, setCountedStr] = useState((expectedCash / 100).toFixed(2));
   const [notes, setNotes] = useState("");
 
   const counted = useMemo(() => {
@@ -663,7 +663,10 @@ function CloseShiftForm({
     return Number.isFinite(n) && n >= 0 ? n : 0;
   }, [countedStr]);
 
-  const variance = round2(counted - expectedCash);
+  // expectedCash and openingFloat arrive as CENTS from the API; convert to
+  // euros for the variance display (user-facing).
+  const expectedCashEuros = expectedCash / 100;
+  const variance = round2(counted - expectedCashEuros);
   const v = varianceStyle(variance);
 
   return (
@@ -693,11 +696,11 @@ function CloseShiftForm({
         <div className="rounded-xl border border-border bg-muted/40 p-3 text-sm">
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">Fond de caisse initial</span>
-            <Money amount={openingFloat} />
+            <Money amount={openingFloat / 100} />
           </div>
           <div className="mt-1 flex items-center justify-between">
             <span className="text-muted-foreground">Espèces attendues</span>
-            <Money amount={expectedCash} className="font-medium" />
+            <Money amount={expectedCash / 100} className="font-medium" />
           </div>
           <div className="mt-1 flex items-center justify-between">
             <span className="text-muted-foreground">Écart calculé</span>
@@ -727,7 +730,7 @@ function CloseShiftForm({
         </Button>
         <Button
           variant="destructive"
-          onClick={() => onSubmit({ closingFloat: round2(counted), notes: notes.trim() || undefined })}
+          onClick={() => onSubmit({ closingFloat: Math.round(counted * 100), notes: notes.trim() || undefined })}
           disabled={loading}
         >
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <LockKeyhole className="h-4 w-4" />}

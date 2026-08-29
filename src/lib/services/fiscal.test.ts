@@ -96,9 +96,9 @@ describe("fiscal journal (JFP) integration", () => {
       const order = await createOrder(tx, {
         userId: user.id,
         shiftId: shift.id,
-        total: 10,
-        vatTotal: 0.91,
-        cash: 10,
+        total: 1000,
+        vatTotal: 91,
+        cash: 1000,
         card: 0,
         voucher: 0,
       });
@@ -107,7 +107,7 @@ describe("fiscal journal (JFP) integration", () => {
         userId: user.id,
         orderId: order.id,
         shiftId: shift.id,
-        data: { orderNumber: order.number, total: 10 },
+        data: { orderNumber: order.number, total: 1000 },
       });
     });
 
@@ -122,21 +122,21 @@ describe("fiscal journal (JFP) integration", () => {
 
     const ev1 = await db.$transaction(async (tx) => {
       const order = await createOrder(tx, {
-        userId: user.id, shiftId: shift.id, total: 10, vatTotal: 0.91, cash: 10, card: 0, voucher: 0,
+        userId: user.id, shiftId: shift.id, total: 1000, vatTotal: 91, cash: 1000, card: 0, voucher: 0,
       });
       return appendFiscalEvent(tx, {
         type: "VENTE", userId: user.id, orderId: order.id, shiftId: shift.id,
-        data: { orderNumber: order.number, total: 10 },
+        data: { orderNumber: order.number, total: 1000 },
       });
     });
 
     const ev2 = await db.$transaction(async (tx) => {
       const order = await createOrder(tx, {
-        userId: user.id, shiftId: shift.id, total: 20, vatTotal: 1.82, cash: 20, card: 0, voucher: 0,
+        userId: user.id, shiftId: shift.id, total: 2000, vatTotal: 182, cash: 2000, card: 0, voucher: 0,
       });
       return appendFiscalEvent(tx, {
         type: "VENTE", userId: user.id, orderId: order.id, shiftId: shift.id,
-        data: { orderNumber: order.number, total: 20 },
+        data: { orderNumber: order.number, total: 2000 },
       });
     });
 
@@ -151,11 +151,11 @@ describe("fiscal journal (JFP) integration", () => {
     for (let i = 0; i < 3; i++) {
       await db.$transaction(async (tx) => {
         const order = await createOrder(tx, {
-          userId: user.id, shiftId: shift.id, total: 10 + i * 5, vatTotal: 0.91, cash: 10 + i * 5, card: 0, voucher: 0,
+          userId: user.id, shiftId: shift.id, total: 1000 + i * 500, vatTotal: 91, cash: 1000 + i * 500, card: 0, voucher: 0,
         });
         await appendFiscalEvent(tx, {
           type: "VENTE", userId: user.id, orderId: order.id, shiftId: shift.id,
-          data: { orderNumber: order.number, total: 10 + i * 5 },
+          data: { orderNumber: order.number, total: 1000 + i * 500 },
         });
       });
     }
@@ -171,18 +171,18 @@ describe("fiscal journal (JFP) integration", () => {
 
     const ev = await db.$transaction(async (tx) => {
       const order = await createOrder(tx, {
-        userId: user.id, shiftId: shift.id, total: 10, vatTotal: 0.91, cash: 10, card: 0, voucher: 0,
+        userId: user.id, shiftId: shift.id, total: 1000, vatTotal: 91, cash: 1000, card: 0, voucher: 0,
       });
       return appendFiscalEvent(tx, {
         type: "VENTE", userId: user.id, orderId: order.id, shiftId: shift.id,
-        data: { orderNumber: order.number, total: 10 },
+        data: { orderNumber: order.number, total: 1000 },
       });
     });
 
     // Tamper: modify the dataJson without updating the hash.
     await db.fiscalEvent.update({
       where: { id: ev.id },
-      data: { dataJson: '{"orderNumber":1,"total":999}' },
+      data: { dataJson: '{"orderNumber":1,"total":99999}' },
     });
 
     const result = await verifyFiscalChain();
@@ -195,15 +195,15 @@ describe("fiscal journal (JFP) integration", () => {
 
     for (let i = 0; i < 3; i++) {
       await db.$transaction(async (tx) => {
-        await incrementGrandTotal(tx, { total: 10, vatTotal: 0.91, cash: 10, card: 0, voucher: 0 });
+        await incrementGrandTotal(tx, { total: 1000, vatTotal: 91, cash: 1000, card: 0, voucher: 0 });
       });
     }
 
     const gt = await db.grandTotal.findUnique({ where: { id: "singleton" } });
     expect(gt).toBeDefined();
-    expect(gt!.totalSales).toBe(30);
+    expect(gt!.totalSales).toBe(3000);
     expect(gt!.totalOrders).toBe(3);
-    expect(gt!.totalCash).toBe(30);
+    expect(gt!.totalCash).toBe(3000);
   });
 
   it("closeMonth seals a monthly clôture and rejects duplicates", async () => {
@@ -213,17 +213,17 @@ describe("fiscal journal (JFP) integration", () => {
     // Create an order in the current month.
     await db.$transaction(async (tx) => {
       const order = await createOrder(tx, {
-        userId: user.id, shiftId: shift.id, total: 15, vatTotal: 1.36, cash: 15, card: 0, voucher: 0,
+        userId: user.id, shiftId: shift.id, total: 1500, vatTotal: 136, cash: 1500, card: 0, voucher: 0,
       });
-      await appendFiscalEvent(tx, {
+      return appendFiscalEvent(tx, {
         type: "VENTE", userId: user.id, orderId: order.id, shiftId: shift.id,
-        data: { orderNumber: order.number, total: 15 },
+        data: { orderNumber: order.number, total: 1500 },
       });
     });
 
     const now = new Date();
     const close = await closeMonth(now.getFullYear(), now.getMonth() + 1, user.id);
-    expect(close.salesTotal).toBe(15);
+    expect(close.salesTotal).toBe(1500);
     expect(close.salesCount).toBe(1);
     expect(close.hash).toMatch(/^[0-9a-f]{64}$/);
 

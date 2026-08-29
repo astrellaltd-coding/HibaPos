@@ -15,7 +15,7 @@ export type SeedCategory = {
 export type SeedProduct = {
   name: string;
   description?: string;
-  price: number;
+  price: number; // cents (e.g. 750 = 7.50 €)
   vatRate: number;
   category: string;
   image: string;
@@ -23,13 +23,13 @@ export type SeedProduct = {
     name: string;
     required: boolean;
     multiple: boolean;
-    choices: { name: string; priceModifier: number }[];
+    choices: { name: string; priceModifier: number }[]; // priceModifier in cents
   }[];
 };
 
 export type SeedAddOn = {
   name: string;
-  price: number;
+  price: number; // cents
   image: string;
 };
 
@@ -49,7 +49,7 @@ export const SEED_PRODUCTS: SeedProduct[] = [
   {
     name: "Cheese Classic",
     description: "Steak haché, cheddar, salade, tomate, oignons, sauce maison",
-    price: 7.5,
+    price: 750,
     vatRate: 10,
     category: "Burgers",
     image: "/products/cheese-classic.png",
@@ -69,72 +69,72 @@ export const SEED_PRODUCTS: SeedProduct[] = [
         required: false,
         multiple: true,
         choices: [
-          { name: "Supplément cheddar", priceModifier: 1.0 },
-          { name: "Supplément steak", priceModifier: 2.0 },
-          { name: "Bacon", priceModifier: 1.5 },
+          { name: "Supplément cheddar", priceModifier: 100 },
+          { name: "Supplément steak", priceModifier: 200 },
+          { name: "Bacon", priceModifier: 150 },
         ],
       },
     ],
   },
-  { name: "Double Cheese", description: "Double steak, double cheddar, sauce maison", price: 9.9, vatRate: 10, category: "Burgers", image: "/products/double-cheese.png" },
-  { name: "Chicken Crispy", description: "Poulet croustillant, cheddar, salade, sauce algérienne", price: 8.5, vatRate: 10, category: "Burgers", image: "/products/chicken-crispy.png" },
-  { name: "Veggie Burger", description: "Galette végétale, cheddar, légumes, sauce yaourt", price: 8.0, vatRate: 10, category: "Burgers", image: "/products/veggie-burger.png" },
-  { name: "Big Bacon", description: "Double steak, bacon, cheddar, sauce barbecue", price: 10.5, vatRate: 10, category: "Burgers", image: "/products/big-bacon.png" },
-  { name: "Fish Burger", description: "Filet de poisson pané, tartare, salade", price: 8.2, vatRate: 10, category: "Burgers", image: "/products/fish-burger.png" },
+  { name: "Double Cheese", description: "Double steak, double cheddar, sauce maison", price: 990, vatRate: 10, category: "Burgers", image: "/products/double-cheese.png" },
+  { name: "Chicken Crispy", description: "Poulet croustillant, cheddar, salade, sauce algérienne", price: 850, vatRate: 10, category: "Burgers", image: "/products/chicken-crispy.png" },
+  { name: "Veggie Burger", description: "Galette végétale, cheddar, légumes, sauce yaourt", price: 800, vatRate: 10, category: "Burgers", image: "/products/veggie-burger.png" },
+  { name: "Big Bacon", description: "Double steak, bacon, cheddar, sauce barbecue", price: 1050, vatRate: 10, category: "Burgers", image: "/products/big-bacon.png" },
+  { name: "Fish Burger", description: "Filet de poisson pané, tartare, salade", price: 820, vatRate: 10, category: "Burgers", image: "/products/fish-burger.png" },
 
   // Menus
-  { name: "Menu Cheese Classic", description: "Burger + frites + boisson 33cl", price: 11.5, vatRate: 10, category: "Menus", image: "🍟" },
-  { name: "Menu Double Cheese", description: "Double cheese + frites + boisson 33cl", price: 13.9, vatRate: 10, category: "Menus", image: "🍟" },
-  { name: "Menu Chicken Crispy", description: "Chicken + frites + boisson 33cl", price: 12.5, vatRate: 10, category: "Menus", image: "🍗" },
-  { name: "Menu Big Bacon", description: "Big bacon + frites + boisson 33cl", price: 14.5, vatRate: 10, category: "Menus", image: "🥓" },
+  { name: "Menu Cheese Classic", description: "Burger + frites + boisson 33cl", price: 1150, vatRate: 10, category: "Menus", image: "🍟" },
+  { name: "Menu Double Cheese", description: "Double cheese + frites + boisson 33cl", price: 1390, vatRate: 10, category: "Menus", image: "🍟" },
+  { name: "Menu Chicken Crispy", description: "Chicken + frites + boisson 33cl", price: 1250, vatRate: 10, category: "Menus", image: "🍗" },
+  { name: "Menu Big Bacon", description: "Big bacon + frites + boisson 33cl", price: 1450, vatRate: 10, category: "Menus", image: "🥓" },
 
   // Tex-Mex
-  { name: "Tacos XL", description: "Tacos 2 viandes, sauce fromagère, frites incluses", price: 9.5, vatRate: 10, category: "Tex-Mex", image: "/products/tacos-xl.png" },
-  { name: "Tacos M", description: "Tacos 1 viande, sauce fromagère", price: 6.5, vatRate: 10, category: "Tex-Mex", image: "🌮" },
-  { name: "Nachos Cheddar", description: "Tortillas, cheddar fondu, jalapeños", price: 5.5, vatRate: 10, category: "Tex-Mex", image: "/products/nachos.png" },
-  { name: "Quesadilla", description: "Tortilla, poulet, fromage, oignons", price: 7.0, vatRate: 10, category: "Tex-Mex", image: "/products/quesadilla.png" },
+  { name: "Tacos XL", description: "Tacos 2 viandes, sauce fromagère, frites incluses", price: 950, vatRate: 10, category: "Tex-Mex", image: "/products/tacos-xl.png" },
+  { name: "Tacos M", description: "Tacos 1 viande, sauce fromagère", price: 650, vatRate: 10, category: "Tex-Mex", image: "🌮" },
+  { name: "Nachos Cheddar", description: "Tortillas, cheddar fondu, jalapeños", price: 550, vatRate: 10, category: "Tex-Mex", image: "/products/nachos.png" },
+  { name: "Quesadilla", description: "Tortilla, poulet, fromage, oignons", price: 700, vatRate: 10, category: "Tex-Mex", image: "/products/quesadilla.png" },
 
   // Pizzas
-  { name: "Pizza Margherita", description: "Tomate, mozzarella, basilic", price: 9.0, vatRate: 10, category: "Pizzas", image: "/products/pizza-margherita.png" },
-  { name: "Pizza Reine", description: "Tomate, mozzarella, jambon, champignons", price: 10.5, vatRate: 10, category: "Pizzas", image: "/products/pizza-reine.png" },
-  { name: "Pizza Pepperoni", description: "Tomate, mozzarella, pepperoni", price: 11.5, vatRate: 10, category: "Pizzas", image: "/products/pizza-pepperoni.png" },
-  { name: "Pizza 4 Fromages", description: "Mozzarella, cheddar, gorgonzola, emmental", price: 11.0, vatRate: 10, category: "Pizzas", image: "/products/pizza-4fromages.png" },
+  { name: "Pizza Margherita", description: "Tomate, mozzarella, basilic", price: 900, vatRate: 10, category: "Pizzas", image: "/products/pizza-margherita.png" },
+  { name: "Pizza Reine", description: "Tomate, mozzarella, jambon, champignons", price: 1050, vatRate: 10, category: "Pizzas", image: "/products/pizza-reine.png" },
+  { name: "Pizza Pepperoni", description: "Tomate, mozzarella, pepperoni", price: 1150, vatRate: 10, category: "Pizzas", image: "/products/pizza-pepperoni.png" },
+  { name: "Pizza 4 Fromages", description: "Mozzarella, cheddar, gorgonzola, emmental", price: 1100, vatRate: 10, category: "Pizzas", image: "/products/pizza-4fromages.png" },
 
   // Wraps
-  { name: "Wrap Poulet", description: "Poulet, salade, tomate, sauce", price: 6.9, vatRate: 10, category: "Wraps & Sandwichs", image: "/products/wrap-poulet.png" },
-  { name: "Wrap Viande Hachée", description: "Viande hachée, oignons, sauce algérienne", price: 7.2, vatRate: 10, category: "Wraps & Sandwichs", image: "/products/wrap-poulet.png" },
-  { name: "Panini Chèvre", description: "Chèvre, miel, noix", price: 5.9, vatRate: 10, category: "Wraps & Sandwichs", image: "/products/panini-chevre.png" },
+  { name: "Wrap Poulet", description: "Poulet, salade, tomate, sauce", price: 690, vatRate: 10, category: "Wraps & Sandwichs", image: "/products/wrap-poulet.png" },
+  { name: "Wrap Viande Hachée", description: "Viande hachée, oignons, sauce algérienne", price: 720, vatRate: 10, category: "Wraps & Sandwichs", image: "/products/wrap-poulet.png" },
+  { name: "Panini Chèvre", description: "Chèvre, miel, noix", price: 590, vatRate: 10, category: "Wraps & Sandwichs", image: "/products/panini-chevre.png" },
 
   // Accompagnements
-  { name: "Frites", description: "Frites maison, sauce au choix", price: 3.0, vatRate: 10, category: "Accompagnements", image: "/products/frites.png" },
-  { name: "Frites Grand", description: "Grandes frites, sauce au choix", price: 4.5, vatRate: 10, category: "Accompagnements", image: "🍟" },
-  { name: "Potatoes", description: "Potatoes épicées", price: 3.5, vatRate: 10, category: "Accompagnements", image: "/products/potatoes.png" },
-  { name: "Salade César", description: "Salade, poulet, parmesan, croûtons", price: 7.5, vatRate: 10, category: "Accompagnements", image: "/products/salade-cesar.png" },
+  { name: "Frites", description: "Frites maison, sauce au choix", price: 300, vatRate: 10, category: "Accompagnements", image: "/products/frites.png" },
+  { name: "Frites Grand", description: "Grandes frites, sauce au choix", price: 450, vatRate: 10, category: "Accompagnements", image: "🍟" },
+  { name: "Potatoes", description: "Potatoes épicées", price: 350, vatRate: 10, category: "Accompagnements", image: "/products/potatoes.png" },
+  { name: "Salade César", description: "Salade, poulet, parmesan, croûtons", price: 750, vatRate: 10, category: "Accompagnements", image: "/products/salade-cesar.png" },
 
   // Boissons (20%)
-  { name: "Coca-Cola 33cl", price: 2.5, vatRate: 20, category: "Boissons", image: "/products/coca-cola.png" },
-  { name: "Coca-Cola Zéro 33cl", price: 2.5, vatRate: 20, category: "Boissons", image: "🥤" },
-  { name: "Fanta 33cl", price: 2.5, vatRate: 20, category: "Boissons", image: "/products/fanta.png" },
-  { name: "Eau Minérale 50cl", price: 1.8, vatRate: 5.5, category: "Boissons", image: "/products/eau.png" },
-  { name: "Jus d'Orange", price: 3.0, vatRate: 10, category: "Boissons", image: "/products/jus-orange.png" },
-  { name: "Thé Pêche 50cl", price: 2.8, vatRate: 20, category: "Boissons", image: "/products/the-peche.png" },
-  { name: "Café", price: 1.5, vatRate: 10, category: "Boissons", image: "/products/cafe.png" },
-  { name: "Capuccino", price: 2.2, vatRate: 10, category: "Boissons", image: "/products/cappuccino.png" },
+  { name: "Coca-Cola 33cl", price: 250, vatRate: 20, category: "Boissons", image: "/products/coca-cola.png" },
+  { name: "Coca-Cola Zéro 33cl", price: 250, vatRate: 20, category: "Boissons", image: "🥤" },
+  { name: "Fanta 33cl", price: 250, vatRate: 20, category: "Boissons", image: "/products/fanta.png" },
+  { name: "Eau Minérale 50cl", price: 180, vatRate: 5.5, category: "Boissons", image: "/products/eau.png" },
+  { name: "Jus d'Orange", price: 300, vatRate: 10, category: "Boissons", image: "/products/jus-orange.png" },
+  { name: "Thé Pêche 50cl", price: 280, vatRate: 20, category: "Boissons", image: "/products/the-peche.png" },
+  { name: "Café", price: 150, vatRate: 10, category: "Boissons", image: "/products/cafe.png" },
+  { name: "Capuccino", price: 220, vatRate: 10, category: "Boissons", image: "/products/cappuccino.png" },
 
   // Desserts
-  { name: "Muffin Chocolat", price: 2.8, vatRate: 10, category: "Desserts", image: "/products/muffin.png" },
-  { name: "Cookie", price: 2.2, vatRate: 10, category: "Desserts", image: "/products/cookie.png" },
-  { name: "Tiramisu", price: 4.0, vatRate: 10, category: "Desserts", image: "/products/tiramisu.png" },
-  { name: "Glace 2 boules", price: 3.5, vatRate: 10, category: "Desserts", image: "/products/glace.png" },
+  { name: "Muffin Chocolat", price: 280, vatRate: 10, category: "Desserts", image: "/products/muffin.png" },
+  { name: "Cookie", price: 220, vatRate: 10, category: "Desserts", image: "/products/cookie.png" },
+  { name: "Tiramisu", price: 400, vatRate: 10, category: "Desserts", image: "/products/tiramisu.png" },
+  { name: "Glace 2 boules", price: 350, vatRate: 10, category: "Desserts", image: "/products/glace.png" },
 ];
 
 export const SEED_ADDONS: SeedAddOn[] = [
-  { name: "Supplément sauce", price: 0.5, image: "/products/addon-sauce.png" },
-  { name: "Supplément cheddar", price: 1.0, image: "/products/addon-cheddar.png" },
-  { name: "Bacon", price: 1.5, image: "/products/addon-bacon.png" },
-  { name: "Supplément viande", price: 2.0, image: "/products/addon-viande.png" },
-  { name: "Jalapeños", price: 0.8, image: "/products/addon-jalapenos.png" },
-  { name: "Oignons frits", price: 0.8, image: "/products/addon-oignons.png" },
+  { name: "Supplément sauce", price: 50, image: "/products/addon-sauce.png" },
+  { name: "Supplément cheddar", price: 100, image: "/products/addon-cheddar.png" },
+  { name: "Bacon", price: 150, image: "/products/addon-bacon.png" },
+  { name: "Supplément viande", price: 200, image: "/products/addon-viande.png" },
+  { name: "Jalapeños", price: 80, image: "/products/addon-jalapenos.png" },
+  { name: "Oignons frits", price: 80, image: "/products/addon-oignons.png" },
 ];
 
 /** Determines whether a stored image value is an emoji (vs URL / data URI). */

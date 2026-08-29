@@ -1,22 +1,23 @@
 // Reports service — X report (mid-shift) and Z report (close-shift, immutable).
+// All money values are INTEGER CENTS (DB stores cents; DTO transports cents).
 import { db } from "@/lib/db";
-import { round2, splitVat, addToVatBreakdown, sum2, type VatBreakdown } from "@/lib/money";
+import { addToVatBreakdown, sum2, splitVat, type VatBreakdown } from "@/lib/money";
 import { nextZReportNumber } from "@/lib/services/sequence";
 import { appendFiscalEvent } from "@/lib/services/fiscal";
 import { getSettings } from "@/lib/services/settings";
 
 export type SalesReport = {
-  salesTotal: number;
+  salesTotal: number; // cents
   salesCount: number;
-  vatTotal: number;
-  cashTotal: number;
-  cardTotal: number;
-  voucherTotal: number;
-  discountsTotal: number;
-  openingFloat: number;
-  expectedCash: number;
+  vatTotal: number; // cents
+  cashTotal: number; // cents
+  cardTotal: number; // cents
+  voucherTotal: number; // cents
+  discountsTotal: number; // cents
+  openingFloat: number; // cents
+  expectedCash: number; // cents
   vatBreakdown: VatBreakdown;
-  topProducts: { name: string; quantity: number; total: number }[];
+  topProducts: { name: string; quantity: number; total: number }[]; // total in cents
 };
 
 export async function computeShiftReport(shiftId: string): Promise<SalesReport> {
@@ -36,7 +37,7 @@ export async function computeShiftReport(shiftId: string): Promise<SalesReport> 
     if (order.status === "REFUNDED") continue; // fully refunded orders excluded from sales totals
     // Skip orders that have refunds totaling the full amount.
     const orderRefundsTotal = order.refunds.reduce((acc, r) => acc + r.amount, 0);
-    if (orderRefundsTotal >= order.total - 0.001) continue;
+    if (orderRefundsTotal >= order.total) continue; // exact integer compare (cents)
 
     // This order counts toward salesCount (it's not fully refunded).
     salesCount += 1;
@@ -47,18 +48,19 @@ export async function computeShiftReport(shiftId: string): Promise<SalesReport> 
     const refundRatio = order.total > 0
       ? Math.min(1, orderRefundsTotal / order.total)
       : 0;
-    // netTotal = actual amount the customer was charged for this order (post-refund).
-    const netTotal = round2(order.total - orderRefundsTotal);
-    salesTotal = round2(salesTotal + netTotal);
-    discountsTotal = round2(discountsTotal + order.discountTotal);
+    // netTotal = actual amount the customer was charged (post-refund), in cents.
+    const netTotal = order.total - orderRefundsTotal;
+    salesTotal = salesTotal + netTotal;
+    discountsTotal = discountsTotal + order.discountTotal;
 
     // Net-of-discount VAT: distribute order-level discount pro-rata per line.
-    const discountRatio = order.subtotal > 0 ? (order.discountTotal ?? 0) / order.subtotal : 0;
+    const discountRatio = order.subtotal > 0 ? order.discountTotal / order.subtotal : 0;
 
     for (const item of order.items) {
-      // Net of both discount AND partial refund (pro-rata per line):
-      //   item.lineTotal * (1 - discountRatio) * (1 - refundRatio)
-      const netLineTotal = round2(
+      // Net of both discount AND partial refund (pro-rata per line).
+      // All values are cents; the product may produce a fractional cent due
+      // to the ratio multiplication — round to the nearest integer cent.
+      const netLineTotal = Math.round(
         item.lineTotal * (1 - discountRatio) * (1 - refundRatio)
       );
       const vatRate = item.vatRate ?? 10;
@@ -68,11 +70,11 @@ export async function computeShiftReport(shiftId: string): Promise<SalesReport> 
       // Quantity is gross units sold (informational); total is revenue net of
       // discount+refund. sum(productAgg.total) ≈ salesTotal.
       productAgg[key].quantity += item.quantity;
-      productAgg[key].total = round2(productAgg[key].total + netLineTotal);
+      productAgg[key].total = productAgg[key].total + netLineTotal;
     }
   }
 
-  // Payments — gross by method.
+  // Payments — gross by method (cents).
   const payments = orders.flatMap((o) => o.payments);
   const cashTotal = sum2(payments.filter((p) => p.method === "CASH").map((p) => p.amount));
   const cardTotal = sum2(payments.filter((p) => p.method === "CARD").map((p) => p.amount));
@@ -88,21 +90,20 @@ export async function computeShiftReport(shiftId: string): Promise<SalesReport> 
   const cardRefundsTotal = sum2(refunds.filter((r) => r.method === "CARD").map((r) => r.amount));
   const voucherRefundsTotal = sum2(refunds.filter((r) => r.method === "VOUCHER").map((r) => r.amount));
 
-  const vatTotal = round2(Object.values(vatBreakdown).reduce((acc, v) => acc + v.vat, 0));
-  const expectedCash = round2(shift.openingFloat + cashTotal - cashRefundsTotal);
+  const vatTotal = sum2(Object.values(vatBreakdown).map((v) => v.vat));
+  const expectedCash = shift.openingFloat + cashTotal - cashRefundsTotal;
   const topProducts = Object.values(productAgg)
     .sort((a, b) => b.quantity - a.quantity)
     .slice(0, 10);
 
   return {
-    // salesTotal already reflects net-of-refund above; do not subtract again.
     salesTotal,
     salesCount,
     vatTotal,
     // Net each payment method by its own refunds so the report ties out.
-    cashTotal: round2(cashTotal - cashRefundsTotal),
-    cardTotal: round2(cardTotal - cardRefundsTotal),
-    voucherTotal: round2(voucherTotal - voucherRefundsTotal),
+    cashTotal: cashTotal - cashRefundsTotal,
+    cardTotal: cardTotal - cardRefundsTotal,
+    voucherTotal: voucherTotal - voucherRefundsTotal,
     discountsTotal,
     openingFloat: shift.openingFloat,
     expectedCash,
@@ -121,7 +122,7 @@ export async function generateZReport(shiftId: string, closingFloat: number, clo
   }
 
   const report = await computeShiftReport(shiftId);
-  const cashVariance = round2(closingFloat - report.expectedCash);
+  const cashVariance = closingFloat - report.expectedCash;
   const settings = await getSettings();
 
   const z = await db.$transaction(async (tx) => {
@@ -191,3 +192,4 @@ export async function generateZReport(shiftId: string, closingFloat: number, clo
 }
 
 export { splitVat };
+

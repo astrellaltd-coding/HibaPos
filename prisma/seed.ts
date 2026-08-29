@@ -145,6 +145,7 @@ async function main() {
       lastReceiptNumber: 0,
       lastShiftNumber: 0,
       lastZReportNumber: 0,
+      lastFiscalEventSequence: 0,
     },
     update: {},
   });

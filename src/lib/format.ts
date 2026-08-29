@@ -1,4 +1,7 @@
-// French formatting helpers (euro, dates, numbers).
+// French formatting helpers (cents, dates, numbers).
+// All money values arrive as INTEGER CENTS from the API. formatEuro divides
+// by 100 to render euros. This is the single display-boundary conversion
+// point — no other code should divide cents by 100.
 
 const eurFormatter = new Intl.NumberFormat("fr-FR", {
   style: "currency",
@@ -7,9 +10,9 @@ const eurFormatter = new Intl.NumberFormat("fr-FR", {
 
 const numberFormatter = new Intl.NumberFormat("fr-FR");
 
-/** Format a euro amount, e.g. 12.5 -> "12,50 €". */
-export function formatEuro(amount: number): string {
-  return eurFormatter.format(amount ?? 0);
+/** Format a cent amount, e.g. 1250 -> "12,50 €". */
+export function formatEuro(cents: number): string {
+  return eurFormatter.format((cents ?? 0) / 100);
 }
 
 /** Format a plain number with French separators. */

@@ -1,4 +1,4 @@
-﻿-- CreateTable
+-- CreateTable
 CREATE TABLE "User" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "username" TEXT NOT NULL,
@@ -33,7 +33,9 @@ CREATE TABLE "Category" (
     "sortOrder" INTEGER NOT NULL DEFAULT 0,
     "active" BOOLEAN NOT NULL DEFAULT true,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL
+    "updatedAt" DATETIME NOT NULL,
+    "parentId" TEXT,
+    CONSTRAINT "Category_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "Category" ("id") ON DELETE SET NULL ON UPDATE CASCADE
 );
 
 -- CreateTable
@@ -41,9 +43,9 @@ CREATE TABLE "Product" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "name" TEXT NOT NULL,
     "description" TEXT,
-    "price" REAL NOT NULL,
-    "pickupPrice" REAL,
-    "deliveryPrice" REAL,
+    "price" INTEGER NOT NULL,
+    "pickupPrice" INTEGER,
+    "deliveryPrice" INTEGER,
     "vatRate" REAL NOT NULL DEFAULT 20.0,
     "categoryId" TEXT NOT NULL,
     "image" TEXT,
@@ -82,9 +84,9 @@ CREATE TABLE "OptionChoice" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "groupId" TEXT NOT NULL,
     "name" TEXT NOT NULL,
-    "priceModifier" REAL NOT NULL DEFAULT 0,
-    "pickupPriceModifier" REAL,
-    "deliveryPriceModifier" REAL,
+    "priceModifier" INTEGER NOT NULL DEFAULT 0,
+    "pickupPriceModifier" INTEGER,
+    "deliveryPriceModifier" INTEGER,
     "image" TEXT,
     "sortOrder" INTEGER NOT NULL DEFAULT 0,
     CONSTRAINT "OptionChoice_groupId_fkey" FOREIGN KEY ("groupId") REFERENCES "OptionGroup" ("id") ON DELETE CASCADE ON UPDATE CASCADE
@@ -94,7 +96,7 @@ CREATE TABLE "OptionChoice" (
 CREATE TABLE "AddOn" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "name" TEXT NOT NULL,
-    "price" REAL NOT NULL,
+    "price" INTEGER NOT NULL,
     "image" TEXT,
     "active" BOOLEAN NOT NULL DEFAULT true,
     "sortOrder" INTEGER NOT NULL DEFAULT 0,
@@ -118,11 +120,11 @@ CREATE TABLE "CategoryOptionChoice" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "groupId" TEXT NOT NULL,
     "name" TEXT NOT NULL,
-    "priceModifier" REAL NOT NULL DEFAULT 0,
-    "pickupPriceModifier" REAL,
-    "deliveryPriceModifier" REAL,
-    "pickupPrice" REAL,
-    "deliveryPrice" REAL,
+    "priceModifier" INTEGER NOT NULL DEFAULT 0,
+    "pickupPriceModifier" INTEGER,
+    "deliveryPriceModifier" INTEGER,
+    "pickupPrice" INTEGER,
+    "deliveryPrice" INTEGER,
     "image" TEXT,
     "sortOrder" INTEGER NOT NULL DEFAULT 0,
     CONSTRAINT "CategoryOptionChoice_groupId_fkey" FOREIGN KEY ("groupId") REFERENCES "CategoryOptionGroup" ("id") ON DELETE CASCADE ON UPDATE CASCADE
@@ -133,7 +135,7 @@ CREATE TABLE "CategoryAddOn" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "categoryId" TEXT NOT NULL,
     "name" TEXT NOT NULL,
-    "price" REAL NOT NULL,
+    "price" INTEGER NOT NULL,
     "image" TEXT,
     "sortOrder" INTEGER NOT NULL DEFAULT 0,
     "active" BOOLEAN NOT NULL DEFAULT true,
@@ -178,11 +180,11 @@ CREATE TABLE "Shift" (
     "openedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "closedById" TEXT,
     "closedAt" DATETIME,
-    "openingFloat" REAL NOT NULL DEFAULT 0,
-    "closingFloat" REAL,
-    "expectedCash" REAL,
-    "cashVariance" REAL,
-    "salesTotal" REAL,
+    "openingFloat" INTEGER NOT NULL DEFAULT 0,
+    "closingFloat" INTEGER,
+    "expectedCash" INTEGER,
+    "cashVariance" INTEGER,
+    "salesTotal" INTEGER,
     "salesCount" INTEGER,
     "notes" TEXT,
     CONSTRAINT "Shift_openedById_fkey" FOREIGN KEY ("openedById") REFERENCES "User" ("id") ON DELETE RESTRICT ON UPDATE CASCADE,
@@ -199,12 +201,13 @@ CREATE TABLE "Order" (
     "status" TEXT NOT NULL DEFAULT 'COMPLETED',
     "orderType" TEXT NOT NULL DEFAULT 'DINE_IN',
     "tableLabel" TEXT,
-    "subtotal" REAL NOT NULL DEFAULT 0,
-    "vatTotal" REAL NOT NULL DEFAULT 0,
-    "discountTotal" REAL NOT NULL DEFAULT 0,
-    "total" REAL NOT NULL DEFAULT 0,
+    "subtotal" INTEGER NOT NULL DEFAULT 0,
+    "vatTotal" INTEGER NOT NULL DEFAULT 0,
+    "discountTotal" INTEGER NOT NULL DEFAULT 0,
+    "total" INTEGER NOT NULL DEFAULT 0,
     "notes" TEXT,
     "itemCount" INTEGER NOT NULL DEFAULT 0,
+    "fiscalEventId" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "completedAt" DATETIME,
     "refundedAt" DATETIME,
@@ -219,9 +222,9 @@ CREATE TABLE "OrderItem" (
     "orderId" TEXT NOT NULL,
     "productId" TEXT,
     "productName" TEXT NOT NULL,
-    "unitPrice" REAL NOT NULL,
+    "unitPrice" INTEGER NOT NULL,
     "quantity" INTEGER NOT NULL,
-    "lineTotal" REAL NOT NULL,
+    "lineTotal" INTEGER NOT NULL,
     "vatRate" REAL,
     "optionsJson" TEXT,
     "addOnsJson" TEXT,
@@ -235,9 +238,9 @@ CREATE TABLE "Payment" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "orderId" TEXT NOT NULL,
     "method" TEXT NOT NULL,
-    "amount" REAL NOT NULL,
-    "tendered" REAL,
-    "change" REAL,
+    "amount" INTEGER NOT NULL,
+    "tendered" INTEGER,
+    "change" INTEGER,
     "cashierId" TEXT NOT NULL,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "Payment_orderId_fkey" FOREIGN KEY ("orderId") REFERENCES "Order" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
@@ -248,12 +251,13 @@ CREATE TABLE "Payment" (
 CREATE TABLE "Refund" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "orderId" TEXT NOT NULL,
-    "amount" REAL NOT NULL,
+    "amount" INTEGER NOT NULL,
     "reason" TEXT NOT NULL,
     "approvedById" TEXT,
     "cashierId" TEXT NOT NULL,
     "shiftId" TEXT,
     "method" TEXT,
+    "fiscalEventId" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "Refund_orderId_fkey" FOREIGN KEY ("orderId") REFERENCES "Order" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "Refund_cashierId_fkey" FOREIGN KEY ("cashierId") REFERENCES "User" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
@@ -278,19 +282,20 @@ CREATE TABLE "ZReport" (
     "shiftId" TEXT NOT NULL,
     "number" INTEGER NOT NULL,
     "generatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "salesTotal" REAL NOT NULL,
+    "salesTotal" INTEGER NOT NULL,
     "salesCount" INTEGER NOT NULL,
-    "vatTotal" REAL NOT NULL,
-    "cashTotal" REAL NOT NULL,
-    "cardTotal" REAL NOT NULL,
-    "voucherTotal" REAL NOT NULL,
-    "discountsTotal" REAL NOT NULL,
-    "openingFloat" REAL NOT NULL,
-    "expectedCash" REAL NOT NULL,
-    "closingFloat" REAL NOT NULL,
-    "cashVariance" REAL NOT NULL,
+    "vatTotal" INTEGER NOT NULL,
+    "cashTotal" INTEGER NOT NULL,
+    "cardTotal" INTEGER NOT NULL,
+    "voucherTotal" INTEGER NOT NULL,
+    "discountsTotal" INTEGER NOT NULL,
+    "openingFloat" INTEGER NOT NULL,
+    "expectedCash" INTEGER NOT NULL,
+    "closingFloat" INTEGER NOT NULL,
+    "cashVariance" INTEGER NOT NULL,
     "topProductsJson" TEXT,
     "vatBreakdownJson" TEXT,
+    "fiscalEventId" TEXT,
     CONSTRAINT "ZReport_shiftId_fkey" FOREIGN KEY ("shiftId") REFERENCES "Shift" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
 );
 
@@ -299,7 +304,8 @@ CREATE TABLE "FiscalCounter" (
     "id" TEXT NOT NULL PRIMARY KEY DEFAULT 'singleton',
     "lastReceiptNumber" INTEGER NOT NULL DEFAULT 0,
     "lastShiftNumber" INTEGER NOT NULL DEFAULT 0,
-    "lastZReportNumber" INTEGER NOT NULL DEFAULT 0
+    "lastZReportNumber" INTEGER NOT NULL DEFAULT 0,
+    "lastFiscalEventSequence" INTEGER NOT NULL DEFAULT 0
 );
 
 -- CreateTable
@@ -344,6 +350,95 @@ CREATE TABLE "TechnicalLog" (
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- CreateTable
+CREATE TABLE "FiscalEvent" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "sequence" INTEGER NOT NULL,
+    "type" TEXT NOT NULL,
+    "orderId" TEXT,
+    "refundId" TEXT,
+    "zReportId" TEXT,
+    "shiftId" TEXT,
+    "closeId" TEXT,
+    "archiveId" TEXT,
+    "userId" TEXT,
+    "factice" BOOLEAN NOT NULL DEFAULT false,
+    "timestamp" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "dataJson" TEXT NOT NULL,
+    "previousHash" TEXT,
+    "hash" TEXT NOT NULL
+);
+
+-- CreateTable
+CREATE TABLE "GrandTotal" (
+    "id" TEXT NOT NULL PRIMARY KEY DEFAULT 'singleton',
+    "totalSales" INTEGER NOT NULL DEFAULT 0,
+    "totalOrders" INTEGER NOT NULL DEFAULT 0,
+    "totalVat" INTEGER NOT NULL DEFAULT 0,
+    "totalCash" INTEGER NOT NULL DEFAULT 0,
+    "totalCard" INTEGER NOT NULL DEFAULT 0,
+    "totalVoucher" INTEGER NOT NULL DEFAULT 0,
+    "totalRefunded" INTEGER NOT NULL DEFAULT 0,
+    "lastUpdatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- CreateTable
+CREATE TABLE "MonthlyClose" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "period" TEXT NOT NULL,
+    "year" INTEGER NOT NULL,
+    "month" INTEGER NOT NULL,
+    "salesTotal" INTEGER NOT NULL,
+    "salesCount" INTEGER NOT NULL,
+    "vatTotal" INTEGER NOT NULL,
+    "cashTotal" INTEGER NOT NULL,
+    "cardTotal" INTEGER NOT NULL,
+    "voucherTotal" INTEGER NOT NULL,
+    "discountsTotal" INTEGER NOT NULL,
+    "vatBreakdownJson" TEXT NOT NULL,
+    "topProductsJson" TEXT NOT NULL,
+    "dataJson" TEXT NOT NULL,
+    "sealedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "sealedById" TEXT NOT NULL,
+    "previousHash" TEXT,
+    "hash" TEXT NOT NULL,
+    "fiscalEventId" TEXT
+);
+
+-- CreateTable
+CREATE TABLE "AnnualClose" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "period" TEXT NOT NULL,
+    "year" INTEGER NOT NULL,
+    "salesTotal" INTEGER NOT NULL,
+    "salesCount" INTEGER NOT NULL,
+    "vatTotal" INTEGER NOT NULL,
+    "cashTotal" INTEGER NOT NULL,
+    "cardTotal" INTEGER NOT NULL,
+    "voucherTotal" INTEGER NOT NULL,
+    "discountsTotal" INTEGER NOT NULL,
+    "vatBreakdownJson" TEXT NOT NULL,
+    "topProductsJson" TEXT NOT NULL,
+    "dataJson" TEXT NOT NULL,
+    "sealedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "sealedById" TEXT NOT NULL,
+    "previousHash" TEXT,
+    "hash" TEXT NOT NULL,
+    "fiscalEventId" TEXT
+);
+
+-- CreateTable
+CREATE TABLE "FiscalArchive" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "year" INTEGER NOT NULL,
+    "filename" TEXT NOT NULL,
+    "checksum" TEXT NOT NULL,
+    "sizeBytes" INTEGER NOT NULL,
+    "generatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "generatedById" TEXT NOT NULL,
+    "fiscalEventId" TEXT
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "User_username_key" ON "User"("username");
 
@@ -361,6 +456,9 @@ CREATE UNIQUE INDEX "Category_name_key" ON "Category"("name");
 
 -- CreateIndex
 CREATE INDEX "Category_name_idx" ON "Category"("name");
+
+-- CreateIndex
+CREATE INDEX "Category_parentId_idx" ON "Category"("parentId");
 
 -- CreateIndex
 CREATE INDEX "Product_categoryId_idx" ON "Product"("categoryId");
@@ -467,3 +565,23 @@ CREATE INDEX "TechnicalLog_createdAt_idx" ON "TechnicalLog"("createdAt");
 -- CreateIndex
 CREATE INDEX "TechnicalLog_level_idx" ON "TechnicalLog"("level");
 
+-- CreateIndex
+CREATE UNIQUE INDEX "FiscalEvent_sequence_key" ON "FiscalEvent"("sequence");
+
+-- CreateIndex
+CREATE INDEX "FiscalEvent_timestamp_idx" ON "FiscalEvent"("timestamp");
+
+-- CreateIndex
+CREATE INDEX "FiscalEvent_type_idx" ON "FiscalEvent"("type");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "MonthlyClose_period_key" ON "MonthlyClose"("period");
+
+-- CreateIndex
+CREATE INDEX "MonthlyClose_year_idx" ON "MonthlyClose"("year");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "AnnualClose_period_key" ON "AnnualClose"("period");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "FiscalArchive_year_key" ON "FiscalArchive"("year");

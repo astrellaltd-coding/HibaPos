@@ -180,17 +180,17 @@ export function recalculateUnitPrice(
     else if (orderType === "LIVRAISON" && o.deliveryPriceModifier != null) mod = o.deliveryPriceModifier;
     return acc + mod;
   }, 0);
-  return Math.round((base + modifier) * 100) / 100;
+  return base + modifier; // integer cents — no rounding needed
 }
 
 export function computeLineTotal(item: CartItem): number {
   const addonsTotal = item.addOns.reduce((acc, a) => acc + a.price, 0);
-  return Math.round((item.unitPrice + addonsTotal) * item.quantity * 100) / 100;
+  return (item.unitPrice + addonsTotal) * item.quantity; // integer cents
 }
 
 export function computeCartTotals(items: CartItem[], discountTotal: number) {
-  const subtotal = Math.round(items.reduce((acc, i) => acc + computeLineTotal(i), 0) * 100) / 100;
-  const total = Math.max(0, Math.round((subtotal - discountTotal) * 100) / 100);
+  const subtotal = items.reduce((acc, i) => acc + computeLineTotal(i), 0);
+  const total = Math.max(0, subtotal - discountTotal);
   return { subtotal, total };
 }
 
@@ -202,7 +202,7 @@ export function productUnitPrice(product: ProductDto, options: CartOption[], ord
     base = product.deliveryPrice;
   }
   const modifier = options.reduce((acc, o) => acc + o.priceModifier, 0);
-  return Math.round((base + modifier) * 100) / 100;
+  return base + modifier; // integer cents
 }
 
 // silence unused import for AddOnDto type re-export usage

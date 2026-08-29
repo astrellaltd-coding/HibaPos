@@ -215,8 +215,8 @@ export function CategoriesView() {
       setSizes(
         sizeGroup!.choices.map((c) => ({
           name: c.name,
-          pickupPrice: c.priceModifier ?? 0,
-          deliveryPrice: c.deliveryPriceModifier ?? c.priceModifier ?? 0,
+          pickupPrice: (c.priceModifier ?? 0) / 100,
+          deliveryPrice: (c.deliveryPriceModifier ?? c.priceModifier ?? 0) / 100,
         })),
       );
     } else {
@@ -244,7 +244,7 @@ export function CategoriesView() {
           choices: g.choices.map((c) => ({
             id: c.id,
             name: c.name,
-            priceModifier: c.priceModifier,
+            priceModifier: c.priceModifier / 100,
             pickupPriceModifier: c.pickupPriceModifier ?? null,
             deliveryPriceModifier: c.deliveryPriceModifier ?? null,
             image: c.image ?? null,
@@ -254,7 +254,7 @@ export function CategoriesView() {
       addOns: (full.addOns ?? []).map((a) => ({
         id: a.id,
         name: a.name,
-        price: a.price,
+        price: a.price / 100,
         image: a.image,
         sortOrder: a.sortOrder,
         active: a.active,
@@ -322,8 +322,8 @@ export function CategoriesView() {
                 priceModifier: 0,
                 pickupPriceModifier: null,
                 deliveryPriceModifier: null,
-                pickupPrice: Number(s.pickupPrice) || 0,
-                deliveryPrice: Number(s.deliveryPrice) || 0,
+                pickupPrice: Math.round((Number(s.pickupPrice) || 0) * 100),
+                deliveryPrice: Math.round((Number(s.deliveryPrice) || 0) * 100),
                 image: null,
                 sortOrder: j,
               })),
@@ -346,7 +346,7 @@ export function CategoriesView() {
             sortOrder: sizeGroup ? i + 1 : i,
             choices: g.choices.map((c, j) => ({
               name: c.name,
-              priceModifier: c.priceModifier,
+              priceModifier: Math.round((c.priceModifier || 0) * 100),
               pickupPriceModifier: c.pickupPriceModifier,
               deliveryPriceModifier: c.deliveryPriceModifier,
               image: c.image,
@@ -356,7 +356,7 @@ export function CategoriesView() {
         ],
         addOns: form.addOns.map((a, i) => ({
           name: a.name,
-          price: a.price,
+          price: Math.round((a.price || 0) * 100),
           image: a.image,
           sortOrder: i,
           active: a.active,

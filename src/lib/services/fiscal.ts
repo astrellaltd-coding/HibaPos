@@ -13,7 +13,7 @@ import {
   type ChainVerifyResult,
 } from "@/lib/fiscal";
 import { nextFiscalEventSequence } from "@/lib/services/sequence";
-import { round2, addToVatBreakdown, sum2, type VatBreakdown } from "@/lib/money";
+import { addToVatBreakdown, sum2, type VatBreakdown } from "@/lib/money";
 
 type Tx = Prisma.TransactionClient;
 
@@ -169,16 +169,16 @@ export async function verifyAnnualCloses(): Promise<ChainVerifyResult> {
 // ---------------------------------------------------------------------------
 
 type PeriodAgg = {
-  salesTotal: number;
+  salesTotal: number; // cents
   salesCount: number;
-  vatTotal: number;
-  cashTotal: number;
-  cardTotal: number;
-  voucherTotal: number;
-  discountsTotal: number;
-  totalRefunded: number;
+  vatTotal: number; // cents
+  cashTotal: number; // cents
+  cardTotal: number; // cents
+  voucherTotal: number; // cents
+  discountsTotal: number; // cents
+  totalRefunded: number; // cents
   vatBreakdown: VatBreakdown;
-  topProducts: { name: string; quantity: number; total: number }[];
+  topProducts: { name: string; quantity: number; total: number }[]; // total in cents
 };
 
 async function aggregatePeriod(from: Date, to: Date): Promise<PeriodAgg> {
@@ -196,25 +196,27 @@ async function aggregatePeriod(from: Date, to: Date): Promise<PeriodAgg> {
 
   for (const order of orders) {
     const orderRefundsTotal = sum2(order.refunds.map((r) => r.amount));
-    totalRefunded = round2(totalRefunded + orderRefundsTotal);
+    totalRefunded = totalRefunded + orderRefundsTotal;
     // Fully refunded orders are excluded from sales totals + count.
-    if (orderRefundsTotal >= order.total - 0.001) continue;
+    if (orderRefundsTotal >= order.total) continue; // exact integer compare (cents)
 
     salesCount += 1;
     const refundRatio = order.total > 0 ? Math.min(1, orderRefundsTotal / order.total) : 0;
-    const netTotal = round2(order.total - orderRefundsTotal);
-    salesTotal = round2(salesTotal + netTotal);
-    discountsTotal = round2(discountsTotal + order.discountTotal);
+    const netTotal = order.total - orderRefundsTotal;
+    salesTotal = salesTotal + netTotal;
+    discountsTotal = discountsTotal + order.discountTotal;
 
-    const discountRatio = order.subtotal > 0 ? (order.discountTotal ?? 0) / order.subtotal : 0;
+    const discountRatio = order.subtotal > 0 ? order.discountTotal / order.subtotal : 0;
     for (const item of order.items) {
-      const netLineTotal = round2(item.lineTotal * (1 - discountRatio) * (1 - refundRatio));
+      const netLineTotal = Math.round(
+        item.lineTotal * (1 - discountRatio) * (1 - refundRatio)
+      );
       const vatRate = item.vatRate ?? 10;
       addToVatBreakdown(vatBreakdown, netLineTotal, vatRate);
       const key = item.productName;
       productAgg[key] ??= { name: item.productName, quantity: 0, total: 0 };
       productAgg[key].quantity += item.quantity;
-      productAgg[key].total = round2(productAgg[key].total + netLineTotal);
+      productAgg[key].total = productAgg[key].total + netLineTotal;
     }
   }
 
@@ -222,7 +224,7 @@ async function aggregatePeriod(from: Date, to: Date): Promise<PeriodAgg> {
   const cashTotal = sum2(payments.filter((p) => p.method === "CASH").map((p) => p.amount));
   const cardTotal = sum2(payments.filter((p) => p.method === "CARD").map((p) => p.amount));
   const voucherTotal = sum2(payments.filter((p) => p.method === "VOUCHER").map((p) => p.amount));
-  const vatTotal = round2(Object.values(vatBreakdown).reduce((acc, v) => acc + v.vat, 0));
+  const vatTotal = sum2(Object.values(vatBreakdown).map((v) => v.vat));
   const topProducts = Object.values(productAgg)
     .sort((a, b) => b.quantity - a.quantity)
     .slice(0, 20);

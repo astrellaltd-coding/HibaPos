@@ -68,8 +68,8 @@ function productToSizes(product: ProductDto): SizeForm[] | null {
   const deliveryBase = product.deliveryPrice ?? 0;
   return tg.choices.map((c) => ({ 
     name: c.name, 
-    pickupPrice: pickupBase + (c.pickupPriceModifier ?? c.priceModifier),
-    deliveryPrice: deliveryBase + (c.deliveryPriceModifier ?? c.priceModifier)
+    pickupPrice: (pickupBase + (c.pickupPriceModifier ?? c.priceModifier)) / 100,
+    deliveryPrice: (deliveryBase + (c.deliveryPriceModifier ?? c.priceModifier)) / 100,
   }));
 }
 
@@ -78,17 +78,17 @@ function sizesToGroupAndPrice(sizes: SizeForm[]): { pickupPrice: number; deliver
   const pickupBase = validSizes.length > 0 ? validSizes[0].pickupPrice : 0;
   const deliveryBase = validSizes.length > 0 ? validSizes[0].deliveryPrice : 0;
   return {
-    pickupPrice: pickupBase,
-    deliveryPrice: deliveryBase,
+    pickupPrice: Math.round(pickupBase * 100),
+    deliveryPrice: Math.round(deliveryBase * 100),
     group: {
       name: SIZE_GROUP_NAME,
       required: true,
       multiple: false,
       choices: validSizes.map((s) => ({
         name: s.name.trim(),
-        priceModifier: parseFloat((s.pickupPrice - pickupBase).toFixed(2)),
-        pickupPriceModifier: parseFloat((s.pickupPrice - pickupBase).toFixed(2)),
-        deliveryPriceModifier: parseFloat((s.deliveryPrice - deliveryBase).toFixed(2)),
+        priceModifier: Math.round((s.pickupPrice - pickupBase) * 100),
+        pickupPriceModifier: Math.round((s.pickupPrice - pickupBase) * 100),
+        deliveryPriceModifier: Math.round((s.deliveryPrice - deliveryBase) * 100),
       })),
     },
   };
@@ -353,8 +353,8 @@ function ProductFormDialog({
   const [sizes, setSizes] = useState<SizeForm[]>(existingSizes ?? DEFAULT_SIZES.map((s) => ({ ...s })));
 
   // Single price (used when sizes are OFF)
-  const [pickupPrice, setPickupPrice] = useState(product?.pickupPrice ?? 0);
-  const [deliveryPrice, setDeliveryPrice] = useState(product?.deliveryPrice ?? 0);
+  const [pickupPrice, setPickupPrice] = useState(product?.pickupPrice != null ? product.pickupPrice / 100 : 0);
+  const [deliveryPrice, setDeliveryPrice] = useState(product?.deliveryPrice != null ? product.deliveryPrice / 100 : 0);
 
   // Other option groups (excluding "Taille")
   const [groups, setGroups] = useState<GroupForm[]>(
@@ -364,7 +364,7 @@ function ProductFormDialog({
         name: g.name,
         required: g.required,
         multiple: g.multiple,
-        choices: g.choices.map((c) => ({ name: c.name, priceModifier: c.priceModifier, image: c.image ?? undefined })),
+        choices: g.choices.map((c) => ({ name: c.name, priceModifier: c.priceModifier / 100, image: c.image ?? undefined })),
       })),
   );
   const [saving, setSaving] = useState(false);
@@ -412,7 +412,7 @@ function ProductFormDialog({
         multiple: g.multiple,
         choices: g.choices.filter((c) => c.name.trim()).map((c): CleanChoice => ({ 
           name: c.name.trim(), 
-          priceModifier: Number(c.priceModifier) || 0,
+          priceModifier: Math.round((Number(c.priceModifier) || 0) * 100),
           image: c.image ?? null,
         })),
       }));
@@ -429,9 +429,9 @@ function ProductFormDialog({
       finalDeliveryPrice = baseDelivery;
       finalOptions = [sizeGroup, ...cleanGroups];
     } else {
-      finalPrice = Number(pickupPrice);
-      finalPickupPrice = Number(pickupPrice);
-      finalDeliveryPrice = Number(deliveryPrice);
+      finalPrice = Math.round(Number(pickupPrice) * 100);
+      finalPickupPrice = Math.round(Number(pickupPrice) * 100);
+      finalDeliveryPrice = Math.round(Number(deliveryPrice) * 100);
       finalOptions = cleanGroups;
     }
 
