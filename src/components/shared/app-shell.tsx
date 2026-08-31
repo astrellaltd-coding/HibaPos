@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { api } from "@/lib/api-client";
 import { Topbar } from "@/components/shared/topbar";
 import { useAppStore } from "@/store/app-store";
 import { useAutoLock } from "@/hooks/use-auto-lock";
@@ -8,6 +10,7 @@ import { HomeDashboard } from "@/components/shared/home-dashboard";
 import { ErrorBoundary } from "@/components/shared/error-boundary";
 import dynamic from "next/dynamic";
 import { ViewLoader } from "@/components/shared/view-loader";
+import type { CategoryDto, ProductDto } from "@/types/api";
 
 const DashboardView = dynamic(
   () => import("@/features/dashboard/dashboard-view").then((m) => m.DashboardView),
@@ -80,6 +83,21 @@ export function AppShell() {
   const { view, setUser } = useAppStore();
   const [warnOpen, setWarnOpen] = useState(false);
   const [warnSeconds, setWarnSeconds] = useState(30);
+  const queryClient = useQueryClient();
+
+  // Catalog prefetch (Phase 11c): warm the products + categories cache on
+  // app mount so the POS grid renders instantly when the cashier navigates
+  // to the caisse view (no loading spinner on first open).
+  useEffect(() => {
+    void queryClient.prefetchQuery({
+      queryKey: ["categories"],
+      queryFn: () => api.get<CategoryDto[]>("/api/catalog/categories"),
+    });
+    void queryClient.prefetchQuery({
+      queryKey: ["products", "all", true],
+      queryFn: () => api.get<ProductDto[]>("/api/catalog/products?all=1"),
+    });
+  }, [queryClient]);
 
   useAutoLock(
     true,

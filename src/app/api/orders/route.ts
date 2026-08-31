@@ -71,6 +71,9 @@ export const GET = withAuth(async (req) => {
   const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 200) : 50;
   const from = url.searchParams.get("from");
   const to = url.searchParams.get("to");
+  // Server-side search (Phase 11b — replaces client-side over-filtering).
+  // Matches order number, table label, or cashier name (case-insensitive contains).
+  const q = url.searchParams.get("q")?.trim() ?? "";
 
   const orders = await db.order.findMany({
     where: {
@@ -82,6 +85,16 @@ export const GET = withAuth(async (req) => {
               ...(from ? { gte: new Date(from) } : {}),
               ...(to ? { lte: new Date(to) } : {}),
             },
+          }
+        : {}),
+      ...(q
+        ? {
+            OR: [
+              { number: { in: q.split(/\s+/).map(Number).filter(Number.isFinite) } },
+              { tableLabel: { contains: q } },
+              { cashier: { name: { contains: q } } },
+              { customer: { name: { contains: q } } },
+            ],
           }
         : {}),
     },

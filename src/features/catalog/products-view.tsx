@@ -115,7 +115,25 @@ export function ProductsView() {
   const toggleAvailability = useMutation({
     mutationFn: (vars: { id: string; available: boolean }) =>
       api.post("/api/catalog/products/availability", { updates: [vars] }),
-    onSuccess: () => {
+    // Optimistic update (Phase 11a): flip the badge instantly on tap —
+    // the server round-trip latency was felt on the touchscreen.
+    onMutate: async (vars) => {
+      await queryClient.cancelQueries({ queryKey: ["products"] });
+      const previous = queryClient.getQueryData<ProductDto[]>(["products", "all", true]);
+      if (previous) {
+        queryClient.setQueryData<ProductDto[]>(
+          ["products", "all", true],
+          previous.map((p) => (p.id === vars.id ? { ...p, available: vars.available } : p)),
+        );
+      }
+      return { previous };
+    },
+    onError: (_e, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(["products", "all", true], context.previous);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["products", "out-of-stock"] });
     },

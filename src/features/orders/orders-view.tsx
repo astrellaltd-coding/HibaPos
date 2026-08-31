@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "@/lib/api-client";
 import type { OrderDto } from "@/types/api";
@@ -146,12 +146,20 @@ export function OrdersView() {
   const [approvalOpen, setApprovalOpen] = useState(false);
   const [pendingRefund, setPendingRefund] = useState<{ amount: number; reason: string; method: "CASH" | "CARD" | "VOUCHER" } | null>(null);
   const [searchInput, setSearchInput] = useState("");
+  // Debounced search → server-side filtering (Phase 11b — replaces the old
+  // fetch-100-then-filter-in-memory pattern that wouldn't scale).
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchInput.trim()), 350);
+    return () => clearTimeout(t);
+  }, [searchInput]);
 
   const ordersQuery = useQuery<OrderDto[], ApiError>({
-    queryKey: ["orders", statusFilter],
+    queryKey: ["orders", statusFilter, debouncedSearch],
     queryFn: () => {
       const query: Record<string, string | number> = { limit: 100 };
       if (statusFilter !== "ALL") query.status = statusFilter;
+      if (debouncedSearch) query.q = debouncedSearch;
       return api.get<OrderDto[]>("/api/orders", query);
     },
   });
@@ -192,16 +200,9 @@ export function OrdersView() {
     },
   });
 
-  const allOrders = ordersQuery.data ?? [];
-  const search = searchInput.trim().toLowerCase();
-  const orders = search
-    ? allOrders.filter(
-        (o) =>
-          String(o.number).includes(search) ||
-          (o.tableLabel ?? "").toLowerCase().includes(search) ||
-          (o.cashier?.name ?? "").toLowerCase().includes(search),
-      )
-    : allOrders;
+  // Server-side filtering (Phase 11b): the query now sends ?q= to the API,
+  // so no client-side over-filtering is needed.
+  const orders = ordersQuery.data ?? [];
   const detail = detailQuery.data;
 
   const alreadyRefunded =

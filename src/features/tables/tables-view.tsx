@@ -94,10 +94,31 @@ export function TablesView() {
         status: vars.status,
         ...(vars.status === "FREE" ? { currentOrderId: null } : {}),
       }),
-    onSuccess: () => {
+    // Optimistic update (Phase 11a): cycle the status badge instantly on tap.
+    onMutate: async (vars) => {
+      await qc.cancelQueries({ queryKey: ["tables"] });
+      const previous = qc.getQueryData<TableDto[]>(["tables"]);
+      if (previous) {
+        qc.setQueryData<TableDto[]>(
+          ["tables"],
+          previous.map((t) =>
+            t.id === vars.id
+              ? { ...t, status: vars.status, ...(vars.status === "FREE" ? { currentOrderId: null } : {}) }
+              : t,
+          ),
+        );
+      }
+      return { previous };
+    },
+    onError: (e, _vars, context) => {
+      if (context?.previous) {
+        qc.setQueryData(["tables"], context.previous);
+      }
+      toast.error(e instanceof ApiError ? e.message : "Erreur");
+    },
+    onSettled: () => {
       qc.invalidateQueries({ queryKey: ["tables"] });
     },
-    onError: (e) => toast.error(e instanceof ApiError ? e.message : "Erreur"),
   });
 
   const grouped = (tables ?? []).reduce<Record<string, TableDto[]>>((acc, t) => {

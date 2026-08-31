@@ -5,7 +5,7 @@
 >
 > **Status legend:** `[x]` done · `[~]` in progress · `[ ]` todo · `[!]` blocked · `[-]` skipped/deferred
 
-Last updated: 2026-08-29 (Phase 9 complete — push pending user auth)
+Last updated: 2026-08-29 (Phase 10 complete)
 
 ---
 
@@ -194,12 +194,13 @@ Phase 3 reached 105 tests but the highest-risk surfaces (API route handlers) wer
 
 ---
 
-## Phase 10 — UI/UX polish
+## Phase 10 — UI/UX polish — ✅ COMPLETE
 
-- [ ] **10a` **Touchscreen accessibility** — several interactive controls stay below the 44px WCAG target: cart qty buttons (`h-6 w-6` overridden to `min-h-[32px]`, still <44), table/audit/media hover edit buttons (`h-6`/`h-7`), option/addon check badges. Raise to ≥44px and add missing `aria-label`s on icon-only buttons.
-- [ ] **10b` **Hardcoded hex backgrounds → theme tokens** — `#FAF5EE` (shell), `#221910` (topbar), `#FDEFE0`/`#F2994A`/`#E2711D` (gradients) bypass theme tokens. Replace with `bg-card`/`bg-foreground`/etc. tokens. (Deferred from Phase 4d — cosmetic but improves maintainability.)
-- [ ] **10c` **URL routing (SPA state machine)** — no URL change on view switch → browser back button always returns to home. Consider hash-based routing (`#/pos`, `#/orders`, …) for view persistence and back-button support.
-- [ ] **10d` **i18n layer** — no `lang-store`/translation function; every string is hardcoded French (`<html lang="fr">`). Fine for a single-locale product today, but if reselling later, add a FR/EN toggle. (The worklog's rounds 20-22 i18n was built then removed — re-evaluate if needed.)
+- [x] **10a** **Touchscreen accessibility** — 32 button templates raised to ≥44px WCAG target (cart qty/edit/remove, table edit/delete, addon/category/media/products remove buttons, payment quick-cash, options qty, held-orders). 23 aria-labels added + 4 updated (French, matching purpose). 8 one-off login-design values intentionally left (PIN pad corners, 36px already-labelled buttons noted for a follow-up sweep).
+- [x] **10b** **Hardcoded hex → theme tokens** — 13 brand tokens added to `globals.css` `:root` (`--shell-bg`, `--topbar-bg`, `--brand-from/to/accent`, `--heading-warm/login`, `--text-warm-grey/subtle/muted/login`, `--accent-warm`, `--icon-warm`, `--card-warm-bg/border`, `--card-hero-bg`). 30+ hex arbitrary values replaced with `var()` refs across `app-shell`, `topbar`, `home-dashboard`, `login-screen`, `error-boundary`. 8 one-off login design values left as arbitrary (PIN pad styling — documented design choices).
+- [x] **10c** **Hash-based URL routing** — `app-store.ts` now syncs `view ↔ window.location.hash` (`#/pos`, `#/orders`, `#/` → home). `initHashSync()` in `page.tsx` gives deep-link support (navigating to `/#/pos` lands on POS after login) + browser back/forward button navigation. Logout resets the hash.
+- [-] **10d** **i18n layer** — skipped (single-locale French is fine today; re-evaluate if reselling — see Phase 12e).
+- [x] **10-check** Lint 0 errors · tsc exit 0 · 136 tests pass.
 
 ---
 

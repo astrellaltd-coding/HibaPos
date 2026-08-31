@@ -1,6 +1,6 @@
-"use client";
+﻿"use client";
 
-import { useMemo, useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import type { AuditLogDto } from "@/types/api";
@@ -68,18 +68,24 @@ function truncatedDetails(raw: string | null): string {
 
 export function AuditView() {
   const [filter, setFilter] = useState("");
+  // Debounced filter → server-side action filtering (Phase 11b — the API
+  // already supports ?action= contains; replaces fetch-200-then-filter).
+  const [debouncedFilter, setDebouncedFilter] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedFilter(filter.trim()), 350);
+    return () => clearTimeout(t);
+  }, [filter]);
 
   const { data, isLoading, isFetching, refetch } = useQuery({
-    queryKey: ["audit", 200],
-    queryFn: () => api.get<AuditLogDto[]>("/api/audit", { limit: 200 }),
+    queryKey: ["audit", 200, debouncedFilter],
+    queryFn: () =>
+      api.get<AuditLogDto[]>("/api/audit", {
+        limit: 200,
+        ...(debouncedFilter ? { action: debouncedFilter } : {}),
+      }),
   });
 
-  const filtered = useMemo(() => {
-    if (!data) return [];
-    const q = filter.trim().toLowerCase();
-    if (!q) return data;
-    return data.filter((l) => l.action.toLowerCase().includes(q));
-  }, [data, filter]);
+  const logs = data ?? [];
 
   return (
     <div className="flex h-full flex-col gap-5 p-5 lg:p-6">
@@ -117,7 +123,7 @@ export function AuditView() {
         <div className="flex h-64 items-center justify-center text-muted-foreground">
           <Loader2 className="h-5 w-5 animate-spin" />
         </div>
-      ) : filtered.length === 0 ? (
+      ) : logs.length === 0 ? (
         <EmptyState
           icon={History}
           title="Aucune entrée"
@@ -140,7 +146,7 @@ export function AuditView() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((l) => {
+              {logs.map((l) => {
                 const tone = actionTone(l.action);
                 const details = prettyDetails(l.details);
                 const hasDetails = !!l.details;
@@ -190,10 +196,10 @@ export function AuditView() {
         </div>
       )}
 
-      {filtered.length > 0 && (
+      {logs.length > 0 && (
         <p className="text-xs text-muted-foreground">
-          {filtered.length} entrée{filtered.length > 1 ? "s" : ""} affichée
-          {filtered.length > 1 ? "s" : ""} sur {data?.length ?? 0}.
+          {logs.length} entrée{logs.length > 1 ? "s" : ""} affichée
+          {logs.length > 1 ? "s" : ""}.
         </p>
       )}
     </div>
