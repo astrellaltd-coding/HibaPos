@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { useAppStore } from "@/store/app-store";
+import { useAppStore, initHashSync } from "@/store/app-store";
 import { LoginScreen } from "@/features/auth/login-screen";
 import { AppShell } from "@/components/shared/app-shell";
 import { Loader2 } from "lucide-react";
@@ -12,6 +12,13 @@ export default function Home() {
   useEffect(() => {
     fetchUser();
   }, [fetchUser]);
+
+  // URL-hash ↔ view sync: deep-link support (#/pos lands on POS after login)
+  // + browser back/forward buttons navigate views. Mounted once for the
+  // lifetime of the SPA (LoginScreen and AppShell both benefit).
+  useEffect(() => {
+    return initHashSync();
+  }, []);
 
   if (loadingUser) {
     return (

@@ -204,17 +204,17 @@ export function CartPanel({ onCheckout, onEditItem, onOpenDiscount }: { onChecko
 
                     <div className="flex shrink-0 items-center gap-0.5">
                       <button
-                        className="flex h-6 w-6 min-h-[32px] items-center justify-center rounded-md border border-border bg-background transition-colors hover:bg-muted active:scale-95"
+                        className="flex h-11 w-11 min-h-[44px] min-w-[44px] items-center justify-center rounded-md border border-border bg-background transition-colors hover:bg-muted active:scale-95"
                         onClick={() => decItem(item.uid)}
-                        aria-label="Diminuer"
+                        aria-label="Diminuer la quantité"
                       >
                         <Minus className="h-3 w-3" />
                       </button>
                       <span className="w-5 text-center text-xs font-semibold tabular-nums">{item.quantity}</span>
                       <button
-                        className="flex h-6 w-6 min-h-[32px] items-center justify-center rounded-md border border-border bg-background transition-colors hover:bg-muted active:scale-95"
+                        className="flex h-11 w-11 min-h-[44px] min-w-[44px] items-center justify-center rounded-md border border-border bg-background transition-colors hover:bg-muted active:scale-95"
                         onClick={() => incItem(item.uid)}
-                        aria-label="Augmenter"
+                        aria-label="Augmenter la quantité"
                       >
                         <Plus className="h-3 w-3" />
                       </button>
@@ -225,17 +225,17 @@ export function CartPanel({ onCheckout, onEditItem, onOpenDiscount }: { onChecko
                     <div className="flex shrink-0 items-center gap-0.5">
                       {onEditItem && (item.options.length > 0 || item.addOns.length > 0) && (
                         <button
-                          className="flex h-6 w-6 min-h-[32px] items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-primary active:scale-95"
+                          className="flex h-11 w-11 min-h-[44px] min-w-[44px] items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-primary active:scale-95"
                           onClick={() => onEditItem(item)}
-                          aria-label="Modifier"
+                          aria-label="Modifier la ligne"
                         >
                           <Pencil className="h-3 w-3" />
                         </button>
                       )}
                       <button
-                        className="flex h-6 w-6 min-h-[32px] items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive active:scale-95"
+                        className="flex h-11 w-11 min-h-[44px] min-w-[44px] items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive active:scale-95"
                         onClick={() => removeItem(item.uid)}
-                        aria-label="Supprimer"
+                        aria-label="Retirer la ligne"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>

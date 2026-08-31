@@ -126,13 +126,13 @@ function HeldOrderCard({
         </div>
       </div>
       <div className="mt-2.5 flex items-center gap-2">
-        <Button size="sm" className="h-8 flex-1 gap-1.5" onClick={onRecall}>
+        <Button size="sm" className="h-11 flex-1 gap-1.5" onClick={onRecall}>
           <Play className="h-3.5 w-3.5" /> Reprendre
         </Button>
         <Button
           size="sm"
           variant="outline"
-          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+          className="h-11 w-11 text-muted-foreground hover:text-destructive"
           onClick={() => setConfirmDeleteOpen(true)}
           aria-label="Supprimer la commande en attente"
         >

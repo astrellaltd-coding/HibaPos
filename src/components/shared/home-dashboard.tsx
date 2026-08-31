@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useAppStore, type AppView } from "@/store/app-store";
 import { NAV_ITEMS } from "@/components/shared/nav-config";
@@ -86,8 +86,8 @@ function SectionLabel({
 }) {
   return (
     <div className={cn("mb-3 flex items-center gap-2", className)}>
-      <Icon className="h-4 w-4 text-[#2B211B]" strokeWidth={2.2} />
-      <span className="text-[12px] font-bold uppercase tracking-[0.08em] text-[#2B211B]">
+      <Icon className="h-4 w-4 text-[var(--heading-warm)]" strokeWidth={2.2} />
+      <span className="text-[12px] font-bold uppercase tracking-[0.08em] text-[var(--heading-warm)]">
         {label}
       </span>
     </div>
@@ -111,7 +111,7 @@ function QuickCard({
       className="pos-card flex h-full w-full flex-col items-center justify-center gap-3 px-5 py-4 text-center"
     >
       <img src={item.image} alt="" className="h-[116px] w-[116px] object-contain" />
-      <p className="text-[15px] font-bold text-[#2B211B]">{item.title}</p>
+      <p className="text-[15px] font-bold text-[var(--heading-warm)]">{item.title}</p>
     </motion.button>
   );
 }
@@ -172,8 +172,8 @@ function ModuleCard({
           />
         ) : (
           <div className="relative z-10 flex h-[88px] w-[88px] items-center justify-center transition-transform duration-300 ease-out group-hover:scale-110 group-hover:rotate-[2deg]">
-            <div className="flex h-[72px] w-[72px] items-center justify-center rounded-full bg-[#FDEFE0]">
-              <Icon className="h-8 w-8 text-[#C97A3D]" strokeWidth={1.9} />
+            <div className="flex h-[72px] w-[72px] items-center justify-center rounded-full bg-[var(--card-warm-bg)]">
+              <Icon className="h-8 w-8 text-[var(--icon-warm)]" strokeWidth={1.9} />
             </div>
           </div>
         )}
@@ -181,8 +181,8 @@ function ModuleCard({
 
       {/* ── Text block ── */}
       <div className="flex flex-col items-center gap-0.5">
-        <p className="text-[14px] font-semibold leading-snug text-[#2B211B]">{meta.label}</p>
-        <p className="text-[11px] font-normal leading-tight text-[#A8927C]">{meta.subtitle}</p>
+        <p className="text-[14px] font-semibold leading-snug text-[var(--heading-warm)]">{meta.label}</p>
+        <p className="text-[11px] font-normal leading-tight text-[var(--text-muted-warm)]">{meta.subtitle}</p>
       </div>
 
       {/* ── Premium circular arrow button ── */}
@@ -191,7 +191,7 @@ function ModuleCard({
         style={{ background: "rgba(232,145,45,0.10)" }}
       >
         <ArrowRight
-          className="h-3.5 w-3.5 text-[#C97A3D] transition-transform duration-300 ease-out group-hover:translate-x-0.5"
+          className="h-3.5 w-3.5 text-[var(--icon-warm)] transition-transform duration-300 ease-out group-hover:translate-x-0.5"
           strokeWidth={2.2}
         />
       </div>
@@ -214,7 +214,7 @@ export function HomeDashboard() {
   });
 
   return (
-    <div className="flex min-h-full flex-col gap-4 bg-[#FAF5EE] p-4 md:p-6">
+    <div className="flex min-h-full flex-col gap-4 bg-[var(--shell-bg)] p-4 md:p-6">
       {/* -------- Row 1: Welcome + Quick Access -------- */}
       <div className="grid grid-cols-1 items-stretch gap-3 lg:grid-cols-2">
         {/* ---- Welcome card ---- */}
@@ -222,7 +222,7 @@ export function HomeDashboard() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
-          className="relative overflow-hidden rounded-[28px] border border-[#F3E4CF] bg-[#FDF1DE] shadow-[0_1px_3px_rgba(60,40,20,0.05)]"
+          className="relative overflow-hidden rounded-[28px] border border-[var(--card-warm-border)] bg-[var(--card-hero-bg)] shadow-[0_1px_3px_rgba(60,40,20,0.05)]"
           style={{
             backgroundImage: "url('/home-cards/text-card.png')",
             backgroundSize: "cover",
@@ -233,15 +233,15 @@ export function HomeDashboard() {
           {/* text occupies only the left half, vertically centered */}
           <div className="relative z-10 flex h-full min-h-[200px] w-full flex-col justify-center px-7 py-4 md:w-[55%] md:px-8 md:py-5 lg:h-[220px]">
             <div className="flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-[#E8912D]" />
-              <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#E8912D]">
+              <span className="h-2 w-2 rounded-full bg-[var(--accent-warm)]" />
+              <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--accent-warm)]">
                 ESPACE DE TRAVAIL
               </span>
             </div>
-            <h1 className="mt-3 text-[32px] font-extrabold leading-[1.1] tracking-tight text-[#2B211B] md:text-[36px]">
+            <h1 className="mt-3 text-[32px] font-extrabold leading-[1.1] tracking-tight text-[var(--heading-warm)] md:text-[36px]">
               Bonjour, {user?.name ?? "Utilisateur"}
             </h1>
-            <p className="mt-3 max-w-[350px] text-sm leading-relaxed text-[#9A8873]">
+            <p className="mt-3 max-w-[350px] text-sm leading-relaxed text-[var(--text-subtle-warm)]">
               Gérez votre restaurant efficacement et suivez chaque commande avec simplicité.
             </p>
           </div>

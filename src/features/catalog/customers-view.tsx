@@ -217,7 +217,7 @@ export function CustomersView() {
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Rechercher par nom, téléphone ou email…"
-            className="pl-9 pr-9"
+            className="h-11 pl-9 pr-12"
           />
           {searchInput && (
             <Button
@@ -225,7 +225,7 @@ export function CustomersView() {
               variant="ghost"
               size="icon"
               onClick={clearSearch}
-              className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2"
+              className="absolute right-1 top-1/2 h-11 w-11 -translate-y-1/2"
               aria-label="Effacer la recherche"
             >
               <X className="h-4 w-4" />

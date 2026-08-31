@@ -82,14 +82,14 @@ export function Topbar() {
   const ModuleIcon = currentNav?.icon ?? null;
 
   return (
-    <header className="flex h-[68px] shrink-0 items-center justify-between gap-4 rounded-2xl bg-[#221910] px-5 text-white shadow-lg">
+    <header className="flex h-[68px] shrink-0 items-center justify-between gap-4 rounded-2xl bg-[var(--topbar-bg)] px-5 text-white shadow-lg">
       {/* Left: Logo + Brand (or module icon + name) */}
       <button
         onClick={() => setView("home")}
         className="flex items-center gap-3 outline-none transition-opacity hover:opacity-90"
       >
         {/* Icon tile — burger on home, module icon on sub-views */}
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#F2994A] to-[#E2711D] shadow-md transition-all duration-300">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--brand-from)] to-[var(--brand-to)] shadow-md transition-all duration-300">
           <AnimatePresence mode="wait">
             {ModuleIcon ? (
               <motion.div
@@ -183,7 +183,7 @@ export function Topbar() {
           onClick={logout}
           aria-label="Se déconnecter"
           title="Se déconnecter"
-          className="h-8 w-8 rounded-full text-white/70 hover:bg-white/10 hover:text-white"
+          className="h-11 w-11 rounded-full text-white/70 hover:bg-white/10 hover:text-white"
         >
           <Lock className="h-4 w-4" />
         </Button>
@@ -192,7 +192,7 @@ export function Topbar() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="ml-1 flex items-center gap-2.5 rounded-full px-2 py-1.5 text-left outline-none transition-colors hover:bg-white/10">
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-[#F2994A] to-[#E2711D] text-sm font-bold text-white">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-[var(--brand-from)] to-[var(--brand-to)] text-sm font-bold text-white">
                 {user?.name?.slice(0, 1).toUpperCase() ?? "U"}
               </div>
               <div className="hidden leading-tight md:block">

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -267,7 +267,7 @@ export function LoginScreen() {
   }, [backspace, backToProfiles, pressDigit, step]);
 
   return (
-    <main className="flex min-h-[100svh] items-center justify-center overflow-y-auto bg-[#FAF5EE] p-2 sm:p-5 lg:p-7">
+    <main className="flex min-h-[100svh] items-center justify-center overflow-y-auto bg-[var(--shell-bg)] p-2 sm:p-5 lg:p-7">
       <motion.div
         animate={{ opacity: fading ? 0 : 1, scale: fading ? 0.98 : 1 }}
         transition={{ duration: 0.5, ease: "easeInOut" }}
@@ -304,7 +304,7 @@ export function LoginScreen() {
             </div>
           ) : managerProfiles.length === 0 ? (
             <div className="absolute inset-0 z-10 flex flex-col items-center justify-start pt-2">
-              <p className="py-12 text-center text-sm text-[#8e7d70]">Aucun utilisateur actif.</p>
+              <p className="py-12 text-center text-sm text-[var(--text-warm-grey)]">Aucun utilisateur actif.</p>
             </div>
           ) : (
             <AnimatePresence mode="wait" initial={false}>
@@ -318,21 +318,21 @@ export function LoginScreen() {
                   transition={{ duration: 0.3, ease: "easeInOut" }}
                 >
                   <div className="w-full max-w-[520px] text-left">
-                    <p className="flex items-center gap-2 text-sm font-semibold text-[#f27d0b]">
-                      <span className="h-1.5 w-1.5 rounded-full bg-[#f27d0b]" />
+                    <p className="flex items-center gap-2 text-sm font-semibold text-[var(--brand-accent)]">
+                      <span className="h-1.5 w-1.5 rounded-full bg-[var(--brand-accent)]" />
                       Bienvenue !
                     </p>
-                    <h1 className="mt-3 text-4xl font-bold leading-tight tracking-tight text-[#211b17] sm:text-5xl">
+                    <h1 className="mt-3 text-4xl font-bold leading-tight tracking-tight text-[var(--heading-warm)] sm:text-5xl">
                       Bon retour <span aria-hidden="true">👋</span>
                     </h1>
-                    <p className="mt-3 max-w-[360px] text-base leading-6 text-[#8e7d70]">
+                    <p className="mt-3 max-w-[360px] text-base leading-6 text-[var(--text-warm-grey)]">
                       Accédez à votre espace de travail
                       <br />
                       et gérez votre activité en toute simplicité.
                     </p>
                   </div>
 
-                  <div className="mb-5 mt-6 flex w-full max-w-[520px] items-center gap-3 border-t border-[#f0e6dc] pt-5 text-[#f27d0b]">
+                  <div className="mb-5 mt-6 flex w-full max-w-[520px] items-center gap-3 border-t border-[var(--card-warm-border)] pt-5 text-[var(--brand-accent)]">
                     <UserRound className="h-6 w-6" />
                     <p className="text-sm font-bold">Choisissez votre profil</p>
                   </div>
@@ -351,20 +351,20 @@ export function LoginScreen() {
                           className={cn(
                             "group relative flex min-h-[245px] flex-col items-center justify-start overflow-hidden rounded-[16px] border bg-white px-5 py-6 text-center shadow-[0_14px_35px_rgba(124,83,46,0.08)] transition-all",
                             isSelected
-                              ? "border-[#f27d0b] shadow-[0_12px_28px_rgba(242,125,11,0.1)]"
-                              : "border-[#f1e2d4] hover:border-[#f7b36c] hover:shadow-md",
+                              ? "border-[var(--brand-accent)] shadow-[0_12px_28px_rgba(242,125,11,0.1)]"
+                              : "border-[var(--card-warm-border)] hover:border-[#f7b36c] hover:shadow-md",
                           )}
                         >
                           <span className="pointer-events-none absolute -left-8 -top-8 h-32 w-32 rounded-full bg-[radial-gradient(#f6d7b5_1px,transparent_1px)] [background-size:8px_8px] opacity-50" />
-                          <span className="relative mt-1 flex h-20 w-20 shrink-0 items-center justify-center rounded-full border-[8px] border-[#ffe4c7] bg-[#f27d0b] text-white shadow-sm">
+                          <span className="relative mt-1 flex h-20 w-20 shrink-0 items-center justify-center rounded-full border-[8px] border-[var(--card-warm-bg)] bg-[var(--brand-accent)] text-white shadow-sm">
                             {(() => {
                               const ProfileIcon = getProfileIcon(profile.role);
                               return <ProfileIcon className="h-9 w-9" strokeWidth={2.2} />;
                             })()}
                           </span>
                           <span className="relative mt-3 min-w-0">
-                            <span className="block truncate text-lg font-bold text-[#302720]">{style.label}</span>
-                            <span className="mt-1 block truncate text-xs text-[#9a897b]">
+                            <span className="block truncate text-lg font-bold text-[var(--heading-login)]">{style.label}</span>
+                            <span className="mt-1 block truncate text-xs text-[var(--text-login-muted)]">
                               {style.description}
                             </span>
                           </span>
@@ -373,7 +373,7 @@ export function LoginScreen() {
                             <ArrowRight className="h-5 w-5" />
                           </span>
                           {isSelected && (
-                            <span className="absolute -right-2 -top-2 flex h-7 w-7 items-center justify-center rounded-full bg-[#f27d0b] text-white shadow-md">
+                            <span className="absolute -right-2 -top-2 flex h-7 w-7 items-center justify-center rounded-full bg-[var(--brand-accent)] text-white shadow-md">
                               <Check className="h-4 w-4" />
                             </span>
                           )}
@@ -391,12 +391,12 @@ export function LoginScreen() {
                   exit={{ x: "100%", opacity: 0 }}
                   transition={{ duration: 0.3, ease: "easeInOut" }}
                 >
-                  <div className="mb-2 flex items-center gap-3 text-[#f27d0b]">
+                  <div className="mb-2 flex items-center gap-3 text-[var(--brand-accent)]">
                     <LockKeyhole className="h-5 w-5" />
                     <p className="text-sm font-bold uppercase tracking-[0.18em]">Authentification</p>
                   </div>
-                  <h2 className="text-center text-3xl font-bold tracking-tight text-[#302720] sm:text-4xl">Entrez votre code</h2>
-                  <p className="mt-2 text-center text-sm text-[#9a897b]">Saisissez votre code personnel pour continuer</p>
+                  <h2 className="text-center text-3xl font-bold tracking-tight text-[var(--heading-login)] sm:text-4xl">Entrez votre code</h2>
+                  <p className="mt-2 text-center text-sm text-[var(--text-login-muted)]">Saisissez votre code personnel pour continuer</p>
 
                   <motion.div animate={shakeControls} className="mb-8 mt-9 flex justify-center gap-5">
                     {Array.from({ length: 6 }).map((_, index) => {
@@ -414,9 +414,9 @@ export function LoginScreen() {
                               : failed
                                 ? "border-red-500 bg-red-500"
                                 : filled
-                                  ? "border-[#f27d0b] bg-[#f27d0b]"
+                                  ? "border-[var(--brand-accent)] bg-[var(--brand-accent)]"
                                   : active
-                                    ? "border-[#f27d0b]"
+                                    ? "border-[var(--brand-accent)]"
                                     : "border-[#eadfd4] bg-transparent",
                           )}
                         />
@@ -431,7 +431,7 @@ export function LoginScreen() {
                   ) : error ? (
                     <p className="mb-3 text-center text-sm font-medium text-red-600">{error}</p>
                   ) : (
-                    <p className="mb-3 h-5 text-center text-xs text-[#9a897b]">La connexion démarre automatiquement.</p>
+                    <p className="mb-3 h-5 text-center text-xs text-[var(--text-login-muted)]">La connexion démarre automatiquement.</p>
                   )}
 
                   <div className="mx-auto grid max-w-[280px] grid-cols-3 gap-2.5">
@@ -441,31 +441,31 @@ export function LoginScreen() {
                         type="button"
                         variant="outline"
                         disabled={locked || loading || success}
-                        className="h-16 rounded-xl border-[#f5cba7] bg-white text-2xl font-semibold hover:border-[#f27d0b] hover:bg-[#fff3e4] hover:text-[#f27d0b] active:scale-95"
+                        className="h-16 rounded-xl border-[#f5cba7] bg-white text-2xl font-semibold hover:border-[var(--brand-accent)] hover:bg-[#fff3e4] hover:text-[var(--brand-accent)] active:scale-95"
                         onClick={() => pressDigit(digit)}
                       >
                         {digit}
                       </Button>
                     ))}
-                    <Button type="button" disabled={locked || loading || success || !pin} className="h-16 rounded-xl border-0 bg-[#fff0df] text-[#f27d0b] hover:bg-[#f27d0b] hover:text-white active:scale-95" onClick={backspace} aria-label="Supprimer le dernier chiffre">
+                    <Button type="button" disabled={locked || loading || success || !pin} className="h-16 rounded-xl border-0 bg-[#fff0df] text-[var(--brand-accent)] hover:bg-[var(--brand-accent)] hover:text-white active:scale-95" onClick={backspace} aria-label="Supprimer le dernier chiffre">
                       <Delete className="h-6 w-6" />
                     </Button>
-                    <Button type="button" variant="outline" disabled={locked || loading || success} className="h-16 rounded-xl border-[#f5cba7] bg-white text-2xl font-semibold hover:border-[#f27d0b] hover:bg-[#fff3e4] hover:text-[#f27d0b] active:scale-95" onClick={() => pressDigit("0")}>
+                    <Button type="button" variant="outline" disabled={locked || loading || success} className="h-16 rounded-xl border-[#f5cba7] bg-white text-2xl font-semibold hover:border-[var(--brand-accent)] hover:bg-[#fff3e4] hover:text-[var(--brand-accent)] active:scale-95" onClick={() => pressDigit("0")}>
                       0
                     </Button>
-                    <Button type="button" disabled={locked || loading || success || pin.length !== 6} className="h-16 rounded-xl border-0 bg-[#fff0df] text-[#f27d0b] hover:bg-[#f27d0b] hover:text-white active:scale-95" onClick={submitPin} aria-label="Valider le code">
+                    <Button type="button" disabled={locked || loading || success || pin.length !== 6} className="h-16 rounded-xl border-0 bg-[#fff0df] text-[var(--brand-accent)] hover:bg-[var(--brand-accent)] hover:text-white active:scale-95" onClick={submitPin} aria-label="Valider le code">
                       <ArrowRight className="h-6 w-6" />
                     </Button>
                   </div>
 
-                  <div className="mt-8 flex justify-center border-t border-[#f0e6dc] pt-6">
+                  <div className="mt-8 flex justify-center border-t border-[var(--card-warm-border)] pt-6">
                     <button
                       type="button"
                       onClick={backToProfiles}
                       disabled={success}
-                      className="flex items-center gap-3 text-sm font-medium text-[#9a897b] transition-colors hover:text-[#f27d0b] disabled:opacity-50"
+                      className="flex items-center gap-3 text-sm font-medium text-[var(--text-login-muted)] transition-colors hover:text-[var(--brand-accent)] disabled:opacity-50"
                     >
-                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#f27d0b] text-white">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--brand-accent)] text-white">
                         <ArrowLeft className="h-4 w-4" />
                       </span>
                       Changer de profil
@@ -478,16 +478,16 @@ export function LoginScreen() {
           </div>
 
           {step === 1 && (
-            <div className="mx-auto mt-5 flex w-full max-w-[300px] items-start gap-3 rounded-xl border border-[#f0e6dc] bg-white/60 px-4 py-3 text-left text-xs text-[#8e7d70]">
+            <div className="mx-auto mt-5 flex w-full max-w-[300px] items-start gap-3 rounded-xl border border-[var(--card-warm-border)] bg-white/60 px-4 py-3 text-left text-xs text-[var(--text-warm-grey)]">
               <CircleHelp className="mt-0.5 h-5 w-5 shrink-0" />
               <span className="leading-5">
-                <span className="block font-semibold text-[#302720]">Besoin d'aide ?</span>
+                <span className="block font-semibold text-[var(--heading-login)]">Besoin d'aide ?</span>
                 Contactez votre{" "}
                 {adminProfile ? (
                   <button
                     type="button"
                     onClick={() => chooseProfile(adminProfile)}
-                    className="font-semibold text-[#f27d0b] underline decoration-[#f7b36c] underline-offset-2 transition-colors hover:text-[#d96c08]"
+                    className="font-semibold text-[var(--brand-accent)] underline decoration-[#f7b36c] underline-offset-2 transition-colors hover:text-[#d96c08]"
                   >
                     administrateur
                   </button>

@@ -264,7 +264,8 @@ export function PosView() {
             <Button
               variant="ghost"
               size="icon"
-              className="absolute right-2 top-2 z-10 h-8 w-8"
+              className="absolute right-2 top-2 z-10 h-11 w-11"
+              aria-label="Fermer le panier"
               onClick={() => setMobileCartOpen(false)}
             >
               <X className="h-4 w-4" />

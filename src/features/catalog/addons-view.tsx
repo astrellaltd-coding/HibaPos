@@ -294,8 +294,9 @@ export function AddonsView() {
                   <img src={form.image} alt="" className="h-24 w-full object-cover" />
                   <button
                     type="button"
+                    aria-label="Supprimer l'image"
                     onClick={() => setForm((f) => ({ ...f, image: "" }))}
-                    className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70"
+                    className="absolute right-2 top-2 flex h-11 w-11 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70"
                   >
                     <X className="h-3.5 w-3.5" />
                   </button>

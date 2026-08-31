@@ -77,6 +77,25 @@
   --sidebar-accent-foreground: oklch(0.96 0.01 80);
   --sidebar-border: oklch(0.32 0.02 60);
   --sidebar-ring: oklch(0.71 0.17 58);
+
+  /* Warm POS brand tokens (Phase 10b — replaced hardcoded hex in components).
+     Referenced via Tailwind arbitrary values: bg-[var(--shell-bg)] etc. */
+  --shell-bg: #FAF5EE;         /* app-shell background (warm cream) */
+  --topbar-bg: #221910;        /* topbar dark espresso */
+  --brand-from: #F2994A;       /* brand gradient start (orange) */
+  --brand-to: #E2711D;         /* brand gradient end (deep orange) */
+  --brand-accent: #f27d0b;     /* brand accent (login badge, labels, borders) */
+  --heading-warm: #2B211B;     /* warm heading text (dark espresso) */
+  --text-warm-grey: #8e7d70;   /* warm grey body text (login screen) */
+  --text-subtle-warm: #9A8873; /* subtle body text (warm grey) */
+  --text-muted-warm: #A8927C;  /* muted subtitle text */
+  --accent-warm: #E8912D;      /* warm accent (labels, dots) */
+  --icon-warm: #C97A3D;        /* warm icon color */
+  --card-warm-bg: #FDEFE0;     /* icon circle background (peach) */
+  --card-warm-border: #F3E4CF; /* hero card border */
+  --card-hero-bg: #FDF1DE;     /* hero card background */
+  --heading-login: #302720;    /* login screen heading */
+  --text-login-muted: #9a897b; /* login screen muted text */
 }
 
 @layer base {

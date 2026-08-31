@@ -453,17 +453,19 @@ function MediaCard({
       <div className="absolute right-1.5 top-1.5 flex flex-col gap-1 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
         <button
           type="button"
+          aria-label="Copier l'URL"
           onClick={(e) => { e.stopPropagation(); onCopy(); }}
           title="Copier l'URL"
-          className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/90 shadow text-foreground hover:bg-white"
+          className="flex h-11 w-11 items-center justify-center rounded-lg bg-white/90 shadow text-foreground hover:bg-white"
         >
           <Copy className="h-3.5 w-3.5" />
         </button>
         <button
           type="button"
+          aria-label="Supprimer l'image"
           onClick={(e) => { e.stopPropagation(); onDelete(); }}
           title="Supprimer"
-          className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/90 shadow text-destructive hover:bg-white"
+          className="flex h-11 w-11 items-center justify-center rounded-lg bg-white/90 shadow text-destructive hover:bg-white"
         >
           <Trash2 className="h-3.5 w-3.5" />
         </button>

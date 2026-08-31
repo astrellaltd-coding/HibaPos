@@ -266,7 +266,7 @@ export function PaymentDialog({
                     <button
                       key={v}
                       onClick={() => addPayment(v)}
-                      className="h-10 min-h-[40px] rounded-lg border border-border bg-card py-2 text-sm font-semibold tabular-nums transition-colors hover:border-primary hover:bg-primary/5 hover:text-primary"
+                      className="min-h-[44px] rounded-lg border border-border bg-card py-2 text-sm font-semibold tabular-nums transition-colors hover:border-primary hover:bg-primary/5 hover:text-primary"
                     >
                       {formatEuro(v)}
                     </button>
@@ -337,7 +337,7 @@ export function PaymentDialog({
                           )}
                         </span>
                         <span className="text-sm font-semibold tabular-nums">{formatEuro(l.amount)}</span>
-                        <Button variant="ghost" size="icon" className="h-9 min-h-[48px] w-9 text-muted-foreground hover:text-destructive" onClick={() => removeLine(idx)}>
+                        <Button variant="ghost" size="icon" className="h-9 min-h-[48px] w-9 text-muted-foreground hover:text-destructive" aria-label="Supprimer la ligne" onClick={() => removeLine(idx)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>

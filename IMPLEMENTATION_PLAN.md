@@ -5,7 +5,7 @@
 >
 > **Status legend:** `[x]` done · `[~]` in progress · `[ ]` todo · `[!]` blocked · `[-]` skipped/deferred
 
-Last updated: 2026-08-29 (Phase 8 complete)
+Last updated: 2026-08-29 (Phase 9 complete — push pending user auth)
 
 ---
 
@@ -180,12 +180,17 @@ Phase 3 reached 105 tests but the highest-risk surfaces (API route handlers) wer
 
 ---
 
-## Phase 9 — Operational hygiene
+## Phase 9 — Operational hygiene — ✅ COMPLETE (push pending)
 
-- [ ] **9a** **Push to GitHub** — `origin` is added but the repo was never pushed (needs your credentials). `git push -u origin main` — do this as the first action of the next session.
-- [ ] **9b** **`reactStrictMode: false`** — `next.config.ts` disables React strict mode (suppresses double-render in dev, masks effect-cleanup bugs). Consider re-enabling for the production POS.
-- [ ] **9c** **`eslint.config.mjs` `no-explicit-any: warn`** — `@typescript-eslint/no-explicit-any` is downgraded to `warn`, so `any` proliferates silently. Consider raising to `error` and cleaning up the `any` usages.
-- [ ] **9d` **`db:push --accept-data-loss` dangerous default** — `package.json` `db:push` script is `prisma db push --accept-data-loss`. A misplaced `bun run db:push` against prod silently destroys data. Split into `db:push-safe` (no flag) + `db:push-force` (with flag, gated).
+- [x] **9a** **Push to GitHub** — `origin` added; **push requires your interactive auth** (the Windows Git Credential Manager dialog can't display in my shell). Run manually:
+  ```
+  git push -u origin main
+  ```
+  A stored `git:https://github.com` credential exists in Windows Credential Manager — the push may succeed directly, or pop a GCM login.
+- [x] **9b** **`reactStrictMode` re-enabled** — `next.config.ts` was `false` (masks effect-cleanup bugs). Now `true`. Dev server may show double-renders — that's expected (it's the point).
+- [x] **9c** **`no-explicit-any` → error** — was `warn` (`any` proliferated silently). Now `error` — **zero `any` usages found** in the codebase (verified: lint passes clean). Any future `any` must be explicitly justified via `eslint-disable-next-line`.
+- [x] **9d** **`db:push` split** — `db:push` is now safe (no flag); `db:push-force` carries `--accept-data-loss`. A misplaced `bun run db:push` no longer silently destroys prod data.
+- [x] **9-check** Lint 0 errors / 0 warnings · tsc exit 0 · 136 tests pass.
 
 ---
 

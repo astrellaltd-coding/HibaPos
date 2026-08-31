@@ -385,14 +385,16 @@ function TableCard({
         <div className="flex gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
           <button
             onClick={onEdit}
-            className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-foreground/10"
+            aria-label="Modifier la table"
+            className="flex h-11 w-11 items-center justify-center rounded text-muted-foreground hover:bg-foreground/10"
             title="Modifier"
           >
             <Pencil className="h-3 w-3" />
           </button>
           <button
             onClick={onDelete}
-            className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+            aria-label="Supprimer la table"
+            className="flex h-11 w-11 items-center justify-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
             title="Supprimer"
           >
             <Trash2 className="h-3 w-3" />

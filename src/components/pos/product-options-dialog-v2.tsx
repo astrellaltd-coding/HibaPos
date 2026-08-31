@@ -349,11 +349,11 @@ export function ProductOptionsDialog({
         {/* ── Footer ── */}
         <DialogFooter className="shrink-0 flex-row items-center justify-between gap-4 border-t border-border bg-muted/20 px-6 py-4">
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="icon" className="h-10 w-10 rounded-lg" onClick={() => setQty((q) => Math.max(1, q - 1))}>
+            <Button variant="outline" size="icon" className="h-11 w-11 rounded-lg" aria-label="Diminuer la quantité" onClick={() => setQty((q) => Math.max(1, q - 1))}>
               <Minus className="h-4 w-4" />
             </Button>
             <span className="w-8 text-center text-lg font-bold tabular-nums">{qty}</span>
-            <Button variant="outline" size="icon" className="h-10 w-10 rounded-lg" onClick={() => setQty((q) => q + 1)}>
+            <Button variant="outline" size="icon" className="h-11 w-11 rounded-lg" aria-label="Augmenter la quantité" onClick={() => setQty((q) => q + 1)}>
               <Plus className="h-4 w-4" />
             </Button>
           </div>

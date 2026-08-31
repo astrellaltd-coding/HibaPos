@@ -285,7 +285,7 @@ export function ProductsView() {
                   </td>
                   <td className="px-4 py-2.5 text-right">
                     <div className="flex justify-end gap-1">
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditing(p)}>
+                      <Button variant="ghost" size="icon" className="min-h-[44px] min-w-[44px]" aria-label="Modifier le produit" onClick={() => setEditing(p)}>
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
                     </div>
@@ -673,8 +673,9 @@ function ProductFormDialog({
                     <img src={image} alt={name} className="h-full w-full object-cover" />
                     <button
                       type="button"
+                      aria-label="Supprimer l'image"
                       onClick={() => setImage("")}
-                      className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-black/50 text-white transition-colors hover:bg-black/70"
+                      className="absolute right-2 top-2 flex h-11 w-11 items-center justify-center rounded-full bg-black/50 text-white transition-colors hover:bg-black/70"
                     >
                       <X className="h-3.5 w-3.5" />
                     </button>
@@ -766,7 +767,8 @@ function ProductFormDialog({
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                        className="h-11 w-11 text-muted-foreground hover:text-destructive"
+                        aria-label="Retirer la taille"
                         onClick={() => removeSize(i)}
                         disabled={sizes.length <= 2}
                       >
@@ -825,7 +827,7 @@ function ProductFormDialog({
                           placeholder="Nom du groupe (ex. Cuisson)"
                           className="h-9 flex-1 font-medium"
                         />
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => removeGroup(gi)}>
+                        <Button variant="ghost" size="icon" className="h-11 w-11 text-muted-foreground hover:text-destructive" aria-label="Retirer le groupe d'options" onClick={() => removeGroup(gi)}>
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </div>
@@ -875,7 +877,7 @@ function ProductFormDialog({
                               />
                               <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">€</span>
                             </div>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => removeChoice(gi, ci)}>
+                            <Button variant="ghost" size="icon" className="h-11 w-11 text-muted-foreground hover:text-destructive" aria-label="Retirer le choix" onClick={() => removeChoice(gi, ci)}>
                               <X className="h-3.5 w-3.5" />
                             </Button>
                           </div>

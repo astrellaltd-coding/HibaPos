@@ -490,7 +490,7 @@ export function CategoriesView() {
                       type="button"
                       onClick={() => setForm((f) => ({ ...f, color: c }))}
                       className={cn(
-                        "h-7 w-7 rounded-full border-2 transition-transform hover:scale-110",
+                        "h-11 w-11 rounded-full border-2 transition-transform hover:scale-110",
                         form.color.toLowerCase() === c.toLowerCase()
                           ? "border-foreground ring-2 ring-foreground/20"
                           : "border-transparent",
@@ -577,8 +577,9 @@ export function CategoriesView() {
                   />
                   <button
                     type="button"
+                    aria-label="Supprimer l'image"
                     onClick={() => setForm((f) => ({ ...f, icon: "" }))}
-                    className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/50 text-white transition-colors hover:bg-black/70"
+                    className="absolute right-2 top-2 flex h-11 w-11 items-center justify-center rounded-full bg-black/50 text-white transition-colors hover:bg-black/70"
                   >
                     <X className="h-4 w-4" />
                   </button>
@@ -736,9 +737,10 @@ export function CategoriesView() {
                         </div>
                         <button
                           type="button"
+                          aria-label="Retirer la taille"
                           onClick={() => setSizes((ss) => ss.filter((_, idx) => idx !== i))}
                           disabled={sizes.length <= 2}
-                          className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:text-destructive disabled:opacity-40"
+                          className="flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground hover:text-destructive disabled:opacity-40"
                         >
                           <X className="h-3.5 w-3.5" />
                         </button>
@@ -805,6 +807,7 @@ export function CategoriesView() {
                       <button
                         type="button"
                         disabled={gi === 0}
+                        aria-label="Monter le groupe"
                         onClick={() =>
                           setForm((f) => {
                             const next = [...f.optionGroups];
@@ -812,7 +815,7 @@ export function CategoriesView() {
                             return { ...f, optionGroups: next };
                           })
                         }
-                        className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:text-foreground disabled:opacity-30"
+                        className="flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground hover:text-foreground disabled:opacity-30"
                         title="Monter"
                       >
                         <ArrowUp className="h-4 w-4" />
@@ -820,6 +823,7 @@ export function CategoriesView() {
                       <button
                         type="button"
                         disabled={gi === form.optionGroups.length - 1}
+                        aria-label="Descendre le groupe"
                         onClick={() =>
                           setForm((f) => {
                             const next = [...f.optionGroups];
@@ -827,20 +831,21 @@ export function CategoriesView() {
                             return { ...f, optionGroups: next };
                           })
                         }
-                        className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:text-foreground disabled:opacity-30"
+                        className="flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground hover:text-foreground disabled:opacity-30"
                         title="Descendre"
                       >
                         <ArrowDown className="h-4 w-4" />
                       </button>
                       <button
                         type="button"
+                        aria-label="Retirer le groupe d'options"
                         onClick={() =>
                           setForm((f) => ({
                             ...f,
                             optionGroups: f.optionGroups.filter((_, i) => i !== gi),
                           }))
                         }
-                        className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:text-destructive"
+                        className="flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground hover:text-destructive"
                         title="Supprimer le groupe"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -902,8 +907,9 @@ export function CategoriesView() {
                           ) : (
                             <button
                               type="button"
+                              aria-label="Image du choix"
                               onClick={() => { setPickerTarget({ type: "choice", groupIndex: gi, choiceIndex: ci }); setPickerOpen(true); }}
-                              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground hover:border-primary hover:text-primary"
+                              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground hover:border-primary hover:text-primary"
                               title="Ajouter une image"
                             >
                               <ImagePlus className="h-4 w-4" />
@@ -941,6 +947,7 @@ export function CategoriesView() {
                           />
                           <button
                             type="button"
+                            aria-label="Retirer le choix"
                             onClick={() =>
                               setForm((f) => {
                                 const next = [...f.optionGroups];
@@ -948,7 +955,7 @@ export function CategoriesView() {
                                 return { ...f, optionGroups: next };
                               })
                             }
-                            className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:text-destructive"
+                            className="flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground hover:text-destructive"
                             title="Supprimer le choix"
                           >
                             <X className="h-3.5 w-3.5" />
@@ -1025,8 +1032,9 @@ export function CategoriesView() {
                     ) : (
                       <button
                         type="button"
+                        aria-label="Image du supplément"
                         onClick={() => { setPickerTarget({ type: "addon", addonIndex: ai }); setPickerOpen(true); }}
-                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground hover:border-primary hover:text-primary"
+                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground hover:border-primary hover:text-primary"
                         title="Ajouter une image"
                       >
                         <ImagePlus className="h-4 w-4" />
@@ -1060,13 +1068,14 @@ export function CategoriesView() {
                     />
                     <button
                       type="button"
+                      aria-label="Retirer le supplément"
                       onClick={() =>
                         setForm((f) => ({
                           ...f,
                           addOns: f.addOns.filter((_, i) => i !== ai),
                         }))
                       }
-                      className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:text-destructive"
+                      className="flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground hover:text-destructive"
                       title="Supprimer"
                     >
                       <X className="h-3.5 w-3.5" />

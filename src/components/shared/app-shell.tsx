@@ -95,7 +95,7 @@ export function AppShell() {
 
   return (
     <ErrorBoundary>
-      <div className="flex h-screen w-full flex-col gap-3 overflow-hidden bg-[#FAF5EE] p-3">
+      <div className="flex h-screen w-full flex-col gap-3 overflow-hidden bg-[var(--shell-bg)] p-3">
         <Topbar />
         {view === "home" ? (
           <div className="no-scrollbar flex-1 overflow-hidden rounded-2xl">
