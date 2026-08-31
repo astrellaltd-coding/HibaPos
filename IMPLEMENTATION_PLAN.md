@@ -5,7 +5,7 @@
 >
 > **Status legend:** `[x]` done · `[~]` in progress · `[ ]` todo · `[!]` blocked · `[-]` skipped/deferred
 
-Last updated: 2026-08-29 (Phase 7 complete)
+Last updated: 2026-08-29 (Phase 8 complete)
 
 ---
 
@@ -166,14 +166,17 @@ Deferred from Phase 4b (these touch working app code, so they were left for a de
 
 ---
 
-## Phase 8 — Test coverage deepening
+## Phase 8 — Test coverage deepening — ✅ COMPLETE
 
-Phase 3 reached 105 tests but the highest-risk surfaces (API route handlers) are still untested. Deepen coverage so future refactors and Phase 6 changes have a safety net.
+Phase 3 reached 105 tests but the highest-risk surfaces (API route handlers) were still untested. Deepened coverage so future refactors and Phase 6 changes have a safety net.
 
-- [ ] **8a** **API route tests** — checkout (price recompute, payment exact-cover, receipt number atomicity), refund (amount clamp, method match, double-spend, table auto-free), shift close (Z generation, grand total increment), fiscal counter (concurrent increments). These are the highest-risk untested surfaces.
-- [ ] **8b** **E2E fill sequence gaps** — `tests/e2e/01-auth.spec.ts` and `04-catalog.spec.ts` exist; `02-checkout-flow.spec.ts` added in Phase 3d. Add `03-shift-flow.spec.ts` (open → X report → close → Z) for a complete 01→04 sequence.
-- [ ] **8c** **`@vitest/coverage-v8` devDep cleanup** — `vitest.config.ts` was removed (Phase 3a) but `@vitest/coverage-v8` is still in `package.json` devDeps. Remove it (and the `coverage` script if present) or commit to using it.
-- [ ] **8d** **`vitest.setup.ts` filename** — works via `bunfig.toml` preload, but the name is vestigial (vitest config is gone). Optional: rename to `test-setup.ts` for clarity.
+- [x] **8a** **Extract & test `computeLinePricing`** — `src/lib/services/pricing.ts` (pure: base price per orderType, options validation, absolute size prices, addons, category-level inheritance). 18 unit tests. Refactored `orders/route.ts` POST to call it.
+- [x] **8b** **Extract & test `processRefund`** — `src/lib/services/refund.ts` (integration: full/partial refund, amount clamp, double-spend guard, FACTICE tagging). 5 integration tests. Refactored `orders/[id]/refund/route.ts` to call it.
+- [x] **8c** **Test `generateZReport`** — `src/lib/services/reports.test.ts` (integration: Z totals, duplicate rejection, CLOTURE_Z event linking, refund-net payment totals). 4 integration tests.
+- [x] **8d** **Test sequence atomicity** — `src/lib/services/sequence.test.ts` (concurrency: `nextReceiptNumber`/`nextShiftNumber`/`nextZReportNumber`/`nextFiscalEventSequence` — 20 parallel increments each, no duplicates). 4 concurrency tests.
+- [x] **8e** **E2E `03-shift-flow.spec.ts`** — `tests/e2e/03-shift-flow.spec.ts` (Playwright: open → X report → close → Z report; reject double-close; reject second open). Fills the 03 gap.
+- [x] **8f** **`@vitest/coverage-v8` devDep removed** + `vitest.setup.ts`→`test-setup.ts` (rename for clarity since vitest config is gone). `bunfig.toml` preload updated.
+- [x] **8-check** Lint 0 errors / 0 warnings · tsc exit 0 · 136 tests pass.
 
 ---
 
