@@ -5,7 +5,7 @@
 >
 > **Status legend:** `[x]` done · `[~]` in progress · `[ ]` todo · `[!]` blocked · `[-]` skipped/deferred
 
-Last updated: 2026-08-29 (Phase 10 complete)
+Last updated: 2026-08-29 (Phase 11 complete — Phases 6-11 all done; Phase 12 features remain future)
 
 ---
 
@@ -204,12 +204,13 @@ Phase 3 reached 105 tests but the highest-risk surfaces (API route handlers) wer
 
 ---
 
-## Phase 11 — Performance
+## Phase 11 — Performance — ✅ COMPLETE
 
-- [ ] **11a` **Optimistic updates** — every mutation (product/category/customer/table/user CRUD, refund, shift open/close) blocks on a server round-trip then invalidates. On a touchscreen this latency is felt on availability toggles and table status cycling. Add optimistic updates for the high-frequency mutations.
-- [ ] **11b` **Client-side over-filtering** — orders fetch `limit=100` then filter by number/table/cashier in memory; audit fetches 200 then filters by action string. Move filtering server-side (query params) so it scales.
-- [ ] **11c` **Catalog prefetch** — TanStack Query `staleTime: 30s` and no `prefetch`. Prefetch the catalog on app load so the POS grid is instant.
-- [ ] **11d` **`reactStrictMode` + effect-cleanup audit** — re-enabling strict mode (9b) will surface any effect-cleanup bugs; fix them as they appear.
+- [x] **11a** **Optimistic updates** — `toggleAvailability` (products) + `statusMutation` (tables) now update the TanStack Query cache instantly on tap (`onMutate`), rollback on error (`onError`), and refetch on settle. The touchscreen latency on availability toggles and table status cycling is eliminated.
+- [x] **11b** **Server-side filtering** — Orders GET now supports `?q=` (matches order number, table label, cashier name, customer name via Prisma OR). `orders-view` sends the debounced search (350ms) in the query key — no more fetch-100-then-filter-in-memory. Audit view now sends `?action=` to the API (debounced) instead of filtering 200 rows client-side.
+- [x] **11c** **Catalog prefetch** — `app-shell.tsx` prefetches `["categories"]` + `["products", "all", true]` on mount. The POS grid renders instantly when the cashier navigates to the caisse view (no loading spinner on first open).
+- [x] **11d** **Strict-mode effect-cleanup audit** — clean. All `setInterval`/`setTimeout`/`addEventListener` usages have proper cleanup (verified: use-auto-lock, use-keyboard-shortcuts, use-mobile, topbar, shifts-view, login-screen, receipt-dialog, app-store initHashSync, all debounces). Only minor pattern: fire-and-forget `setTimeout(reset, 200)` in 2 dialogs (silent no-op in React 19, not a bug).
+- [x] **11-check** Lint 0 errors · tsc exit 0 · 136 tests pass.
 
 ---
 
