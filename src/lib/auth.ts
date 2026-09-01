@@ -37,13 +37,45 @@ export function hashPin(pin: string): string {
   return `${salt}:${hash}`;
 }
 
+export type PinVerifyResult = {
+  valid: boolean;
+  /** true = matched under the LEGACY params (pre-Phase-2A N=2^14) — the
+   *  stored hash should be transparently re-hashed with the strong params
+   *  on next successful login (callers with DB access should upgrade). */
+  legacy: boolean;
+};
+
+/** Verify a PIN against a stored hash.
+ *  Tries the current strong scrypt params (N=2^17) first, then falls back
+ *  to the legacy params (N=2^14 default — hashes created before the
+ *  Phase 2A hardening). Returns boolean for simple call sites. */
 export function verifyPin(pin: string, stored: string): boolean {
+  return verifyPinDetail(pin, stored).valid;
+}
+
+/** Detailed verify — returns whether the match came from legacy params so
+ *  login/unlock/switch-user routes can trigger a transparent re-hash. */
+export function verifyPinDetail(pin: string, stored: string): PinVerifyResult {
   const [salt, hash] = stored.split(":");
-  if (!salt || !hash) return false;
+  if (!salt || !hash) return { valid: false, legacy: false };
   const hashBuf = Buffer.from(hash, "hex");
-  const testBuf = scryptSync(pin, salt, 64, SCRYPT_OPTS);
-  if (hashBuf.length !== testBuf.length) return false;
-  return timingSafeEqual(hashBuf, testBuf);
+  if (hashBuf.length !== 64) return { valid: false, legacy: false };
+
+  // Current strong params (N=2^17, r=8, p=1).
+  const strongTest = scryptSync(pin, salt, 64, SCRYPT_OPTS);
+  if (timingSafeEqual(hashBuf, strongTest)) {
+    return { valid: true, legacy: false };
+  }
+
+  // Legacy fallback (N=2^14 default — pre-Phase-2A hashes).
+  // Without this, every user created before the scrypt hardening is
+  // permanently locked out (their stored hash can never match the new params).
+  const legacyTest = scryptSync(pin, salt, 64);
+  if (hashBuf.length === legacyTest.length && timingSafeEqual(hashBuf, legacyTest)) {
+    return { valid: true, legacy: true };
+  }
+
+  return { valid: false, legacy: false };
 }
 
 // ---------------------------------------------------------------------------

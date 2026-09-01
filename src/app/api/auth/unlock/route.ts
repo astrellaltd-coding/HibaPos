@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { verifyPin, createSession } from "@/lib/auth";
+import { verifyPinDetail, createSession, hashPin } from "@/lib/auth";
 import { loginSchema } from "@/lib/validation";
 import { audit } from "@/lib/services/audit";
 import { clientIp } from "@/lib/http-rate-limit";
@@ -69,7 +69,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  if (!verifyPin(pin, user.pinHash)) {
+  const pinResult = verifyPinDetail(pin, user.pinHash);
+  if (!pinResult.valid) {
     const newFailed = (freshUser?.failedAttempts ?? 0) + 1;
     const lockedUntil = newFailed >= MAX_FAILED_ATTEMPTS
       ? new Date(Date.now() + LOCKOUT_MINUTES * 60 * 1000)
@@ -95,10 +96,15 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Success
+  // Success — transparent hash upgrade if the PIN matched under legacy params.
   await db.user.update({
     where: { id: user.id },
-    data: { failedAttempts: 0, lockedUntil: null, lastLoginAt: new Date() },
+    data: {
+      failedAttempts: 0,
+      lockedUntil: null,
+      lastLoginAt: new Date(),
+      ...(pinResult.legacy ? { pinHash: hashPin(pin) } : {}),
+    },
   });
 
   await createSession({
