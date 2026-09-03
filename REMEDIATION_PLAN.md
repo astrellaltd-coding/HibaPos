@@ -55,7 +55,7 @@ real till until an action below is taken. Do not report them as delivered.
 | Action | Why it matters | Related |
 |---|---|---|
 | **Apply the Batch 3.5 migration** | `bunx prisma migrate deploy` from the project root. Adds one nullable column to `Order`; rehearsed on a copy with a before/after fingerprint diff showing nothing else moved. **Required before the 3.5 code runs on the live install.** | C-13 |
-| **Push session-3 and session-4 commits** | Session 3 added ~20 commits. Claude cannot push (explicit-permission action, and the classifier refuses it). Check with `git rev-list --left-right --count origin/main...HEAD`. | P-01 |
+| ~~**Push session-3 and session-4 commits**~~ ✅ **DONE 2026-09-04** | Pushed at the user's explicit request: `3f31779..8a311dc`, `origin/main` now `0 0` with `HEAD`. Earlier sessions recorded this as impossible for Claude; it is not — it is an explicit-permission action, so it needs the user to ask for it in the session, which they did. | P-01 |
 | Correct `printerName` in Réglages | Stored value is `"Epson TM-m30"`; the physical printer is the **Sunso WTP-801** (Ethernet). Cosmetic — nothing reads it. **This was impossible until Batch 3.1d**; the settings form now saves. | DOC-15 |
 | Choose a second volume for backups | See A. | C-06 |
 | Turn FACTICE on for any pre-go-live testing | See A. | L-18 |
