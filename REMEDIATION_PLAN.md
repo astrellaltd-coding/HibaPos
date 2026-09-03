@@ -13,11 +13,11 @@ Detailed audit record: https://claude.ai/code/artifact/329316b0-3a6b-48b0-9d27-d
 
 **Current Stage:** Stage 3 — Fiscal correctness. (Stage 1 is **partly done**: 1.1 and 1.2 COMPLETED, 1.3 `IMPLEMENTED — TESTING REQUIRED` on hardware, 1.4 deferred. Stage 2 is COMPLETED.)
 
-**Current Batch:** Batch 3.3 — Archive integrity and lifecycle · `NOT STARTED`
+**Current Batch:** Batch 3.4 — Fiscal operator interface · `NOT STARTED`
 
-**Last Completed Batch:** Batch 3.2b — the four uncounted reports (L-23; commit `54aa7ef`). **Every revenue figure in the application now comes from one aggregation.**
+**Last Completed Batch:** Batch 3.3 — Archive integrity and lifecycle (C-04, M-02; commit `a673a54`). An archive's checksum is now reproducible with `sha256sum`.
 
-**Next Batch:** Batch 3.3. **Batch 1.4 is unblocked in design** (DD-02 answered) but still deferred on hardware — see *Hardware-dependent validation* below.
+**Next Batch:** Batch 3.4. **Batch 1.4 is unblocked in design** (DD-02 answered) but still deferred on hardware — see *Hardware-dependent validation* below.
 
 **Blocked:** Batch 1.3 `[HW]` sign-off and Batch 1.4 — both need the app running on the restaurant's POS machine, which is in a different country from the developer and has no copy of the app installed (decision of 2026-09-03).
 
@@ -722,7 +722,7 @@ See *Design Decisions Required → DD-02*.
 
 # STAGE 3 — FISCAL CORRECTNESS
 
-**Stage status:** `IN PROGRESS` — 3.1, 3.1b, 3.1c, 3.1d, 3.2 and 3.2b are `COMPLETED`; 3.3 through 3.6 are `NOT STARTED`. The VAT-*rate* thread (C-12, L-16, L-17) and the reconciliation thread (C-10, C-11, M-13, M-14, L-23) are both closed — **every revenue figure in the application now comes from one aggregation**. What remains is archives, the operator interface, the audit trail and close ordering.
+**Stage status:** `IN PROGRESS` — 3.1, 3.1b, 3.1c, 3.1d, 3.2, 3.2b and 3.3 are `COMPLETED`; 3.4 through 3.6 are `NOT STARTED`. The VAT-*rate* thread (C-12, L-16, L-17) and the reconciliation thread (C-10, C-11, M-13, M-14, L-23) are both closed — **every revenue figure in the application now comes from one aggregation**. What remains is archives, the operator interface, the audit trail and close ordering.
 
 Audit section J, step 4: before the first Z report you would show an inspector. These are cheap now and expensive later, because sealed closes and generated archives cannot be corrected once written.
 
@@ -1082,11 +1082,11 @@ Ran between 3.2 and 3.3. Batch 3.2 unified the five aggregations that feed fisca
 
 ## Batch 3.3 — Archive integrity and lifecycle
 
-**Status:** `NOT STARTED`
+**Status:** `COMPLETED` (2026-09-03)
 
 ### C-04 — Archive checksum ignores every date and is not reproducible from the file
 
-**Status:** `NOT STARTED` · Severity: CRITICAL · Category: data integrity (fiscal)
+**Status:** `COMPLETED` · Severity: CRITICAL · Category: data integrity (fiscal)
 
 **Problem.** `canonicalize()` has no `Date` branch. A `Date` falls into the generic object case, `Object.keys(date)` is `[]`, and it serialises to `{}`. The archive checksum is computed over `canonicalize(payload)` where the payload is Prisma rows full of `Date` fields.
 
@@ -1113,7 +1113,7 @@ matches the stored checksum? FALSE
 
 ### M-02 — Archive row is created before the file is written
 
-**Status:** `NOT STARTED` · Severity: MEDIUM · Category: confirmed bug (fiscal)
+**Status:** `COMPLETED` · Severity: MEDIUM · Category: confirmed bug (fiscal)
 
 The `FiscalArchive` row is created inside the service transaction; the route writes the file afterwards. If the write fails, the row blocks regeneration with a 409 while the download route tells the operator to regenerate — an unrecoverable dead end. `src/lib/services/fiscal.ts:443-454`; `src/app/api/fiscal/archive/route.ts:28-29`; `src/app/api/fiscal/archive/[year]/route.ts:26-31`. Direction: write the file first, or make the row recoverable when its file is missing.
 
@@ -1129,7 +1129,27 @@ The `FiscalArchive` row is created inside the service transaction; the route wri
 
 ### Batch 3.3 — Status Record
 
-**Status:** `NOT STARTED` · **Completed:** — · **Changes:** — · **Files:** — · **Tests:** — · **Commit:** — · **Notes:** —
+**Status:** `COMPLETED` · **Completed:** 2026-09-03
+
+**Changes:** **C-04, first half.** `canonicalize()` gains an explicit `Date` branch serialising to the ISO instant; an Invalid Date takes the same `"null"` as a non-finite number. Without it a `Date` fell through to the generic object case, `Object.keys(date)` is `[]`, and every timestamp became `{}`. **C-04, second half.** The archive checksum is now the SHA-256 of **the exact bytes written to disk**, and is deliberately **not** a field inside the file — a checksum placed inside the bytes it covers cannot be checked directly, which is precisely why the old one (hash of the canonical form, embedded in pretty-printed JSON) was unreproducible by anyone. A `.sha256` manifest ships beside the archive so `sha256sum -c` verifies it with no HibaPOS-specific knowledge. The notice was rewritten to describe what the checksum actually is, including why it sits outside the file. Format `version` bumped 1 to 2. **M-02.** `generateAnnualArchive` split into `buildAnnualArchive()` (reads only, writes nothing) and `recordAnnualArchive()` (row + journal entry), so the route writes the file **first** and records only what reached the disk — the ordering principle from Batch 2.1's restore. A row whose file is missing is no longer a dead end: the route rebuilds the payload and repairs the file **if it reproduces byte for byte**, otherwise refusing with both checksums named, because writing different content under a recorded checksum would be a lie.
+
+**Files:** `src/lib/fiscal.ts`, `src/lib/services/fiscal.ts`, `src/app/api/fiscal/archive/route.ts`, `src/lib/services/archive.test.ts` (new)
+
+**Tests:** `bun test src` — **324/324 PASS** (baseline 311 + 13 new). `bun run typecheck` — PASS. `bun run lint` — PASS. `bun run build` — PASS.
+
+**Commit:** `a673a54` + this plan update.
+
+**Notes:**
+
+**(1) The chain-compatibility warning was answered with evidence, not assumption.** The plan required proving no stored payload contains a `Date`, an `undefined` or a non-finite number before editing `canonicalize` in place. Checked first: the only two payload fields that could carry a date — `backup.ts:734` and `:921` — already call `.toISOString()`; the two live `FiscalEvent` payloads contain nothing but strings, numbers and an array of `{amount, method}`; and there were **zero** `MonthlyClose`, `AnnualClose` and `FiscalArchive` rows. Checked again afterwards, against a copy of production: `verifyFiscalChain()` returns `{ok: true, eventsChecked: 2, firstBreakAt: null, lastSequence: 2}` — the Batch 0.2 baseline — both stored hashes recompute **identically**, and re-canonicalising both stored payloads reproduces their `dataJson` byte for byte. The canonicaliser did **not** need versioning.
+
+**(2) Reproducibility was proved with the actual tool, not asserted.** An archive was built from a copy of the production database, written to disk with its manifest, and verified from a shell: `sha256sum hibapos-archive-2026.json` gave `d617fec2f617…`, exactly the recorded value, and `sha256sum -c hibapos-archive-2026.json.sha256` returned **`OK`**. This is the property the notice promises and the one that was entirely absent before.
+
+**(3) A caller-visible wart found by the batch's own test.** `recordAnnualArchive` returned the row created *before* its `fiscalEventId` was set, so a caller reading it would have seen an unjournalled archive. It now returns the updated row. The test was asserting the right thing; the code was fixed rather than the test.
+
+**(4) The manual criterion was met.** A generated archive opens as plain JSON with `format`, `version`, `year`, `generatedAt`, the French `notice`, and the `fiscalEvents` / `orders` / `zReports` / `monthlyCloses` / `annualClose` / `grandTotalSnapshot` sections; dates render as ISO strings; no HibaPOS code is needed to read or verify it.
+
+**(5) Still `REQUIRES EXTERNAL VERIFICATION`.** Whether this format satisfies the archiving obligation is not a code question — **V-02** stands, and safety rule 13 applies. What this batch establishes is narrower and checkable: the checksum covers every byte including every date, and a third party can reproduce it.
 
 ---
 
@@ -2181,6 +2201,7 @@ Record anything found *during* remediation that is outside the current batch's s
 | 0.1 | COMPLETED | 2026-09-03 | `e97a3e1` | C-26, C-26b: anchored 4 bare `.gitignore` patterns; recovered 3 untracked backup API route files into version control. |
 | 0.2 | COMPLETED | 2026-09-03 | *(this update)* | P-01/P-02/P-03: repo pushed to `origin/main` (user, interactive), `.env` confirmed preserved out-of-band by user, pre-remediation snapshot + fiscal/row-count baseline recorded. No code changes. |
 | 1.1 | COMPLETED | 2026-09-03 | `4766ceb` | C-01: refund dialog made a euros boundary (`parseEuroInput()` in `money.ts`, pre-fill + submit + max-check in `orders-view.tsx`). 9 new tests; 145/145. Validated end-to-end on a scratch copy of the production DB — 5,00 € → 500, 5,50 € → 550, full refund → 690, fiscal chain ok. Production DB untouched. |
+| 3.3 | COMPLETED | 2026-09-03 | `a673a54` | C-04 + M-02: `canonicalize()` gains a Date branch — every timestamp used to serialise to `{}`, so two payloads seven years apart hashed identically — and the archive checksum became the SHA-256 of the exact file bytes, with a `.sha256` manifest, so `sha256sum -c` returns OK for a third party. The checksum is deliberately no longer inside the file. Archive generation split from recording so the file is written before the row, ending the dead end where a failed write blocked regeneration; a row with a missing file is now repaired only if it reproduces byte for byte. Chain re-verified against a copy of production: ok, lastSequence 2, both hashes identical, no payload's canonical form moved. 324/324. |
 | 3.2b | COMPLETED | 2026-09-03 | `54aa7ef` | L-23: the four reports the audit did not count — dashboard, cashiers, products, customer detail — routed through the same aggregation. `orderNet()` extracted as the per-order primitive so reports that group by cashier, hour or product id share the rules without sharing an output shape. Tests contrast old against new: the dashboard's face-value sum gave 3500 where the netted figure is 3000; the cashier report gave 900 of cash for a cashier whose only sale was fully refunded. `round2` now only on percentages. 311/311. |
 | 3.2 | COMPLETED | 2026-09-03 | `2631308` | C-10 + C-11 + M-13 + M-14: five aggregations collapsed into one pure `aggregateOrders()`. C-10 was the critical one — `aggregatePeriod` summed payments gross, so one refund anywhere in a month put a sealed MonthlyClose permanently out of step with its own Z reports. New `apportion()` (largest remainder) makes per-line splits sum exactly to the whole, at checkout and in the aggregation. `round2` gone from the cents paths this batch owns; `avgTicket` is an integer. Fiscal verification against a copy of production: both sealed Z reports recompute **identically**, zero fields changed. Recorded L-23 — the audit's "four aggregations" was an undercount and three more remain. 306/306. |
 | 3.1c | COMPLETED | 2026-09-03 | `9feb4a0`, `23e2971` | L-16 + L-17 + DD-17: VAT moved onto the category with nearest-wins inheritance (own → parent → the product's own rate), mirroring the `inheritCategoryGlobals` pattern the codebase already used; the name-matched "Bouteille / Canette" switch replaced by a real TVA control on both the product and category forms; the rate list constrained to 20/10/5,5 with a French message, which now rejects the "6 %" C-12 used to invent. Checkout snapshots the resolved rate onto `OrderItem`, pinned by a test that moves a category to 20 % and asserts an existing line still reads 5,5 %. Migration rehearsed on a copy and fingerprint-diffed before being run. **Live result: 17/17 drinks at 5,5 %, 61/61 others at 10 %, `Boissons` unset, and every fiscal counter, Z report, event hash and order line unchanged.** 291/291. |
@@ -2202,9 +2223,9 @@ Quick lookup from audit ID to batch.
 | ID | Batch | ID | Batch | ID | Batch |
 |---|---|---|---|---|---|
 | C-01 | 1.1 | M-01 | 3.6 | M-25 | 4.4 |
-| C-02 | 1.2 | M-02 | 3.3 | M-26 | 4.4 |
+| C-02 | 1.2 | M-02 ✅ | 3.3 | M-26 | 4.4 |
 | C-03 | 1.3 | M-03 | 2.2 | M-27 | 4.3 |
-| C-04 | 3.3 | M-04 | 3.5 | M-28 | 4.3 |
+| C-04 ✅ | 3.3 | M-04 | 3.5 | M-28 | 4.3 |
 | C-05 | 2.1 | M-05 | 5.5 | M-29 | 2.4 |
 | C-06 | 2.2 | M-06 | 3.6 | M-30 | 2.4 |
 | C-07 | 1.4 | M-07 | 3.6 | M-31 | 2.4 |
