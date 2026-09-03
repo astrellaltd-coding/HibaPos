@@ -110,6 +110,7 @@ export const POST = withAuthParams(async (req, { user, params }) => {
       },
       order as unknown as {
         id: string;
+        number: number;
         total: number;
         status: "COMPLETED" | "REFUNDED";
         orderType: "DINE_IN" | "TAKEAWAY" | "LIVRAISON";

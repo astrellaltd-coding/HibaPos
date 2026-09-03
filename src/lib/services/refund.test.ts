@@ -180,6 +180,53 @@ describe("processRefund integration", () => {
     ).rejects.toThrow("déjà été entièrement remboursée");
   });
 
+  // M-04 (Batch 3.5) — the journal recorded `order.id` under a key called
+  // `orderNumber`, so a REMBOURSEMENT entry could not be tied to the ticket
+  // the customer was holding without a join back into the orders table.
+  it("records the printed ticket number in the fiscal payload, not the cuid", async () => {
+    const { user, order } = await seedOrder(2000, 2000);
+    await processRefund(
+      {
+        orderId: order.id,
+        amount: 500,
+        reason: "Plat renvoyé",
+        method: "CASH",
+        approverId: null,
+        cashierId: user.id,
+        factice: false,
+      },
+      order,
+    );
+    const ev = await db.fiscalEvent.findFirstOrThrow({
+      where: { type: "REMBOURSEMENT", orderId: order.id },
+    });
+    const payload = JSON.parse(ev.dataJson);
+    expect(payload.orderNumber).toBe(order.number);
+    expect(typeof payload.orderNumber).toBe("number");
+    // The exact defect: the cuid must not be what sits under that key.
+    expect(payload.orderNumber).not.toBe(order.id);
+  });
+
+  it("records the ticket number on a full ANNULATION too", async () => {
+    const { user, order } = await seedOrder(1500, 1500);
+    await processRefund(
+      {
+        orderId: order.id,
+        amount: 1500,
+        reason: "Commande annulée",
+        method: "CASH",
+        approverId: null,
+        cashierId: user.id,
+        factice: false,
+      },
+      order,
+    );
+    const ev = await db.fiscalEvent.findFirstOrThrow({
+      where: { type: "ANNULATION", orderId: order.id },
+    });
+    expect(JSON.parse(ev.dataJson).orderNumber).toBe(order.number);
+  });
+
   it("tags the fiscal event with factice=true when settings.factice", async () => {
     const { user, order } = await seedOrder(1000, 1000);
     await processRefund(

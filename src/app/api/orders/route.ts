@@ -9,6 +9,7 @@ import { appendFiscalEvent, incrementGrandTotal } from "@/lib/services/fiscal";
 import { computeLinePricing, resolveVatRate } from "@/lib/services/pricing";
 import { sum2, addToVatBreakdown, apportion, type VatBreakdown } from "@/lib/money";
 import { verifyApprovalToken, ApprovalError } from "@/lib/approvals";
+import { buildVentePayload, buildOrderAuditDetails } from "@/lib/services/sale-journal";
 import { TX_CHECKOUT } from "@/lib/tx-options";
 
 // Server-authoritative checkout intent schema.
@@ -314,6 +315,10 @@ export const POST = withAuth(async (req, { user }) => {
         subtotal,
         vatTotal,
         discountTotal,
+        // C-13 (Batch 3.5): the approval was verified above and then thrown
+        // away. Persisted here so a manager can be shown which discounts they
+        // authorised, and a dispute can be settled from the data.
+        discountApprovedById: discountApproverId,
         total: totalAfterDiscount,
         notes: notes ?? null,
         itemCount,
@@ -391,23 +396,28 @@ export const POST = withAuth(async (req, { user }) => {
     const payCash = sum2(payments.filter((p) => p.method === "CASH").map((p) => p.amount));
     const payCard = sum2(payments.filter((p) => p.method === "CARD").map((p) => p.amount));
     const payVoucher = sum2(payments.filter((p) => p.method === "VOUCHER").map((p) => p.amount));
+    // C-13 (Batch 3.5): both payloads are built by the shared helpers in
+    // services/sale-journal.ts, so the tests exercise this code rather than a
+    // reimplementation of it.
+    const saleJournal = {
+      orderNumber: number,
+      total: totalAfterDiscount,
+      subtotal,
+      vatTotal,
+      discountTotal,
+      discountApprovedById: discountApproverId,
+      itemCount,
+      orderType,
+      payments: payments.map((p) => ({ method: p.method, amount: p.amount })),
+      cashierId: user.id,
+    };
     const ev = await appendFiscalEvent(tx, {
       type: "VENTE",
       userId: user.id,
       factice: settings.factice ?? false,
       orderId: created.id,
       shiftId: shift.id,
-      data: {
-        orderNumber: number,
-        total: totalAfterDiscount,
-        subtotal,
-        vatTotal,
-        discountTotal,
-        itemCount,
-        orderType,
-        payments: payments.map((p) => ({ method: p.method, amount: p.amount })),
-        cashierId: user.id,
-      },
+      data: buildVentePayload(saleJournal),
     });
     await tx.order.update({ where: { id: created.id }, data: { fiscalEventId: ev.id } });
     await incrementGrandTotal(tx, {
@@ -425,7 +435,7 @@ export const POST = withAuth(async (req, { user }) => {
         action: "ORDER_CREATED",
         entity: "Order",
         entityId: created.id,
-        details: JSON.stringify({ number, total: totalAfterDiscount, items: itemCount, payments: payments.length }),
+        details: JSON.stringify(buildOrderAuditDetails(saleJournal)),
       },
     });
 

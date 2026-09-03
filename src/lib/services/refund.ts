@@ -41,6 +41,10 @@ export type RefundResult = {
 
 type OrderForRefund = {
   id: string;
+  /** M-04 (Batch 3.5): the PRINTED receipt number. Required, not optional —
+   *  the defect was that the journal recorded `order.id` under a key named
+   *  `orderNumber`, so making this field easy to omit would reopen it. */
+  number: number;
   total: number; // cents
   status: "PENDING" | "COMPLETED" | "REFUNDED" | "CANCELLED";
   orderType: "DINE_IN" | "TAKEAWAY" | "LIVRAISON";
@@ -128,7 +132,14 @@ export async function processRefund(input: RefundInput, order: OrderForRefund): 
       factice: input.factice,
       orderId: order.id,
       data: {
-        orderNumber: order.id,
+        // M-04 (Batch 3.5): the ticket number, not the cuid. A REMBOURSEMENT
+        // event could not be tied to a printed receipt without a join, which
+        // is exactly what a paper-trail check has to do.
+        //
+        // This changes the payload of NEW events only. Existing rows keep the
+        // cuid they were sealed with and must not be rewritten — their hashes
+        // cover it.
+        orderNumber: order.number,
         refundId: r.id,
         amount: input.amount,
         reason: input.reason,

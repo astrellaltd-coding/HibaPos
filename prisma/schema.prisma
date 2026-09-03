@@ -335,6 +335,10 @@ model Order {
   subtotal       Int       @default(0) // cents HT + options (excl VAT)
   vatTotal       Int       @default(0) // cents
   discountTotal  Int       @default(0) // cents
+  // C-13 (Batch 3.5): the manager who authorised an above-threshold discount.
+  // Plain id, NO FK — deliberately the same convention as Refund.approvedById:
+  // an approver may be soft-deleted later and the sale must survive intact.
+  discountApprovedById String?
   total          Int       @default(0) // cents TTC
   notes          String?
   itemCount      Int         @default(0)
