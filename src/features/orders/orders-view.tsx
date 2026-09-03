@@ -257,8 +257,31 @@ export function OrdersView() {
     setPendingRefund(null);
   }
 
+  // C-27 (Batch 3.4): reprinting an archived ticket used to call
+  // window.print() directly, so no REIMPRESSION event was ever written and
+  // Receipt.reprintCount never left 0 — the reprint route existed and had no
+  // caller. The fiscal event is written FIRST; only a traced reprint prints.
+  // The route is MANAGER+ by design (see its own comment), so a cashier is
+  // told to ask rather than being silently allowed an untraced copy.
+  const reprintMutation = useMutation({
+    mutationFn: (id: string) =>
+      api.post<{ reprintCount: number; printed: boolean; printMessage?: string }>(
+        `/api/orders/${id}/reprint`,
+        {},
+      ),
+    onSuccess: (r) => {
+      queryClient.invalidateQueries({ queryKey: ["order", selectedId] });
+      toast.success(`Réimpression n° ${r.reprintCount} enregistrée au journal fiscal`);
+      if (!r.printed && r.printMessage) toast.warning(r.printMessage);
+      window.print();
+    },
+    onError: (e: unknown) =>
+      toast.error(e instanceof ApiError ? e.message : "Échec de la réimpression"),
+  });
+
   function handlePrint() {
-    window.print();
+    if (!selectedId) return;
+    reprintMutation.mutate(selectedId);
   }
 
   // Re-order: load a past order's items into the cart and navigate to POS.

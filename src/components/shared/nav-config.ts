@@ -18,6 +18,7 @@ import {
   DatabaseBackup,
   Terminal,
   Grid3x3,
+  ShieldCheck,
 } from "lucide-react";
 
 export type NavItem = {
@@ -42,6 +43,9 @@ export const NAV_ITEMS: NavItem[] = [
   { view: "customers", label: "Clients", icon: Users, roles: ["SUPER_ADMIN", "MANAGER", "CASHIER"], group: "catalogue" },
 
   { view: "reports", label: "Rapports", icon: BarChart3, roles: ["SUPER_ADMIN", "MANAGER"], group: "gestion" },
+  // C-27 (Batch 3.4): the fiscal surface had no nav entry at all, so every
+  // /api/fiscal/* endpoint was unreachable from the application.
+  { view: "fiscal", label: "Fiscal (JFP)", icon: ShieldCheck, roles: ["SUPER_ADMIN", "MANAGER"], group: "gestion" },
   { view: "users", label: "Utilisateurs", icon: UserCog, roles: ["SUPER_ADMIN"], group: "gestion" },
   { view: "settings", label: "Paramètres", icon: Settings, roles: ["SUPER_ADMIN"], group: "gestion" },
 

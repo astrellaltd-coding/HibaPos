@@ -52,6 +52,10 @@ const ReportsView = dynamic(
   () => import("@/features/reports/reports-view").then((m) => m.ReportsView),
   { loading: () => <ViewLoader label="Chargement des rapports fiscaux..." />, ssr: false }
 );
+const FiscalView = dynamic(
+  () => import("@/features/fiscal/fiscal-view").then((m) => m.FiscalView),
+  { loading: () => <ViewLoader label="Chargement du module fiscal..." />, ssr: false }
+);
 const UsersView = dynamic(
   () => import("@/features/admin/users-view").then((m) => m.UsersView),
   { loading: () => <ViewLoader label="Chargement des utilisateurs..." />, ssr: false }
@@ -132,6 +136,7 @@ export function AppShell() {
             {view === "customers" && <CustomersView />}
             {view === "shifts" && <ShiftsView />}
             {view === "reports" && <ReportsView />}
+            {view === "fiscal" && <FiscalView />}
             {view === "users" && <UsersView />}
             {view === "settings" && <SettingsView />}
             {view === "audit" && <AuditView />}
