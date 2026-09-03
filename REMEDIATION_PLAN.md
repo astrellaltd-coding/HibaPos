@@ -48,13 +48,13 @@ real till until an action below is taken. Do not report them as delivered.
 | **Thermal printing + drawer** (1.3) | `printerEnabled` is `false` and no printer IP is set. Confirmed this session: a reprint journals its `REIMPRESSION` event and then reports *"Impression désactivée dans les réglages."* | Commissioning on the real Sunso WTP-801 |
 | **FACTICE simulation mode** (3.1b) | The switch now exists in Réglages but is **off**. Any testing before go-live is still journalled as genuine trading. | The operator turning it on for test sessions |
 | **Audit-log retention** (2.4) | Deliberately `0` = keep forever. That table is still unbounded. | An operator decision, if a retention obligation appears |
-| **`Order.discountApprovedById`** (3.5) | The migration `20260903230305_order_discount_approver` is written and rehearsed, **not applied** — Claude cannot run `migrate deploy` against production. Until the operator runs it, the live install has no column to write to and **checkout will fail** on the new code. Do not deploy the code without the migration. | The operator running the command in *B* |
+| ~~**`Order.discountApprovedById`** (3.5)~~ ✅ **APPLIED 2026-09-04** | The operator ran `migrate deploy` immediately after the batch. Verified read-only against the live file: the **only** differences from the pre-batch snapshot are the `_prisma_migrations` row and the new column — every count, counter, event hash, Z report, order row and VAT rate identical, `integrity_check ok`, 0 FK errors. New baseline hash below. | — |
 
 #### B. Waiting on the operator
 
 | Action | Why it matters | Related |
 |---|---|---|
-| **Apply the Batch 3.5 migration** | `bunx prisma migrate deploy` from the project root. Adds one nullable column to `Order`; rehearsed on a copy with a before/after fingerprint diff showing nothing else moved. **Required before the 3.5 code runs on the live install.** | C-13 |
+| ~~**Apply the Batch 3.5 migration**~~ ✅ **DONE 2026-09-04** | `20260903230305_order_discount_approver` is applied on production and verified. | C-13 |
 | ~~**Push session-3 and session-4 commits**~~ ✅ **DONE 2026-09-04** | Pushed at the user's explicit request: `3f31779..8a311dc`, `origin/main` now `0 0` with `HEAD`. Earlier sessions recorded this as impossible for Claude; it is not — it is an explicit-permission action, so it needs the user to ask for it in the session, which they did. | P-01 |
 | Correct `printerName` in Réglages | Stored value is `"Epson TM-m30"`; the physical printer is the **Sunso WTP-801** (Ethernet). Cosmetic — nothing reads it. **This was impossible until Batch 3.1d**; the settings form now saves. | DOC-15 |
 | Choose a second volume for backups | See A. | C-06 |
@@ -130,10 +130,10 @@ with `sha256sum`); the compliance judgement is not a code question.
 | Thing | Value at the end of session 3 |
 |---|---|
 | Tests | **340 pass, 0 fail** (`bun test src --timeout 30000` — see L-24 for why the timeout flag) |
-| Production DB sha256 | `711de2f1280e30cad04d0cb49ba5cd7d7084453078ed5390e34b708de84a2534` (unchanged by Batch 3.5) |
+| Production DB sha256 | `ea990b794983404ff684364c5d517cf896a169c2c4ab2b9f6dacea10ca9a48bc` — changed **only** by the operator applying the 3.5 migration. The pre-migration value `711de2f1…` is preserved in `db-snapshots/custom.db.pre-3.5.2026-09-03T23-01-34Z` |
 | Fiscal chain | `/api/fiscal/verify` → all three chains `ok`, `lastSequence: 2` |
 | Fiscal counters | `20/3/2/2` (receipt / shift / Z / event) |
-| Migrations | **3 applied on production**, latest `20260903203715_category_vat_rates`. A **4th is committed and unapplied**: `20260903230305_order_discount_approver` |
+| Migrations | **4 applied on production**, latest `20260903230305_order_discount_approver` (applied 2026-09-04) |
 | Catalogue | 78 products — 17 drinks at **5,5 %**, 61 at 10 % |
 | Out-of-band snapshots | `db-snapshots/custom.db.pre-3.1c.2026-09-03T20-54-10Z` and `db-snapshots/custom.db.pre-3.5.2026-09-03T23-01-34Z` (outside the repo; both hash `711de2f1…`) |
 
