@@ -3,8 +3,9 @@ import { writeFile, mkdir } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
 import { withAuth } from "@/lib/api-handler";
+import { uploadsDir } from "@/lib/paths";
 
-const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads");
+const UPLOAD_DIR = uploadsDir();
 const MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
 
 const ALLOWED_MIME = [

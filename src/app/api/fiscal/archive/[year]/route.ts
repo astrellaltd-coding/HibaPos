@@ -3,8 +3,9 @@ import { db } from "@/lib/db";
 import { withAuthParams } from "@/lib/api-handler";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { fiscalArchivesDir } from "@/lib/paths";
 
-const ARCHIVES_DIR = path.join(process.cwd(), "db", "fiscal-archives");
+const ARCHIVES_DIR = fiscalArchivesDir();
 
 // GET /api/fiscal/archive/[year] — download a generated annual archive (JSON).
 export const GET = withAuthParams(

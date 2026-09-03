@@ -6,6 +6,7 @@ import { readdirSync, promises as fs } from "fs";
 import { existsSync, statSync } from "fs";
 import path from "path";
 import sharp from "sharp";
+import { uploadsDir as mediaRoot } from "@/lib/paths";
 
 type UsageEntry = { type: string; label: string };
 
@@ -47,7 +48,7 @@ export const GET = withAuth(async () => {
   const usageMap = await collectDbImages();
 
   // Recursively collect all image files under /public/uploads/ (including subfolders)
-  const uploadsDir = path.join(process.cwd(), "public", "uploads");
+  const uploadsDir = mediaRoot();
 
   function walkDir(dir: string, base: string): { relativePath: string; fullPath: string }[] {
     const results: { relativePath: string; fullPath: string }[] = [];
@@ -143,7 +144,7 @@ export const DELETE = withAuth(async (req, { user }) => {
   ]);
 
   // 2. Delete file if it exists — path-traversal hardened.
-  const uploadsRoot = path.resolve(process.cwd(), "public", "uploads");
+  const uploadsRoot = path.resolve(mediaRoot());
   const filename = url.replace("/uploads/", "");
   const target = path.resolve(uploadsRoot, filename);
 

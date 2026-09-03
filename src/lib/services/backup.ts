@@ -26,6 +26,12 @@ import { audit } from "@/lib/services/audit";
 import { logTechnical } from "@/lib/services/technical-logger";
 import { appendFiscalEvent } from "@/lib/services/fiscal";
 import { beginRestore, endRestore } from "@/lib/services/maintenance";
+import {
+  backupsDir,
+  databasePath,
+  fiscalArchivesDir,
+  uploadsDir,
+} from "@/lib/paths";
 
 /**
  * Where backups are written (C-06, Batch 2.2).
@@ -39,16 +45,9 @@ import { beginRestore, endRestore } from "@/lib/services/maintenance";
  * Unset falls back to the previous location, so an existing install keeps
  * working and finds its old backups.
  */
-function resolveBackupDir(): string {
-  const configured = process.env.BACKUP_LOCATION?.trim();
-  if (configured) return path.resolve(configured);
-  return path.join(process.cwd(), "db", "backups");
-}
-
-const BACKUP_DIR = resolveBackupDir();
-const DB_PATH = path.join(process.cwd(), "db", "custom.db");
-const UPLOADS_DIR = path.join(process.cwd(), "public", "uploads");
-const ARCHIVES_DIR = path.join(process.cwd(), "db", "fiscal-archives");
+// Locations are resolved per call by lib/paths.ts rather than frozen into
+// module constants at import time: the data root comes from the environment,
+// and a constant would capture whatever it was when the first import ran.
 
 /**
  * How many backups to keep (C-06). Every Z close creates one, so without a
@@ -89,10 +88,10 @@ export type BackupPaths = {
 
 export function defaultBackupPaths(): BackupPaths {
   return {
-    backupDir: BACKUP_DIR,
-    dbPath: DB_PATH,
-    uploadsDir: UPLOADS_DIR,
-    archivesDir: ARCHIVES_DIR,
+    backupDir: backupsDir(),
+    dbPath: databasePath(),
+    uploadsDir: uploadsDir(),
+    archivesDir: fiscalArchivesDir(),
   };
 }
 
@@ -105,7 +104,7 @@ const SCRYPT_P = 1;
 const KEY_LEN = 32;
 const GCM_IV_LEN = 12; // 12 bytes is the conventional GCM IV; random per-file.
 
-async function ensureDir(backupDir: string = BACKUP_DIR) {
+async function ensureDir(backupDir: string) {
   await fs.mkdir(backupDir, { recursive: true });
 }
 
@@ -437,6 +436,100 @@ export async function createBackup(
 }
 
 /**
+ * Refuse a restore whose schema does not match the running application
+ * (L-15, Batch 2.2).
+ *
+ * `restoreBackup` verified the *data* checksum and nothing else, so a backup
+ * taken under an older schema restored cleanly and left the application
+ * running against a database missing tables it needs. This is not
+ * theoretical: the real 2026-08-28 backup in this project has 26 tables
+ * against the live schema's 31, missing `FiscalEvent` among them — restoring
+ * it would leave HibaPOS with no fiscal journal at all, and the RESTAURATION
+ * event recording what happened could not even be written.
+ *
+ * Compares the applied Prisma migrations in the staged file against the live
+ * database. Opens the staged file with its own client so the live connection
+ * is untouched, and always disconnects it — a leaked handle would block the
+ * rename that follows.
+ */
+async function assertCompatibleSchema(stagedDbPath: string): Promise<void> {
+  const { PrismaClient } = await import("@prisma/client");
+  const staged = new PrismaClient({
+    // SQLite URLs want forward slashes even on Windows. Built by splitting on
+    // the platform separator rather than with a backslash regex literal.
+    datasources: { db: { url: `file:${stagedDbPath.split(path.sep).join("/")}` } },
+  });
+
+  type Named = { name: string };
+  const listTables = (client: { $queryRawUnsafe: typeof db.$queryRawUnsafe }) =>
+    client.$queryRawUnsafe<Named[]>(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name != '_prisma_migrations' ORDER BY name",
+    );
+
+  try {
+    // Structure, not migration history: a database created with `prisma db
+    // push` has no `_prisma_migrations` at all, and refusing those would make
+    // restore unusable on any install bootstrapped that way. What actually
+    // matters is whether the tables and columns this code uses are present.
+    const stagedTables = (await listTables(staged)).map((r) => r.name);
+    const liveTables = (await listTables(db)).map((r) => r.name);
+
+    const missingTables = liveTables.filter((t) => !stagedTables.includes(t));
+    if (missingTables.length > 0) {
+      throw new Error(
+        `Sauvegarde incompatible : ${missingTables.length} table(s) manquante(s) — ` +
+          `${missingTables.slice(0, 5).join(", ")}${missingTables.length > 5 ? "…" : ""}. ` +
+          "Elle a été créée par une version antérieure de HibaPOS et la restaurer " +
+          "laisserait l'application sans ces tables. Restauration refusée. " +
+          "Le fichier reste lisible avec scripts/decrypt-backup.ts.",
+      );
+    }
+
+    // Columns matter as much as tables: a table that exists but lacks a
+    // column the code writes fails at the first query instead of at restore.
+    const columnsOf = async (
+      client: { $queryRawUnsafe: typeof db.$queryRawUnsafe },
+      table: string,
+    ) => {
+      const rows = await client.$queryRawUnsafe<Named[]>(
+        `PRAGMA table_info("${table.replace(/"/g, '""')}")`,
+      );
+      return rows.map((r) => r.name);
+    };
+
+    const missingColumns: string[] = [];
+    for (const table of liveTables) {
+      const live = await columnsOf(db, table);
+      const stagedCols = await columnsOf(staged, table);
+      for (const col of live) {
+        if (!stagedCols.includes(col)) missingColumns.push(`${table}.${col}`);
+      }
+    }
+    if (missingColumns.length > 0) {
+      throw new Error(
+        `Sauvegarde incompatible : ${missingColumns.length} colonne(s) manquante(s) — ` +
+          `${missingColumns.slice(0, 5).join(", ")}${missingColumns.length > 5 ? "…" : ""}. ` +
+          "Restauration refusée.",
+      );
+    }
+
+    // Extra tables mean the backup came from a NEWER version. The running
+    // code does not read them, so the restore is safe for it — but the
+    // mismatch is worth a trace rather than silence.
+    const extraTables = stagedTables.filter((t) => !liveTables.includes(t));
+    if (extraTables.length > 0) {
+      await logTechnical(
+        "WARN",
+        "backup-service",
+        `Restore: backup carries ${extraTables.length} table(s) this version does not use (${extraTables.join(", ")}). It was probably taken by a newer HibaPOS.`,
+      );
+    }
+  } finally {
+    await staged.$disconnect().catch(() => {});
+  }
+}
+
+/**
  * Restore a backup (C-05, C-22 restore half — Batch 2.1).
  *
  * The order of operations is the whole point of this function:
@@ -484,6 +577,14 @@ export async function restoreBackup(
   if (verifyChecksum !== backup.checksum) {
     await fs.unlink(stagedDbPath).catch(() => {});
     throw new Error("Intégrité de la sauvegarde compromise (checksum mismatch)");
+  }
+
+  // Structure check before anything irreversible (L-15).
+  try {
+    await assertCompatibleSchema(stagedDbPath);
+  } catch (e) {
+    await fs.unlink(stagedDbPath).catch(() => {});
+    throw e;
   }
 
   // Decrypt the uploads archive up front (C-05a). Doing it here means a bad

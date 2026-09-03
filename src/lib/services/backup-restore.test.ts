@@ -265,3 +265,59 @@ describe("fiscal tracing of restore and deletion (C-22)", () => {
     expect(verdict.ok).toBe(true);
   });
 });
+
+describe("schema compatibility guard (L-15)", () => {
+  it("refuses a backup that predates a table the app now needs", async () => {
+    // The real hazard this guards: the project's own 2026-08-28 backup has 26
+    // tables against the live schema's 31 — no FiscalEvent at all. Restoring
+    // it would leave HibaPOS running with no fiscal journal.
+    const backup = await createBackup(TEST_USER_ID, paths);
+
+    // The live database gains a table the backup cannot know about.
+    await db.$executeRawUnsafe(`CREATE TABLE "NouvelleTable" ("id" TEXT PRIMARY KEY)`);
+    try {
+      await expect(restoreBackup(backup.id, TEST_USER_ID, paths)).rejects.toThrow(
+        /incompatible.*NouvelleTable|NouvelleTable/,
+      );
+    } finally {
+      await db.$executeRawUnsafe(`DROP TABLE "NouvelleTable"`);
+    }
+  });
+
+  it("refuses a backup missing a column the app now writes", async () => {
+    const backup = await createBackup(TEST_USER_ID, paths);
+
+    await db.$executeRawUnsafe(`ALTER TABLE "Customer" ADD COLUMN "nouveauChamp" TEXT`);
+    try {
+      await expect(restoreBackup(backup.id, TEST_USER_ID, paths)).rejects.toThrow(
+        /colonne\(s\) manquante\(s\)/,
+      );
+    } finally {
+      await db.$executeRawUnsafe(`ALTER TABLE "Customer" DROP COLUMN "nouveauChamp"`);
+    }
+  });
+
+  it("leaves the live database untouched when it refuses", async () => {
+    await addCustomer("Doit survivre au refus");
+    const backup = await createBackup(TEST_USER_ID, paths);
+    await db.$executeRawUnsafe(`CREATE TABLE "AutreTable" ("id" TEXT PRIMARY KEY)`);
+    try {
+      await expect(restoreBackup(backup.id, TEST_USER_ID, paths)).rejects.toThrow();
+      // Nothing was swapped, nothing was staged, the gate is free.
+      expect(await db.customer.count()).toBe(1);
+      expect(existsSync(`${TEST_DB_PATH}.restore-staged`)).toBe(false);
+      expect(isRestoreInProgress()).toBe(false);
+    } finally {
+      await db.$executeRawUnsafe(`DROP TABLE "AutreTable"`);
+    }
+  });
+
+  it("allows a restore when the structures match", async () => {
+    // The guard must not become a wall: an ordinary same-version restore has
+    // to keep working, which every other test in this file also depends on.
+    const backup = await createBackup(TEST_USER_ID, paths);
+    await expect(restoreBackup(backup.id, TEST_USER_ID, paths)).resolves.toMatchObject({
+      ok: true,
+    });
+  });
+});

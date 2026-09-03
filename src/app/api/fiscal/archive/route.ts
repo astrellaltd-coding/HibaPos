@@ -4,8 +4,9 @@ import { withAuth, parseJson } from "@/lib/api-handler";
 import { generateAnnualArchive } from "@/lib/services/fiscal";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { fiscalArchivesDir } from "@/lib/paths";
 
-const ARCHIVES_DIR = path.join(process.cwd(), "db", "fiscal-archives");
+const ARCHIVES_DIR = fiscalArchivesDir();
 
 // GET /api/fiscal/archive — list generated annual archives.
 export const GET = withAuth(
