@@ -13,11 +13,11 @@ Detailed audit record: https://claude.ai/code/artifact/329316b0-3a6b-48b0-9d27-d
 
 **Current Stage:** Stage 3 — Fiscal correctness. (Stage 1 is **partly done**: 1.1 and 1.2 COMPLETED, 1.3 `IMPLEMENTED — TESTING REQUIRED` on hardware, 1.4 deferred. Stage 2 is COMPLETED.)
 
-**Current Batch:** Batch 3.2 — Unify revenue and VAT aggregation · `NOT STARTED`
+**Current Batch:** Batch 3.3 — Archive integrity and lifecycle · `NOT STARTED`
 
-**Last Completed Batch:** Batch 3.1c — Category-level VAT rates (L-16, L-17; commits `9feb4a0`, `23e2971`). **The 17 drinks are now at 5,5 %** on the live install, and Stage 3's VAT-rate thread is closed.
+**Last Completed Batch:** Batch 3.2 — One period aggregation (C-10, C-11, M-13, M-14; commit `2631308`). A sealed `MonthlyClose` now reconciles with its own `ZReport` rows.
 
-**Next Batch:** Batch 3.2. **Batch 1.4 is unblocked in design** (DD-02 answered) but still deferred on hardware — see *Hardware-dependent validation* below.
+**Next Batch:** Batch 3.3. **L-23 should be weighed first** — the audit's "four aggregations" was an undercount and three more still carry C-10/C-11-shaped defects. **Batch 1.4 is unblocked in design** (DD-02 answered) but still deferred on hardware — see *Hardware-dependent validation* below.
 
 **Blocked:** Batch 1.3 `[HW]` sign-off and Batch 1.4 — both need the app running on the restaurant's POS machine, which is in a different country from the developer and has no copy of the app installed (decision of 2026-09-03).
 
@@ -722,7 +722,7 @@ See *Design Decisions Required → DD-02*.
 
 # STAGE 3 — FISCAL CORRECTNESS
 
-**Stage status:** `IN PROGRESS` — 3.1, 3.1b, 3.1c and 3.1d are `COMPLETED`; 3.2 through 3.6 are `NOT STARTED`. The VAT-*rate* thread (C-12, L-16, L-17) is closed; what remains in this stage is aggregation, archives, the operator interface and the audit trail.
+**Stage status:** `IN PROGRESS` — 3.1, 3.1b, 3.1c, 3.1d and 3.2 are `COMPLETED`; 3.3 through 3.6 are `NOT STARTED`. The VAT-*rate* thread (C-12, L-16, L-17) and the reconciliation thread (C-10, C-11, M-13, M-14) are closed; what remains is archives, the operator interface, the audit trail and close ordering — plus L-23, the three aggregation sites the audit did not count.
 
 Audit section J, step 4: before the first Z report you would show an inspector. These are cheap now and expensive later, because sealed closes and generated archives cannot be corrected once written.
 
@@ -967,13 +967,13 @@ Runs **after 3.1 and before 3.1c**, so that any manual testing done while 3.1c i
 
 ## Batch 3.2 — Unify revenue and VAT aggregation
 
-**Status:** `NOT STARTED`
+**Status:** `COMPLETED` (2026-09-03)
 
 The audit found the same period revenue computed **four different ways** across four modules. This batch collapses them into one.
 
 ### C-10 — Sealed monthly/annual closes do not reconcile with their Z reports
 
-**Status:** `NOT STARTED` · Severity: HIGH · Category: data integrity (fiscal)
+**Status:** `COMPLETED` · Severity: HIGH · Category: data integrity (fiscal)
 
 **Problem.** `aggregatePeriod` skips fully-refunded orders from sales totals but then collects payments from **every** order including those, and never subtracts refunds from `cashTotal`/`cardTotal`/`voucherTotal`. `computeShiftReport` does both.
 
@@ -987,7 +987,7 @@ The audit found the same period revenue computed **four different ways** across 
 
 ### C-11 — VAT report produces fractional cents; sales report ignores partial refunds
 
-**Status:** `NOT STARTED` · Severity: HIGH · Category: confirmed bug (fiscal)
+**Status:** `COMPLETED` · Severity: HIGH · Category: confirmed bug (fiscal)
 
 **Problem.** Both reports use `round2()` — a euros helper — on cent values, so a pro-rated line total keeps a half-cent. `reports/sales` filters to `status === "COMPLETED"` and never subtracts partial refunds.
 
@@ -1001,13 +1001,13 @@ The audit found the same period revenue computed **four different ways** across 
 
 ### M-13 — Per-line discount pro-rating rounds independently
 
-**Status:** `NOT STARTED` · Severity: MEDIUM · Category: data integrity (fiscal)
+**Status:** `COMPLETED` · Severity: MEDIUM · Category: data integrity (fiscal)
 
 `Σ netLineTotal` need not equal `total − discount`, so the stored `vatTotal` can be off by cents against the order total. `src/app/api/orders/route.ts:286-292`. Direction: distribute the rounding remainder deterministically (largest-remainder) so the parts sum to the whole.
 
 ### M-14 — Shift summary is a fourth aggregation semantic
 
-**Status:** `NOT STARTED` · Severity: MEDIUM · Category: data integrity
+**Status:** `COMPLETED` · Severity: MEDIUM · Category: data integrity
 
 The live shift panel counts only `status === "COMPLETED"` orders at face value, disagreeing with both the X and Z reports for the same shift. `src/app/api/shifts/summary/route.ts:26-59`. Direction: call the unified aggregation. *Note: this endpoint currently has no client caller (C-27) — fix it as part of unification, wire it in Batch 3.4 if the fiscal UI needs it.*
 
@@ -1024,7 +1024,27 @@ The live shift panel counts only `status === "COMPLETED"` orders at face value, 
 
 ### Batch 3.2 — Status Record
 
-**Status:** `NOT STARTED` · **Completed:** — · **Changes:** — · **Files:** — · **Tests:** — · **Commit:** — · **Notes:** —
+**Status:** `COMPLETED` · **Completed:** 2026-09-03
+
+**Changes:** A new pure module, `src/lib/services/aggregate.ts`, holds **the** period aggregation; all five callers delegate to it — `computeShiftReport` (X/Z), `aggregatePeriod` (monthly + annual closes), `/api/reports/vat`, `/api/reports/sales` and `/api/shifts/summary`. It takes orders the caller has already fetched and returns figures: no database, no dates, no HTTP, so whoever decides what "the period" means still gets everyone else's arithmetic. **C-10** — `aggregatePeriod` was a near-copy of `computeShiftReport` with one difference: it summed payments **gross** and never subtracted refunds, so a fully refunded order left its payment in `cashTotal` with nothing to cancel it. **C-11** — `/api/reports/vat` and `/api/reports/sales` ran cent values through `round2()`, a euros helper, so a pro-rated line kept a half-cent; the sales report additionally filtered to `COMPLETED` and summed `o.total` at face value, making a partial refund invisible. Both now use the shared aggregation in integer cents; `avgTicket` became an integer too. **M-13** — a new `apportion()` in `money.ts` distributes a total across lines by **largest remainder**, so the parts always sum to the whole; applied at checkout and in the aggregation, replacing per-line `Math.round`. Ties break toward the earlier line so the split is deterministic, which matters because these numbers reach sealed documents. **M-14** — the shift summary shared nothing with anything; it now calls the same function and also returns `expectedCash`.
+
+**Files:** `src/lib/services/aggregate.ts` (new), `src/lib/services/aggregate.test.ts` (new), `src/lib/money.ts`, `src/lib/services/reports.ts`, `src/lib/services/fiscal.ts`, `src/app/api/reports/vat/route.ts`, `src/app/api/reports/sales/route.ts`, `src/app/api/shifts/summary/route.ts`, `src/app/api/orders/route.ts`
+
+**Tests:** `bun test src` — **306/306 PASS** (baseline 291 + 15 new). `bun run typecheck` — PASS. `bun run lint` — PASS. `bun run build` — PASS.
+
+**Commit:** `2631308` + this plan update.
+
+**Notes:**
+
+**(1) The reconciliation test is the batch, and it was proved to fail on the old behaviour.** It builds an April containing two shifts, each with a plain sale, a **partially** refunded sale and a **fully** refunded one; closes both shifts with real `generateZReport` calls; runs a real `closeMonth`; then asserts the sealed close equals the sum of its Z reports **field by field**, including the VAT breakdown rate by rate. Reintroducing C-10 (payments summed gross) makes it fail, along with four unit tests. Before this batch the two chains could not agree once any refund existed — in a document that by design cannot be corrected.
+
+**(2) One semantic was unified deliberately, and it is a behaviour change.** An order is now excluded from sales when `status === "REFUNDED"` **or** `refunds >= total`. `computeShiftReport` checked both; `aggregatePeriod` checked only the second. Taking the stricter of the two means a period and its own shifts can never disagree about which orders count. On the live data the two conditions coincide, so nothing moved.
+
+**(3) Fiscal verification: zero figures changed.** Both sealed `ZReport` rows were recomputed under the new code against a **copy** of the production database and compared field by field — `salesTotal`, `salesCount`, `vatTotal`, `cashTotal`, `cardTotal`, `voucherTotal`, `discountsTotal`, `expectedCash` and the serialised VAT breakdown were **all identical** (Z#1 4230/385, Z#2 32070/2927). That is the expected result rather than a lucky one: the live data contains **no refunds and no discounts** (verified directly — 0 rows in `Refund`, 0 orders with `discountTotal > 0`), which are precisely the inputs every defect in this batch needed. The invariants the apportionment relies on were also checked against the live data: `total = subtotal − discountTotal` and `Σ lineTotal = subtotal` hold for all 20 orders. Production database untouched (`711de2f1…`).
+
+**(4) `round2` was NOT deleted from `money.ts`, on purpose.** C-11's direction says "delete `round2` from every cents path", and it is gone from the four this batch owns. The function itself stays because it is still correct at the euros display boundary it was written for, and because removing it would silently change four routes this batch does not cover — see L-23.
+
+**(5) The audit's "four different ways" was an undercount.** Chasing `round2` out of this batch's routes turned up **three more** aggregation sites, recorded as **L-23** and not fixed (safety rule 1). Two of them carry the exact C-11 half-cent defect and one carries the C-10 shape. None feeds a sealed fiscal document, which is why the batch was not widened — but a manager comparing the dashboard or the cashier report to a Z report will still see different numbers.
 
 ---
 
@@ -2105,6 +2125,7 @@ Record anything found *during* remediation that is outside the current batch's s
 
 | ID | Date | Found during | Description | Severity | Assigned to batch |
 |---|---|---|---|---|---|
+| **L-23** | 2026-09-03 | Batch 3.2 | **Three more aggregation sites the audit did not count, two with the C-11 half-cent defect and one with the C-10 shape.** `dashboard/route.ts:47` and `reports/products/route.ts:70` both compute `round2(lineTotal × (1 − discountRatio) × …)` — a ratio product through a euros helper, so the half-cent survives exactly as C-11 described (`round2(1250 × 0.85)` = `1062.5`, where the Z report gives `1063`). `reports/cashiers/route.ts:77-79` sums payments **gross** and never nets refunds off them, which is the C-10 shape in a management report. Also `dashboard:27` and `customers/[id]/detail:37` return `avgTicket` as a fractional cent. Note most other `round2` calls in these files are **no-ops** — `round2` of an integer returns the integer — so the defect is specifically where a ratio or a division feeds it. None of these feeds a sealed fiscal document, which is why Batch 3.2 did not widen to cover them; but they mean a manager comparing the dashboard or the cashier report against a Z report still sees different figures for the same period. Fix by routing them through `aggregateOrders`. | MEDIUM (management reports disagree with the fiscal ones) | needs a decision — a small follow-on to 3.2 |
 | **L-22** | 2026-09-03 | Batch 3.1d | **Validation errors reach the French UI as untranslated English zod messages.** `settings/route.ts` returns `parsed.error.issues[0]?.message`, and `settingsSchema` defines custom messages for only a few fields, so the operator saw `Too big: expected number to be <=48` (L-20). That specific message is now unreachable, but any other out-of-range settings value produces the same class of output. Applies to other schemas in `validation.ts` too. | LOW (operator-facing text) | 7.1 or 3.4 |
 | **L-20** ✅ **RESOLVED in Batch 3.1d** (`be9efa1`) | 2026-09-03 | Batch 3.1b manual validation | **The Réglages screen cannot be saved at all on the live install.** `Setting.receiptWidth` still holds the legacy millimetre value `80`. Batch 1.3 (L-13) tightened `settingsSchema` to `z.number().int().min(32).max(48)` and `getSettings()` returns the stored value raw, so the form loads 80 and PUTs it straight back: **`PUT /api/settings` → 400 "Too big: expected number to be <=48"**. Reproduced on a scratch copy of the production database. `normalizeReceiptColumns()` already exists but runs only in the receipt renderer, not on the settings read path. Consequences: **every** settings change is blocked — including the two operator actions this plan already asks for (correcting `printerName` per DOC-15, and saving `receiptWidth` as 48) — and the operator sees an untranslated English zod message in a French UI. Workaround: re-pick the width in the selector before saving anything, which is not discoverable (the selector renders blank because 80 matches no option). Candidate fix: normalise on read in `getSettings()`, as the renderer already does. | **HIGH** (live install; blocks all configuration) | needs a decision — suggest a small batch before 3.1c |
 | **L-21** | 2026-09-03 | Batch 3.1b manual validation | **`renderReceipt()` centres but never wraps, so an over-long field overflows the paper.** A receipt rendered at the corrected 48 columns still contained a **56-character** line: the restaurant's real address, `23 Grande Rue 45210, 45210 Ferrières-en-Gâtinais, France`. On 48-column paper that wraps mid-address on every ticket. Distinct from L-14, which is about *archived* 80-column receipts — this is new output at the correct width. Affects any long `restaurantAddress`, `restaurantName` or `footerNote`. | MEDIUM (every printed ticket, once the printer is live) | 3.4 or with L-20 |
@@ -2128,6 +2149,7 @@ Record anything found *during* remediation that is outside the current batch's s
 | 0.1 | COMPLETED | 2026-09-03 | `e97a3e1` | C-26, C-26b: anchored 4 bare `.gitignore` patterns; recovered 3 untracked backup API route files into version control. |
 | 0.2 | COMPLETED | 2026-09-03 | *(this update)* | P-01/P-02/P-03: repo pushed to `origin/main` (user, interactive), `.env` confirmed preserved out-of-band by user, pre-remediation snapshot + fiscal/row-count baseline recorded. No code changes. |
 | 1.1 | COMPLETED | 2026-09-03 | `4766ceb` | C-01: refund dialog made a euros boundary (`parseEuroInput()` in `money.ts`, pre-fill + submit + max-check in `orders-view.tsx`). 9 new tests; 145/145. Validated end-to-end on a scratch copy of the production DB — 5,00 € → 500, 5,50 € → 550, full refund → 690, fiscal chain ok. Production DB untouched. |
+| 3.2 | COMPLETED | 2026-09-03 | `2631308` | C-10 + C-11 + M-13 + M-14: five aggregations collapsed into one pure `aggregateOrders()`. C-10 was the critical one — `aggregatePeriod` summed payments gross, so one refund anywhere in a month put a sealed MonthlyClose permanently out of step with its own Z reports. New `apportion()` (largest remainder) makes per-line splits sum exactly to the whole, at checkout and in the aggregation. `round2` gone from the cents paths this batch owns; `avgTicket` is an integer. Fiscal verification against a copy of production: both sealed Z reports recompute **identically**, zero fields changed. Recorded L-23 — the audit's "four aggregations" was an undercount and three more remain. 306/306. |
 | 3.1c | COMPLETED | 2026-09-03 | `9feb4a0`, `23e2971` | L-16 + L-17 + DD-17: VAT moved onto the category with nearest-wins inheritance (own → parent → the product's own rate), mirroring the `inheritCategoryGlobals` pattern the codebase already used; the name-matched "Bouteille / Canette" switch replaced by a real TVA control on both the product and category forms; the rate list constrained to 20/10/5,5 with a French message, which now rejects the "6 %" C-12 used to invent. Checkout snapshots the resolved rate onto `OrderItem`, pinned by a test that moves a category to 20 % and asserts an existing line still reads 5,5 %. Migration rehearsed on a copy and fingerprint-diffed before being run. **Live result: 17/17 drinks at 5,5 %, 61/61 others at 10 %, `Boissons` unset, and every fiscal counter, Z report, event hash and order line unchanged.** 291/291. |
 | 3.1d | COMPLETED | 2026-09-03 | `be9efa1` | L-20: the Réglages screen could not be saved at all — the legacy `receiptWidth = 80` failed the max-48 schema Batch 1.3 introduced, so every settings change was rejected, including the two operator actions this plan asks for by hand. `getSettings()` now normalises through the existing `normalizeReceiptColumns()`, which also stops `renderReceipt()` emitting 80-column text for 48-column paper. `saveSettings()` now compares against the stored row, so the legacy value corrects itself on the next save instead of reading as 48 forever while the database says 80. 8 new tests, 6 of which fail on the pre-fix code; verified against a copy of the production database. Recorded L-22. 279/279. |
 | 3.1b | COMPLETED | 2026-09-03 | `8a8a09a` | L-18: exposed FACTICE simulation mode, which was wired into all eight fiscal write paths and into renderReceipt() but had no control anywhere, so development sales were journalled as genuine. One card in Réglages, amber while active. 10 new tests covering both directions (the OFF direction is what must hold at the first real sale) plus a pin that `factice` stays out of the hashed payload. Validated end-to-end on a scratch copy: setting persisted and audited, survived a reload, and a real checkout produced FiscalEvent factice=1 and a receipt stamped FACTICE — SIMULATION / TICKET NON VALABLE. Production DB untouched. The manual run found **L-20** (settings screen unsaveable on the live install) and **L-21** (receipts do not wrap a long address). 271/271. |
@@ -2155,11 +2177,11 @@ Quick lookup from audit ID to batch.
 | C-07 | 1.4 | M-07 | 3.6 | M-31 | 2.4 |
 | C-08 | 4.1 | M-08 | 5.6 | L-01 | 7.2 |
 | C-09 | 4.2 | M-09 | 5.7 | L-02 | 7.2 |
-| C-10 | 3.2 | M-10 | 5.7 | L-03 | 7.2 |
-| C-11 | 3.2 | M-11 | 5.7 | L-04 | 2.4 / 7.3 |
+| C-10 ✅ | 3.2 | M-10 | 5.7 | L-03 | 7.2 |
+| C-11 ✅ | 3.2 | M-11 | 5.7 | L-04 | 2.4 / 7.3 |
 | C-12 ✅ | 3.1 | M-12 | 5.7 | L-05 | 2.4 (deferred) |
-| C-13 | 3.5 | M-13 | 3.2 | L-06 | 6.3 |
-| C-14 | 5.3 | M-14 | 3.2 | L-07 | 7.2 |
+| C-13 | 3.5 | M-13 ✅ | 3.2 | L-06 | 6.3 |
+| C-14 | 5.3 | M-14 ✅ | 3.2 | L-07 | 7.2 |
 | C-15 | 2.3 + 4.7 | M-15 | 5.7 | L-08 | 7.2 |
 | C-16 | 4.4 | M-16 | 5.7 | L-09 | deferred |
 | C-17 | 4.5 | M-17 | 5.7 | L-10 | deferred |
