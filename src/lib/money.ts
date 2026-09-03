@@ -72,6 +72,42 @@ export function addToVatBreakdown(
   return breakdown;
 }
 
+/**
+ * Split `target` cents across `weights`, exactly (M-13, Batch 3.2).
+ *
+ * Largest-remainder apportionment: give every part its floor, then hand the
+ * leftover cents to the parts with the biggest fractional remainders. The
+ * result **always sums to `target`**, which independent per-line rounding
+ * cannot guarantee — `Math.round(line * ratio)` per line lets the parts drift
+ * from the whole by a cent or two, so an order's VAT breakdown could disagree
+ * with the order total it was derived from.
+ *
+ * Ties break toward the earlier line, so the split is deterministic: the same
+ * order always apportions the same way, which matters because these numbers
+ * end up in sealed documents.
+ *
+ * A zero or negative total weight yields all zeros — the caller has nothing to
+ * distribute across.
+ */
+export function apportion(weights: number[], target: number): number[] {
+  const totalWeight = weights.reduce((acc, w) => acc + w, 0);
+  if (totalWeight <= 0 || weights.length === 0) return weights.map(() => 0);
+
+  const exact = weights.map((w) => (w * target) / totalWeight);
+  const out = exact.map((v) => Math.floor(v));
+  let remainder = target - out.reduce((acc, v) => acc + v, 0);
+
+  const byRemainder = exact
+    .map((v, i) => ({ i, frac: v - Math.floor(v) }))
+    .sort((a, b) => b.frac - a.frac || a.i - b.i);
+
+  for (let k = 0; remainder > 0 && k < byRemainder.length; k++) {
+    out[byRemainder[k].i] += 1;
+    remainder -= 1;
+  }
+  return out;
+}
+
 /** Sum an array of integer cents. No rounding needed (integers are exact). */
 export function sum2(nums: number[]): number {
   return nums.reduce((acc, n) => acc + n, 0);

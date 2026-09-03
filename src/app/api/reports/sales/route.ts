@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { withAuth } from "@/lib/api-handler";
-import { round2, sum2 } from "@/lib/money";
+import { aggregateOrders, AGGREGATE_INCLUDE } from "@/lib/services/aggregate";
 import { parseReportRange, ReportRangeError } from "@/lib/report-range";
 
 // Sales report over a date range, grouped by day.
@@ -25,47 +25,31 @@ export const GET = withAuth(
 
   const orders = await db.order.findMany({
     where: { createdAt: { gte: fromStart, lt: toEnd }, status: { in: ["COMPLETED", "REFUNDED"] } },
-    include: { items: true, payments: true },
+    include: AGGREGATE_INCLUDE,
   });
-  const completed = orders.filter((o) => o.status === "COMPLETED");
 
-  // Group by day
-  const days: Record<string, { date: string; sales: number; orders: number; items: number }> = {};
-  const productAgg: Record<string, { name: string; quantity: number; total: number }> = {};
-  for (const o of completed) {
-    const discountRatio = o.subtotal > 0 ? (o.discountTotal ?? 0) / o.subtotal : 0;
-    const d = new Date(o.createdAt);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    days[key] ??= { date: key, sales: 0, orders: 0, items: 0 };
-    days[key].sales = round2(days[key].sales + o.total);
-    days[key].orders += 1;
-    days[key].items += o.itemCount;
-    for (const item of o.items) {
-      const netLineTotal = round2(item.lineTotal * (1 - discountRatio));
-      productAgg[item.productName] ??= { name: item.productName, quantity: 0, total: 0 };
-      productAgg[item.productName].quantity += item.quantity;
-      productAgg[item.productName].total = round2(productAgg[item.productName].total + netLineTotal);
-    }
-  }
-
-  const payments = completed.flatMap((o) => o.payments);
-  const totalSales = round2(sum2(completed.map((o) => o.total)));
-  const cashTotal = round2(sum2(payments.filter((p) => p.method === "CASH").map((p) => p.amount)));
-  const cardTotal = round2(sum2(payments.filter((p) => p.method === "CARD").map((p) => p.amount)));
-  const voucherTotal = round2(sum2(payments.filter((p) => p.method === "VOUCHER").map((p) => p.amount)));
+  // C-11 (Batch 3.2). This route used to filter to `status === "COMPLETED"`
+  // and sum `o.total` at face value, so a PARTIAL refund was invisible and the
+  // report overstated revenue — while the Z report for the same days netted it
+  // off. It also ran cent values through `round2()`. Both gone: one shared
+  // aggregation, integer cents, refunds netted.
+  const agg = aggregateOrders(orders, { topProductsLimit: 15, createdAtOf: (o) => o.createdAt });
 
   return NextResponse.json({
     from: fromStart.toISOString(),
     to: toEnd.toISOString(),
-    totalSales,
-    totalOrders: completed.length,
-    totalItems: completed.reduce((acc, o) => acc + o.itemCount, 0),
-    avgTicket: completed.length ? round2(totalSales / completed.length) : 0,
-    cashTotal,
-    cardTotal,
-    voucherTotal,
-    days: Object.values(days).sort((a, b) => a.date.localeCompare(b.date)),
-    topProducts: Object.values(productAgg).sort((a, b) => b.quantity - a.quantity).slice(0, 15),
+    totalSales: agg.salesTotal,
+    totalOrders: agg.salesCount,
+    totalItems: agg.itemsCount,
+    // Integer cents: an average is a display figure, and a fractional cent
+    // here is what made this report disagree with every other one.
+    avgTicket: agg.salesCount ? Math.round(agg.salesTotal / agg.salesCount) : 0,
+    cashTotal: agg.cashTotal,
+    cardTotal: agg.cardTotal,
+    voucherTotal: agg.voucherTotal,
+    totalRefunded: agg.totalRefunded,
+    days: agg.byDay,
+    topProducts: agg.topProducts,
   });
   },
   { roles: ["SUPER_ADMIN", "MANAGER"] },

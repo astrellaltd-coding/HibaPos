@@ -13,7 +13,8 @@ import {
   type ChainVerifyResult,
 } from "@/lib/fiscal";
 import { nextFiscalEventSequence } from "@/lib/services/sequence";
-import { addToVatBreakdown, sum2, type VatBreakdown } from "@/lib/money";
+import { type VatBreakdown } from "@/lib/money";
+import { aggregateOrders, AGGREGATE_INCLUDE } from "@/lib/services/aggregate";
 import { TX_FISCAL } from "@/lib/tx-options";
 
 type Tx = Prisma.TransactionClient;
@@ -225,62 +226,28 @@ type PeriodAgg = {
 async function aggregatePeriod(from: Date, to: Date): Promise<PeriodAgg> {
   const orders = await db.order.findMany({
     where: { createdAt: { gte: from, lt: to }, status: { in: ["COMPLETED", "REFUNDED"] } },
-    include: { items: true, refunds: true, payments: true },
+    include: AGGREGATE_INCLUDE,
   });
 
-  let salesTotal = 0;
-  let discountsTotal = 0;
-  let totalRefunded = 0;
-  let salesCount = 0;
-  const vatBreakdown: VatBreakdown = {};
-  const productAgg: Record<string, { name: string; quantity: number; total: number }> = {};
-
-  for (const order of orders) {
-    const orderRefundsTotal = sum2(order.refunds.map((r) => r.amount));
-    totalRefunded = totalRefunded + orderRefundsTotal;
-    // Fully refunded orders are excluded from sales totals + count.
-    if (orderRefundsTotal >= order.total) continue; // exact integer compare (cents)
-
-    salesCount += 1;
-    const refundRatio = order.total > 0 ? Math.min(1, orderRefundsTotal / order.total) : 0;
-    const netTotal = order.total - orderRefundsTotal;
-    salesTotal = salesTotal + netTotal;
-    discountsTotal = discountsTotal + order.discountTotal;
-
-    const discountRatio = order.subtotal > 0 ? order.discountTotal / order.subtotal : 0;
-    for (const item of order.items) {
-      const netLineTotal = Math.round(
-        item.lineTotal * (1 - discountRatio) * (1 - refundRatio)
-      );
-      const vatRate = item.vatRate ?? 10;
-      addToVatBreakdown(vatBreakdown, netLineTotal, vatRate);
-      const key = item.productName;
-      productAgg[key] ??= { name: item.productName, quantity: 0, total: 0 };
-      productAgg[key].quantity += item.quantity;
-      productAgg[key].total = productAgg[key].total + netLineTotal;
-    }
-  }
-
-  const payments = orders.flatMap((o) => o.payments);
-  const cashTotal = sum2(payments.filter((p) => p.method === "CASH").map((p) => p.amount));
-  const cardTotal = sum2(payments.filter((p) => p.method === "CARD").map((p) => p.amount));
-  const voucherTotal = sum2(payments.filter((p) => p.method === "VOUCHER").map((p) => p.amount));
-  const vatTotal = sum2(Object.values(vatBreakdown).map((v) => v.vat));
-  const topProducts = Object.values(productAgg)
-    .sort((a, b) => b.quantity - a.quantity)
-    .slice(0, 20);
+  // C-10 (Batch 3.2). This function used to be a near-copy of
+  // computeShiftReport with one difference that mattered: it summed payments
+  // GROSS and never subtracted refunds. So the moment a period contained a
+  // single refund, the sealed MonthlyClose could not equal the sum of its own
+  // ZReport rows — and a sealed document cannot be corrected. Both now call
+  // the same function, so they cannot disagree.
+  const agg = aggregateOrders(orders, { topProductsLimit: 20 });
 
   return {
-    salesTotal,
-    salesCount,
-    vatTotal,
-    cashTotal,
-    cardTotal,
-    voucherTotal,
-    discountsTotal,
-    totalRefunded,
-    vatBreakdown,
-    topProducts,
+    salesTotal: agg.salesTotal,
+    salesCount: agg.salesCount,
+    vatTotal: agg.vatTotal,
+    cashTotal: agg.cashTotal,
+    cardTotal: agg.cardTotal,
+    voucherTotal: agg.voucherTotal,
+    discountsTotal: agg.discountsTotal,
+    totalRefunded: agg.totalRefunded,
+    vatBreakdown: agg.vatBreakdown,
+    topProducts: agg.topProducts,
   };
 }
 

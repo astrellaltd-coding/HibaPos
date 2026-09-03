@@ -7,7 +7,7 @@ import { renderReceipt } from "@/lib/services/receipt";
 import { getSettings } from "@/lib/services/settings";
 import { appendFiscalEvent, incrementGrandTotal } from "@/lib/services/fiscal";
 import { computeLinePricing, resolveVatRate } from "@/lib/services/pricing";
-import { sum2, addToVatBreakdown, type VatBreakdown } from "@/lib/money";
+import { sum2, addToVatBreakdown, apportion, type VatBreakdown } from "@/lib/money";
 import { verifyApprovalToken, ApprovalError } from "@/lib/approvals";
 import { TX_CHECKOUT } from "@/lib/tx-options";
 
@@ -288,15 +288,18 @@ export const POST = withAuth(async (req, { user }) => {
   const order = await db.$transaction(async (tx) => {
     const number = await nextReceiptNumber(tx);
 
-    // VAT on net-of-discount amounts (distribute discount pro-rata per line).
-    // All values are cents; the ratio multiplication may produce a fractional
-    // cent — round to the nearest integer cent.
+    // VAT on net-of-discount amounts, with the discount distributed across the
+    // lines EXACTLY (M-13, Batch 3.2). Each line used to round on its own —
+    // `Math.round(lineTotal × (1 − discountRatio))` — so `Σ netLineTotal` need
+    // not equal `total − discount`, and the stored `vatTotal` could sit a cent
+    // or two off the order it belongs to. `apportion` gives every line its
+    // floor and hands the leftover cents to the largest remainders, so the
+    // parts always sum to the whole and the split is deterministic.
     const vatBreakdown: VatBreakdown = {};
-    const discountRatio = subtotal > 0 ? discountTotal / subtotal : 0;
-    for (const item of orderItemsData) {
-      const netLineTotal = Math.round(item.lineTotal * (1 - discountRatio));
-      addToVatBreakdown(vatBreakdown, netLineTotal, item.vatRate);
-    }
+    const lineNets = apportion(orderItemsData.map((i) => i.lineTotal), totalAfterDiscount);
+    orderItemsData.forEach((item, idx) => {
+      addToVatBreakdown(vatBreakdown, lineNets[idx], item.vatRate);
+    });
     const vatTotal = sum2(Object.values(vatBreakdown).map((v) => v.vat));
 
     const created = await tx.order.create({
