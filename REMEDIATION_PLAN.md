@@ -13,11 +13,11 @@ Detailed audit record: https://claude.ai/code/artifact/329316b0-3a6b-48b0-9d27-d
 
 **Current Stage:** Stage 1 — Critical blockers
 
-**Current Batch:** Batch 2.3 — SQLite WAL and transaction safety
+**Current Batch:** Batch 2.4 — Resource bounds and retention
 
-**Last Completed Batch:** Batch 2.2 — Backup location, retention and failure visibility (C-06, M-03, DD-02 and L-15; commits `d09252d`, `3a9bd1f`)
+**Last Completed Batch:** Batch 2.3 — SQLite WAL and transaction safety (C-19 and the timeout half of C-15; commit `e07a860`)
 
-**Next Batch:** Batch 2.4. **Batch 1.4 is unblocked in design** (DD-02 answered) but still deferred on hardware — see *Hardware-dependent validation* below.
+**Next Batch:** Stage 3 (fiscal correctness), starting with Batch 3.1. **Batch 1.4 is unblocked in design** (DD-02 answered) but still deferred on hardware — see *Hardware-dependent validation* below.
 
 **Blocked:** Batch 1.3 `[HW]` sign-off and Batch 1.4 — both need the app running on the restaurant's POS machine, which is in a different country from the developer and has no copy of the app installed (decision of 2026-09-03).
 
@@ -571,11 +571,11 @@ See *Design Decisions Required → DD-02*.
 
 ## Batch 2.3 — SQLite WAL and transaction safety
 
-**Status:** `NOT STARTED`
+**Status:** `COMPLETED` (code); WAL is **not yet active on the production database** — see the status record
 
 ### C-19 — The database is not in WAL mode
 
-**Status:** `NOT STARTED` · Severity: HIGH · Category: database / performance
+**Status:** `COMPLETED` (mechanism shipped; blocked on the DD-02 move for the live file) · Severity: HIGH · Category: database / performance
 
 **Problem.** The live database runs in rollback-journal mode. Three documents say otherwise.
 
@@ -591,7 +591,7 @@ See *Design Decisions Required → DD-02*.
 
 ### C-15 (transaction-timeout half) — No `$transaction` sets a timeout
 
-**Status:** `NOT STARTED` · Severity: HIGH · Category: data integrity
+**Status:** `COMPLETED` · Severity: HIGH · Category: data integrity
 
 *The shift-race half of C-15 is Batch 4.7. The timeout is here because it is inseparable from the WAL/locking question.*
 
@@ -615,7 +615,13 @@ See *Design Decisions Required → DD-02*.
 
 ### Batch 2.3 — Status Record
 
-**Status:** `NOT STARTED` · **Completed:** — · **Changes:** — · **Files:** — · **Tests:** — · **Commit:** — · **Notes:** —
+**Status:** `COMPLETED` (code) — WAL is active for any install outside a synced folder; the **production database is deliberately still in rollback mode**, see note (1).
+**Completed:** 2026-09-03
+**Changes:** **C-19.** The batch turned on a wrong comment. `src/lib/db.ts` stated the pragma could not be issued through Prisma and therefore had to be applied with the `sqlite3` CLI — a prerequisite nobody installed, by a `start.sh` deleted in `0aeea30` — and that belief is why nothing ever applied it. Only half of it is true: `$executeRawUnsafe("PRAGMA journal_mode = WAL")` fails with *"Execute returned results"*, but `PRAGMA journal_mode` **answers with a row**, so it is a query and `$queryRawUnsafe` runs it. Verified against a copy of the production database before writing any code: header byte 18 went 1 → 2 and the mode persisted. Shipped: `src/instrumentation.ts`, the startup hook the audit noted was missing entirely (which is why no pragma could ever run), and `src/lib/db-pragmas.ts`, which applies WAL idempotently and **refuses on a cloud-synced path**. That refusal is deliberate: WAL keeps `-wal`/`-shm` beside the database permanently and they are not optional extras — a reader that sees a stale or restored `-wal` reads a database that never existed — so a sync client can corrupt data in a way rollback mode cannot, where the journal exists only for the duration of one write. The hook never blocks startup: a till that will not open is worse than a slow one. The false claim in `db.ts` was corrected in place. **C-15 (timeout half).** No `$transaction` anywhere passed a `timeout`, so every one ran on Prisma's 5 s default. `src/lib/tx-options.ts` gives the transactions that seal money an explicit budget — checkout 30 s, Z close 60 s, refund / shift open / monthly / annual / archive 20 s — applied at seven call sites. The checkout performs 8+ sequential writes and exceeding the default rolls the sale back **after the customer has paid**; a failed Z close leaves a shift that cannot be closed at all.
+**Files:** `src/instrumentation.ts` (new), `src/lib/db-pragmas.ts` (new), `src/lib/db-pragmas.test.ts` (new), `src/lib/tx-options.ts` (new), `src/lib/db.ts`, `src/app/api/orders/route.ts`, `src/app/api/shifts/route.ts`, `src/lib/services/reports.ts`, `src/lib/services/refund.ts`, `src/lib/services/fiscal.ts`.
+**Tests:** `bun test src` — **239/239 PASS** (230 + 9 new). `bun run typecheck` — PASS. `bun run lint` — PASS. `bun run build` — PASS. **Header check performed for real**: a scratch copy of the production database started at byte 18 = 1, the app was started against it, and it became 2 with `-wal` and `-shm` sidecars present; after shutdown and a brand-new connection `PRAGMA journal_mode` still answered `wal`, so persistence was confirmed rather than assumed. The idempotence, the header byte and the cloud-sync guard are all unit-tested. **Concurrency measurement** (the plan's timed check), one writer and one reader running together against identical copies of the production data: median write **6 ms → 3 ms**, worst write **37 ms → 19 ms**, worst read while writing **64 ms → 10 ms**, reads completed in 6 s 2 539 → 2 828. The worst-case read is the readers-block-writers symptom and it is six times better.
+**Commit:** `e07a860` + this plan update.
+**Notes:** (1) **WAL is NOT active on the production database, on purpose.** It sits on the OneDrive-synced path, so the guard refuses it — verified: byte 18 of `db/custom.db` is still 1 and the file is unchanged (`0e25f6f2…`). It will switch itself on at the first start after the data moves to `C:\HibaPOS\data` (DD-02), which is the deployment step in Batch 1.4. Until then the till keeps the stall behaviour C-19 describes. This is the honest state: the mechanism is done, the benefit is not yet delivered. (2) **A bug of my own, caught by running it rather than by a test.** The cloud-sync guard first matched a bare substring, which refused WAL on this session's scratch directory — `…/Temp/claude/C--Users-einer-OneDrive-Desktop-…`, where "OneDrive" is part of an encoded project name. Falsely refusing is not a safe failure: it silently leaves the database in the mode the batch exists to remove. Now matches whole path segments (and still catches business folders like *OneDrive - Contoso*), with a regression test naming this exact path. (3) **`start.ps1` was not changed.** The plan's validation item asked that it apply WAL idempotently on a fresh database and that the documented prerequisites match reality; putting the pragma in the application satisfies both more strongly — it runs on every start regardless of how the app was launched, and the `sqlite3` CLI prerequisite is now genuinely unnecessary rather than merely unmet. **DOC-01** (`README.md:10` "SQLite via Prisma ORM (WAL)") becomes true for any install outside a synced folder; Batch 7.1 should verify and leave it, and should note the cloud-sync caveat. `docs/SQLITE_WAL.md` and `.zscripts/README-windows.md` still describe the deleted script mechanism (DOC-02, DOC-03) and remain 7.1's work. (4) The plan's checkout/Z-close timing comparison was done as the concurrency measurement above rather than by driving real checkouts, which would have written fiscal records; a timed real checkout belongs with the hardware rehearsal.
 
 ---
 
@@ -1845,6 +1851,7 @@ Record anything found *during* remediation that is outside the current batch's s
 | 0.1 | COMPLETED | 2026-09-03 | `e97a3e1` | C-26, C-26b: anchored 4 bare `.gitignore` patterns; recovered 3 untracked backup API route files into version control. |
 | 0.2 | COMPLETED | 2026-09-03 | *(this update)* | P-01/P-02/P-03: repo pushed to `origin/main` (user, interactive), `.env` confirmed preserved out-of-band by user, pre-remediation snapshot + fiscal/row-count baseline recorded. No code changes. |
 | 1.1 | COMPLETED | 2026-09-03 | `4766ceb` | C-01: refund dialog made a euros boundary (`parseEuroInput()` in `money.ts`, pre-fill + submit + max-check in `orders-view.tsx`). 9 new tests; 145/145. Validated end-to-end on a scratch copy of the production DB — 5,00 € → 500, 5,50 € → 550, full refund → 690, fiscal chain ok. Production DB untouched. |
+| 2.3 | COMPLETED | 2026-09-03 | `e07a860` | C-19 + C-15 (timeout half): WAL applied by a new startup hook — the `sqlite3`-CLI claim in db.ts was wrong, `$queryRawUnsafe` runs the pragma — with a guard that refuses cloud-synced paths; explicit budgets on the seven transactions that seal money. Verified header byte 1→2 and persistence on a scratch copy; worst read while writing 64 ms → 10 ms. Production DB still rollback mode until the DD-02 move. 239/239. |
 | 2.2 | COMPLETED | 2026-09-03 | `d09252d`, `3a9bd1f` | C-06 + M-03 + DD-02 + L-15: BACKUP_LOCATION honoured, keep-30 retention, content-addressed media reuse (a Z close no longer re-encrypts ~49 MiB), backup failures surfaced at the Z close, fiscal archives backed up, one data-directory root (`HIBAPOS_DATA_DIR` → `C:\HibaPOS\data`) with an `/uploads` route, and restore refuses a schema mismatch. 230/230. |
 | 2.1 | COMPLETED | 2026-09-03 | `723dd52` | C-05 + C-22 (restore half): images restored, atomic rename swap, 503 maintenance gate during the swap, RESTAURATION/SUPPRESSION_SAUVEGARDE journalling, counter-rewind detection, out-of-band decrypt tool. T-01 written; 214/214. Found L-15 (no schema check on restore). |
 | 1.2 | COMPLETED | 2026-09-03 | `38d19a2` | C-02: Z-close dialog now passes cents to `Money`/`formatEuro` at all three sites; variance kept in cents (`z-close.ts`). 8 new tests; 153/153. Verified by running the identical scenario pre-fix and post-fix on a scratch DB copy — display went from 2,00 €/2,09 €/-0,05 € to 200,00 €/208,90 €/-5,00 €, while every ZReport and Shift field stayed identical. Production DB untouched. |
