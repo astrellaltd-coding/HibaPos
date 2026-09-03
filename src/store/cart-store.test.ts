@@ -18,6 +18,8 @@ const baseProduct: ProductDto = {
   active: true,
   available: true,
   inheritCategoryGlobals: true,
+  inheritCategoryVat: false,
+  effectiveVatRate: 10,
   sortOrder: 0,
   options: [],
   addOns: [],

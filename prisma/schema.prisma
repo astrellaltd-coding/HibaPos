@@ -73,6 +73,11 @@ model Category {
   icon           String?             // lucide icon name (preferred) or emoji fallback
   sortOrder      Int                 @default(0)
   active         Boolean             @default(true)
+  // VAT rate for products in this category that opt into inheritance (L-16/L-17).
+  // NULL = "not set here" — resolution walks own category -> parent -> the
+  // product's own rate. The fiscal criterion is the container, not the drink,
+  // so this belongs on `Canette`/`Bouteilles` rather than on `Boissons`.
+  vatRate        Float?
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
 
@@ -100,6 +105,11 @@ model Product {
   active      Boolean  @default(true)
   available   Boolean  @default(true) // 86'd / out of stock toggle
   inheritCategoryGlobals Boolean @default(true) // inherits category-level options & add-ons
+  // Take the VAT rate from the category chain instead of the `vatRate` column
+  // above (L-16/L-17). Mirrors inheritCategoryGlobals. Defaults to FALSE so
+  // every existing product keeps the rate it already has — the migration
+  // changes no behaviour on its own.
+  inheritCategoryVat     Boolean @default(false)
   sortOrder   Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

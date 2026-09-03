@@ -45,6 +45,8 @@ export type CategoryDto = {
   active: boolean;
   parentId: string | null;
   parentName?: string | null;
+  /** VAT for products in this category that inherit. null = not set here. */
+  vatRate: number | null;
   children?: { id: string; name: string }[];
   productCount?: number;
   optionGroups?: CategoryOptionGroupDto[];
@@ -83,6 +85,10 @@ export type ProductDto = {
   active: boolean;
   available: boolean;
   inheritCategoryGlobals: boolean;
+  /** The product's own stored rate (an override when inheritCategoryVat is false). */
+  inheritCategoryVat: boolean;
+  /** What a sale would actually be taxed at — own rate, or the category chain. */
+  effectiveVatRate: number;
   sortOrder: number;
   options: OptionGroupDto[];
   addOns: AddOnDto[];

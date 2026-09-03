@@ -26,6 +26,43 @@ export type ProductWithRelations = {
   inheritCategoryGlobals: boolean;
 };
 
+/** The shape `resolveVatRate` needs — far less than a full product row, so a
+ *  caller can resolve a rate from a narrow `select`. */
+export type VatResolvable = {
+  vatRate: number;
+  inheritCategoryVat?: boolean | null;
+  category?: {
+    vatRate?: number | null;
+    parent?: { vatRate?: number | null } | null;
+  } | null;
+};
+
+/**
+ * The VAT rate that actually applies to a product (L-16/L-17, Batch 3.1c).
+ *
+ * Nearest wins: the product's own rate unless it opts into inheritance, then
+ * its own category, then the parent category. Categories are at most two deep
+ * (`categories/route.ts` refuses a grandchild), so this is the same one-step
+ * walk `computeLinePricing` already does for options and add-ons below.
+ *
+ * Falls back to the product's stored `vatRate` when inheritance is on but no
+ * category in the chain sets a rate. That is deliberately the *quietest*
+ * failure: a misconfigured category leaves the rate exactly as it was rather
+ * than silently moving money.
+ *
+ * Note what this does NOT affect: `OrderItem.vatRate` is snapshotted at
+ * checkout and every report reads that, so changing a category's rate can
+ * never alter a sale that has already happened.
+ */
+export function resolveVatRate(product: VatResolvable): number {
+  if (!product.inheritCategoryVat) return product.vatRate;
+  const own = product.category?.vatRate;
+  if (own != null) return own;
+  const parent = product.category?.parent?.vatRate;
+  if (parent != null) return parent;
+  return product.vatRate;
+}
+
 type ChoiceRow = {
   id: string;
   name: string;

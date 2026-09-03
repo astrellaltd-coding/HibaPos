@@ -6,7 +6,7 @@ import { nextReceiptNumber } from "@/lib/services/sequence";
 import { renderReceipt } from "@/lib/services/receipt";
 import { getSettings } from "@/lib/services/settings";
 import { appendFiscalEvent, incrementGrandTotal } from "@/lib/services/fiscal";
-import { computeLinePricing } from "@/lib/services/pricing";
+import { computeLinePricing, resolveVatRate } from "@/lib/services/pricing";
 import { sum2, addToVatBreakdown, type VatBreakdown } from "@/lib/money";
 import { verifyApprovalToken, ApprovalError } from "@/lib/approvals";
 import { TX_CHECKOUT } from "@/lib/tx-options";
@@ -191,7 +191,11 @@ export const POST = withAuth(async (req, { user }) => {
       unitPrice: lineResult.unitPrice,
       quantity: itemIntent.quantity,
       lineTotal: lineResult.lineTotal,
-      vatRate: product.vatRate,
+      // L-16/L-17 (Batch 3.1c): the effective rate, which may come from the
+      // product's category. Snapshotted here on purpose — OrderItem.vatRate is
+      // what every report reads, so a later category edit cannot restate a
+      // sale that has already been made.
+      vatRate: resolveVatRate(product),
       optionsJson: lineResult.optionsJson,
       addOnsJson: lineResult.addOnsJson,
       notes: itemIntent.notes ?? null,

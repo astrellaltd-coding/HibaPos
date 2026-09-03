@@ -100,7 +100,9 @@ export function PosView() {
         quantity: 1,
         options: [],
         addOns: [],
-        vatRate: product.vatRate,
+        // The effective rate (own, or inherited from the category chain).
+        // Display-only client-side — the checkout API recomputes it server-side.
+        vatRate: product.effectiveVatRate ?? product.vatRate,
         image: product.image,
       });
     }

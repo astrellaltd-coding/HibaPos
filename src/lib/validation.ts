@@ -1,6 +1,27 @@
 // Shared Zod validation schemas (used by both client forms and API routes).
 import { z } from "zod";
 
+/**
+ * The VAT rates this restaurant can select (DD-17, Batch 3.1c).
+ *
+ * Operator determination of 2026-09-03: 10 % on everything sold for
+ * consumption, 5,5 % on a drink in a sealed can or bottle — the criterion is
+ * the container, not the drink. No alcohol is sold, so 20 % is unused today;
+ * it stays selectable anyway, because a needed rate that cannot be chosen is
+ * exactly the L-17 defect this batch removes. 2,1 % is excluded: it covers
+ * press and medicines and can never apply to a restaurant.
+ *
+ * Replaces `z.number().min(0).max(100)` on the product path, which accepted
+ * 37,3 % — and would have accepted a "6 %" that does not exist in France.
+ */
+export const ALLOWED_VAT_RATES = [20, 10, 5.5] as const;
+export type AllowedVatRate = (typeof ALLOWED_VAT_RATES)[number];
+
+const vatRateField = z.number().refine(
+  (v) => (ALLOWED_VAT_RATES as readonly number[]).includes(v),
+  { message: "Taux de TVA non autorisé : 20 %, 10 % ou 5,5 %" },
+);
+
 export const loginSchema = z.object({
   username: z.string().min(1, "Nom d'utilisateur requis"),
   pin: z
@@ -18,6 +39,9 @@ export const categorySchema = z.object({
   sortOrder: z.number().int().default(0),
   active: z.boolean().default(true),
   parentId: z.string().optional().nullable(),
+  // NULL / omitted = "not set here". Products that opt into inheritance
+  // resolve own category -> parent -> their own rate (L-16/L-17).
+  vatRate: vatRateField.nullable().optional(),
 });
 export type CategoryInput = z.infer<typeof categorySchema>;
 
@@ -78,7 +102,12 @@ export const productSchema = z.object({
   price: z.number().int().min(0, "Le prix doit être positif (en centimes)"),
   pickupPrice: z.number().int().min(0).optional().nullable(),
   deliveryPrice: z.number().int().min(0).optional().nullable(),
-  vatRate: z.number().min(0).max(100).default(20),
+  // Default 10, not 20: 10 % is this restaurant's standard rate and 20 % is
+  // alcohol, which it does not sell. Only reachable by an API caller that
+  // omits the field — the product form always sends an explicit value.
+  vatRate: vatRateField.default(10),
+  // Take the rate from the category chain instead of `vatRate` above.
+  inheritCategoryVat: z.boolean().default(false),
   categoryId: z.string().min(1, "Catégorie requise"),
   image: z.string().optional().nullable(),
   active: z.boolean().default(true),

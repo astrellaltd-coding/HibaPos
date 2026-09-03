@@ -61,6 +61,8 @@ type CategoryForm = {
   sortOrder: number;
   active: boolean;
   parentId: string;
+  /** "" = not set here (inherit from the parent, or the product's own rate). */
+  vatRate: string;
   optionGroups: CategoryOptionGroupForm[];
   addOns: CategoryAddOnForm[];
 };
@@ -100,6 +102,7 @@ type CategoryPayload = {
   sortOrder: number;
   active: boolean;
   parentId: string | null;
+  vatRate: number | null;
   optionGroups: CategoryOptionGroupForm[];
   addOns: CategoryAddOnForm[];
 };
@@ -111,6 +114,7 @@ const EMPTY_FORM: CategoryForm = {
   sortOrder: 0,
   active: true,
   parentId: "",
+  vatRate: "",
   optionGroups: [],
   addOns: [],
 };
@@ -233,6 +237,7 @@ export function CategoriesView() {
       sortOrder: full.sortOrder,
       active: full.active,
       parentId: full.parentId ?? "",
+      vatRate: full.vatRate == null ? "" : String(full.vatRate),
       optionGroups: (full.optionGroups ?? [])
         .filter((g) => g.name !== "Taille")
         .map((g) => ({
@@ -337,6 +342,7 @@ export function CategoriesView() {
         sortOrder: Number.isFinite(form.sortOrder) ? Number(form.sortOrder) : 0,
         active: form.active,
         parentId: form.parentId.trim() || null,
+        vatRate: form.vatRate === "" ? null : Number(form.vatRate),
         optionGroups: [
           ...(sizeGroup ? [sizeGroup] : []),
           ...form.optionGroups.map((g, i) => ({
@@ -675,6 +681,35 @@ export function CategoriesView() {
                   </Select>
                 </div>
               )}
+
+              {/* TVA (L-16/L-17, Batch 3.1c). The rate lives on the category
+                  because the fiscal criterion is the container, not the drink:
+                  `Canette` and `Bouteilles` are 5,5 %, while their parent
+                  `Boissons` stays on the 10 % default so a cup drink added
+                  later inherits the right rate. */}
+              <div className="grid gap-2">
+                <Label htmlFor="cat-vat">Taux de TVA de la catégorie</Label>
+                <Select
+                  value={form.vatRate || "__none__"}
+                  onValueChange={(v) =>
+                    setForm((f) => ({ ...f, vatRate: v === "__none__" ? "" : v }))
+                  }
+                >
+                  <SelectTrigger id="cat-vat">
+                    <SelectValue placeholder="Non défini" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Non défini</SelectItem>
+                    <SelectItem value="10">10 % — sur place et à emporter</SelectItem>
+                    <SelectItem value="5.5">5,5 % — canettes et bouteilles</SelectItem>
+                    <SelectItem value="20">20 % — boissons alcoolisées</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground">
+                  S&apos;applique aux produits de cette catégorie réglés sur « taux de la
+                  catégorie ». « Non défini » remonte à la catégorie parente.
+                </p>
+              </div>
             </div>
 
             {/* Right column — sizes, global options & add-ons */}

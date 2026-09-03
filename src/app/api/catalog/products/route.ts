@@ -5,6 +5,7 @@ import { productSchema } from "@/lib/validation";
 import { audit } from "@/lib/services/audit";
 import type { ProductDto } from "@/types/api";
 import { Prisma } from "@prisma/client";
+import { resolveVatRate } from "@/lib/services/pricing";
 
 type ProductWithRelations = Prisma.ProductGetPayload<{
   include: {
@@ -140,6 +141,11 @@ function serialize(p: ProductWithRelations): ProductDto {
     pickupPrice: p.pickupPrice ?? null,
     deliveryPrice: p.deliveryPrice ?? null,
     vatRate: p.vatRate,
+    // L-16/L-17 (Batch 3.1c): `vatRate` above stays the product's OWN stored
+    // value so the form can edit an override; `effectiveVatRate` is what a
+    // sale would actually be taxed at.
+    inheritCategoryVat: p.inheritCategoryVat ?? false,
+    effectiveVatRate: resolveVatRate(p),
     categoryId: p.categoryId,
     image: p.image ?? null,
     active: p.active,
@@ -226,6 +232,7 @@ export const POST = withAuth(async (req, { user }) => {
         pickupPrice: productData.pickupPrice,
         deliveryPrice: productData.deliveryPrice,
         vatRate: productData.vatRate,
+        inheritCategoryVat: productData.inheritCategoryVat,
         categoryId: productData.categoryId,
         image: productData.image ?? null,
         active: productData.active,

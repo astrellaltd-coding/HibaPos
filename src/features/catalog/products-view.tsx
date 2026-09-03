@@ -361,6 +361,7 @@ function ProductFormDialog({
   const [vatRate, setVatRate] = useState(product?.vatRate ?? 10);
   const [active, setActive] = useState(product?.active ?? true);
   const [inheritCategoryGlobals, setInheritCategoryGlobals] = useState(product?.inheritCategoryGlobals ?? true);
+  const [inheritCategoryVat, setInheritCategoryVat] = useState(product?.inheritCategoryVat ?? false);
   const [pickerOpen, setPickerOpen] = useState(false);
   // Per-choice picker: tracks which choice index is being picked for
   const [choicePickerOpen, setChoicePickerOpen] = useState(false);
@@ -465,6 +466,7 @@ function ProductFormDialog({
       active,
       available: active,
       inheritCategoryGlobals,
+      inheritCategoryVat,
       sortOrder: product?.sortOrder ?? 0,
       options: finalOptions,
     };
@@ -492,16 +494,6 @@ function ProductFormDialog({
         <DialogHeader className="flex flex-row items-center justify-between border-b border-border p-5 pr-12">
           <DialogTitle>{product ? "Modifier le produit" : "Nouveau produit"}</DialogTitle>
           <div className="flex items-center gap-6">
-            {categories.find((c) => c.id === categoryId)?.name.toLowerCase().includes("boisson") && (
-              <div className="flex items-center gap-2">
-                <Switch 
-                  checked={vatRate === 5.5} 
-                  onCheckedChange={(v) => setVatRate(v ? 5.5 : 10)} 
-                  id="header-is-drink" 
-                />
-                <Label htmlFor="header-is-drink" className="text-sm font-medium">Bouteille / Canette</Label>
-              </div>
-            )}
             <div className="flex items-center gap-2">
               <Switch checked={active} onCheckedChange={setActive} id="header-active" />
               <Label htmlFor="header-active" className="text-sm font-medium">Actif</Label>
@@ -815,6 +807,75 @@ function ProductFormDialog({
                 <p className="text-xs text-muted-foreground">Applique les réglages définis dans la catégorie « {categories.find((c) => c.id === categoryId)?.name ?? "—"} »</p>
               </div>
               <Switch checked={inheritCategoryGlobals} onCheckedChange={setInheritCategoryGlobals} />
+            </div>
+
+            {/* -- 4b. TVA (L-16/L-17, Batch 3.1c) --
+                Replaces a switch that was shown only when the category's own
+                name contained "boisson". The real drinks live in `Canette` and
+                `Bouteilles` under `Boissons`, so it never appeared for them and
+                there was no other way to set a rate. */}
+            <div className="space-y-3 rounded-lg border border-border bg-muted/20 p-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">TVA</p>
+                  <p className="text-xs text-muted-foreground">
+                    {inheritCategoryVat
+                      ? `Suit la categorie « ${categories.find((c) => c.id === categoryId)?.name ?? "-"} »`
+                      : "Taux propre a ce produit"}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="inherit-vat" className="text-xs font-normal text-muted-foreground">
+                    Taux de la categorie
+                  </Label>
+                  <Switch
+                    id="inherit-vat"
+                    checked={inheritCategoryVat}
+                    onCheckedChange={setInheritCategoryVat}
+                  />
+                </div>
+              </div>
+
+              {inheritCategoryVat ? (
+                <p className="rounded-md border border-border bg-background px-3 py-2 text-xs text-muted-foreground">
+                  Taux applique :{" "}
+                  <span className="font-semibold text-foreground">
+                    {(() => {
+                      const own = categories.find((c) => c.id === categoryId);
+                      const parent = own?.parentId
+                        ? categories.find((c) => c.id === own.parentId)
+                        : null;
+                      const resolved = own?.vatRate ?? parent?.vatRate ?? null;
+                      return resolved == null
+                        ? `${String(vatRate).replace(".", ",")} % (aucun taux defini sur la categorie)`
+                        : `${String(resolved).replace(".", ",")} %`;
+                    })()}
+                  </span>
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { value: 10, label: "10 %", hint: "Sur place et a emporter" },
+                    { value: 5.5, label: "5,5 %", hint: "Canettes et bouteilles" },
+                    { value: 20, label: "20 %", hint: "Boissons alcoolisees" },
+                  ].map((r) => (
+                    <button
+                      key={r.value}
+                      type="button"
+                      onClick={() => setVatRate(r.value)}
+                      className={cn(
+                        "rounded-lg border px-3 py-2 text-left transition-colors",
+                        vatRate === r.value
+                          ? "border-primary bg-primary/10"
+                          : "border-border bg-background hover:border-muted-foreground/40",
+                      )}
+                    >
+                      <span className="block text-sm font-semibold text-foreground">{r.label}</span>
+                      <span className="block text-[11px] text-muted-foreground">{r.hint}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* ── 5. Options de personnalisation ── */}
