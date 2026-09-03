@@ -727,7 +727,7 @@ Audit section J, step 4: before the first Z report you would show an inspector. 
 
 ## Batch 3.1 — VAT rate keying
 
-**Status:** `NOT STARTED`
+**Status:** `REQUIRES DECISION` — the code fix is small and self-contained, but **DD-03 must be answered first**: existing sealed `ZReport` / `MonthlyClose` rows carry `vatBreakdownJson` keyed `"6"` for 5,5 %, and sealed rows must not be rewritten. Decide *annotate / re-issue / leave with a documented explanation* before writing anything. The fix to `money.ts` itself may be written first only if it is clearly separated from any treatment of existing rows.
 
 ### C-12 — The 5,5 % VAT rate is recorded and reported as 6 %
 
