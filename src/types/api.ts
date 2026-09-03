@@ -260,7 +260,11 @@ export type SettingsDto = {
   defaultVatRate: number;
   currency: string;
   printerName: string | null;
-  receiptWidth: number;
+  printerHost: string | null;
+  printerPort: number;
+  printerEnabled: boolean;
+  openDrawerOnCash: boolean;
+  receiptWidth: number; // COLUMNS (48 on 80 mm paper, 32 on 58 mm) — see L-13
   discountApprovalThreshold: number; // percent (e.g. 20 = 20%)
   autoPrint: boolean;
   factice: boolean; // FACTICE / SIMULATION mode — stamps receipts + fiscal events

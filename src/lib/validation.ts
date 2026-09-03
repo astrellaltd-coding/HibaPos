@@ -199,7 +199,18 @@ export const settingsSchema = z.object({
   defaultVatRate: z.number().min(0).max(100),
   currency: z.string().max(3).default("EUR"),
   printerName: z.string().max(60).optional().nullable(),
-  receiptWidth: z.number().int().min(32).max(80).default(80),
+  // Printer connection (C-03, Batch 1.3). DD-01 chose raw TCP on port 9100:
+  // an IPv4 address or hostname, empty meaning "no printer configured", in
+  // which case every print is skipped with a warning instead of failing.
+  printerHost: z.string().max(120).optional().nullable(),
+  printerPort: z.number().int().min(1).max(65535).default(9100),
+  printerEnabled: z.boolean().default(false),
+  // Kick the drawer automatically when a sale is tendered in cash.
+  openDrawerOnCash: z.boolean().default(true),
+  // COLUMN count, not millimetres — see L-13. 80 mm paper fits 48 columns at
+  // Font A, 58 mm fits 32. Legacy rows holding 58/80 are mapped on read by
+  // normalizeReceiptColumns(); the max is 48 so new values cannot repeat it.
+  receiptWidth: z.number().int().min(32).max(48).default(48),
   discountApprovalThreshold: z.number().min(0).max(100).default(20),
   autoPrint: z.boolean().default(false),
   factice: z.boolean().default(false),
