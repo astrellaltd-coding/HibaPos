@@ -79,6 +79,8 @@ export const POST = withAuthParams(async (req, { user, params }) => {
       cardTotal: z.cardTotal,
       voucherTotal: z.voucherTotal,
       discountsTotal: z.discountsTotal,
+      refundsTotal: z.refundsTotal,
+      refundsCount: z.refundsCount,
       openingFloat: z.openingFloat,
       expectedCash: z.expectedCash,
       closingFloat: z.closingFloat,

@@ -337,6 +337,18 @@ function ZReportDetailDialog({
               <Kpi label="Remises" value={<Money amount={report.discountsTotal} />} tone="rose" />
             </div>
 
+            {/* M-07 (Batch 3.6): the period's corrections. Shown for every Z,
+                including a zero one — "no refunds today" is information, and a
+                row that appears only sometimes reads as an anomaly. */}
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <Kpi
+                label="Remboursements"
+                value={<Money amount={report.refundsTotal} />}
+                tone={report.refundsTotal > 0 ? "rose" : "default"}
+              />
+              <Kpi label="Nb remboursements" value={report.refundsCount} />
+            </div>
+
             <h3 className="mb-2 mt-5 text-sm font-semibold text-foreground">Répartition TVA</h3>
             <VatBreakdownTable breakdown={report.vatBreakdown} />
 

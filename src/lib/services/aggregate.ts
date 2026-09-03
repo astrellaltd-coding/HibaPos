@@ -65,6 +65,9 @@ export type PeriodAggregate = {
   voucherTotal: number;
   discountsTotal: number;
   totalRefunded: number;
+  /** M-07 (Batch 3.6): how many refunds, not just how much. A day with one
+   *  40 € refund and a day with eight 5 € refunds are different days. */
+  refundsCount: number;
   vatBreakdown: VatBreakdown;
   topProducts: { name: string; quantity: number; total: number }[];
   /** Per-day sales, net of refunds, keyed YYYY-MM-DD in local time. */
@@ -205,6 +208,7 @@ export function aggregateOrders<T extends AggregatableOrder>(
     voucherTotal: grossVoucherTotal - voucherRefundsTotal,
     discountsTotal,
     totalRefunded,
+    refundsCount: refunds.length,
     vatBreakdown,
     topProducts: Object.values(productAgg)
       .sort((a, b) => b.quantity - a.quantity || a.name.localeCompare(b.name))

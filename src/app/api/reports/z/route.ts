@@ -42,6 +42,8 @@ export const GET = withAuth(
       cardTotal: z.cardTotal,
       voucherTotal: z.voucherTotal,
       discountsTotal: z.discountsTotal,
+      refundsTotal: z.refundsTotal,
+      refundsCount: z.refundsCount,
       openingFloat: z.openingFloat,
       expectedCash: z.expectedCash,
       closingFloat: z.closingFloat,

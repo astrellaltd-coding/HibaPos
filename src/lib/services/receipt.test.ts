@@ -36,6 +36,7 @@ const baseOrder: TestOrder = {
       unitPrice: 990,   // 9.90 € in cents
       quantity: 2,
       lineTotal: 1980,  // 19.80 € in cents
+      vatRate: 10,
       optionsJson: JSON.stringify([
         { group: "Cuisson", choice: "À point" },
       ]),
@@ -51,6 +52,7 @@ const baseOrder: TestOrder = {
       unitPrice: 270,  // 2.70 € in cents
       quantity: 1,
       lineTotal: 270,
+      vatRate: 10,
       optionsJson: null,
       addOnsJson: null,
       notes: null,
@@ -82,10 +84,95 @@ const baseSettings: Partial<SettingsDto> = {
   receiptWidth: 42,
 };
 
+/** `formatEuro` goes through Intl fr-FR, which puts a NO-BREAK space (U+00A0)
+ *  before the euro sign. Assertions written with an ordinary space would never
+ *  match, so normalise rather than paste an invisible character into every
+ *  expectation. */
+const norm = (t: string) => t.replace(/[\u00a0\u202f]/g, " ");
+
 describe("renderReceipt", () => {
   it("produces a consistent snapshot for a standard order", () => {
     const text = renderReceipt(baseOrder, baseSettings);
     expect(text).toMatchSnapshot();
+  });
+
+  // M-06 (Batch 3.6) — per-rate VAT block and the TVA number.
+  //
+  // The ticket used to print one merged "dont TVA" line, so a restaurant
+  // selling at two rates — which this one does, 10 % and 5,5 % since Batch
+  // 3.1c — could not show the split on any ticket. `restaurantTva` was a
+  // stored setting no document printed.
+
+  it("prints the TVA number under the SIRET (M-06)", () => {
+    const text = renderReceipt(baseOrder, baseSettings);
+    expect(text).toContain("TVA : TEST-TVA");
+    const lines = text.split("\n");
+    expect(lines.findIndex((l) => l.includes("SIRET"))).toBeLessThan(
+      lines.findIndex((l) => l.includes("TVA : TEST-TVA")),
+    );
+  });
+
+  it("omits the TVA line entirely when the setting is unset", () => {
+    const text = renderReceipt(baseOrder, { ...baseSettings, restaurantTva: null });
+    expect(text).not.toContain("TVA : ");
+  });
+
+  it("prints one VAT line per rate, lowest rate first (M-06)", () => {
+    // The restaurant's real shape: food at 10 %, a sealed can at 5,5 %.
+    const mixed: TestOrder = {
+      ...baseOrder,
+      vatTotal: 194,
+      items: [
+        { ...baseOrder.items[0], vatRate: 10 },
+        { ...baseOrder.items[1], vatRate: 5.5 },
+      ] as OrderItemDto[],
+    };
+    const text = norm(renderReceipt(mixed, baseSettings));
+    expect(text).toContain("Détail TVA");
+    // 5,5 % of 2,70 € is 0,14 € — 10 % of 19,80 € is 1,80 €.
+    expect(text).toContain("TVA 5,5 % (HT 2,56 €)");
+    expect(text).toContain("TVA 10 % (HT 18,00 €)");
+
+    // Numeric order, not lexicographic: "10" sorts BEFORE "5.5" as text, and
+    // printing the rates in that order on a fiscal document would be wrong.
+    const lines = text.split("\n");
+    expect(lines.findIndex((l) => l.includes("TVA 5,5 %"))).toBeLessThan(
+      lines.findIndex((l) => l.includes("TVA 10 %")),
+    );
+  });
+
+  it("keeps the stored vatTotal as the 'dont TVA' figure", () => {
+    // The per-rate rows are recomputed; "dont TVA" is the sealed number the
+    // order actually carries. They agree — but if they ever did not, the
+    // ticket must show what the fiscal record holds.
+    const mixed: TestOrder = {
+      ...baseOrder,
+      vatTotal: 194,
+      items: [
+        { ...baseOrder.items[0], vatRate: 10 },
+        { ...baseOrder.items[1], vatRate: 5.5 },
+      ] as OrderItemDto[],
+    };
+    const text = norm(renderReceipt(mixed, baseSettings));
+    expect(text).toContain("dont TVA");
+    expect(text).toMatch(/dont TVA {2,}1,94 €/);
+  });
+
+  it("splits VAT on the amount NET of a discount, not the gross", () => {
+    // A discounted order's VAT is owed on what the customer paid. The
+    // apportionment is the same one the checkout transaction stores, so the
+    // ticket and the Z report cannot disagree.
+    const discounted: TestOrder = {
+      ...baseOrder,
+      discountTotal: 250,
+      total: 2000,
+      vatTotal: 182,
+    };
+    const text = norm(renderReceipt(discounted, baseSettings));
+    expect(text).toContain("Remise");
+    // 10 % of the 20,00 € actually paid = 1,82 €, not 2,05 € on the 22,50 €.
+    expect(text).toContain("TVA 10 % (HT 18,18 €)");
+    expect(text).not.toContain("2,05 €");
   });
 
   it("renders TAKEAWAY order type label", () => {

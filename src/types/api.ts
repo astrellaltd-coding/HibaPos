@@ -122,6 +122,10 @@ export type OrderItemDto = {
   unitPrice: number;
   quantity: number;
   lineTotal: number;
+  // Snapshot of the VAT rate at the time of sale (Batch 3.1c). The column has
+  // always existed and checkout has always written it; the DTO simply never
+  // declared it, so no client-side consumer could read it. M-06 is the first.
+  vatRate: number | null;
   optionsJson: string | null;
   addOnsJson: string | null;
   notes: string | null;
@@ -247,6 +251,8 @@ export type ZReportDto = {
   cardTotal: number;
   voucherTotal: number;
   discountsTotal: number;
+  refundsTotal: number; // M-07 (Batch 3.6) — cents given back in the period
+  refundsCount: number;
   openingFloat: number;
   expectedCash: number;
   closingFloat: number;

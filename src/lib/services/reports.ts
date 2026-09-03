@@ -16,6 +16,11 @@ export type SalesReport = {
   cardTotal: number; // cents
   voucherTotal: number; // cents
   discountsTotal: number; // cents
+  // M-07 (Batch 3.6): the period's corrections. A Z report that itemises
+  // sales, VAT and discounts but not refunds does not show what was given
+  // back, and the sealed CLOTURE_Z entry did not record it either.
+  refundsTotal: number; // cents
+  refundsCount: number;
   openingFloat: number; // cents
   expectedCash: number; // cents
   vatBreakdown: VatBreakdown;
@@ -43,6 +48,8 @@ export async function computeShiftReport(shiftId: string): Promise<SalesReport> 
     cardTotal: agg.cardTotal,
     voucherTotal: agg.voucherTotal,
     discountsTotal: agg.discountsTotal,
+    refundsTotal: agg.totalRefunded,
+    refundsCount: agg.refundsCount,
     openingFloat: shift.openingFloat,
     // Cash the drawer should hold: what it opened with, plus cash taken,
     // less cash handed back. Card and voucher refunds never touch it.
@@ -78,6 +85,8 @@ export async function generateZReport(shiftId: string, closingFloat: number, clo
         cardTotal: report.cardTotal,
         voucherTotal: report.voucherTotal,
         discountsTotal: report.discountsTotal,
+        refundsTotal: report.refundsTotal,
+        refundsCount: report.refundsCount,
         openingFloat: report.openingFloat,
         expectedCash: report.expectedCash,
         closingFloat,
@@ -117,6 +126,10 @@ export async function generateZReport(shiftId: string, closingFloat: number, clo
         cardTotal: report.cardTotal,
         voucherTotal: report.voucherTotal,
         discountsTotal: report.discountsTotal,
+        // M-07: sealed with the rest of the close, so the journal entry shows
+        // the day's corrections and not only its takings.
+        refundsTotal: report.refundsTotal,
+        refundsCount: report.refundsCount,
         openingFloat: report.openingFloat,
         expectedCash: report.expectedCash,
         closingFloat,

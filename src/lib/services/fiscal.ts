@@ -255,6 +255,44 @@ async function aggregatePeriod(from: Date, to: Date): Promise<PeriodAgg> {
 // Monthly / annual clôtures (sealed + chained)
 // ---------------------------------------------------------------------------
 
+/**
+ * M-01 (Batch 3.6) — periods must be sealed in order, with no gaps.
+ *
+ * The chain links each close to the one with the highest *period*, and
+ * `verifyCloses` walks the rows sorted by period. Seal 2026-03 and then
+ * 2026-01 and January is chained to March: verification reports a break at
+ * the first row, and because a sealed close can be neither edited nor
+ * deleted, that break is permanent. Reproduced on a copy of the production
+ * database before this guard was written — `{ok:false, firstBreakAt:1}`,
+ * against `{ok:true}` for the same two months sealed in order.
+ *
+ * DD-05, decided by the operator on 2026-09-04: **refuse**, rather than
+ * chaining by insertion order. Refusing keeps `verifyCloses` correct as it
+ * stands, needs no schema change, and — because gaps are impossible — leaves
+ * period order and seal order permanently identical.
+ *
+ * The rule is "exactly the next period", not merely "later than the last
+ * one". Allowing any later period would let January → March through, leaving
+ * February unsealable forever, which is the same hole in a smaller shape.
+ *
+ * The FIRST close is unconstrained: a restaurant adopting the feature in
+ * December must not be made to seal eleven earlier months first.
+ */
+function assertNextPeriod(latest: string | null, period: string, expected: string, kind: "mois" | "exercice") {
+  if (latest === null) return; // nothing sealed yet — any period may start the chain
+  if (period === expected) return;
+  throw new Error(
+    `Clôture hors séquence : le prochain ${kind} à clôturer est ${expected}, pas ${period}. ` +
+      `Les clôtures doivent être scellées dans l'ordre, sans trou.`,
+  );
+}
+
+/** The period that must follow `YYYY-MM`. */
+export function nextMonthlyPeriod(period: string): string {
+  const [y, m] = period.split("-").map(Number);
+  return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
+}
+
 export async function closeMonth(
   year: number,
   month: number,
@@ -264,6 +302,19 @@ export async function closeMonth(
   const period = `${year}-${String(month).padStart(2, "0")}`;
   const existing = await db.monthlyClose.findUnique({ where: { period } });
   if (existing) throw new Error(`Clôture mensuelle déjà effectuée pour ${period}`);
+
+  // M-01: refuse anything but the next period in sequence. Checked before the
+  // aggregation so a rejected attempt costs nothing and writes nothing.
+  const latestMonth = await db.monthlyClose.findFirst({
+    orderBy: { period: "desc" },
+    select: { period: true },
+  });
+  assertNextPeriod(
+    latestMonth?.period ?? null,
+    period,
+    latestMonth ? nextMonthlyPeriod(latestMonth.period) : period,
+    "mois",
+  );
 
   const from = new Date(year, month - 1, 1);
   const to = new Date(year, month, 1);
@@ -323,6 +374,18 @@ export async function closeYear(year: number, sealedById: string, factice = fals
   const period = String(year);
   const existing = await db.annualClose.findUnique({ where: { period } });
   if (existing) throw new Error(`Clôture annuelle déjà effectuée pour ${period}`);
+
+  // M-01: same rule for the annual chain — the next exercice, or the first one.
+  const latestYear = await db.annualClose.findFirst({
+    orderBy: { period: "desc" },
+    select: { period: true, year: true },
+  });
+  assertNextPeriod(
+    latestYear?.period ?? null,
+    period,
+    latestYear ? String(latestYear.year + 1) : period,
+    "exercice",
+  );
 
   const from = new Date(year, 0, 1);
   const to = new Date(year + 1, 0, 1);

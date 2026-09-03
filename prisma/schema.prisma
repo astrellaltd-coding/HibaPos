@@ -456,6 +456,11 @@ model ZReport {
   cardTotal        Int
   voucherTotal     Int
   discountsTotal   Int
+  // M-07 (Batch 3.6): the period's corrections. Defaulted so the two existing
+  // rows migrate without a rewrite — both predate any refund (there are none
+  // in the database at all), so 0 is the true value for them, not a guess.
+  refundsTotal     Int      @default(0)
+  refundsCount     Int      @default(0)
   openingFloat     Int
   expectedCash     Int
   closingFloat     Int
