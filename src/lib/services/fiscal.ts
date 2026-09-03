@@ -7,7 +7,7 @@ import {
   canonicalize,
   computeEventHash,
   computeCloseHash,
-  verifyEvents,
+  verifyEventsChunk,
   verifyCloses,
   type FiscalEventType,
   type ChainVerifyResult,
@@ -118,19 +118,59 @@ export async function addRefundToGrandTotal(tx: Tx, refundAmount: number): Promi
 
 /** Walk the whole fiscal journal and recompute every hash; report the first
  *  break (tamper detection). */
-export async function verifyFiscalChain(): Promise<ChainVerifyResult> {
-  const events = await db.fiscalEvent.findMany({
-    orderBy: { sequence: "asc" },
-    select: {
-      sequence: true,
-      type: true,
-      timestamp: true,
-      dataJson: true,
-      previousHash: true,
-      hash: true,
-    },
-  });
-  return verifyEvents(events);
+export async function verifyFiscalChain(chunkSize = 1000): Promise<ChainVerifyResult> {
+  // M-31 (Batch 2.4): walked in pages instead of loading the whole journal.
+  // The journal is append-only and grows for the life of the business, so a
+  // `findMany` with no `take` was a memory ceiling that arrives silently —
+  // and this runs on a till. Each page carries the previous page's last hash
+  // forward, so the check stays continuous across the seam, and the actual
+  // verification is the same `verifyEventsChunk` the unit tests exercise.
+  let cursorSequence = 0;
+  let previousHash: string | null = null;
+  let eventsChecked = 0;
+  let lastSequence = 0;
+
+  for (;;) {
+    const page = await db.fiscalEvent.findMany({
+      where: { sequence: { gt: cursorSequence } },
+      orderBy: { sequence: "asc" },
+      take: chunkSize,
+      select: {
+        sequence: true,
+        type: true,
+        timestamp: true,
+        dataJson: true,
+        previousHash: true,
+        hash: true,
+      },
+    });
+    if (page.length === 0) break;
+
+    const result = verifyEventsChunk(page, previousHash);
+    eventsChecked += result.checked;
+    if (result.lastSequence) lastSequence = result.lastSequence;
+
+    if (!result.ok) {
+      // Report the true tail sequence so the caller can see how far the
+      // journal actually runs past the break.
+      const tail = await db.fiscalEvent.findFirst({
+        orderBy: { sequence: "desc" },
+        select: { sequence: true },
+      });
+      return {
+        ok: false,
+        eventsChecked,
+        firstBreakAt: result.firstBreakAt,
+        lastSequence: tail?.sequence ?? lastSequence,
+      };
+    }
+
+    previousHash = result.lastHash;
+    cursorSequence = page[page.length - 1].sequence;
+    if (page.length < chunkSize) break;
+  }
+
+  return { ok: true, eventsChecked, firstBreakAt: null, lastSequence };
 }
 
 export async function verifyMonthlyCloses(): Promise<ChainVerifyResult> {

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { withAuth } from "@/lib/api-handler";
 import { round2, sum2 } from "@/lib/money";
+import { parseReportRange, ReportRangeError } from "@/lib/report-range";
 
 // Sales report over a date range, grouped by day.
 export const GET = withAuth(
@@ -9,11 +10,18 @@ export const GET = withAuth(
   const url = new URL(req.url);
   const fromStr = url.searchParams.get("from");
   const toStr = url.searchParams.get("to");
-  const now = new Date();
-  const to = toStr ? new Date(toStr) : now;
-  const from = fromStr ? new Date(fromStr) : new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
-  const fromStart = new Date(from.getFullYear(), from.getMonth(), from.getDate());
-  const toEnd = new Date(to.getFullYear(), to.getMonth(), to.getDate() + 1);
+  // M-31 (Batch 2.4): bounded. These queries pull orders with their items and
+  // payments; an unbounded range on a till is a memory stall mid-service.
+  let fromStart: Date;
+  let toEnd: Date;
+  try {
+    ({ fromStart, toEnd } = parseReportRange(fromStr, toStr));
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof ReportRangeError ? e.message : "Période invalide." },
+      { status: 400 },
+    );
+  }
 
   const orders = await db.order.findMany({
     where: { createdAt: { gte: fromStart, lt: toEnd }, status: { in: ["COMPLETED", "REFUNDED"] } },

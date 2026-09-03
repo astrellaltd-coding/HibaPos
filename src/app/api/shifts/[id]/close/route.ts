@@ -6,6 +6,7 @@ import { generateZReport } from "@/lib/services/reports";
 import { audit } from "@/lib/services/audit";
 import { createBackup } from "@/lib/services/backup";
 import { logTechnical } from "@/lib/services/technical-logger";
+import { pruneLogs } from "@/lib/services/log-retention";
 
 export const POST = withAuthParams(async (req, { user, params }) => {
   const shift = await db.shift.findUnique({ where: { id: params.id } });
@@ -57,6 +58,10 @@ export const POST = withAuthParams(async (req, { user, params }) => {
       user.id,
     );
   }
+
+  // Housekeeping on the once-a-day hook (M-29, Batch 2.4). Bounded tables
+  // only — FiscalEvent is append-only and is never touched.
+  await pruneLogs().catch(() => {});
 
   await audit("SHIFT_CLOSED", "Shift", shift.id, { zReportNumber: z.number, cashVariance }, user.id);
   await audit("Z_REPORT_GENERATED", "ZReport", z.id, { number: z.number, shiftId: shift.id }, user.id);

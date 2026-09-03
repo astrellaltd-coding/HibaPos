@@ -80,23 +80,42 @@ export type ChainVerifyResult = {
 /** Pure chain verification — walks a chronologically-ordered event list and
  *  recomputes each hash, returning the first break. Used by verifyFiscalChain
  *  (DB) and by unit tests (no DB needed). */
-export function verifyEvents(
-  events: {
-    sequence: number;
-    type: string;
-    timestamp: Date;
-    dataJson: string;
-    previousHash: string | null;
-    hash: string;
-  }[],
-): ChainVerifyResult {
+export type ChainEventRow = {
+  sequence: number;
+  type: string;
+  timestamp: Date;
+  dataJson: string;
+  previousHash: string | null;
+  hash: string;
+};
+
+/**
+ * Verify one contiguous slice of the chain, continuing from `previousHash`.
+ *
+ * Split out so the whole journal does not have to be in memory at once
+ * (M-31): the database walker pages through and carries `lastHash` from one
+ * page into the next. `verifyEvents` below is the same algorithm applied to
+ * a single in-memory slice, which is what the unit tests exercise — there is
+ * deliberately only ONE implementation of the check.
+ */
+export function verifyEventsChunk(
+  events: ChainEventRow[],
+  previousHash: string | null,
+): {
+  ok: boolean;
+  checked: number;
+  firstBreakAt: number | null;
+  lastHash: string | null;
+  lastSequence: number;
+} {
   const sorted = [...events].sort((a, b) => a.sequence - b.sequence);
-  const lastSequence = sorted.length ? sorted[sorted.length - 1].sequence : 0;
+  let prev = previousHash;
+  let lastSequence = 0;
+
   for (let i = 0; i < sorted.length; i++) {
     const e = sorted[i];
-    const expectedPrev = i === 0 ? null : sorted[i - 1].hash;
-    if (e.previousHash !== expectedPrev) {
-      return { ok: false, eventsChecked: i, firstBreakAt: e.sequence, lastSequence };
+    if (e.previousHash !== prev) {
+      return { ok: false, checked: i, firstBreakAt: e.sequence, lastHash: prev, lastSequence };
     }
     const recomputed = computeEventHash(
       e.previousHash,
@@ -106,11 +125,33 @@ export function verifyEvents(
       e.dataJson,
     );
     if (recomputed !== e.hash) {
-      return { ok: false, eventsChecked: i, firstBreakAt: e.sequence, lastSequence };
+      return { ok: false, checked: i, firstBreakAt: e.sequence, lastHash: prev, lastSequence };
     }
+    prev = e.hash;
+    lastSequence = e.sequence;
   }
-  return { ok: true, eventsChecked: sorted.length, firstBreakAt: null, lastSequence };
+
+  return {
+    ok: true,
+    checked: sorted.length,
+    firstBreakAt: null,
+    lastHash: prev,
+    lastSequence,
+  };
 }
+
+export function verifyEvents(events: ChainEventRow[]): ChainVerifyResult {
+  const sorted = [...events].sort((a, b) => a.sequence - b.sequence);
+  const lastSequence = sorted.length ? sorted[sorted.length - 1].sequence : 0;
+  const result = verifyEventsChunk(sorted, null);
+  return {
+    ok: result.ok,
+    eventsChecked: result.checked,
+    firstBreakAt: result.firstBreakAt,
+    lastSequence,
+  };
+}
+
 
 /** Pure verification of a clôture (close) sequence — monthly or annual. */
 export function verifyCloses(

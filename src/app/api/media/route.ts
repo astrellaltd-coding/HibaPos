@@ -2,13 +2,65 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { withAuth, parseJson } from "@/lib/api-handler";
 import { z } from "zod";
-import { readdirSync, promises as fs } from "fs";
-import { existsSync, statSync } from "fs";
+import { promises as fs } from "fs";
+import { existsSync } from "fs";
 import path from "path";
 import sharp from "sharp";
 import { uploadsDir as mediaRoot } from "@/lib/paths";
 
 type UsageEntry = { type: string; label: string };
+
+/**
+ * Cached image dimensions, keyed by path + size + mtime.
+ *
+ * `sharp().metadata()` opens and parses each file. The media library is
+ * opened repeatedly and the images almost never change, so the cache key
+ * includes size and mtime: edit or replace a file and it is re-probed,
+ * otherwise the answer is free after the first look.
+ */
+const dimensionCache = new Map<string, { width: number | null; height: number | null }>();
+
+async function imageDimensions(
+  fullPath: string,
+  size: number | null,
+  mtimeMs: number,
+): Promise<{ width: number | null; height: number | null }> {
+  const key = `${fullPath}|${size ?? "?"}|${Math.floor(mtimeMs)}`;
+  const cached = dimensionCache.get(key);
+  if (cached) return cached;
+  let dims: { width: number | null; height: number | null } = { width: null, height: null };
+  try {
+    const meta = await sharp(fullPath).metadata();
+    dims = { width: meta.width ?? null, height: meta.height ?? null };
+  } catch {
+    /* not an image sharp can read */
+  }
+  // Bounded so a pathological uploads folder cannot grow this without limit.
+  if (dimensionCache.size > 2000) dimensionCache.clear();
+  dimensionCache.set(key, dims);
+  return dims;
+}
+
+/** Run an async mapper over items, at most `limit` in flight. */
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (true) {
+      const index = next++;
+      if (index >= items.length) return;
+      results[index] = await fn(items[index]);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
+
 
 async function collectDbImages(): Promise<Map<string, UsageEntry[]>> {
   const [categories, products, choices] = await Promise.all([
@@ -47,49 +99,61 @@ async function collectDbImages(): Promise<Map<string, UsageEntry[]>> {
 export const GET = withAuth(async () => {
   const usageMap = await collectDbImages();
 
-  // Recursively collect all image files under /public/uploads/ (including subfolders)
+  // M-30 (Batch 2.4): the walk used to be readdirSync + statSync, and ran
+  // sharp().metadata() on EVERY file, sequentially, unpaginated. On the real
+  // uploads folder (139 files, 49 MiB) that blocks the Node event loop — so
+  // opening the media library froze the till mid-service. It is now an async
+  // walk, with stats and dimension probes run in bounded parallel and
+  // dimensions cached, because they only change when the file does.
   const uploadsDir = mediaRoot();
 
-  function walkDir(dir: string, base: string): { relativePath: string; fullPath: string }[] {
+  async function walkDir(dir: string, base: string): Promise<{ relativePath: string; fullPath: string }[]> {
     const results: { relativePath: string; fullPath: string }[] = [];
-    if (!existsSync(dir)) return results;
-    for (const entry of readdirSync(dir)) {
-      const fullPath = path.join(dir, entry);
-      const rel = base ? `${base}/${entry}` : entry;
-      try {
-        if (statSync(fullPath).isDirectory()) {
-          results.push(...walkDir(fullPath, rel));
-        } else {
-          results.push({ relativePath: rel, fullPath });
-        }
-      } catch { /**/ }
+    let entries: import("fs").Dirent<string>[];
+    try {
+      entries = (await fs.readdir(dir, { withFileTypes: true })) as import("fs").Dirent<string>[];
+    } catch {
+      return results;
+    }
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      const rel = base ? `${base}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) {
+        results.push(...(await walkDir(fullPath, rel)));
+      } else if (entry.isFile()) {
+        results.push({ relativePath: rel, fullPath });
+      }
     }
     return results;
   }
 
-  const allFiles = walkDir(uploadsDir, "");
+  const allFiles = await walkDir(uploadsDir, "");
 
   // Merge: disk files first (with DB usage info), then DB-only refs (missing files)
   const seen = new Set<string>();
   const items: { url: string; filename: string; folder: string; size: number | null; width: number | null; height: number | null; usedBy: UsageEntry[] }[] = [];
 
-  for (const { relativePath, fullPath } of allFiles) {
-    const url = `/uploads/${relativePath.replace(/\\/g, "/")}`;
+  const probed = await mapWithConcurrency(allFiles, 8, async ({ relativePath, fullPath }) => {
+    const url = `/uploads/${relativePath.split("\\").join("/")}`;
     let size: number | null = null;
-    let width: number | null = null;
-    let height: number | null = null;
-    try { size = statSync(fullPath).size; } catch { /**/ }
+    let mtimeMs = 0;
     try {
-      const meta = await sharp(fullPath).metadata();
-      width = meta.width ?? null;
-      height = meta.height ?? null;
-    } catch { /**/ }
-    // Determine display folder (empty string = root)
-    const parts = relativePath.replace(/\\/g, "/").split("/");
+      const st = await fs.stat(fullPath);
+      size = st.size;
+      mtimeMs = st.mtimeMs;
+    } catch {
+      /* file vanished between walk and stat */
+    }
+    const { width, height } = await imageDimensions(fullPath, size, mtimeMs);
+    const parts = relativePath.split("\\").join("/").split("/");
     const folder = parts.length > 1 ? parts.slice(0, -1).join("/") : "";
     const filename = parts[parts.length - 1];
-    items.push({ url, filename, folder, size, width, height, usedBy: usageMap.get(url) ?? [] });
-    seen.add(url);
+    return { url, filename, folder, size, width, height, usedBy: usageMap.get(url) ?? [] };
+  });
+
+  for (const item of probed) {
+    items.push(item);
+    seen.add(item.url);
   }
 
   // Add DB-referenced images whose file no longer exists on disk

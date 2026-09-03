@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { withAuth } from "@/lib/api-handler";
 import { round2 } from "@/lib/money";
+import { MAX_REPORT_RANGE_DAYS } from "@/lib/report-range";
 
 export const GET = withAuth(
   async (req) => {
@@ -15,6 +16,22 @@ export const GET = withAuth(
 
   const fromDate = new Date(from + "T00:00:00.000Z");
   const toDate = new Date(to + "T23:59:59.999Z");
+
+  // M-31 (Batch 2.4): bound the span. This route uses explicit UTC bounds
+  // rather than local-day boundaries, so it keeps its own dates and only
+  // borrows the limit.
+  if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) {
+    return NextResponse.json({ error: "Dates invalides." }, { status: 400 });
+  }
+  const spanDays = Math.round((toDate.getTime() - fromDate.getTime()) / 86_400_000);
+  if (spanDays > MAX_REPORT_RANGE_DAYS) {
+    return NextResponse.json(
+      {
+        error: `Période trop longue : ${spanDays} jours demandés, maximum ${MAX_REPORT_RANGE_DAYS}. Affinez la période ou utilisez une clôture mensuelle/annuelle.`,
+      },
+      { status: 400 },
+    );
+  }
 
   const items = await db.orderItem.findMany({
     where: {
