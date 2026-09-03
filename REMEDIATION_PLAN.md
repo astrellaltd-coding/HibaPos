@@ -13,15 +13,15 @@ Detailed audit record: https://claude.ai/code/artifact/329316b0-3a6b-48b0-9d27-d
 
 **Current Stage:** Stage 1 — Critical blockers
 
-**Current Batch:** Batch 1.3 — Printing and cash-drawer strategy (`REQUIRES DECISION` — see *Design Decisions Required*)
+**Current Batch:** Batch 1.3 — Printing and cash-drawer strategy (DD-01 answered 2026-09-03: build the ESC/POS bridge now, LAN/TCP:9100)
 
 **Last Completed Batch:** Batch 1.2 — Z-close display unit correction (C-02 fixed, verified pre-fix vs post-fix on a scratch copy of the production database; commit `38d19a2`)
 
-**Next Batch:** Batch 1.3 (blocked on a decision) — Batch 1.4 is the next batch that can start without one
+**Next Batch:** Batch 1.4
 
 **Blocked:** None
 
-**Awaiting decision:** Batch 1.3 (printing/drawer strategy), Batch 5.3 (cross-shift refunds), Batch 5.5 (cash movements), Batch 5.6 (order cancellation) — see *Design Decisions Required*
+**Awaiting decision:** Batch 5.3 (cross-shift refunds), Batch 5.5 (cash movements), Batch 5.6 (order cancellation) — see *Design Decisions Required*
 
 **Last Updated:** 2026-09-03
 
@@ -336,11 +336,11 @@ Audit section J, step 2: the restaurant cannot open without these. The printing/
 
 ## Batch 1.3 — Printing and cash-drawer strategy
 
-**Status:** `REQUIRES DECISION`
+**Status:** `IN PROGRESS` (DD-01 answered 2026-09-03)
 
 ### C-03 — No receipt printing and no cash-drawer capability
 
-**Status:** `REQUIRES DECISION` · Severity: CRITICAL · Category: incomplete functionality / hardware
+**Status:** `IN PROGRESS` · Severity: CRITICAL · Category: incomplete functionality / hardware
 
 **Problem.** Printing is `window.print()` into the OS print dialog. No ESC/POS, serial, USB, raw TCP:9100 or drawer-kick code exists anywhere in the repository.
 
@@ -354,13 +354,19 @@ Audit section J, step 2: the restaurant cannot open without these. The printing/
 
 **Remediation direction (audit).** Either build the native bridge — a small local ESC/POS sidecar over raw TCP or a Windows printer share is far cheaper than the deferred Tauri shell — or agree explicitly with the client that this is not a cash-handling POS.
 
-**Decision required before any code.** See *Design Decisions Required → DD-01*.
+**Decision taken (DD-01, 2026-09-03).** Build the ESC/POS bridge inside the existing Bun/Next server, primary transport **raw TCP to port 9100** over the LAN, behind a transport interface that leaves a Windows-RAW-spooler slot for USB. Rationale recorded with DD-01: the receipt *content* renderer already exists (`renderReceipt()`), so what is missing is transport plus control bytes; a TCP socket is runtime-independent, so the work carries over to the deferred Tauri shell untouched rather than being done twice. Hardware setup (fixed printer IP, drawer wired to the DK port, model confirmed per DOC-15) proceeds in parallel — the batch stays `IMPLEMENTED — TESTING REQUIRED` until real-hardware validation passes.
 
 **Dependencies.** Blocks nothing else technically, but the deployment stage (1.4) and the fiscal-UI batch (3.4) both change shape depending on the answer.
 
 ### Batch 1.3 — Validation Required
 
-*(Cannot be finalised until DD-01 is answered. Provisional criteria for the "build the bridge" branch:)*
+*(Finalised 2026-09-03 following DD-01. Items marked **[HW]** require the physical printer and cannot be satisfied by automated testing — safety rule 13 applies to the fiscal claims, and the audit's own rule applies here: no amount of unit testing substitutes for a real print.)*
+
+- Unit tests for the ESC/POS byte layer: init, codepage selection, alignment, cut, and the drawer-kick sequence, asserted byte-for-byte.
+- Unit tests for the text encoder covering the French repertoire actually used on receipts (é è ê à ç ù û î ô °, and €), including the ASCII-fold fallback for characters the selected code page cannot represent.
+- Unit tests for the TCP transport against a local mock socket, including connect timeout, mid-write failure and printer-unreachable.
+- L-13 resolved: `receiptWidth` semantics settled and the derived column count asserted (80 mm → 48 columns, 58 mm → 32 columns at Font A).
+- A `POST /api/print/test` route that prints a self-test receipt — this is the operator's hardware-commissioning tool.
 
 - Physical print of a real receipt on the target printer, 80 mm, correct character width.
 - Physical drawer kick on cash tender and on the traced manual-open path.
@@ -1684,7 +1690,7 @@ These cannot be resolved from the code. **Claude must not decide them.** Each bl
 
 | ID | Decision | Blocks | Context |
 |---|---|---|---|
-| **DD-01** | **Printing and cash drawer.** Build a native ESC/POS bridge (local sidecar over raw TCP, or a Windows printer share), revive the deferred Tauri shell, or accept that HibaPOS is not a cash-handling POS and adjust the product claim accordingly. | Batch 1.3; shapes 1.4 and 3.4 | The target hardware drives the drawer from the printer's DK port. Nothing else on the remediation list matters as much operationally. |
+| **DD-01** | ~~**Printing and cash drawer.**~~ **ANSWERED 2026-09-03: build the ESC/POS bridge now, in the existing Bun/Next server, primary transport raw TCP to port 9100 over the LAN**, behind a transport interface leaving a Windows-RAW-spooler slot for USB. Not deferred to Tauri. | Batch 1.3 (now `IN PROGRESS`); shapes 1.4 and 3.4 | Decided by the user. Reasoning: `renderReceipt()` already produces the receipt text, so only transport + control bytes are missing; a TCP socket is runtime-independent and carries over to a future Tauri shell untouched, so building now is not throwaway work. Deferring would keep the restaurant on a physical drawer key per cash sale, and would leave the Batch 1.2 cash-variance figure with no drawer accountability behind it. |
 | **DD-02** | **Where does application data live?** `%ProgramData%\HibaPOS\`, a dedicated `C:\HibaPOS\`, or the current install directory? The current path is inside a OneDrive-synced Desktop folder, which locks SQLite files. Under `C:\Program Files\` the app cannot write at all. | Batch 2.2; shapes 1.4 | Every path except `DATABASE_URL` is `process.cwd()`-anchored. |
 | **DD-03** | **Already-sealed rows with the wrong VAT key.** Existing `ZReport` and `MonthlyClose` rows carry `vatBreakdownJson` keyed "6" for 5,5 %. Sealed rows must not be rewritten. Annotate, re-issue, or leave with a documented explanation? | Batch 3.1 | This is a fiscal-record question as much as a technical one — may need V-01. |
 | **DD-04** | **Backup key rotation policy.** Rotating `BACKUP_ENCRYPTION_KEY` orphans every existing backup permanently. Re-encrypt the retained set first, accept the loss, or introduce key versioning before rotating? | Batch 7.3; P-02 | Retention obligations may make discarding old backups unacceptable — see V-04. |
