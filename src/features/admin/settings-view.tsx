@@ -72,6 +72,31 @@ function SettingsForm({ initial }: { initial: SettingsDto }) {
     setForm((f) => ({ ...f, [key]: value }));
   };
 
+  // Printer commissioning (C-03, Batch 1.3). Prints against the SAVED
+  // settings, not the unsaved form — the server reads its own configuration,
+  // so testing an edit that has not been saved would silently test the old
+  // address. Hence the "enregistrez avant de tester" hint next to the button.
+  const [printerTesting, setPrinterTesting] = useState(false);
+
+  const runPrinterTest = async (openDrawer: boolean) => {
+    setPrinterTesting(true);
+    try {
+      const result = await api.post<{ ok: boolean; columns?: number; target?: string }>(
+        "/api/print/test",
+        { openDrawer },
+      );
+      toast.success(
+        openDrawer
+          ? "Page de test envoyée — le tiroir doit s'ouvrir."
+          : `Page de test envoyée (${result.columns ?? "?"} colonnes).`,
+      );
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Échec de l'impression de test.");
+    } finally {
+      setPrinterTesting(false);
+    }
+  };
+
   const canSubmit =
     form.restaurantName.trim().length > 0 && !save.isPending;
 
@@ -189,10 +214,18 @@ function SettingsForm({ initial }: { initial: SettingsDto }) {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="58">58 mm</SelectItem>
-                      <SelectItem value="80">80 mm</SelectItem>
+                      {/* The stored value is a COLUMN count, which is what
+                          renderReceipt lays the ticket out to (L-13). The
+                          label names the paper it corresponds to, because
+                          that is what the operator can actually measure. */}
+                      <SelectItem value="32">58 mm (32 colonnes)</SelectItem>
+                      <SelectItem value="48">80 mm (48 colonnes)</SelectItem>
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Imprimez une page de test pour vérifier que la règle tient
+                    sur une seule ligne.
+                  </p>
                 </div>
                 <div className="flex flex-col gap-1.5 md:col-span-2">
                   <Label htmlFor="s-footer">Note de bas de ticket</Label>
@@ -234,6 +267,62 @@ function SettingsForm({ initial }: { initial: SettingsDto }) {
                   placeholder="Epson TM-m30"
                 />
               </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="p-host">Adresse IP de l&apos;imprimante</Label>
+                  <Input
+                    id="p-host"
+                    value={form.printerHost ?? ""}
+                    onChange={(e) => update("printerHost", e.target.value || null)}
+                    placeholder="192.168.1.50"
+                    inputMode="decimal"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    L&apos;imprimante doit avoir une adresse IP fixe.
+                  </p>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="p-port">Port</Label>
+                  <Input
+                    id="p-port"
+                    type="number"
+                    min={1}
+                    max={65535}
+                    value={form.printerPort ?? 9100}
+                    onChange={(e) => update("printerPort", Number(e.target.value) || 9100)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    9100 sauf configuration particulière.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <input
+                  id="printer-enabled"
+                  type="checkbox"
+                  checked={form.printerEnabled ?? false}
+                  onChange={(e) => update("printerEnabled", e.target.checked)}
+                  className="h-4 w-4 rounded border-border accent-primary"
+                />
+                <Label htmlFor="printer-enabled" className="cursor-pointer text-sm font-normal">
+                  Imprimer les tickets sur l&apos;imprimante thermique
+                </Label>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <input
+                  id="drawer-on-cash"
+                  type="checkbox"
+                  checked={form.openDrawerOnCash ?? true}
+                  onChange={(e) => update("openDrawerOnCash", e.target.checked)}
+                  className="h-4 w-4 rounded border-border accent-primary"
+                />
+                <Label htmlFor="drawer-on-cash" className="cursor-pointer text-sm font-normal">
+                  Ouvrir le tiroir-caisse lors d&apos;un paiement en espèces
+                </Label>
+              </div>
+
               <div className="flex items-center gap-3">
                 <input
                   id="auto-print"
@@ -243,8 +332,37 @@ function SettingsForm({ initial }: { initial: SettingsDto }) {
                   className="h-4 w-4 rounded border-border accent-primary"
                 />
                 <Label htmlFor="auto-print" className="cursor-pointer text-sm font-normal">
-                  Impression automatique du ticket après encaissement
+                  Ouvrir aussi la boîte d&apos;impression du navigateur
                 </Label>
+              </div>
+
+              <Separator />
+
+              <div className="flex flex-wrap items-center gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => runPrinterTest(false)}
+                  disabled={printerTesting}
+                >
+                  {printerTesting ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Printer className="h-4 w-4" />
+                  )}
+                  Imprimer une page de test
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => runPrinterTest(true)}
+                  disabled={printerTesting}
+                >
+                  Tester le tiroir-caisse
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  Enregistrez les réglages avant de tester.
+                </p>
               </div>
             </CardContent>
           </Card>

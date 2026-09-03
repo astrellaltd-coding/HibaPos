@@ -179,6 +179,21 @@ export function PaymentDialog({
       });
 
       toast.success(`Commande #${order.number} encaissée`);
+
+      // Print the ticket (C-03, Batch 1.3). Deliberately fire-and-report
+      // AFTER the sale is committed and never awaited into the failure path:
+      // the order, its payments and its VENTE fiscal event already exist, so
+      // a printer that is offline must cost the cashier a warning, not the
+      // sale. Whether the drawer opens is decided server-side from the
+      // order's own payments, not from here.
+      void api
+        .post<{ printed: boolean; message?: string }>(`/api/orders/${order.id}/print`, {})
+        .then((result) => {
+          if (!result.printed && result.message) toast.warning(result.message);
+        })
+        .catch(() => {
+          toast.warning("Le ticket n'a pas pu être imprimé. Utilisez « Réimprimer ».");
+        });
       // Invalidate the queries that depend on orders being created. Until
       // now the dashboard/orders list could lag up to 60s after a checkout.
       qc.invalidateQueries({ queryKey: ["orders"] });
