@@ -526,7 +526,7 @@ model TechnicalLog {
 model FiscalEvent {
   id           String   @id @default(cuid())
   sequence     Int      @unique // gapless monotonic journal sequence
-  type         String   // VENTE | ANNULATION | REMBOURSEMENT | CLOTURE_Z | CLOTURE_M | CLOTURE_A | OUVERTURE_TIROIR | REIMPRESSION | SESSION_OPEN | SESSION_CLOSE | SESSION_LOCK | ARCHIVE_GENEREE
+  type         String   // VENTE | ANNULATION | REMBOURSEMENT | CLOTURE_Z | CLOTURE_M | CLOTURE_A | OUVERTURE_TIROIR | REIMPRESSION | SESSION_OPEN | SESSION_CLOSE | SESSION_LOCK | ARCHIVE_GENEREE | RESTAURATION | SUPPRESSION_SAUVEGARDE
   orderId      String?
   refundId     String?
   zReportId    String?

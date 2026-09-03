@@ -16,7 +16,12 @@ export type FiscalEventType =
   | "SESSION_OPEN"
   | "SESSION_CLOSE"
   | "SESSION_LOCK"
-  | "ARCHIVE_GENEREE";
+  | "ARCHIVE_GENEREE"
+  // C-22 (Batch 2.1): a restore replaces the whole database and a backup
+  // deletion destroys a recovery path. Both are journalled, because the
+  // attestation claims no path exists to delete or modify sealed records.
+  | "RESTAURATION"
+  | "SUPPRESSION_SAUVEGARDE";
 
 /** Deterministic JSON serialization: object keys sorted recursively, no
  *  insignificant whitespace. The same logical payload always yields the same
