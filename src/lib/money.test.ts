@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { round2, addToVatBreakdown, splitVat, sum2, toCents, fromCents, type VatBreakdown } from "./money";
+import { round2, addToVatBreakdown, splitVat, sum2, toCents, fromCents, parseEuroInput, type VatBreakdown } from "./money";
 
 describe("toCents and fromCents", () => {
   it("converts euro decimals to exact cents", () => {
@@ -77,5 +77,78 @@ describe("sum2 (cents)", () => {
   it("sums integer cents exactly", () => {
     expect(sum2([111, 222])).toBe(333);
     expect(sum2([100, 200, 350])).toBe(650);
+  });
+});
+
+// C-01 (Batch 1.1) — the refund dialog is a EUROS input whose value reaches
+// the API, the Refund row and the REMBOURSEMENT fiscal event as integer
+// CENTS. Before the fix, "5" typed into that field refunded 0,05 € and
+// "5,50" was rejected by the server as a non-integer. These tests pin the
+// euros→cents boundary the dialog now goes through.
+describe("parseEuroInput (euros → cents input boundary)", () => {
+  it("reads whole euros as cents, not as cents-as-typed", () => {
+    expect(parseEuroInput("5")).toBe(500);
+    expect(parseEuroInput("12")).toBe(1200);
+    expect(parseEuroInput("200")).toBe(20000);
+  });
+
+  it("accepts the French decimal comma", () => {
+    expect(parseEuroInput("5,50")).toBe(550);
+    expect(parseEuroInput("12,50")).toBe(1250);
+    expect(parseEuroInput("0,05")).toBe(5);
+    expect(parseEuroInput("0,01")).toBe(1);
+  });
+
+  it("accepts a dot decimal separator identically", () => {
+    expect(parseEuroInput("5.50")).toBe(550);
+    expect(parseEuroInput("12.50")).toBe(1250);
+    expect(parseEuroInput("0.05")).toBe(5);
+  });
+
+  it("tolerates surrounding and fr-FR grouping whitespace", () => {
+    expect(parseEuroInput("  5,50  ")).toBe(550);
+    expect(parseEuroInput("1 250,50")).toBe(125050);
+    expect(parseEuroInput("1 250,50")).toBe(125050);
+    expect(parseEuroInput("1 250,50")).toBe(125050);
+  });
+
+  it("returns exact cents for amounts that float arithmetic would drift on", () => {
+    expect(parseEuroInput("0,29")).toBe(29);
+    expect(parseEuroInput("1,15")).toBe(115);
+    expect(parseEuroInput("8,35")).toBe(835);
+    expect(parseEuroInput("11,45")).toBe(1145);
+    expect(parseEuroInput("1234,56")).toBe(123456);
+  });
+
+  it("rounds beyond two decimals to the nearest cent", () => {
+    expect(parseEuroInput("5,555")).toBe(556);
+    expect(parseEuroInput("5,554")).toBe(555);
+  });
+
+  it("returns null for input that is not a usable number", () => {
+    expect(parseEuroInput("")).toBeNull();
+    expect(parseEuroInput("   ")).toBeNull();
+    expect(parseEuroInput("abc")).toBeNull();
+    expect(parseEuroInput("5€")).toBeNull();
+    expect(parseEuroInput("5,5,5")).toBeNull();
+    expect(parseEuroInput("5.5.5")).toBeNull();
+    expect(parseEuroInput("-5")).toBeNull();
+    expect(parseEuroInput(".")).toBeNull();
+  });
+
+  it("parses zero as 0 and leaves the zero policy to the caller", () => {
+    // A refund of 0 is rejected by its caller; an opening float of 0 is legal.
+    expect(parseEuroInput("0")).toBe(0);
+    expect(parseEuroInput("0,00")).toBe(0);
+  });
+
+  it("round-trips a pre-filled full refund back to the exact maximum", () => {
+    // openRefund() pre-fills fromCents(maxRefund).toFixed(2); confirming
+    // without editing must reproduce maxRefund to the cent, or the refund is
+    // rejected as exceeding the maximum (or silently under-refunds).
+    for (const maxRefundCents of [1, 5, 99, 100, 550, 1250, 4999, 10000, 123456]) {
+      const prefilled = fromCents(maxRefundCents).toFixed(2);
+      expect(parseEuroInput(prefilled)).toBe(maxRefundCents);
+    }
   });
 });

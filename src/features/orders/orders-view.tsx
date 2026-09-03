@@ -62,6 +62,7 @@ import { ManagerApprovalDialog, type ApprovedManager } from "@/components/pos/ma
 import type { SettingsDto } from "@/types/api";
 // uuid replaced with built-in crypto.randomUUID()
 import { formatEuro, formatDateTime, formatRelativeDateTime } from "@/lib/format";
+import { fromCents, parseEuroInput } from "@/lib/money";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -210,19 +211,23 @@ export function OrdersView() {
   const maxRefund = detail ? Math.max(0, detail.total - alreadyRefunded) : 0;
 
   function openRefund() {
-    setRefundAmount(maxRefund > 0 ? maxRefund.toFixed(2) : "");
+    // The input is a EUROS field (its label reads "Montant (€)"); maxRefund
+    // is in CENTS like every other amount in the DTO. Pre-fill euros.
+    setRefundAmount(maxRefund > 0 ? fromCents(maxRefund).toFixed(2) : "");
     setRefundReason("");
     setRefundOpen(true);
   }
 
   function submitRefund() {
     if (!selectedId) return;
-    const amount = Number(refundAmount.replace(",", "."));
-    if (!Number.isFinite(amount) || amount <= 0) {
+    // Euros in (operator types "5,50"), integer cents out — the API, the
+    // Refund row and the REMBOURSEMENT fiscal event are all in cents.
+    const amountCents = parseEuroInput(refundAmount);
+    if (amountCents === null || amountCents <= 0) {
       toast.error("Montant invalide.");
       return;
     }
-    if (amount > maxRefund + 0.01) {
+    if (amountCents > maxRefund) {
       toast.error(`Le montant ne peut pas dépasser ${formatEuro(maxRefund)}.`);
       return;
     }
@@ -233,7 +238,10 @@ export function OrdersView() {
     // Require manager approval for refunds — open the PIN dialog. The signed
     // approvalToken returned by it is forwarded to the server-side refund POST;
     // the server REJECTS refunds from cashiers without a valid token.
-    setPendingRefund({ amount, reason: refundReason.trim(), method: refundMethod });
+    // amount is in CENTS from here on: it is both POSTed to the refund route
+    // and HMAC-bound into the manager approval token, which the server
+    // verifies against the same cent value (lib/approvals.ts).
+    setPendingRefund({ amount: amountCents, reason: refundReason.trim(), method: refundMethod });
     setApprovalOpen(true);
   }
 
