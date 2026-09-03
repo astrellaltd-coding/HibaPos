@@ -15,9 +15,9 @@ Detailed audit record: https://claude.ai/code/artifact/329316b0-3a6b-48b0-9d27-d
 
 **Current Batch:** Batch 3.1c — Category-level VAT rates · `NOT STARTED`
 
-**Last Completed Batch:** Batch 3.1b — FACTICE simulation switch (L-18). Its manual run found **L-20**, which blocks the operator from saving *any* setting on the live install and needs a decision.
+**Last Completed Batch:** Batch 3.1d — Settings screen unblocked (L-20; commit `be9efa1`). The operator can configure the till again.
 
-**Next Batch:** Batch 3.1c (category-level VAT — this is where the drinks are corrected), then Batch 3.2. **L-20 should be considered first** — see *Newly Discovered Issues*. **Batch 1.4 is unblocked in design** (DD-02 answered) but still deferred on hardware — see *Hardware-dependent validation* below.
+**Next Batch:** Batch 3.1c (category-level VAT — this is where the drinks are corrected), then Batch 3.2. **Batch 1.4 is unblocked in design** (DD-02 answered) but still deferred on hardware — see *Hardware-dependent validation* below.
 
 **Blocked:** Batch 1.3 `[HW]` sign-off and Batch 1.4 — both need the app running on the restaurant's POS machine, which is in a different country from the developer and has no copy of the app installed (decision of 2026-09-03).
 
@@ -50,8 +50,8 @@ real till until an action below is taken. Do not report them as delivered.
 | Action | Why it matters | Related |
 |---|---|---|
 | ~~Push to `origin/main`~~ **DONE** | Verified 2026-09-03 (session 3): `git fetch` then `git rev-list --left-right --count origin/main...HEAD` → `0  0`. `origin/main` was already at `d31c8c9`, identical to local HEAD. The session-2 note was stale. Claude still cannot push, so **new** commits from this session need the same treatment. | P-01 |
-| Correct `printerName` in Réglages | Stored value is `"Epson TM-m30"`; the physical printer is the **Sunso WTP-801** (Ethernet), confirmed 2026-09-03. Cosmetic — nothing reads it. | DOC-15 |
-| Save `receiptWidth` as **48** in Réglages | Stored value is still `80`. Printing is already correct because `normalizeReceiptColumns()` maps 80 mm → 48 columns on read, but the stored value should say what it means. | L-13 |
+| Correct `printerName` in Réglages | Stored value is `"Epson TM-m30"`; the physical printer is the **Sunso WTP-801** (Ethernet), confirmed 2026-09-03. Cosmetic — nothing reads it. **This was impossible until Batch 3.1d** — the whole settings form was rejected (L-20). It now saves. | DOC-15 |
+| ~~Save `receiptWidth` as **48** in Réglages~~ **NO LONGER NEEDED** — Batch 3.1d normalises it on read (so `renderReceipt` also stopped emitting 80-column text) and the row corrects itself at the operator's next save of anything. | L-13, L-20 |
 | Choose a second volume for backups | See A. | C-06 |
 | ~~Answer **DD-03**~~ **ANSWERED** 2026-09-03 — *not applicable*, no row was ever affected. | Batch 3.1 is now COMPLETED. | C-12 |
 | **Set the 17 drinks to 5,5 %** | Approved 2026-09-03 ("you authorise, I apply"), but it must wait for Batch 3.1c to build the control. Until then the restaurant would over-declare VAT on every drink. | L-16 |
@@ -77,6 +77,7 @@ Batch 1.4, and Batch 8.2.
 - **Batch 8.0 / P-04** (pre-go-live fiscal reset) must run **after** 1.3 and
   1.4 — otherwise commissioning puts fresh test sales into the journal that
   was just reset.
+- **Batch letters are labels, not an order.** Stage 3 ran 3.1 → 3.1b → **3.1d** → 3.1c. 3.1d was defined after 3.1c but run before it, because L-20 froze the settings screen and 3.1c adds a VAT selector to that same surface. Nothing was renumbered: the finding index maps `C-10 → 3.2`, `C-16 → 3.3` and so on, and renumbering would break every cross-reference.
 - **L-14** is unresolved by choice: receipts archived before Batch 2.2 are 80
   columns wide and will wrap when reprinted on 48-column paper. They must
   **not** be re-rendered — an archived receipt is immutable.
@@ -857,6 +858,50 @@ Runs **after 3.1 and before 3.1c**, so that any manual testing done while 3.1c i
 **(4) The manual run earned its keep — it found two defects no unit test could reach.** **L-20**: `PUT /api/settings` returns **400 "Too big: expected number to be <=48"** for the settings as they are actually stored, because `receiptWidth` is still the legacy `80`. The settings screen therefore **cannot be saved at all** on the live install until the width selector is re-picked. **L-21**: a receipt rendered at 48 columns still contains a 56-character line — the restaurant's real address — because `renderReceipt()` centres but never wraps. Both recorded, neither fixed (safety rule 10).
 
 **(5) Incidental confirmation of Batch 2.3.** The scratch database sat under `…/Temp/claude/C--Users-einer-OneDrive-Desktop-…` and acquired `-wal`/`-shm` files, i.e. WAL was applied. That is the whole-path-segment cloud-sync guard from Batch 2.3 working: the earlier substring version would have falsely refused WAL on this exact path.
+
+---
+
+## Batch 3.1d — Settings screen unblocked
+
+**Status:** `COMPLETED` (2026-09-03) · Approved by the operator 2026-09-03 · Addresses **L-20**
+
+**Ran before Batch 3.1c** despite the later letter: L-20 froze the settings screen, and 3.1c adds a VAT selector to that same surface.
+
+**Problem.** Batch 1.3 (L-13) made `receiptWidth` a COLUMN count and tightened `settingsSchema` to `min(32).max(48)`. The live row still held the legacy millimetre value `80`, and `getSettings()` returned it raw — so the form loaded 80, PUT it straight back, and the server rejected the **entire payload** with `400 Too big: expected number to be <=48`. Every setting was frozen, not only the width.
+
+**Scope.** Normalise `receiptWidth` on the settings read path, and make an explicit save persist the repair. Nothing else.
+
+### Batch 3.1d — Validation Required
+
+- Targeted test: a stored `80` reads as `48`; a stored `58` reads as `32`; an in-range value is untouched.
+- Targeted test: **`settingsSchema.safeParse(await getSettings())` succeeds with a legacy row** — the operator's exact failure.
+- Targeted test: an unrelated setting (DOC-15's `printerName`) can be changed while a legacy width row exists.
+- Targeted test: a read does **not** rewrite the stored row.
+- Targeted test: a save **does** persist the corrected width.
+- Targeted test: `renderReceipt()` fed `getSettings()` output rules at 48 columns, not 80.
+- `bun test src` — PASS. `bun run typecheck` — PASS. `bun run lint` — PASS. `bun run build` — PASS.
+
+### Batch 3.1d — Status Record
+
+**Status:** `COMPLETED` · **Completed:** 2026-09-03
+
+**Changes:** **(1) Read path.** `getSettings()` now passes `receiptWidth` through the existing `normalizeReceiptColumns()`, whose own doc comment already described itself as "what the settings UI should offer" — it had simply never been wired into the settings read path, only into `printer.ts:134`. Normalising in the service rather than in the route repairs **both** readers at once: the settings form, and `renderReceipt()`, which uses the value directly as its column count (`receipt.ts:8`) and was therefore still emitting **80-column receipt text** for a 48-column printer. That is new receipts, not only the archived ones L-14 covers. **(2) Write path — found by this batch's own test.** `saveSettings()` compared each key against `getSettings()`. Once the read was repaired, the value equalled itself, so the row would never be corrected: `receiptWidth` would read as 48 forever while the database went on saying 80. It now compares against **what is actually stored**. A save is an explicit operator action and the right moment to persist the repair, so the legacy value corrects itself on the first save and nobody has to know to re-pick the width in the selector. Reads still never mutate settings (Batch 1.3's policy). A key with no row is written once and skipped thereafter, so the write amplification the original comment guarded against is one-time, not per-save.
+
+**Files:** `src/lib/services/settings.ts`, `src/lib/services/settings.test.ts` (new)
+
+**Tests:** `bun test src` — **279/279 PASS** (baseline 271 + 8 new). `bun run typecheck` — PASS. `bun run lint` — PASS. `bun run build` — compiled successfully. **6 of the 8 new tests fail against the pre-fix code**, including the GET → PUT round-trip that reproduces the operator's exact failure; the 2 that pass describe behaviour that was already correct (in-range values untouched, reads do not mutate). Verified by temporarily reverting both halves and re-running.
+
+**Commit:** `be9efa1` + this plan update.
+
+**Notes:**
+
+**(1) Verified against the real data, not only fixtures.** A copy of `db/custom.db` was taken and `getSettings()` run against it with `DATABASE_URL` pointed at the copy: stored row `80` → `getSettings()` `48` → `settingsSchema.safeParse` **accepted** → the DOC-15 `printerName` correction also **accepted**. Production database untouched (`3f925bf4…`).
+
+**(2) Two OPEN THREADS operator items are now unblocked** — and one of them is obsolete. Correcting `printerName` to the Sunso WTP-801 (DOC-15) is now possible; it was not before. Saving `receiptWidth` as 48 **no longer needs doing by hand**: the value reads as 48 everywhere and the row corrects itself on the operator's next save of anything.
+
+**(3) Found by manual validation, not by a test — which is the point.** L-20 was invisible to the entire unit suite because no test ever composed `getSettings()` with `settingsSchema`. The batch adds exactly that composition as a permanent regression test.
+
+**(4) L-21 and L-22 were left alone** (safety rule 10). L-21 (receipts do not wrap a long address) touches `renderReceipt`, a fiscal-artifact renderer with a snapshot test, and deserves its own consideration rather than riding along here.
 
 ---
 
@@ -2036,7 +2081,8 @@ Record anything found *during* remediation that is outside the current batch's s
 
 | ID | Date | Found during | Description | Severity | Assigned to batch |
 |---|---|---|---|---|---|
-| **L-20** | 2026-09-03 | Batch 3.1b manual validation | **The Réglages screen cannot be saved at all on the live install.** `Setting.receiptWidth` still holds the legacy millimetre value `80`. Batch 1.3 (L-13) tightened `settingsSchema` to `z.number().int().min(32).max(48)` and `getSettings()` returns the stored value raw, so the form loads 80 and PUTs it straight back: **`PUT /api/settings` → 400 "Too big: expected number to be <=48"**. Reproduced on a scratch copy of the production database. `normalizeReceiptColumns()` already exists but runs only in the receipt renderer, not on the settings read path. Consequences: **every** settings change is blocked — including the two operator actions this plan already asks for (correcting `printerName` per DOC-15, and saving `receiptWidth` as 48) — and the operator sees an untranslated English zod message in a French UI. Workaround: re-pick the width in the selector before saving anything, which is not discoverable (the selector renders blank because 80 matches no option). Candidate fix: normalise on read in `getSettings()`, as the renderer already does. | **HIGH** (live install; blocks all configuration) | needs a decision — suggest a small batch before 3.1c |
+| **L-22** | 2026-09-03 | Batch 3.1d | **Validation errors reach the French UI as untranslated English zod messages.** `settings/route.ts` returns `parsed.error.issues[0]?.message`, and `settingsSchema` defines custom messages for only a few fields, so the operator saw `Too big: expected number to be <=48` (L-20). That specific message is now unreachable, but any other out-of-range settings value produces the same class of output. Applies to other schemas in `validation.ts` too. | LOW (operator-facing text) | 7.1 or 3.4 |
+| **L-20** ✅ **RESOLVED in Batch 3.1d** (`be9efa1`) | 2026-09-03 | Batch 3.1b manual validation | **The Réglages screen cannot be saved at all on the live install.** `Setting.receiptWidth` still holds the legacy millimetre value `80`. Batch 1.3 (L-13) tightened `settingsSchema` to `z.number().int().min(32).max(48)` and `getSettings()` returns the stored value raw, so the form loads 80 and PUTs it straight back: **`PUT /api/settings` → 400 "Too big: expected number to be <=48"**. Reproduced on a scratch copy of the production database. `normalizeReceiptColumns()` already exists but runs only in the receipt renderer, not on the settings read path. Consequences: **every** settings change is blocked — including the two operator actions this plan already asks for (correcting `printerName` per DOC-15, and saving `receiptWidth` as 48) — and the operator sees an untranslated English zod message in a French UI. Workaround: re-pick the width in the selector before saving anything, which is not discoverable (the selector renders blank because 80 matches no option). Candidate fix: normalise on read in `getSettings()`, as the renderer already does. | **HIGH** (live install; blocks all configuration) | needs a decision — suggest a small batch before 3.1c |
 | **L-21** | 2026-09-03 | Batch 3.1b manual validation | **`renderReceipt()` centres but never wraps, so an over-long field overflows the paper.** A receipt rendered at the corrected 48 columns still contained a **56-character** line: the restaurant's real address, `23 Grande Rue 45210, 45210 Ferrières-en-Gâtinais, France`. On 48-column paper that wraps mid-address on every ticket. Distinct from L-14, which is about *archived* 80-column receipts — this is new output at the correct width. Affects any long `restaurantAddress`, `restaurantName` or `footerNote`. | MEDIUM (every printed ticket, once the printer is live) | 3.4 or with L-20 |
 | **L-16** | 2026-09-03 | Batch 3.1 (DD-03 investigation) | **All 17 real cans and bottles are stored at 10 % where the operator states 5,5 % applies.** `Canette` (13 products at 1,50 €) and `Bouteilles` (4 at 3,50 €) are all `vatRate = 10`; so are all 78 products in the catalogue. Unlike the trading data, **the menu is real** — so this is a live error in production data, not a test artifact. At the fixed TTC prices it over-declares ≈ 6 c per can and ≈ 14 c per bottle, money owed to the restaurant rather than the state, on every drink sold from opening day. Caused by L-17: the interface offers no way to set the rate for these products. | **HIGH** (real data, real money, from day one) | 3.1c — operator authorised the change 2026-09-03; classification is V-14 |
 | **L-17** | 2026-09-03 | Batch 3.1 (DD-03 investigation) | **The VAT switch matches the immediate category's name and never walks to the parent.** `products-view.tsx:498` shows the "Bouteille / Canette" 5,5 % toggle only when the selected category's name contains `"boisson"`. `Canette` and `Bouteilles` are **children of** `Boissons`, so it never renders for them — and it is the only VAT control in the product form. Every other category-inherited property resolves `product.category?.parent ?? product.category` (`pricing.ts:71`); this one does not. The form already has the full tree loaded, so it is a one-line inconsistency with an established convention, not a missing capability. | **HIGH** (blocks any fix for L-16) | 3.1c |
@@ -2058,6 +2104,7 @@ Record anything found *during* remediation that is outside the current batch's s
 | 0.1 | COMPLETED | 2026-09-03 | `e97a3e1` | C-26, C-26b: anchored 4 bare `.gitignore` patterns; recovered 3 untracked backup API route files into version control. |
 | 0.2 | COMPLETED | 2026-09-03 | *(this update)* | P-01/P-02/P-03: repo pushed to `origin/main` (user, interactive), `.env` confirmed preserved out-of-band by user, pre-remediation snapshot + fiscal/row-count baseline recorded. No code changes. |
 | 1.1 | COMPLETED | 2026-09-03 | `4766ceb` | C-01: refund dialog made a euros boundary (`parseEuroInput()` in `money.ts`, pre-fill + submit + max-check in `orders-view.tsx`). 9 new tests; 145/145. Validated end-to-end on a scratch copy of the production DB — 5,00 € → 500, 5,50 € → 550, full refund → 690, fiscal chain ok. Production DB untouched. |
+| 3.1d | COMPLETED | 2026-09-03 | `be9efa1` | L-20: the Réglages screen could not be saved at all — the legacy `receiptWidth = 80` failed the max-48 schema Batch 1.3 introduced, so every settings change was rejected, including the two operator actions this plan asks for by hand. `getSettings()` now normalises through the existing `normalizeReceiptColumns()`, which also stops `renderReceipt()` emitting 80-column text for 48-column paper. `saveSettings()` now compares against the stored row, so the legacy value corrects itself on the next save instead of reading as 48 forever while the database says 80. 8 new tests, 6 of which fail on the pre-fix code; verified against a copy of the production database. Recorded L-22. 279/279. |
 | 3.1b | COMPLETED | 2026-09-03 | `8a8a09a` | L-18: exposed FACTICE simulation mode, which was wired into all eight fiscal write paths and into renderReceipt() but had no control anywhere, so development sales were journalled as genuine. One card in Réglages, amber while active. 10 new tests covering both directions (the OFF direction is what must hold at the first real sale) plus a pin that `factice` stays out of the hashed payload. Validated end-to-end on a scratch copy: setting persisted and audited, survived a reload, and a real checkout produced FiscalEvent factice=1 and a receipt stamped FACTICE — SIMULATION / TICKET NON VALABLE. Production DB untouched. The manual run found **L-20** (settings screen unsaveable on the live install) and **L-21** (receipts do not wrap a long address). 271/271. |
 | 3.1 | COMPLETED | 2026-09-03 | `2d7e996` | C-12: VAT breakdown keyed by the exact rate (new `vatRateKey()`) instead of `Math.round`, so 5,5 % is no longer filed as "6 %" and 2,1 % no longer collapses to "2". Minimal form (`"5.5"`, `"10"`) keeps both existing ZReport rows byte-identical. **DD-03 closed as not applicable** — the `"6"` key has never been written anywhere in this project's history, and the operator confirmed all trading data is test data awaiting P-04. 8 new tests, the 5 behavioural ones proved to fail on the pre-fix code; all four consumers round-tripped; canonicalize() confirmed order-independent. Production DB read-only throughout. 261/261. Recorded L-16/L-17 (drinks at the wrong rate, and the UI that prevents fixing them), L-18, L-19. |
 | 2.4 | COMPLETED | 2026-09-03 | `f9fd5cc` | M-29/M-30/M-31/L-04/L-05: removed a 297 MB standalone tree holding a copy of every secret and dropped `output: standalone`; log retention on the Z close (FiscalEvent never pruned); media library 778 ms → 43 ms; report ranges bounded to 370 days; chain verification walks in pages. 253/253. |
