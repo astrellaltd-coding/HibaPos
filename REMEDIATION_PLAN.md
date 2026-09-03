@@ -55,7 +55,7 @@ real till until an action below is taken. Do not report them as delivered.
 | Choose a second volume for backups | See A. | C-06 |
 | ~~Answer **DD-03**~~ **ANSWERED** 2026-09-03 — *not applicable*, no row was ever affected. | Batch 3.1 is now COMPLETED. | C-12 |
 | **Set the 17 drinks to 5,5 %** | Approved 2026-09-03 ("you authorise, I apply"), but it must wait for Batch 3.1c to build the control. Until then the restaurant would over-declare VAT on every drink. | L-16 |
-| Confirm 5,5 % with whoever files the TVA | The operator instructed 5,5 % for sealed cans/bottles on 2026-09-03. Claude applies that instruction; it does not certify it (safety rule 13). | V-14 |
+| ~~Confirm 5,5 % with whoever files the TVA~~ **DETERMINED** 2026-09-03 by the operator's own research — 10 % standard, 5,5 % sealed cans/bottles, no alcohol sold. Recorded under *VAT rate policy*; nothing is blocked on it. | V-14 |
 
 #### C. Waiting on hardware / deployment
 
@@ -787,6 +787,34 @@ Audit section J, step 4: before the first Z report you would show an inspector. 
 
 ---
 
+## VAT rate policy (operator determination, 2026-09-03)
+
+Recorded here once because Batches 3.1c, 3.2 and 8.1 all depend on it. This is
+the **operator's determination**, not a fiscal reference and not a Claude
+conclusion — see V-14 and safety rule 13.
+
+**Two rates are in use at this restaurant:**
+
+| | Rate |
+|---|---|
+| Everything sold for consumption — food of every kind, and a drink served poured into a cup | **10 %** |
+| A drink sold in a **sealed can or bottle** — the container is the criterion, not the drink | **5,5 %** |
+
+**The restaurant sells no alcohol**, so 20 % is not currently used by any
+product. It stays reachable in the interface anyway — making a needed rate
+unselectable is precisely the defect L-17 records.
+
+**The criterion is the container.** That matters for the data design in 3.1c:
+`Canette` and `Bouteilles` *are* the sealed-container categories, so the 5,5 %
+belongs on those two, while their parent `Boissons` stays on the 10 % default.
+Placing it on the parent instead would encode "all drinks are 5,5 %", which
+this determination says is false — a cup drink added later under `Boissons`
+would silently inherit the wrong rate.
+
+Nothing else in the catalogue changes: all 61 non-drink products stay at 10 %.
+
+---
+
 ## Batch 3.1b — FACTICE simulation switch
 
 **Status:** `NOT STARTED` · Approved by the operator 2026-09-03 · Addresses **L-18**
@@ -825,10 +853,10 @@ Runs **after 3.1 and before 3.1c**, so that any manual testing done while 3.1c i
 **Design (DD-17).** Follow the pattern the codebase already uses for options and add-ons rather than inventing one:
 - `Category.vatRate` — optional. Resolved **nearest-wins**: the product's own category, then its parent, then the default. Same walk as `pricing.ts:71`.
 - `Product.inheritCategoryVat` — a per-product flag mirroring the existing `inheritCategoryGlobals`. Existing products default to **off**, keeping their stored rate, so the migration changes no behaviour on its own.
-- The selector offers **20 % / 10 % / 5,5 % / 2,1 %** only, replacing the free `z.number().min(0).max(100)` on the product path. This makes a whole class of mistake unreachable, including re-creating a "6 %".
-- Sub-categories may override a parent, so a future *Boissons chaudes* (poured, immediate consumption, 10 %) is expressible.
+- The selector offers a **fixed list of rates**, replacing the free `z.number().min(0).max(100)` on the product path. This makes a whole class of mistake unreachable, including re-creating a "6 %". The list must keep **20 %** reachable even though nothing uses it today — an unselectable rate that is later needed is exactly the L-17 defect.
+- Sub-categories may override a parent, so a *Boissons* child holding cup drinks at 10 % is expressible alongside `Canette` at 5,5 %.
 
-**The data change — operator-authorised, not Claude's judgement.** Set `Boissons` to 5,5 % and switch the 17 cans/bottles to inherit. The other 61 products keep their explicit 10 %, which is correct for food and is the smallest possible change to real menu data. **Before touching anything:** a full backup, verified openable with `scripts/decrypt-backup.ts`, and the whole change rehearsed on a scratch copy first. Recorded as an operator decision of 2026-09-03; whether 5,5 % is the right classification is **V-14**, not a Claude determination (safety rule 13).
+**The data change — operator-authorised, not Claude's judgement.** Set **`Canette` and `Bouteilles`** to 5,5 % and switch their 17 products to inherit; leave `Boissons` on the 10 % default, per *VAT rate policy* above — the fiscal criterion is the sealed container, and those two category names are exactly that criterion. The other 61 products keep their explicit 10 %, which is correct for food and is the smallest possible change to real menu data. **Before touching anything:** a full backup, verified openable with `scripts/decrypt-backup.ts`, and the whole change rehearsed on a scratch copy first. Recorded as an operator decision of 2026-09-03; whether 5,5 % is the right classification is **V-14**, not a Claude determination (safety rule 13).
 
 ### Batch 3.1c — Validation Required
 
@@ -1938,7 +1966,7 @@ The repository ships `docs/attestation-conformite.md`, a fill-in-and-sign editor
 | **V-02** | `REQUIRES EXTERNAL VERIFICATION` | Does the annual archive format satisfy the archiving requirement, and what integrity property must its checksum actually have? (C-04) |
 | **V-03** | `REQUIRES EXTERNAL VERIFICATION` | What must a compliant receipt contain — per-rate VAT breakdown, TVA number, software identification, others? (M-06) |
 | **V-08** | `REQUIRES EXTERNAL VERIFICATION` | What must a compliant Z report and period close contain, and how must refunds and corrections be presented? (M-07, C-10) |
-| **V-14** | `REQUIRES EXTERNAL VERIFICATION` | **Is 5,5 % correct for the 17 sealed cans and bottles?** The operator instructed 5,5 % on 2026-09-03 and Batch 3.1c applies that instruction. The French rule turns on the container, not the drink: a non-alcoholic beverage in a sealed container is 5,5 %; poured for immediate consumption it is 10 %; anything alcoholic is 20 %. The menu shows no fountain drinks, no hot drinks and no alcohol, so the classification appears clean — but Claude must not certify it (safety rule 13). One confirmation from whoever files the TVA settles it. |
+| **V-14** | **DETERMINED BY THE OPERATOR 2026-09-03** — professional sign-off optional, no longer blocking | **Which VAT rate applies to which product?** The operator researched this and gave the determination recorded in *VAT rate policy* below: **two rates are in use — 10 % standard, 5,5 % for drinks in a sealed can or bottle** — and the restaurant **sells no alcohol**, so 20 % is not currently used. Batch 3.1c implements exactly that. Claude did not derive the classification and does not certify it (safety rule 13); it is recorded as the operator's own determination. A confirmation from whoever files the TVA remains available but nothing waits on it. |
 | **V-09** | `REQUIRES EXTERNAL VERIFICATION` | Retention: the archive notice states six years. What must actually be retained, in what form, and does the current backup arrangement satisfy it? Interacts with DD-04. |
 | **V-10** | `REQUIRES EXTERNAL VERIFICATION` | Is certification by a body, or self-attestation, the applicable route for this software and this operator? No certificate, test report or certifying-body reference exists in the repository. |
 | **V-11** | `REQUIRES EXTERNAL VERIFICATION` | Are the legal citations in `docs/attestation-conformite.md` current and correctly applied — art. 286-I-3° bis CGI, art. 1770 duodecies CGI, *Loi n° 2026-103 du 19 février 2026 art. 125*, BOI-TVA-DECLA-30-10-30, BOI-LETTRE-000242? The audit recorded these verbatim and did **not** evaluate them. |
