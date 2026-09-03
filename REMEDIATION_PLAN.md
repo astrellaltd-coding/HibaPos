@@ -11,13 +11,13 @@ Detailed audit record: https://claude.ai/code/artifact/329316b0-3a6b-48b0-9d27-d
 
 **Overall:** NOT READY FOR PRODUCTION
 
-**Current Stage:** Stage 0 — Preserve / establish safe baseline
+**Current Stage:** Stage 1 — Critical blockers
 
-**Current Batch:** Batch 0.2 — Working-state preservation
+**Current Batch:** Batch 1.1 — Refund amount unit correction
 
-**Last Completed Batch:** Batch 0.1 — Source-control recovery (commit `e97a3e1`)
+**Last Completed Batch:** Batch 0.2 — Working-state preservation (push confirmed, `.env` preserved out-of-band, baseline snapshot + fiscal/row-count record taken)
 
-**Next Batch:** Batch 0.2
+**Next Batch:** Batch 1.1
 
 **Blocked:** None
 
@@ -171,13 +171,13 @@ Rationale (audit section J, step 1): the source of the backup/restore API exists
 
 ## Batch 0.2 — Working-state preservation
 
-**Status:** `NOT STARTED`
+**Status:** `COMPLETED`
 
 These are preconditions derived from findings C-05, C-06 and the audit's Stage 2 concerns, brought forward so that remediation itself cannot destroy the user's recovered data. They are **not** the backup-subsystem fixes — those are Stage 2.
 
 ### P-01 — Push the repository to the configured remote
 
-**Status:** `NOT STARTED` · Category: operational
+**Status:** `COMPLETED` · Category: operational
 
 **Problem.** `origin` is configured (`https://github.com/astrellaltd-coding/HibaPos.git`) but no upstream and no remote-tracking branch exists. All 15 commits are local-only. `IMPLEMENTATION_PLAN.md:185` records the push as pending on interactive credential auth.
 
@@ -189,7 +189,7 @@ These are preconditions derived from findings C-05, C-06 and the audit's Stage 2
 
 ### P-02 — Preserve the encryption key and environment out-of-band
 
-**Status:** `REQUIRES DECISION` · Category: operational / data loss
+**Status:** `COMPLETED` · Category: operational / data loss
 
 **Problem.** `BACKUP_ENCRYPTION_KEY` derives each backup's key with a per-file salt but reads the secret live from `process.env` at restore time. There is no key id, version or keyring. Rotating or losing `.env` makes every existing `.dbenc` permanently undecryptable. `.env` is gitignored and has no backup of its own.
 
@@ -203,7 +203,7 @@ These are preconditions derived from findings C-05, C-06 and the audit's Stage 2
 
 ### P-03 — Take a pre-remediation snapshot and record the fiscal baseline
 
-**Status:** `NOT STARTED` · Category: data integrity
+**Status:** `COMPLETED` · Category: data integrity
 
 **Problem.** No known-good reference point exists for comparing the database before and after remediation.
 
@@ -224,23 +224,23 @@ These are preconditions derived from findings C-05, C-06 and the audit's Stage 2
 
 | Item | Value | Recorded |
 |---|---|---|
-| `db/custom.db` size / hash | — | — |
-| `public/uploads/` file count | — | — |
-| Snapshot location | — | — |
-| `/api/fiscal/verify` → fiscalEvents.ok | — | — |
-| `/api/fiscal/verify` → lastSequence | — | — |
-| FiscalCounter (receipt / shift / Z / event) | — | — |
-| Baseline test result | — | — |
+| `db/custom.db` size / hash | 671744 bytes / sha256 `4285a31015268917a008634828e39b5a2a31f581d538069404afb1603631d728` | 2026-09-03 |
+| `public/uploads/` file count | 139 files, 49 MiB total | 2026-09-03 |
+| Snapshot location | `C:\Users\einer\HibaPOS-Baseline-Snapshots\2026-09-03\` (`custom.db` + `uploads/`), outside the project tree; hashes verified equal to source immediately after copy | 2026-09-03 |
+| `/api/fiscal/verify` → fiscalEvents.ok | `true` (eventsChecked: 2, firstBreakAt: null, lastSequence: 2, total: 2). `monthlyCloses.ok` and `annualCloses.ok` also `true` (both empty, lastSequence 0). `grandTotal`: totalSales 5480, totalOrders 2, totalVat 502, totalCash 5480, totalCard 0, totalVoucher 0, totalRefunded 0 | 2026-09-03 |
+| `/api/fiscal/verify` → lastSequence | 2 | 2026-09-03 |
+| FiscalCounter (receipt / shift / Z / event) | receipt 20 / shift 3 / Z-report 2 / fiscal-event 2 | 2026-09-03 |
+| Baseline test result | `bun test src` — 136/136 pass. Row counts by table also recorded: user 2, session 1, category 14, product 78, productAddon 0, optionGroup 10, optionChoice 49, addOn 0, categoryOptionGroup 8, categoryOptionChoice 39, categoryAddOn 21, customer 2, table 1, shift 3, order 20, orderItem 82, payment 21, refund 0, receipt 20, zReport 2, fiscalCounter 1, auditLog 457, setting 12, backup 0, technicalLog 0, fiscalEvent 2, grandTotal 1, monthlyClose 0, annualClose 0, fiscalArchive 0 (846 rows total) | 2026-09-03 |
 
 ### Batch 0.2 — Status Record
 
-**Status:** `NOT STARTED`
-**Completed:** —
-**Changes:** —
-**Files:** —
-**Tests:** —
-**Commit:** —
-**Notes:** —
+**Status:** `COMPLETED`
+**Completed:** 2026-09-03
+**Changes:** No code changes. (P-01) User pushed `main` to `origin` (`https://github.com/astrellaltd-coding/HibaPos.git`) interactively and confirmed it in GitHub; verified upstream tracking now resolves to `origin/main` and local `HEAD` matches `origin/main` exactly (`795d4fa`). (P-02) User confirmed in writing that a copy of `.env` is stored separately, out-of-band; Claude did not read, print, copy or transmit its contents at any point. (P-03) Took a read-plus-copy-only pre-remediation snapshot: copied `db/custom.db` and `public/uploads/` to `C:\Users\einer\HibaPOS-Baseline-Snapshots\2026-09-03\`, verified by hash/file-count that the copies are byte-identical to source and that the source was untouched; captured the fiscal chain baseline and per-table row counts via a temporary read-only script (`_baseline_check.ts`, deleted after use) that called the same `verifyFiscalChain`/`verifyMonthlyCloses`/`verifyAnnualCloses` functions the `/api/fiscal/verify` route uses, plus `db.<model>.count()` for all 29 Prisma models — no writes were made to the live database. Full figures are in the *Baseline Record* table above.
+**Files:** None changed in the repo. `REMEDIATION_PLAN.md` updated with status only.
+**Tests:** `db/custom.db` sha256 hash identical before and after the whole batch (`4285a310...631d728`). `bun test src` — 136/136 PASS. Snapshot copy verified byte-identical by hash (DB) and file count (uploads, 139/139).
+**Commit:** *(this plan-status update commit — no code changes in this batch)*
+**Notes:** Initial `git push` attempt from this session was blocked by the Claude Code auto-mode permission classifier (pushing is an explicit-permission action); the user ran the push from their own terminal instead. The `origin` remote was completely empty (0 refs) before the push, confirmed via `git ls-remote`, so there was no risk of overwriting existing remote history.
 
 ---
 
@@ -1760,6 +1760,7 @@ Record anything found *during* remediation that is outside the current batch's s
 | Batch | Status | Date | Commit | Notes |
 |---|---|---|---|---|
 | 0.1 | COMPLETED | 2026-09-03 | `e97a3e1` | C-26, C-26b: anchored 4 bare `.gitignore` patterns; recovered 3 untracked backup API route files into version control. |
+| 0.2 | COMPLETED | 2026-09-03 | *(this update)* | P-01/P-02/P-03: repo pushed to `origin/main` (user, interactive), `.env` confirmed preserved out-of-band by user, pre-remediation snapshot + fiscal/row-count baseline recorded. No code changes. |
 
 ---
 
