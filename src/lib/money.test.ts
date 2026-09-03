@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { round2, addToVatBreakdown, splitVat, sum2, toCents, fromCents, parseEuroInput, type VatBreakdown } from "./money";
+import { round2, addToVatBreakdown, splitVat, sum2, toCents, fromCents, parseEuroInput, vatRateKey, type VatBreakdown } from "./money";
 
 describe("toCents and fromCents", () => {
   it("converts euro decimals to exact cents", () => {
@@ -70,6 +70,82 @@ describe("addToVatBreakdown (cents)", () => {
     addToVatBreakdown(map, 1200, 20); // 1000¢ HT + 200¢ VAT
     expect(sum2([map[10].ht, map[20].ht])).toBe(2000);
     expect(sum2([map[10].vat, map[20].vat])).toBe(300);
+  });
+});
+
+// C-12 (Batch 3.1) — the breakdown key was `Math.round(vatRate)`, so 5,5 %
+// was filed under a "6 %" heading, a rate that does not exist in France.
+// The amounts were never wrong; only the label was. These tests fail on the
+// pre-fix code.
+describe("addToVatBreakdown — rate keying (C-12)", () => {
+  it("keys 5,5 % as \"5.5\", not \"6\"", () => {
+    const map: VatBreakdown = {};
+    addToVatBreakdown(map, 550, 5.5);
+    expect(Object.keys(map)).toEqual(["5.5"]);
+    expect(map["6"]).toBeUndefined();
+  });
+
+  it("keeps 5,5 % and 6 % as two separate entries instead of merging them", () => {
+    const map: VatBreakdown = {};
+    addToVatBreakdown(map, 550, 5.5);
+    addToVatBreakdown(map, 530, 6);
+    expect(Object.keys(map).sort()).toEqual(["5.5", "6"]);
+    // Pre-fix, both landed on "6" and the 5,5 % base was reported at 6 %.
+    expect(map["5.5"].ttc).toBe(550);
+    expect(map["6"].ttc).toBe(530);
+  });
+
+  it("keys 20 %, 10 % and 2,1 % correctly", () => {
+    const map: VatBreakdown = {};
+    addToVatBreakdown(map, 1200, 20);
+    addToVatBreakdown(map, 1100, 10);
+    addToVatBreakdown(map, 1021, 2.1);
+    expect(Object.keys(map).sort()).toEqual(["10", "2.1", "20"]);
+    // 2,1 % collapsed to "2" before the fix.
+    expect(map["2"]).toBeUndefined();
+  });
+
+  it("does not change any amount — only the key moves", () => {
+    const map: VatBreakdown = {};
+    addToVatBreakdown(map, 550, 5.5);
+    // splitVat is untouched by this batch and always used the true rate, so
+    // the entry must equal exactly what it returns.
+    const direct = splitVat(550, 5.5);
+    expect(map["5.5"]).toEqual({ ht: direct.ht, vat: direct.vat, ttc: 550 });
+    expect(map["5.5"]).toEqual({ ht: 521, vat: 29, ttc: 550 });
+    expect(map["5.5"].ht + map["5.5"].vat).toBe(550);
+  });
+
+  it("accumulates repeated lines at the same rate under one key", () => {
+    const map: VatBreakdown = {};
+    addToVatBreakdown(map, 550, 5.5);
+    addToVatBreakdown(map, 550, 5.5);
+    expect(Object.keys(map)).toEqual(["5.5"]);
+    expect(map["5.5"].ttc).toBe(1100);
+    expect(map["5.5"].ht + map["5.5"].vat).toBe(1100);
+  });
+});
+
+describe("vatRateKey", () => {
+  it("renders rates in minimal form — no trailing zeros", () => {
+    expect(vatRateKey(20)).toBe("20");
+    expect(vatRateKey(10)).toBe("10");
+    expect(vatRateKey(5.5)).toBe("5.5");
+    expect(vatRateKey(2.1)).toBe("2.1");
+    expect(vatRateKey(0)).toBe("0");
+  });
+
+  it("carries the Corsican / overseas two-decimal rates", () => {
+    expect(vatRateKey(0.9)).toBe("0.9");
+    expect(vatRateKey(1.05)).toBe("1.05");
+    expect(vatRateKey(1.75)).toBe("1.75");
+    expect(vatRateKey(8.5)).toBe("8.5");
+  });
+
+  it("folds float noise into one key so a rate cannot split in two", () => {
+    expect(vatRateKey(5.500000000000001)).toBe("5.5");
+    expect(vatRateKey(5.5)).toBe(vatRateKey(5.500000000000001));
+    expect(vatRateKey(10.000000000000002)).toBe("10");
   });
 });
 

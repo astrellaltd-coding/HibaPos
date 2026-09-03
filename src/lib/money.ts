@@ -31,15 +31,37 @@ export function splitVat(ttcCents: number, vatRate: number): { ht: number; vat: 
   return { ht: base, vat, ttc: ttcCents };
 }
 
-/** Build a VAT breakdown map keyed by rate. All amounts in cents. */
-export type VatBreakdown = Record<number, { ht: number; vat: number; ttc: number }>;
+/**
+ * The breakdown key for a VAT rate: the rate itself, as a string.
+ *
+ * C-12 (Batch 3.1): this used to be `Math.round(vatRate)`, which filed 5,5 %
+ * under a "6 %" heading — a rate that does not exist in France — and would
+ * have collapsed 2,1 % to "2" and merged a co-existing 5,5 % and 6 %. The
+ * *amounts* were always right; only the label was wrong.
+ *
+ * The rate is rounded to the nearest hundredth of a percent before rendering,
+ * so float noise (5.500000000000001) cannot split one rate across two keys,
+ * and trailing zeros are not emitted: 5.5 -> "5.5", 10 -> "10", 2.1 -> "2.1",
+ * 0.9 -> "0.9". Two decimals rather than one because the Corsican and
+ * overseas rates include 0,90 %, 1,05 % and 1,75 %.
+ *
+ * Minimal form ("10", not "10.0") is deliberate: it is what every breakdown
+ * already written to a ZReport uses, so the fix introduces no second spelling
+ * of a rate that is already correct.
+ */
+export function vatRateKey(vatRate: number): string {
+  return String(Math.round(vatRate * 100) / 100);
+}
+
+/** Build a VAT breakdown map keyed by rate (see vatRateKey). Amounts in cents. */
+export type VatBreakdown = Record<string, { ht: number; vat: number; ttc: number }>;
 
 export function addToVatBreakdown(
   breakdown: VatBreakdown,
   ttcCents: number,
   vatRate: number,
 ): VatBreakdown {
-  const key = Math.round(vatRate);
+  const key = vatRateKey(vatRate);
   const existing = breakdown[key] ?? { ht: 0, vat: 0, ttc: 0 };
   const { ht, vat } = splitVat(ttcCents, vatRate);
   breakdown[key] = {

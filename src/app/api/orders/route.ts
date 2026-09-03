@@ -7,7 +7,7 @@ import { renderReceipt } from "@/lib/services/receipt";
 import { getSettings } from "@/lib/services/settings";
 import { appendFiscalEvent, incrementGrandTotal } from "@/lib/services/fiscal";
 import { computeLinePricing } from "@/lib/services/pricing";
-import { sum2, addToVatBreakdown } from "@/lib/money";
+import { sum2, addToVatBreakdown, type VatBreakdown } from "@/lib/money";
 import { verifyApprovalToken, ApprovalError } from "@/lib/approvals";
 import { TX_CHECKOUT } from "@/lib/tx-options";
 
@@ -287,7 +287,7 @@ export const POST = withAuth(async (req, { user }) => {
     // VAT on net-of-discount amounts (distribute discount pro-rata per line).
     // All values are cents; the ratio multiplication may produce a fractional
     // cent — round to the nearest integer cent.
-    const vatBreakdown: Record<number, { ht: number; vat: number; ttc: number }> = {};
+    const vatBreakdown: VatBreakdown = {};
     const discountRatio = subtotal > 0 ? discountTotal / subtotal : 0;
     for (const item of orderItemsData) {
       const netLineTotal = Math.round(item.lineTotal * (1 - discountRatio));
