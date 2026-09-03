@@ -1664,7 +1664,32 @@ Also in scope: `src/lib/db.ts:24` cites "IMPLEMENTATION_PLAN.md → Batch C C-C2
 
 **Stage status:** `NOT STARTED`
 
-Audit section J, step 9. Nothing here is a code change; all of it is proof.
+Audit section J, step 9. Nothing here is a code change; all of it is proof — with the exception of P-04 below, which is a deliberate data operation.
+
+## Batch 8.0 — Pre-go-live fiscal reset
+
+**Status:** `NOT STARTED` · Must run **before the restaurant's first real sale**, and can never be run after one.
+
+### P-04 — Reset the fiscal journal for a clean opening
+
+**Status:** `NOT STARTED` · Category: pre-production data operation · **Decided by the operator, 2026-09-03**
+
+**Why.** The live database carries development test trading: **20 orders, 21 payments, 20 receipts, 3 shifts, 2 Z-reports, 2 fiscal events** and a `GrandTotal` of 54,80 €, all created while building the app — the restaurant has never run HibaPOS. Opening on that state would make the first genuine receipt **#21**, sitting in a journal behind twenty tickets that never happened, with a grand total that never was.
+
+**Decision (operator, 2026-09-03).** Keep the database and the catalogue; delete the trading data — orders, order items, payments, receipts, refunds, shifts, Z reports, fiscal events, grand total, monthly/annual closes and fiscal archives — and reset `FiscalCounter` to zero, immediately before go-live.
+
+**What must be KEPT.** Categories, products, option groups, option choices, add-ons, product images, customers, tables, users and settings. The catalogue is real work recovered in commit `0c5ede6`; only the trading is fake.
+
+**Hard constraints.**
+1. **Timing is the whole safety property.** This runs once, before the first real sale. From that sale onwards the chain is append-only and a reset becomes precisely the deletion the attestation in `docs/attestation-conformite.md` states is impossible.
+2. Take a full backup first, verify it opens with `scripts/decrypt-backup.ts`, and keep it out-of-band.
+3. It must be a written, reviewed script — **not** an ad-hoc `deleteMany` at a console, and not one of the existing unguarded seed scripts (C-17).
+4. Record the before/after row counts and the reset counters in this plan, the way the Batch 0.2 baseline was recorded.
+5. Re-verify `/api/fiscal/verify` afterwards: an empty chain must report `ok` with `lastSequence: 0`.
+
+**Related.** `settings.factice` exists precisely so test transactions are stamped as simulations and can never be mistaken for real ones. It is currently `false`, which is why the development sales look genuine. Consider setting it `true` for any further testing on the live machine before go-live, and `false` at opening.
+
+**Dependencies.** Deployment (Batch 1.4) and the printer sign-off (Batch 1.3) should be settled first — otherwise the commissioning itself would put new test sales into the freshly reset journal.
 
 ## Batch 8.1 — Live database verification
 
