@@ -142,3 +142,34 @@ describe("renderReceipt", () => {
     expect(() => renderReceipt(malformed, baseSettings)).not.toThrow();
   });
 });
+
+// L-18 (Batch 3.1b) — the FACTICE stamp existed in renderReceipt() from the
+// start but nothing could turn it on, so it had never been exercised. These
+// pin both directions: a simulation ticket must be unmistakable, and a real
+// ticket must never carry the mention.
+describe("FACTICE simulation stamp (L-18)", () => {
+  it("stamps the ticket when factice is on", () => {
+    const out = renderReceipt(baseOrder, { ...baseSettings, factice: true });
+    expect(out).toContain("FACTICE");
+    expect(out).toContain("SIMULATION");
+    expect(out).toContain("TICKET NON VALABLE");
+    // The stamp must be at the very top, before the restaurant name — an
+    // operator scanning a stack of tickets reads the first line.
+    const firstLine = out.split("\n").find((l) => l.trim().length > 0) ?? "";
+    expect(firstLine).toContain("FACTICE");
+  });
+
+  it("leaves a real ticket completely unmarked", () => {
+    const out = renderReceipt(baseOrder, { ...baseSettings, factice: false });
+    expect(out).not.toContain("FACTICE");
+    expect(out).not.toContain("SIMULATION");
+    expect(out).not.toContain("NON VALABLE");
+  });
+
+  it("does not stamp when the setting is absent entirely", () => {
+    // baseSettings carries no `factice` key at all. An install that has never
+    // seen the switch must print real tickets, not simulations.
+    expect(baseSettings).not.toHaveProperty("factice");
+    expect(renderReceipt(baseOrder, baseSettings)).not.toContain("FACTICE");
+  });
+});

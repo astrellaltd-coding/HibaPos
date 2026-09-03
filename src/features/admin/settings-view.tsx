@@ -25,7 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Settings, Save, Loader2, Store, Calculator, Printer } from "lucide-react";
+import { Settings, Save, Loader2, Store, Calculator, Printer, FlaskConical } from "lucide-react";
 
 export function SettingsView() {
   const { data, isLoading } = useQuery({
@@ -364,6 +364,44 @@ function SettingsForm({ initial }: { initial: SettingsDto }) {
                   Enregistrez les réglages avant de tester.
                 </p>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Mode FACTICE / simulation (L-18, Batch 3.1b).
+              The mode was already wired into every fiscal write path and into
+              renderReceipt(); it simply had no control, so it was permanently
+              off and development sales were journalled as genuine. */}
+          <Card className={form.factice ? "border-amber-500/60 bg-amber-500/[0.06]" : undefined}>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <FlaskConical className="h-4 w-4 text-primary" />
+                Mode formation (FACTICE)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
+              <div className="flex items-center gap-3">
+                <input
+                  id="factice"
+                  type="checkbox"
+                  checked={form.factice ?? false}
+                  onChange={(e) => update("factice", e.target.checked)}
+                  className="h-4 w-4 rounded border-border accent-primary"
+                />
+                <Label htmlFor="factice" className="cursor-pointer text-sm font-normal">
+                  Marquer les ventes comme simulations
+                </Label>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                À activer pour les essais et la formation. Chaque ticket porte alors la mention
+                <strong> FACTICE — SIMULATION / TICKET NON VALABLE</strong>, et chaque écriture du
+                journal fiscal est marquée comme fictive. À désactiver avant la première vente
+                réelle.
+              </p>
+              {form.factice ? (
+                <p className="rounded-lg border border-amber-500/60 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-700 dark:text-amber-400">
+                  Mode formation actif — les ventes enregistrées ne sont pas des ventes réelles.
+                </p>
+              ) : null}
             </CardContent>
           </Card>
 
