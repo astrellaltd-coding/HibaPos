@@ -32,6 +32,22 @@ export function canonicalize(value: unknown): string {
   if (typeof value === "number") return Number.isFinite(value) ? String(value) : "null";
   if (typeof value === "bigint") return value.toString();
   if (typeof value === "string") return JSON.stringify(value);
+  // C-04 (Batch 3.3): a Date MUST serialise as its instant. Without this
+  // branch it fell through to the generic object case below, where
+  // `Object.keys(date)` is `[]` — so every Date became `{}` and two payloads
+  // seven years apart produced an identical hash. The archive's own notice
+  // promised that any later alteration was detectable; every timestamp in it
+  // could be changed without moving the checksum.
+  //
+  // Safe to add in place rather than versioning the canonicaliser: verified
+  // before the change that no stored `dataJson` contains a Date (the two
+  // payload fields that could — backup.ts:734 and :921 — already call
+  // .toISOString()), and that no MonthlyClose, AnnualClose or FiscalArchive
+  // row existed. An Invalid Date has no meaningful instant, so it takes the
+  // same "null" as a non-finite number.
+  if (value instanceof Date) {
+    return Number.isFinite(value.getTime()) ? JSON.stringify(value.toISOString()) : "null";
+  }
   if (Array.isArray(value)) {
     return "[" + value.map(canonicalize).join(",") + "]";
   }

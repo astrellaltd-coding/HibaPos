@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { withAuth, parseJson } from "@/lib/api-handler";
-import { generateAnnualArchive } from "@/lib/services/fiscal";
+import { buildAnnualArchive, recordAnnualArchive } from "@/lib/services/fiscal";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fiscalArchivesDir } from "@/lib/paths";
@@ -24,16 +24,86 @@ export const POST = withAuth(
     const body = (await parseJson(req)) as { year?: number } | null;
     const year = typeof body?.year === "number" ? body.year : null;
     if (!year) return NextResponse.json({ error: "Année requise" }, { status: 400 });
+
+    const existing = await db.fiscalArchive.findUnique({ where: { year } });
+
+    // Build first — reads only, writes nothing (M-02).
+    const built = await buildAnnualArchive(year);
+    const archivePath = path.join(ARCHIVES_DIR, built.filename);
+
+    // An archive already recorded for this year.
+    if (existing) {
+      // Is its file actually there? If so, this is a plain duplicate request.
+      try {
+        await fs.access(archivePath);
+        return NextResponse.json(
+          { error: `Archive déjà générée pour ${year}` },
+          { status: 409 },
+        );
+      } catch {
+        // The row exists but the file does not — the dead end M-02 describes.
+        // Repair it, but ONLY if the archive reproduces byte for byte. If the
+        // underlying data has moved since, writing a different file under the
+        // recorded checksum would be a lie, so refuse and say why.
+        if (built.checksum !== existing.checksum) {
+          return NextResponse.json(
+            {
+              error:
+                `Le fichier de l'archive ${year} est absent et ne peut pas être reproduit à ` +
+                `l'identique : les données de l'exercice ont changé depuis sa génération ` +
+                `(condensat attendu ${existing.checksum.slice(0, 12)}…, recalculé ` +
+                `${built.checksum.slice(0, 12)}…). L'entrée du journal fiscal reste la ` +
+                `référence. Restaurez le fichier depuis une sauvegarde.`,
+            },
+            { status: 409 },
+          );
+        }
+        await fs.mkdir(ARCHIVES_DIR, { recursive: true });
+        await fs.writeFile(archivePath, built.json, "utf8");
+        await fs.writeFile(
+          path.join(ARCHIVES_DIR, built.checksumFilename),
+          built.checksumFileContent,
+          "utf8",
+        );
+        return NextResponse.json(
+          {
+            filename: built.filename,
+            checksum: built.checksum,
+            sizeBytes: built.sizeBytes,
+            notice: built.notice,
+            year,
+            repaired: true,
+          },
+          { status: 200 },
+        );
+      }
+    }
+
     try {
-      const result = await generateAnnualArchive(year, user.id);
+      // File to disk BEFORE the row: a failed write must leave nothing behind
+      // to block a retry (M-02). The reverse order created a row that refused
+      // regeneration while the download route asked for exactly that.
       await fs.mkdir(ARCHIVES_DIR, { recursive: true });
-      await fs.writeFile(path.join(ARCHIVES_DIR, result.filename), result.json, "utf8");
+      await fs.writeFile(archivePath, built.json, "utf8");
+      await fs.writeFile(
+        path.join(ARCHIVES_DIR, built.checksumFilename),
+        built.checksumFileContent,
+        "utf8",
+      );
+
+      await recordAnnualArchive(year, user.id, {
+        filename: built.filename,
+        checksum: built.checksum,
+        sizeBytes: built.sizeBytes,
+      });
+
       return NextResponse.json(
         {
-          filename: result.filename,
-          checksum: result.checksum,
-          sizeBytes: result.sizeBytes,
-          notice: result.notice,
+          filename: built.filename,
+          checksum: built.checksum,
+          checksumFilename: built.checksumFilename,
+          sizeBytes: built.sizeBytes,
+          notice: built.notice,
           year,
         },
         { status: 201 },

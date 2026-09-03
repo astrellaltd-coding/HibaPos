@@ -386,9 +386,17 @@ const ARCHIVE_NOTICE = (year: number) =>
     `Conservation, Archivage). Elle fige les données d'encaissement de l'exercice ${year}`,
     `et leur donne date certaine.`,
     ``,
-    `Intégrité : le champ "checksum" (SHA-256) est calculé sur la forme canonique du`,
-    `contenu (clés triées, sans le champ checksum lui-même). Toute altération postérieure`,
-    `est détectable en recalculant le condensat.`,
+    `Intégrité : le condensat SHA-256 de ce fichier est calculé sur ses octets exacts,`,
+    `tels qu'ils ont été écrits. Il est reproductible par un tiers avec un outil standard :`,
+    ``,
+    `    sha256sum hibapos-archive-${year}.json`,
+    `    sha256sum -c hibapos-archive-${year}.json.sha256`,
+    ``,
+    `La valeur de référence est consignée dans le journal fiscal (événement`,
+    `ARCHIVE_GENEREE) et dans le fichier .sha256 joint. Toute altération postérieure`,
+    `du fichier est détectable en recalculant le condensat et en le comparant à celle-ci.`,
+    `Le condensat n'est volontairement PAS inclus dans ce fichier : un condensat placé`,
+    `à l'intérieur des octets qu'il couvre ne peut pas être vérifié directement.`,
     ``,
     `Chaînage : les enregistrements "fiscalEvents" forment un journal inaltérable dont`,
     `chaque entrée contient le hash (SHA-256) de la précédente. Les "monthlyCloses" et le`,
@@ -398,10 +406,25 @@ const ARCHIVE_NOTICE = (year: number) =>
     `Conservation légale : 6 ans (7 si exercice décalé).`,
   ].join("\n");
 
-export async function generateAnnualArchive(year: number, generatedById: string) {
-  const existing = await db.fiscalArchive.findUnique({ where: { year } });
-  if (existing) throw new Error(`Archive déjà générée pour ${year}`);
-
+/**
+ * Build the annual archive payload. Reads only — writes nothing, anywhere.
+ *
+ * M-02 (Batch 3.3): generation used to create the `FiscalArchive` row and
+ * journal the event inside a transaction, and the route wrote the file
+ * afterwards. A failed write left a row that blocked regeneration with a 409
+ * while the download route told the operator to regenerate — an unrecoverable
+ * dead end. Building is now separate from recording so the caller can write
+ * the file FIRST and record only what actually reached the disk. Same
+ * ordering principle as the restore in Batch 2.1: nothing irreversible until
+ * everything that can fail has succeeded.
+ *
+ * C-04 (Batch 3.3): the checksum is the SHA-256 of the exact bytes written,
+ * so `sha256sum` reproduces it. It is deliberately NOT a field inside the
+ * file — a checksum placed inside the bytes it covers cannot be checked
+ * directly, which is why the previous version (hash of the canonical form,
+ * embedded in the JSON) was not reproducible by a third party at all.
+ */
+export async function buildAnnualArchive(year: number) {
   const from = new Date(year, 0, 1);
   const to = new Date(year + 1, 0, 1);
   const [fiscalEvents, orders, zReports, monthlyCloses, annualClose, grandTotal] =
@@ -430,7 +453,7 @@ export async function generateAnnualArchive(year: number, generatedById: string)
 
   const payload = {
     format: "hibapos-fiscal-archive",
-    version: 1,
+    version: 2,
     year,
     generatedAt: new Date().toISOString(),
     notice: ARCHIVE_NOTICE(year),
@@ -441,25 +464,50 @@ export async function generateAnnualArchive(year: number, generatedById: string)
     zReports,
     monthlyCloses,
   };
-  // Checksum over the canonical payload WITHOUT the checksum field.
-  const checksum = createHash("sha256").update(canonicalize(payload)).digest("hex");
-  const fullPayload = { ...payload, checksum };
-  const json = JSON.stringify(fullPayload, null, 2);
-  const sizeBytes = Buffer.byteLength(json, "utf8");
+
+  const json = JSON.stringify(payload, null, 2);
+  const bytes = Buffer.from(json, "utf8");
+  const checksum = createHash("sha256").update(bytes).digest("hex");
   const filename = `hibapos-archive-${year}.json`;
 
-  await db.$transaction(async (tx) => {
+  return {
+    json,
+    checksum,
+    sizeBytes: bytes.byteLength,
+    filename,
+    // A standard `sha256sum` manifest, so `sha256sum -c` verifies the archive
+    // with no HibaPOS-specific knowledge at all.
+    checksumFilename: `${filename}.sha256`,
+    checksumFileContent: `${checksum}  ${filename}\n`,
+    notice: ARCHIVE_NOTICE(year),
+  };
+}
+
+/**
+ * Record an archive that is ALREADY on disk: the row plus its journal entry.
+ * Call only after the file has been written successfully (M-02).
+ */
+export async function recordAnnualArchive(
+  year: number,
+  generatedById: string,
+  file: { filename: string; checksum: string; sizeBytes: number },
+) {
+  return db.$transaction(async (tx) => {
     const archive = await tx.fiscalArchive.create({
-      data: { year, filename, checksum, sizeBytes, generatedById },
+      data: { year, filename: file.filename, checksum: file.checksum, sizeBytes: file.sizeBytes, generatedById },
     });
     const ev = await appendFiscalEvent(tx, {
       type: "ARCHIVE_GENEREE",
       userId: generatedById,
-      data: { year, archiveId: archive.id, checksum, sizeBytes },
+      data: { year, archiveId: archive.id, checksum: file.checksum, sizeBytes: file.sizeBytes },
       archiveId: archive.id,
     });
-    await tx.fiscalArchive.update({ where: { id: archive.id }, data: { fiscalEventId: ev.id } });
+    // Return the UPDATED row: the one created above still has a null
+    // fiscalEventId, and a caller that trusted it would think the archive was
+    // unjournalled.
+    return tx.fiscalArchive.update({
+      where: { id: archive.id },
+      data: { fiscalEventId: ev.id },
+    });
   }, TX_FISCAL);
-
-  return { json, checksum, sizeBytes, filename, notice: ARCHIVE_NOTICE(year) };
 }
