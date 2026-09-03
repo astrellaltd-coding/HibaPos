@@ -90,6 +90,35 @@ function dayKey(when: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+/**
+ * The per-order primitive: does this order count, what did the customer
+ * actually pay, and how does that net split across its lines?
+ *
+ * Exposed (Batch 3.2b) because some reports must group by something
+ * `aggregateOrders` does not return — by cashier, by hour, by product id.
+ * They group the orders themselves and use this, so there is still exactly
+ * one set of rules for what counts and one apportionment, rather than each
+ * report inventing its own arithmetic. `aggregateOrders` below is built on it.
+ */
+export function orderNet(order: AggregatableOrder): {
+  counted: boolean;
+  refundsTotal: number;
+  netTotal: number;
+  lineNets: number[];
+} {
+  const refundsTotal = sum2(order.refunds.map((r) => r.amount));
+  if (isFullyRefunded(order, refundsTotal)) {
+    return { counted: false, refundsTotal, netTotal: 0, lineNets: order.items.map(() => 0) };
+  }
+  const netTotal = order.total - refundsTotal;
+  return {
+    counted: true,
+    refundsTotal,
+    netTotal,
+    lineNets: apportion(order.items.map((i) => i.lineTotal), netTotal),
+  };
+}
+
 export type AggregateOptions<T> = {
   /** How many products to return. Z reports have always shown 10, closes 20. */
   topProductsLimit?: number;
@@ -116,23 +145,15 @@ export function aggregateOrders<T extends AggregatableOrder>(
   const days: Record<string, { date: string; sales: number; orders: number; items: number }> = {};
 
   for (const order of orders) {
-    const refundsTotal = sum2(order.refunds.map((r) => r.amount));
+    const { counted, refundsTotal, netTotal, lineNets } = orderNet(order);
     totalRefunded += refundsTotal;
 
-    if (isFullyRefunded(order, refundsTotal)) continue;
+    if (!counted) continue;
 
-    // What the customer actually paid for this order.
-    const netTotal = order.total - refundsTotal;
     salesTotal += netTotal;
     salesCount += 1;
     itemsCount += order.itemCount;
     discountsTotal += order.discountTotal ?? 0;
-
-    // Split that net across the lines EXACTLY (M-13). Each line used to round
-    // on its own — `round(lineTotal × (1 − discountRatio) × (1 − refundRatio))`
-    // — so the parts could sum to a cent or two either side of the whole, and
-    // the VAT breakdown would then disagree with the order total it came from.
-    const lineNets = apportion(order.items.map((i) => i.lineTotal), netTotal);
 
     order.items.forEach((item, idx) => {
       const netLineTotal = lineNets[idx];

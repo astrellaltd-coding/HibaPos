@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { withAuth } from "@/lib/api-handler";
-import { round2, sum2 } from "@/lib/money";
+import { sum2 } from "@/lib/money";
+import { aggregateOrders, AGGREGATE_INCLUDE } from "@/lib/services/aggregate";
 import { parseReportRange, ReportRangeError } from "@/lib/report-range";
 
 export const GET = withAuth(
@@ -27,68 +28,46 @@ export const GET = withAuth(
       createdAt: { gte: fromStart, lt: toEnd },
       status: { in: ["COMPLETED", "REFUNDED"] },
     },
-    include: { payments: true, refunds: true, cashier: { select: { id: true, name: true, username: true } } },
+    include: { ...AGGREGATE_INCLUDE, cashier: { select: { id: true, name: true, username: true } } },
   });
 
-  const cashierMap: Record<
-    string,
-    {
-      cashierId: string;
-      name: string;
-      username: string;
-      orders: number;
-      items: number;
-      salesTotal: number;
-      cashTotal: number;
-      cardTotal: number;
-      voucherTotal: number;
-      refundsTotal: number;
-    }
-  > = {};
-
+  // L-23 (Batch 3.2b). This report summed payments GROSS and never netted
+  // refunds off them — the same shape as C-10, in a management report — and
+  // ran cent values through round2(). Group the orders by cashier and hand
+  // each group to the one aggregation, so a cashier's line here uses exactly
+  // the arithmetic the Z report uses.
+  const byCashier = new Map<string, typeof orders>();
   for (const order of orders) {
-    const c = order.cashier;
-    if (!c) continue;
-    const key = c.id;
-    cashierMap[key] ??= {
-      cashierId: c.id,
-      name: c.name,
-      username: c.username,
-      orders: 0,
-      items: 0,
-      salesTotal: 0,
-      cashTotal: 0,
-      cardTotal: 0,
-      voucherTotal: 0,
-      refundsTotal: 0,
-    };
-
-    const orderRefundsTotal = order.refunds.reduce((acc, r) => acc + r.amount, 0);
-    const isFullyRefunded = orderRefundsTotal >= order.total - 0.01;
-
-    if (!isFullyRefunded) {
-      const netTotal = round2(order.total - orderRefundsTotal);
-      cashierMap[key].orders += 1;
-      cashierMap[key].items += order.itemCount;
-      cashierMap[key].salesTotal = round2(cashierMap[key].salesTotal + netTotal);
-    }
-
-    for (const p of order.payments) {
-      if (p.method === "CASH") cashierMap[key].cashTotal = round2(cashierMap[key].cashTotal + p.amount);
-      if (p.method === "CARD") cashierMap[key].cardTotal = round2(cashierMap[key].cardTotal + p.amount);
-      if (p.method === "VOUCHER") cashierMap[key].voucherTotal = round2(cashierMap[key].voucherTotal + p.amount);
-    }
-
-    cashierMap[key].refundsTotal = round2(cashierMap[key].refundsTotal + orderRefundsTotal);
+    if (!order.cashier) continue;
+    const bucket = byCashier.get(order.cashier.id) ?? [];
+    bucket.push(order);
+    byCashier.set(order.cashier.id, bucket);
   }
 
-  const rows = Object.values(cashierMap).sort((a, b) => b.salesTotal - a.salesTotal);
+  const rows = Array.from(byCashier.values())
+    .map((group) => {
+      const c = group[0].cashier!;
+      const agg = aggregateOrders(group);
+      return {
+        cashierId: c.id,
+        name: c.name,
+        username: c.username,
+        orders: agg.salesCount,
+        items: agg.itemsCount,
+        salesTotal: agg.salesTotal,
+        cashTotal: agg.cashTotal,
+        cardTotal: agg.cardTotal,
+        voucherTotal: agg.voucherTotal,
+        refundsTotal: agg.totalRefunded,
+      };
+    })
+    .sort((a, b) => b.salesTotal - a.salesTotal);
 
   return NextResponse.json({
     from: fromStart.toISOString(),
     to: toEnd.toISOString(),
     totalCashiers: rows.length,
-    totalSales: round2(sum2(rows.map((r) => r.salesTotal))),
+    totalSales: sum2(rows.map((r) => r.salesTotal)),
     totalOrders: sum2(rows.map((r) => r.orders)),
     totalItems: sum2(rows.map((r) => r.items)),
     rows,

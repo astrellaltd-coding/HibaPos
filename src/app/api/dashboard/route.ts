@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { withAuth } from "@/lib/api-handler";
-import { round2, sum2 } from "@/lib/money";
+import { round2 } from "@/lib/money";
+import { aggregateOrders, orderNet, AGGREGATE_INCLUDE } from "@/lib/services/aggregate";
 
 // Sales KPIs, payment breakdowns and week-over-week comparisons are
 // manager-level data (nav-config restricts the dashboard view to
@@ -17,46 +18,44 @@ export const GET = withAuth(
       createdAt: { gte: startOfDay, lt: endOfDay },
       status: { in: ["COMPLETED", "REFUNDED"] },
     },
-    include: { items: true, payments: true },
+    include: AGGREGATE_INCLUDE,
   });
 
-  const completed = todayOrders.filter((o) => o.status === "COMPLETED");
-  const todaySales = round2(sum2(completed.map((o) => o.total)));
-  const todayOrdersCount = completed.length;
-  const todayItems = completed.reduce((acc, o) => acc + o.itemCount, 0);
-  const avgTicket = todayOrdersCount > 0 ? round2(todaySales / todayOrdersCount) : 0;
+  // L-23 (Batch 3.2b). The dashboard was a sixth aggregation semantic: it
+  // filtered to COMPLETED and summed `o.total` at face value, so a partial
+  // refund was invisible, and it computed
+  // `round2(lineTotal × (1 − discountRatio))` per line — the C-11 half-cent,
+  // again. It now shares the one aggregation, so the KPI a manager glances at
+  // agrees with the Z report for the same day.
+  const today = aggregateOrders(todayOrders, { topProductsLimit: 6 });
 
-  const payments = completed.flatMap((o) => o.payments);
-  const cashSales = round2(sum2(payments.filter((p) => p.method === "CASH").map((p) => p.amount)));
-  const cardSales = round2(sum2(payments.filter((p) => p.method === "CARD").map((p) => p.amount)));
+  const todaySales = today.salesTotal;
+  const todayOrdersCount = today.salesCount;
+  const todayItems = today.itemsCount;
+  // Integer cents — a fractional average is what made this disagree with
+  // every other report.
+  const avgTicket = todayOrdersCount > 0 ? Math.round(todaySales / todayOrdersCount) : 0;
 
-  // Hourly distribution
+  const payments = todayOrders.flatMap((o) => o.payments);
+  const cashSales = today.cashTotal;
+  const cardSales = today.cardTotal;
+
+  // Hourly distribution, net of refunds like everything else.
   const hourly: { hour: number; sales: number; orders: number }[] = [];
   for (let h = 0; h < 24; h++) hourly.push({ hour: h, sales: 0, orders: 0 });
-  for (const o of completed) {
+  for (const o of todayOrders) {
+    const { counted, netTotal } = orderNet(o);
+    if (!counted) continue;
     const h = new Date(o.createdAt).getHours();
-    hourly[h].sales = round2(hourly[h].sales + o.total);
+    hourly[h].sales += netTotal;
     hourly[h].orders += 1;
   }
 
-  // Top products today (net of discount per order)
-  const productAgg: Record<string, { name: string; quantity: number; total: number }> = {};
-  for (const o of completed) {
-    const discountRatio = o.subtotal > 0 ? (o.discountTotal ?? 0) / o.subtotal : 0;
-    for (const item of o.items) {
-      const netLineTotal = round2(item.lineTotal * (1 - discountRatio));
-      productAgg[item.productName] ??= { name: item.productName, quantity: 0, total: 0 };
-      productAgg[item.productName].quantity += item.quantity;
-      productAgg[item.productName].total = round2(productAgg[item.productName].total + netLineTotal);
-    }
-  }
-  const topProducts = Object.values(productAgg)
-    .sort((a, b) => b.quantity - a.quantity)
-    .slice(0, 6);
+  const topProducts = today.topProducts;
 
   // Top categories today (by revenue) — batch-fetch products to avoid N+1
   const categoryAgg: Record<string, { name: string; color: string; revenue: number; quantity: number }> = {};
-  const productIds = Array.from(new Set(completed.flatMap((o) => o.items.map((i) => i.productId).filter(Boolean))));
+  const productIds = Array.from(new Set(todayOrders.flatMap((o) => o.items.map((i) => i.productId).filter(Boolean))));
   const productsMap = new Map(
     productIds.length > 0
       ? (await db.product.findMany({
@@ -65,16 +64,20 @@ export const GET = withAuth(
         })).map((p) => [p.id, p])
       : []
   );
-  for (const o of completed) {
-    for (const item of o.items) {
-      if (!item.productId) continue;
+  for (const o of todayOrders) {
+    const { counted, lineNets } = orderNet(o);
+    if (!counted) continue;
+    o.items.forEach((item, idx) => {
+      if (!item.productId) return;
       const product = productsMap.get(item.productId);
-      if (!product?.category) continue;
+      if (!product?.category) return;
       const key = product.categoryId;
       categoryAgg[key] ??= { name: product.category.name, color: product.category.color, revenue: 0, quantity: 0 };
-      categoryAgg[key].revenue = round2(categoryAgg[key].revenue + item.lineTotal);
+      // Net of discount and refund, like every other revenue figure — this
+      // used to add the raw lineTotal, which double-counted a discount away.
+      categoryAgg[key].revenue += lineNets[idx];
       categoryAgg[key].quantity += item.quantity;
-    }
+    });
   }
   const topCategories = Object.values(categoryAgg)
     .sort((a, b) => b.revenue - a.revenue)
@@ -84,7 +87,7 @@ export const GET = withAuth(
   const methodAgg: Record<string, { amount: number; count: number }> = {};
   for (const p of payments) {
     methodAgg[p.method] ??= { amount: 0, count: 0 };
-    methodAgg[p.method].amount = round2(methodAgg[p.method].amount + p.amount);
+    methodAgg[p.method].amount += p.amount;
     methodAgg[p.method].count += 1;
   }
   const paymentBreakdown = Object.entries(methodAgg).map(([method, v]) => ({ method, ...v }));
@@ -116,14 +119,18 @@ export const GET = withAuth(
   const endOfLastWeekDay = new Date(endOfDay);
   endOfLastWeekDay.setDate(endOfLastWeekDay.getDate() - 7);
 
+  // Comparison periods use the same aggregation as today's figures, or the
+  // percentages compare a refund-netted number against a gross one (L-23).
   const lastWeekDayOrders = await db.order.findMany({
     where: {
       createdAt: { gte: startOfLastWeekDay, lt: endOfLastWeekDay },
-      status: "COMPLETED",
+      status: { in: ["COMPLETED", "REFUNDED"] },
     },
+    include: AGGREGATE_INCLUDE,
   });
-  const lastWeekDaySales = round2(sum2(lastWeekDayOrders.map((o) => o.total)));
-  const lastWeekDayCount = lastWeekDayOrders.length;
+  const lastWeekDayAgg = aggregateOrders(lastWeekDayOrders);
+  const lastWeekDaySales = lastWeekDayAgg.salesTotal;
+  const lastWeekDayCount = lastWeekDayAgg.salesCount;
 
   // This week vs last week
   const startOfWeek = new Date(now);
@@ -135,14 +142,16 @@ export const GET = withAuth(
 
   const [thisWeekOrders, lastWeekOrdersArr] = await Promise.all([
     db.order.findMany({
-      where: { createdAt: { gte: startOfWeek }, status: "COMPLETED" },
+      where: { createdAt: { gte: startOfWeek }, status: { in: ["COMPLETED", "REFUNDED"] } },
+      include: AGGREGATE_INCLUDE,
     }),
     db.order.findMany({
-      where: { createdAt: { gte: startOfLastWeek, lt: endOfLastWeek }, status: "COMPLETED" },
+      where: { createdAt: { gte: startOfLastWeek, lt: endOfLastWeek }, status: { in: ["COMPLETED", "REFUNDED"] } },
+      include: AGGREGATE_INCLUDE,
     }),
   ]);
-  const thisWeekSales = round2(sum2(thisWeekOrders.map((o) => o.total)));
-  const lastWeekSales = round2(sum2(lastWeekOrdersArr.map((o) => o.total)));
+  const thisWeekSales = aggregateOrders(thisWeekOrders).salesTotal;
+  const lastWeekSales = aggregateOrders(lastWeekOrdersArr).salesTotal;
 
   return NextResponse.json({
     todaySales,
