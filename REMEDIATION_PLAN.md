@@ -11,9 +11,9 @@ Detailed audit record: https://claude.ai/code/artifact/329316b0-3a6b-48b0-9d27-d
 
 **Overall:** NOT READY FOR PRODUCTION
 
-**Current Stage:** Stage 1 — Critical blockers
+**Current Stage:** Stage 3 — Fiscal correctness. (Stage 1 is **partly done**: 1.1 and 1.2 COMPLETED, 1.3 `IMPLEMENTED — TESTING REQUIRED` on hardware, 1.4 deferred. Stage 2 is COMPLETED.)
 
-**Current Batch:** Batch 3.1 — VAT rate keying
+**Current Batch:** Batch 3.1 — VAT rate keying · **`REQUIRES DECISION` (DD-03) before any code**
 
 **Last Completed Batch:** Batch 2.4 — Resource bounds and retention (M-29, M-30, M-31, L-04, L-05; commit `f9fd5cc`). **Stage 2 is complete.**
 
@@ -21,9 +21,69 @@ Detailed audit record: https://claude.ai/code/artifact/329316b0-3a6b-48b0-9d27-d
 
 **Blocked:** Batch 1.3 `[HW]` sign-off and Batch 1.4 — both need the app running on the restaurant's POS machine, which is in a different country from the developer and has no copy of the app installed (decision of 2026-09-03).
 
-**Awaiting decision:** Batch 5.3 (cross-shift refunds), Batch 5.5 (cash movements), Batch 5.6 (order cancellation) — see *Design Decisions Required*
+**Awaiting decision:** Batch 3.1 (DD-03 — blocks the current batch), Batch 5.3 (cross-shift refunds), Batch 5.5 (cash movements), Batch 5.6 (order cancellation) — see *Design Decisions Required*
 
-**Last Updated:** 2026-09-03
+**Last Updated:** 2026-09-03 (end of session 2 — Stages 1 and 2 worked; see *Open threads* below before starting anything)
+
+### OPEN THREADS — read this before starting a batch
+
+Work in this plan does not finish batch-by-batch. Several completed batches
+shipped a mechanism whose **benefit is not yet delivered**, and several items
+are waiting on somebody or something outside the code. A session that starts
+by opening the next batch will miss all of it.
+
+#### A. Shipped but NOT yet in effect on the production install
+
+These are done in code, validated, and committed — and change nothing on the
+real till until an action below is taken. Do not report them as delivered.
+
+| What | Why it is inert | Unblocked by |
+|---|---|---|
+| **WAL journal mode** (2.3) | The database is on a OneDrive-synced path and the startup guard deliberately refuses WAL there. `db/custom.db` byte 18 is still `1`. | Moving data to `C:\HibaPOS\data` (DD-02), then any restart |
+| **`BACKUP_LOCATION`** (2.2) | Honoured by the code, but **unset** — backups still land next to the database on the same disk. | Choosing a second volume at deployment |
+| **`HIBAPOS_DATA_DIR`** (2.2) | Defaults to the old layout on purpose, so an update cannot silently repoint a running install at an empty folder. | The deployment step in Batch 1.4 |
+| **Thermal printing + drawer** (1.3) | `printerEnabled` is `false` and no printer IP is set. | Commissioning on the real Sunso WTP-801 |
+| **Audit-log retention** (2.4) | Deliberately `0` = keep forever. That table is still unbounded. | An operator decision, if a retention obligation appears |
+
+#### B. Waiting on the operator
+
+| Action | Why it matters | Related |
+|---|---|---|
+| **Push to `origin/main`** | 21 commits from session 2 exist **only on this machine**. Claude cannot push (explicit-permission action). | P-01 |
+| Correct `printerName` in Réglages | Stored value is `"Epson TM-m30"`; the physical printer is the **Sunso WTP-801** (Ethernet), confirmed 2026-09-03. Cosmetic — nothing reads it. | DOC-15 |
+| Save `receiptWidth` as **48** in Réglages | Stored value is still `80`. Printing is already correct because `normalizeReceiptColumns()` maps 80 mm → 48 columns on read, but the stored value should say what it means. | L-13 |
+| Choose a second volume for backups | See A. | C-06 |
+| Answer **DD-03** | Blocks Batch 3.1, the current batch. | C-12 |
+
+#### C. Waiting on hardware / deployment
+
+Covered by the deferral policy below: Batch 1.3's `[HW]` criteria, all of
+Batch 1.4, and Batch 8.2.
+
+#### D. Ordering constraints between batches
+
+- **Batch 1.4 needs Batch 2.2** — done. DD-02 is answered, so 1.4 is
+  unblocked *in design* and waits only on the till.
+- **Batch 1.4 carries the deployment step** that activates WAL,
+  `BACKUP_LOCATION` and `HIBAPOS_DATA_DIR` — the three inert items in A.
+- **Batch 7.1** should re-check **DOC-01** (`README.md:10` "WAL"), which
+  Batch 2.3 made *conditionally* true — true off a synced folder, false on
+  one. DOC-02 and DOC-03 still describe the deleted `start.sh` mechanism.
+- **Batch 7.3 / DD-04** (secret rotation) is now informed by L-05: the live
+  `.env` sits in a OneDrive-synced folder, so the secrets are very likely
+  already in cloud storage.
+- **Batch 8.0 / P-04** (pre-go-live fiscal reset) must run **after** 1.3 and
+  1.4 — otherwise commissioning puts fresh test sales into the journal that
+  was just reset.
+- **L-14** is unresolved by choice: receipts archived before Batch 2.2 are 80
+  columns wide and will wrap when reprinted on 48-column paper. They must
+  **not** be re-rendered — an archived receipt is immutable.
+
+#### E. Open questions recorded for others to answer
+
+**V-13** — must the JFP carry an `OUVERTURE_TIROIR` entry for the *automatic*
+drawer kick on a cash tender, or only for the traced manual open? Batch 1.3
+journals the manual open only. Fiscal question, flagged not decided.
 
 ### Hardware-dependent validation (policy set 2026-09-03)
 
