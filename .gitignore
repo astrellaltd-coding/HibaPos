@@ -47,16 +47,16 @@ local-*
 *.log
 dev.log
 dev.out.log
-test
-prompt
+/test
+/prompt
 
 server.log
 # Skills directory
 /skills/
 
 # Database & backups
-db/
-backups/
+/db/
+/db/backups/
 
 # Runtime uploads (user-uploaded images — must not be committed)
 /upload/
