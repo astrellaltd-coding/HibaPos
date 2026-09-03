@@ -13,17 +13,17 @@ Detailed audit record: https://claude.ai/code/artifact/329316b0-3a6b-48b0-9d27-d
 
 **Current Stage:** Stage 3 — Fiscal correctness. (Stage 1 is **partly done**: 1.1 and 1.2 COMPLETED, 1.3 `IMPLEMENTED — TESTING REQUIRED` on hardware, 1.4 deferred. Stage 2 is COMPLETED.)
 
-**Current Batch:** Batch 3.1 — VAT rate keying · **`REQUIRES DECISION` (DD-03) before any code**
+**Current Batch:** Batch 3.1b — FACTICE simulation switch · `NOT STARTED`
 
-**Last Completed Batch:** Batch 2.4 — Resource bounds and retention (M-29, M-30, M-31, L-04, L-05; commit `f9fd5cc`). **Stage 2 is complete.**
+**Last Completed Batch:** Batch 3.1 — VAT rate keying (C-12; commit `2d7e996`). DD-03 closed as *not applicable*.
 
-**Next Batch:** Batch 3.2. **Batch 1.4 is unblocked in design** (DD-02 answered) but still deferred on hardware — see *Hardware-dependent validation* below.
+**Next Batch:** Batch 3.1b, then Batch 3.1c (category-level VAT — this is where the drinks are corrected), then Batch 3.2. **Batch 1.4 is unblocked in design** (DD-02 answered) but still deferred on hardware — see *Hardware-dependent validation* below.
 
 **Blocked:** Batch 1.3 `[HW]` sign-off and Batch 1.4 — both need the app running on the restaurant's POS machine, which is in a different country from the developer and has no copy of the app installed (decision of 2026-09-03).
 
-**Awaiting decision:** Batch 3.1 (DD-03 — blocks the current batch), Batch 5.3 (cross-shift refunds), Batch 5.5 (cash movements), Batch 5.6 (order cancellation) — see *Design Decisions Required*
+**Awaiting decision:** Batch 5.3 (cross-shift refunds), Batch 5.5 (cash movements), Batch 5.6 (order cancellation) — see *Design Decisions Required*. **DD-03 and DD-17 were answered on 2026-09-03**; nothing blocks Stage 3.
 
-**Last Updated:** 2026-09-03 (end of session 2 — Stages 1 and 2 worked; see *Open threads* below before starting anything)
+**Last Updated:** 2026-09-03 (session 3 — Batch 3.1 completed; 3.1b and 3.1c newly defined and approved; see *Open threads* below before starting anything)
 
 ### OPEN THREADS — read this before starting a batch
 
@@ -49,11 +49,13 @@ real till until an action below is taken. Do not report them as delivered.
 
 | Action | Why it matters | Related |
 |---|---|---|
-| **Push to `origin/main`** | 21 commits from session 2 exist **only on this machine**. Claude cannot push (explicit-permission action). | P-01 |
+| ~~Push to `origin/main`~~ **DONE** | Verified 2026-09-03 (session 3): `git fetch` then `git rev-list --left-right --count origin/main...HEAD` → `0  0`. `origin/main` was already at `d31c8c9`, identical to local HEAD. The session-2 note was stale. Claude still cannot push, so **new** commits from this session need the same treatment. | P-01 |
 | Correct `printerName` in Réglages | Stored value is `"Epson TM-m30"`; the physical printer is the **Sunso WTP-801** (Ethernet), confirmed 2026-09-03. Cosmetic — nothing reads it. | DOC-15 |
 | Save `receiptWidth` as **48** in Réglages | Stored value is still `80`. Printing is already correct because `normalizeReceiptColumns()` maps 80 mm → 48 columns on read, but the stored value should say what it means. | L-13 |
 | Choose a second volume for backups | See A. | C-06 |
-| Answer **DD-03** | Blocks Batch 3.1, the current batch. | C-12 |
+| ~~Answer **DD-03**~~ **ANSWERED** 2026-09-03 — *not applicable*, no row was ever affected. | Batch 3.1 is now COMPLETED. | C-12 |
+| **Set the 17 drinks to 5,5 %** | Approved 2026-09-03 ("you authorise, I apply"), but it must wait for Batch 3.1c to build the control. Until then the restaurant would over-declare VAT on every drink. | L-16 |
+| Confirm 5,5 % with whoever files the TVA | The operator instructed 5,5 % for sealed cans/bottles on 2026-09-03. Claude applies that instruction; it does not certify it (safety rule 13). | V-14 |
 
 #### C. Waiting on hardware / deployment
 
@@ -727,11 +729,11 @@ Audit section J, step 4: before the first Z report you would show an inspector. 
 
 ## Batch 3.1 — VAT rate keying
 
-**Status:** `REQUIRES DECISION` — the code fix is small and self-contained, but **DD-03 must be answered first**: existing sealed `ZReport` / `MonthlyClose` rows carry `vatBreakdownJson` keyed `"6"` for 5,5 %, and sealed rows must not be rewritten. Decide *annotate / re-issue / leave with a documented explanation* before writing anything. The fix to `money.ts` itself may be written first only if it is clearly separated from any treatment of existing rows.
+**Status:** `COMPLETED` (2026-09-03) — DD-03 was investigated before any code and closed as **not applicable**: the key `"6"` has never been written in this project's history, so there were no sealed rows to annotate, re-issue or explain. See the status record below.
 
 ### C-12 — The 5,5 % VAT rate is recorded and reported as 6 %
 
-**Status:** `NOT STARTED` · Severity: HIGH · Category: confirmed bug (fiscal)
+**Status:** `COMPLETED` · Severity: HIGH · Category: confirmed bug (fiscal)
 
 **Problem.** The VAT breakdown map is keyed by `Math.round(vatRate)`; `Math.round(5.5) === 6`.
 
@@ -745,7 +747,7 @@ Audit section J, step 4: before the first Z report you would show an inspector. 
 
 **Dependency note.** Do this **before** Batch 3.2, because 3.2 unifies the aggregation code that consumes this key. Doing them in the reverse order means writing the unified function twice.
 
-**Data-migration question.** Existing `vatBreakdownJson` values in already-sealed `ZReport` and `MonthlyClose` rows carry the wrong key. Sealed rows must not be rewritten. See *Design Decisions Required → DD-03*.
+**Data-migration question — RESOLVED, there was nothing to migrate.** The audit assumed already-sealed rows carried the wrong key. They do not, and never did. Read-only inspection of every database on the machine on 2026-09-03 found **zero** occurrences of a `"6"` key and zero products or order lines at any rate other than 10 %. Full evidence in the status record and in *Design Decisions Required → DD-03*.
 
 ### Batch 3.1 — Validation Required
 
@@ -758,6 +760,89 @@ Audit section J, step 4: before the first Z report you would show an inspector. 
 - **Fiscal verification:** confirm previously sealed rows are untouched and the chain still verifies.
 
 ### Batch 3.1 — Status Record
+
+**Status:** `COMPLETED` · **Completed:** 2026-09-03
+
+**Changes:** The breakdown key moved from `Math.round(vatRate)` to the exact rate, via a new exported **`vatRateKey()`**. It rounds to the nearest hundredth of a percent before rendering — so float noise (`5.500000000000001`) cannot split one rate across two keys — and emits **minimal form**: `"5.5"`, `"10"`, `"2.1"`, not `"10.0"`. Minimal form was chosen deliberately (DD-03 / A1): it is exactly what both existing `ZReport` rows already contain, so the fix gives no already-correct rate a second spelling. Two decimals rather than one because the Corsican and overseas rates include 0,90 %, 1,05 % and 1,75 % — one decimal would have merged 1,05 % into 1,1 %, repeating C-12 at a smaller scale. `VatBreakdown` widened from `Record<number, …>` to `Record<string, …>`; the single caller that declared the map inline (`orders/route.ts:290`) now imports the shared type. **No consumer required a change** — all four read the map through `Object.entries` / `Object.keys` + `Number(key)` — but each was verified rather than assumed.
+
+**Files:** `src/lib/money.ts`, `src/lib/money.test.ts`, `src/app/api/orders/route.ts`
+
+**Tests:** `bun test src` — **261/261 PASS** (baseline 253 + 8 new). `bun run typecheck` — PASS. `bun run lint` — PASS. The five behavioural tests were **proved to fail on the pre-fix code**, not assumed to: `vatRateKey(vatRate)` was temporarily reverted to `String(Math.round(vatRate))`, the suite re-run (5 fail, `"5.5"` → `"6"`), and the fix restored from a scratch copy. Stage 3's rule is satisfied by demonstration.
+
+**Commit:** `2d7e996` + this plan update.
+
+**Notes:**
+
+**(1) DD-03's premise was false, and checking cost less than acting on it.** The plan carried the audit's assumption that sealed rows already held a `"6"` key. Read-only inspection of every database on the machine says otherwise: 78 products and 82 order lines **all at 10 %**; two `ZReport` rows (Z#1 2026-08-21, Z#2 2026-08-28) both keyed `"10"`; **zero** `MonthlyClose`, `AnnualClose` and `FiscalArchive` rows and no `db/fiscal-archives/` directory; `FiscalCounter.lastZReportNumber = 2`, and that counter never rewinds, so exactly two Z reports have ever existed here. `db/real-data-backup/real-data.db` contains no `"6"` key and no 5,5 % rate. The three legacy July JSON exports — from the demo dataset that *did* contain one 5,5 % product, `Eau Minérale 50cl` — hold three Z reports keyed only `"10"` and `"20"`: the 5,5 % product was never sold into a sealed breakdown. **The key `"6"` has never been written anywhere in this project's history.** Not inspected: the three `.dbenc` archives (encrypted; the key was not touched) — bounded by the fact that they are snapshots of *this* database taken after that product was gone.
+
+**(2) The operator then removed the question entirely.** Told on 2026-09-03 that every order, payment, receipt, shift, Z report and fiscal event in the database is **test data the developer created**, and that only the catalogue is real. So the two `ZReport` rows are not fiscal records at all, and P-04 deletes them before the first genuine sale. DD-03 is closed as *not applicable* rather than answered.
+
+**(3) Verified, not assumed, on the consumer side.** A mixed 2,1 / 5,5 / 10 / 20 breakdown was round-tripped through all four: `JSON.stringify` → row → `JSON.parse` (`z/route.ts:49`, `shifts/[id]/close/route.ts:86`) → UI sort and label (`report-widgets.tsx:52,73` renders `2.1 % | 5.5 % | 10.0 % | 20.0 %`, correct order) → VAT report rows (`reports/vat/route.ts:54`, no `NaN` rate). **`canonicalize()` output is insertion-order independent** (it sorts keys, `fiscal.ts:40`), confirmed by building the same breakdown in two different orders and comparing — so `computeCloseHash` stays stable now that non-integer keys exist. Both sealed `ZReport` rows were re-read and the new code emits **byte-identical** keys for them.
+
+**(4) The production database was not written to.** Every inspection used `bun:sqlite` with `readonly: true`; `money.ts` imports nothing and `fiscal.ts` imports only `node:crypto`, so no verification script loaded Prisma or the WAL startup hook. After the batch: counters still `20/3/2/2`, both Z reports unchanged, the two `VENTE` event hashes unchanged (`9471bd79…`, `b794c6a1…`), `GrandTotal` still 5480/2/502/0, 20 receipts / 3 shifts / 21 payments, journal-mode byte 18 still `1` (rollback — WAL still waits on the DD-02 move). Size unchanged at 671 744 bytes and no `-wal`/`-shm` appeared. **The file's mtime did move** (19:03 → 20:28) with identical size and identical content in every field sampled — consistent with OneDrive touching a synced file, which is the condition DD-02 exists to remove. Hash for the next session to compare against: `3f925bf47e1e00ca8efea4137abccfb6f4c58efd13b3f1cf9a3f5290fab9185a`.
+
+**(5) DOC-12 becomes accidentally true.** `IMPLEMENTATION_PLAN.md:162` claims `VatBreakdown` is `Record<string, …>` — wrong when written, correct now. **Batch 7.1 must not "fix" that line**; it should append a correction note saying it was wrong until Batch 3.1 made it right. Do not rewrite history.
+
+**(6) Four issues recorded, none fixed** (safety rule 10): L-16, L-17, L-18, L-19. L-16 and L-17 are the substance of Batch 3.1c.
+
+---
+
+## Batch 3.1b — FACTICE simulation switch
+
+**Status:** `NOT STARTED` · Approved by the operator 2026-09-03 · Addresses **L-18**
+
+Runs **after 3.1 and before 3.1c**, so that any manual testing done while 3.1c is built is stamped as a simulation rather than journalled as genuine trading.
+
+**Problem.** `settings.factice` is read on eight fiscal write paths — checkout (`orders/route.ts:390`), refund (`refund/route.ts:109`), reprint (`reprint/route.ts:52`), drawer (`drawer/route.ts:19`), Z close (`reports.ts:168`), month close, year close — and stamps the receipt (`receipt.ts:14`) and every `FiscalEvent`. `validation.ts:216` already accepts the field. **No screen sets it**, and there is no `factice` row in `Setting` at all, so it defaults to `false`. That is why 20 development orders were journalled as genuine sales.
+
+**Scope.** A control in Réglages, the settings write, and a test that a sale made with `factice = true` produces a `FiscalEvent` carrying `factice: true` and a receipt bearing the stamp. Nothing else.
+
+**Out of scope.** Changing any existing row's `factice` value — the existing test trading stays as it is and is deleted by P-04.
+
+### Batch 3.1b — Validation Required
+
+- Targeted test: with `factice = true`, a checkout writes `FiscalEvent.factice = true` and `renderReceipt()` emits the simulation stamp.
+- Targeted test: the default is still `false` when the setting is absent — an install that has never seen the switch must not silently start marking real sales as tests.
+- Manual: toggle in Réglages, confirm it persists and appears on a test ticket. Run against a **scratch copy** of the database, per the Batch 1.1 method.
+- `bun test src` — PASS. `bun run typecheck` — PASS. `bun run lint` — PASS.
+
+### Batch 3.1b — Status Record
+
+**Status:** `NOT STARTED` · **Completed:** — · **Changes:** — · **Files:** — · **Tests:** — · **Commit:** — · **Notes:** —
+
+---
+
+## Batch 3.1c — Category-level VAT rates
+
+**Status:** `NOT STARTED` · Design decided in **DD-17**, approved 2026-09-03 · Addresses **L-16**, **L-17**
+
+**Depends on Batch 3.1** and must not run before it: setting any product to 5,5 % while the key bug is live would seal the first Z report under a "6 %" heading.
+
+**Problem (L-17).** The only control that sets a product's VAT is a "Bouteille / Canette" switch (`products-view.tsx:498`) shown when the *immediate* category's name contains `"boisson"`. It does not walk to the parent, unlike every other category-inherited property — `pricing.ts:71` resolves `product.category?.parent ?? product.category` for options and add-ons. The real drinks live in `Canette` (13 products) and `Bouteilles` (4), both children of `Boissons`, so the switch never appears for them and there is no other VAT control in the form.
+
+**Problem (L-16).** Consequently all 17 cans and bottles are stored at **10 %** where the operator states 5,5 % applies. At the fixed TTC prices this over-declares roughly **6 c per can** (1,50 €) and **14 c per bottle** (3,50 €) — money owed to the restaurant, not the state, on every drink sold from opening day.
+
+**Design (DD-17).** Follow the pattern the codebase already uses for options and add-ons rather than inventing one:
+- `Category.vatRate` — optional. Resolved **nearest-wins**: the product's own category, then its parent, then the default. Same walk as `pricing.ts:71`.
+- `Product.inheritCategoryVat` — a per-product flag mirroring the existing `inheritCategoryGlobals`. Existing products default to **off**, keeping their stored rate, so the migration changes no behaviour on its own.
+- The selector offers **20 % / 10 % / 5,5 % / 2,1 %** only, replacing the free `z.number().min(0).max(100)` on the product path. This makes a whole class of mistake unreachable, including re-creating a "6 %".
+- Sub-categories may override a parent, so a future *Boissons chaudes* (poured, immediate consumption, 10 %) is expressible.
+
+**The data change — operator-authorised, not Claude's judgement.** Set `Boissons` to 5,5 % and switch the 17 cans/bottles to inherit. The other 61 products keep their explicit 10 %, which is correct for food and is the smallest possible change to real menu data. **Before touching anything:** a full backup, verified openable with `scripts/decrypt-backup.ts`, and the whole change rehearsed on a scratch copy first. Recorded as an operator decision of 2026-09-03; whether 5,5 % is the right classification is **V-14**, not a Claude determination (safety rule 13).
+
+### Batch 3.1c — Validation Required
+
+- Targeted test: a product with `inheritCategoryVat` resolves through `Canette` → `Boissons` and prices at 5,5 %.
+- Targeted test: a sub-category rate overrides its parent's.
+- Targeted test: a product with the flag **off** keeps its own rate even when the category's rate differs.
+- **Targeted test: changing a category's rate does not alter any existing order.** `OrderItem.vatRate` is snapshotted at checkout (`orders/route.ts:194`) and every report reads that, not the product — this is the property that makes live inheritance safe and it must be pinned.
+- Targeted test: the product API rejects a rate outside {20, 10, 5.5, 2.1}.
+- End-to-end on a scratch copy: a drink checks out at 5,5 %, and the Z report shows a `"5.5"` breakdown row alongside `"10"` — the first real exercise of the Batch 3.1 fix.
+- Manual: confirm the VAT control now appears for `Canette` and `Bouteilles`.
+- Fiscal: the chain still verifies; no sealed row changed.
+- `bun test src` — PASS. `bun run typecheck` — PASS. `bun run lint` — PASS.
+
+### Batch 3.1c — Status Record
 
 **Status:** `NOT STARTED` · **Completed:** — · **Changes:** — · **Files:** — · **Tests:** — · **Commit:** — · **Notes:** —
 
@@ -1823,7 +1908,8 @@ These cannot be resolved from the code. **Claude must not decide them.** Each bl
 |---|---|---|---|
 | **DD-01** | ~~**Printing and cash drawer.**~~ **ANSWERED 2026-09-03: build the ESC/POS bridge now, in the existing Bun/Next server, primary transport raw TCP to port 9100 over the LAN**, behind a transport interface leaving a Windows-RAW-spooler slot for USB. Not deferred to Tauri. | Batch 1.3 (now `IN PROGRESS`); shapes 1.4 and 3.4 | Decided by the user. Reasoning: `renderReceipt()` already produces the receipt text, so only transport + control bytes are missing; a TCP socket is runtime-independent and carries over to a future Tauri shell untouched, so building now is not throwaway work. Deferring would keep the restaurant on a physical drawer key per cash sale, and would leave the Batch 1.2 cash-variance figure with no drawer accountability behind it. |
 | **DD-02** | ~~**Where does application data live?**~~ **ANSWERED 2026-09-03: `C:\HibaPOS\data`.** Plumbing shipped in Batch 2.2 (`src/lib/paths.ts`, `HIBAPOS_DATA_DIR`), defaulting to the old layout; the physical move is a deployment step with Batch 1.4. Original question: `%ProgramData%\HibaPOS\`, a dedicated `C:\HibaPOS\`, or the current install directory? The current path is inside a OneDrive-synced Desktop folder, which locks SQLite files. Under `C:\Program Files\` the app cannot write at all. | Batch 2.2; shapes 1.4 | Every path except `DATABASE_URL` is `process.cwd()`-anchored. |
-| **DD-03** | **Already-sealed rows with the wrong VAT key.** Existing `ZReport` and `MonthlyClose` rows carry `vatBreakdownJson` keyed "6" for 5,5 %. Sealed rows must not be rewritten. Annotate, re-issue, or leave with a documented explanation? | Batch 3.1 | This is a fiscal-record question as much as a technical one — may need V-01. |
+| **DD-03** | ~~**Already-sealed rows with the wrong VAT key.**~~ **CLOSED 2026-09-03 as NOT APPLICABLE — there was never an affected row.** The premise (that sealed rows carry a `"6"` key) was an audit assumption, not an observation. Read-only inspection of every database on the machine found zero `"6"` keys and zero non-10 % rates anywhere, including in the legacy July exports whose dataset *did* contain a 5,5 % product. The operator then confirmed that all trading data is developer test data and that P-04 deletes it before the first real sale, so the two `ZReport` rows are not fiscal records at all. Key format decided: **minimal decimal string** (`"5.5"`, `"10"` — option A1), because it is byte-identical to what those rows already hold. | Batch 3.1 (`COMPLETED`) | Full evidence in the Batch 3.1 status record. No annotation, re-issue or explanation was needed, so V-01 is not engaged. |
+| **DD-17** | ~~**Where does a product's VAT rate come from?**~~ **ANSWERED 2026-09-03: on the category, inherited nearest-wins (own category → parent → default), with a per-product override flag and a selector constrained to 20 / 10 / 5,5 / 2,1 %.** Original question raised by the operator: should a VAT percentage be settable per category instead of via the hardcoded "Bouteille / Canette" switch? | Batch 3.1c | Decided by the user. Reasoning: the current design encodes a **tax rule as a string match on a category name** (`products-view.tsx:498`), so renaming a category silently removes the control — and it already has, which is L-16/L-17. Category-level inheritance is not a new mechanism here: `pricing.ts:71` already resolves `product.category?.parent ?? product.category` for options and add-ons, with `inheritCategoryGlobals` as the per-product opt-out. This applies the established pattern to one more field. The snapshot in `OrderItem.vatRate` is what makes it safe — past sales cannot move when a category is edited. |
 | **DD-04** | **Backup key rotation policy.** Rotating `BACKUP_ENCRYPTION_KEY` orphans every existing backup permanently. Re-encrypt the retained set first, accept the loss, or introduce key versioning before rotating? | Batch 7.3; P-02 | Retention obligations may make discarding old backups unacceptable — see V-04. |
 | **DD-05** | **Out-of-order period closes.** Chain by insertion order, or refuse to close a month out of sequence? | Batch 3.6 (M-01) | Refusing is simpler and arguably more correct fiscally; chaining by insertion order is more permissive. |
 | **DD-06** | **Is LAN access required?** If no, bind to `127.0.0.1`. If yes, set `APP_URL` to an `http://` value so the session cookie works, and accept unencrypted traffic on the restaurant network. | Batch 4.3 | Currently binds `0.0.0.0` with a `secure` cookie, so LAN login silently fails — protective by accident. |
@@ -1852,6 +1938,7 @@ The repository ships `docs/attestation-conformite.md`, a fill-in-and-sign editor
 | **V-02** | `REQUIRES EXTERNAL VERIFICATION` | Does the annual archive format satisfy the archiving requirement, and what integrity property must its checksum actually have? (C-04) |
 | **V-03** | `REQUIRES EXTERNAL VERIFICATION` | What must a compliant receipt contain — per-rate VAT breakdown, TVA number, software identification, others? (M-06) |
 | **V-08** | `REQUIRES EXTERNAL VERIFICATION` | What must a compliant Z report and period close contain, and how must refunds and corrections be presented? (M-07, C-10) |
+| **V-14** | `REQUIRES EXTERNAL VERIFICATION` | **Is 5,5 % correct for the 17 sealed cans and bottles?** The operator instructed 5,5 % on 2026-09-03 and Batch 3.1c applies that instruction. The French rule turns on the container, not the drink: a non-alcoholic beverage in a sealed container is 5,5 %; poured for immediate consumption it is 10 %; anything alcoholic is 20 %. The menu shows no fountain drinks, no hot drinks and no alcohol, so the classification appears clean — but Claude must not certify it (safety rule 13). One confirmation from whoever files the TVA settles it. |
 | **V-09** | `REQUIRES EXTERNAL VERIFICATION` | Retention: the archive notice states six years. What must actually be retained, in what form, and does the current backup arrangement satisfy it? Interacts with DD-04. |
 | **V-10** | `REQUIRES EXTERNAL VERIFICATION` | Is certification by a body, or self-attestation, the applicable route for this software and this operator? No certificate, test report or certifying-body reference exists in the repository. |
 | **V-11** | `REQUIRES EXTERNAL VERIFICATION` | Are the legal citations in `docs/attestation-conformite.md` current and correctly applied — art. 286-I-3° bis CGI, art. 1770 duodecies CGI, *Loi n° 2026-103 du 19 février 2026 art. 125*, BOI-TVA-DECLA-30-10-30, BOI-LETTRE-000242? The audit recorded these verbatim and did **not** evaluate them. |
@@ -1901,6 +1988,10 @@ Record anything found *during* remediation that is outside the current batch's s
 
 | ID | Date | Found during | Description | Severity | Assigned to batch |
 |---|---|---|---|---|---|
+| **L-16** | 2026-09-03 | Batch 3.1 (DD-03 investigation) | **All 17 real cans and bottles are stored at 10 % where the operator states 5,5 % applies.** `Canette` (13 products at 1,50 €) and `Bouteilles` (4 at 3,50 €) are all `vatRate = 10`; so are all 78 products in the catalogue. Unlike the trading data, **the menu is real** — so this is a live error in production data, not a test artifact. At the fixed TTC prices it over-declares ≈ 6 c per can and ≈ 14 c per bottle, money owed to the restaurant rather than the state, on every drink sold from opening day. Caused by L-17: the interface offers no way to set the rate for these products. | **HIGH** (real data, real money, from day one) | 3.1c — operator authorised the change 2026-09-03; classification is V-14 |
+| **L-17** | 2026-09-03 | Batch 3.1 (DD-03 investigation) | **The VAT switch matches the immediate category's name and never walks to the parent.** `products-view.tsx:498` shows the "Bouteille / Canette" 5,5 % toggle only when the selected category's name contains `"boisson"`. `Canette` and `Bouteilles` are **children of** `Boissons`, so it never renders for them — and it is the only VAT control in the product form. Every other category-inherited property resolves `product.category?.parent ?? product.category` (`pricing.ts:71`); this one does not. The form already has the full tree loaded, so it is a one-line inconsistency with an established convention, not a missing capability. | **HIGH** (blocks any fix for L-16) | 3.1c |
+| **L-18** | 2026-09-03 | Batch 3.1 (DD-03 investigation) | **FACTICE simulation mode is wired into every fiscal write but no screen can turn it on.** `settings.factice` is read on eight write paths and stamps both the receipt (`receipt.ts:14`) and every `FiscalEvent`; `validation.ts:216` already accepts the field. There is no `factice` row in `Setting` and no control anywhere, so it is permanently `false` — which is why 20 developer test orders were journalled as genuine sales with `factice = 0`. P-04 deletes them, but any testing before go-live has the same problem. | MEDIUM (fiscal-record hygiene before go-live) | 3.1b — operator approved 2026-09-03 |
+| **L-19** | 2026-09-03 | Batch 3.1 consumer verification | **The VAT breakdown table renders rates with `toFixed(1)`, which cannot show a two-decimal rate.** `report-widgets.tsx:76` renders `Number(r).toFixed(1) + " %"`, so 10 % displays as "10.0 %" (cosmetic) and a Corsican/overseas rate such as 1,05 % would display as "1.1 %" — a wrong rate on a fiscal report. Pre-existing and **improved** by Batch 3.1 (before the fix, 1,05 % was keyed "1" and lost entirely), and unreachable while every product is at 10 %. Recorded so 3.2/3.4 does not preserve it. Note the display layer, not the key, is what needs fixing. | LOW (latent display defect; not reachable today) | 3.4 or 7.1 |
 | L-15 ✅ **RESOLVED in Batch 2.2** (`3a9bd1f`, refuse) | 2026-09-03 | Batch 2.1 decrypt-tool verification | **Restore has no schema-version check, and at least one existing backup predates five tables.** Decrypting the real `hibapos-backup-2026-08-28T01-21-34-082Z.dbenc` shows 26 tables against the live schema's 31 — missing `AnnualClose`, `FiscalArchive`, `FiscalEvent`, `GrandTotal`, `MonthlyClose`. Restoring it succeeds and leaves the application running against a database with **no fiscal journal**: every fiscal query fails, and the new `RESTAURATION` event cannot even be written (handled non-fatally, logged as ERROR). `restoreBackup` compares the *data* checksum but never the schema. Needs a decision — refuse a restore whose `_prisma_migrations` do not match, warn and proceed, or run `migrate deploy` after the swap. | **HIGH** (silent post-restore breakage) | needs a decision; suggest 2.2 or a new DD |
 | L-14 | 2026-09-03 | Batch 1.3 loopback validation | **Receipts archived before L-13 was fixed are 80 columns wide and cannot fit the paper.** Every existing `Receipt.content` row (checked #18, #19, #20) has a widest line of 80 characters, because `renderReceipt` was fed the millimetre value. 80 mm paper fits 48 columns at Font A and 64 at Font B, so **reprinting any pre-fix ticket will wrap**. Re-rendering them is **not** an option — an archived receipt is an immutable fiscal artifact and the reprint path must print it verbatim. Options are to accept wrapped legacy reprints, or to print pre-fix receipts in a condensed font. Affects reprints only; new receipts render at 48 once `receiptWidth` is saved. | LOW (cosmetic, legacy rows only) | 7.1 or accept |
 | L-13 ✅ **RESOLVED in Batch 1.3** (`483a86e`) | 2026-09-03 | Batch 1.3 decision prep | **`receiptWidth` is a millimetre value being used as a character count.** The live `Setting` row is `receiptWidth = 80` and `validation.ts:202` allows 32–80, but `renderReceipt()` (`services/receipt.ts:8`) uses it as `const w = Math.max(32, s.receiptWidth ?? 42)` — a column count. 80 mm of thermal paper is **48 characters** at ESC/POS Font A (64 at Font B), not 80. Harmless while printing is `window.print()`; guaranteed to wrap every receipt into garbage the moment real printing exists. Decide whether the setting means millimetres (and derive columns) or columns (and re-label + re-default it). | MEDIUM (latent; blocks correct output in 1.3) | 1.3 |
@@ -1917,6 +2008,7 @@ Record anything found *during* remediation that is outside the current batch's s
 | 0.1 | COMPLETED | 2026-09-03 | `e97a3e1` | C-26, C-26b: anchored 4 bare `.gitignore` patterns; recovered 3 untracked backup API route files into version control. |
 | 0.2 | COMPLETED | 2026-09-03 | *(this update)* | P-01/P-02/P-03: repo pushed to `origin/main` (user, interactive), `.env` confirmed preserved out-of-band by user, pre-remediation snapshot + fiscal/row-count baseline recorded. No code changes. |
 | 1.1 | COMPLETED | 2026-09-03 | `4766ceb` | C-01: refund dialog made a euros boundary (`parseEuroInput()` in `money.ts`, pre-fill + submit + max-check in `orders-view.tsx`). 9 new tests; 145/145. Validated end-to-end on a scratch copy of the production DB — 5,00 € → 500, 5,50 € → 550, full refund → 690, fiscal chain ok. Production DB untouched. |
+| 3.1 | COMPLETED | 2026-09-03 | `2d7e996` | C-12: VAT breakdown keyed by the exact rate (new `vatRateKey()`) instead of `Math.round`, so 5,5 % is no longer filed as "6 %" and 2,1 % no longer collapses to "2". Minimal form (`"5.5"`, `"10"`) keeps both existing ZReport rows byte-identical. **DD-03 closed as not applicable** — the `"6"` key has never been written anywhere in this project's history, and the operator confirmed all trading data is test data awaiting P-04. 8 new tests, the 5 behavioural ones proved to fail on the pre-fix code; all four consumers round-tripped; canonicalize() confirmed order-independent. Production DB read-only throughout. 261/261. Recorded L-16/L-17 (drinks at the wrong rate, and the UI that prevents fixing them), L-18, L-19. |
 | 2.4 | COMPLETED | 2026-09-03 | `f9fd5cc` | M-29/M-30/M-31/L-04/L-05: removed a 297 MB standalone tree holding a copy of every secret and dropped `output: standalone`; log retention on the Z close (FiscalEvent never pruned); media library 778 ms → 43 ms; report ranges bounded to 370 days; chain verification walks in pages. 253/253. |
 | 2.3 | COMPLETED | 2026-09-03 | `e07a860` | C-19 + C-15 (timeout half): WAL applied by a new startup hook — the `sqlite3`-CLI claim in db.ts was wrong, `$queryRawUnsafe` runs the pragma — with a guard that refuses cloud-synced paths; explicit budgets on the seven transactions that seal money. Verified header byte 1→2 and persistence on a scratch copy; worst read while writing 64 ms → 10 ms. Production DB still rollback mode until the DD-02 move. 239/239. |
 | 2.2 | COMPLETED | 2026-09-03 | `d09252d`, `3a9bd1f` | C-06 + M-03 + DD-02 + L-15: BACKUP_LOCATION honoured, keep-30 retention, content-addressed media reuse (a Z close no longer re-encrypts ~49 MiB), backup failures surfaced at the Z close, fiscal archives backed up, one data-directory root (`HIBAPOS_DATA_DIR` → `C:\HibaPOS\data`) with an `/uploads` route, and restore refuses a schema mismatch. 230/230. |
@@ -1942,7 +2034,7 @@ Quick lookup from audit ID to batch.
 | C-09 | 4.2 | M-09 | 5.7 | L-02 | 7.2 |
 | C-10 | 3.2 | M-10 | 5.7 | L-03 | 7.2 |
 | C-11 | 3.2 | M-11 | 5.7 | L-04 | 2.4 / 7.3 |
-| C-12 | 3.1 | M-12 | 5.7 | L-05 | 2.4 (deferred) |
+| C-12 ✅ | 3.1 | M-12 | 5.7 | L-05 | 2.4 (deferred) |
 | C-13 | 3.5 | M-13 | 3.2 | L-06 | 6.3 |
 | C-14 | 5.3 | M-14 | 3.2 | L-07 | 7.2 |
 | C-15 | 2.3 + 4.7 | M-15 | 5.7 | L-08 | 7.2 |
