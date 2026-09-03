@@ -9,7 +9,7 @@ import type { ShiftDto, XReportDto } from "@/types/api";
 import { formatEuro, formatDateTime } from "@/lib/format";
 import { Money } from "@/components/shared/money";
 import { EmptyState, PageHeader } from "@/components/shared/empty-state";
-import { round2 } from "@/lib/money";
+import { cashVarianceCents, formatVariance } from "./z-close";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -561,11 +561,14 @@ function CloseShiftForm({
     return Number.isFinite(n) && n >= 0 ? n : 0;
   }, [countedStr]);
 
-  // expectedCash and openingFloat arrive as CENTS from the API; convert to
-  // euros for the variance display (user-facing).
-  const expectedCashEuros = expectedCash / 100;
-  const variance = round2(counted - expectedCashEuros);
-  const v = varianceStyle(variance);
+  // expectedCash and openingFloat arrive as CENTS from the API, and
+  // Money/formatEuro divide by 100 themselves (format.ts is the single
+  // display boundary) — so everything below stays in CENTS. `countedCents`
+  // is the exact value submitted as closingFloat, so what the operator is
+  // shown and what the Z report records cannot drift apart.
+  const countedCents = Math.round(counted * 100);
+  const varianceCents = cashVarianceCents(countedCents, expectedCash);
+  const v = varianceStyle(varianceCents);
 
   return (
     <>
@@ -594,17 +597,16 @@ function CloseShiftForm({
         <div className="rounded-xl border border-border bg-muted/40 p-3 text-sm">
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">Fond de caisse initial</span>
-            <Money amount={openingFloat / 100} />
+            <Money amount={openingFloat} />
           </div>
           <div className="mt-1 flex items-center justify-between">
             <span className="text-muted-foreground">Espèces attendues</span>
-            <Money amount={expectedCash / 100} className="font-medium" />
+            <Money amount={expectedCash} className="font-medium" />
           </div>
           <div className="mt-1 flex items-center justify-between">
             <span className="text-muted-foreground">Écart calculé</span>
             <span className={cn("font-semibold tnum tabular-nums", v.cls)}>
-              {variance > 0 ? "+" : ""}
-              {formatEuro(variance)}{" "}
+              {formatVariance(varianceCents)}{" "}
               <span className="ml-1 text-xs font-normal">({v.label})</span>
             </span>
           </div>
@@ -628,7 +630,7 @@ function CloseShiftForm({
         </Button>
         <Button
           variant="destructive"
-          onClick={() => onSubmit({ closingFloat: Math.round(counted * 100), notes: notes.trim() || undefined })}
+          onClick={() => onSubmit({ closingFloat: countedCents, notes: notes.trim() || undefined })}
           disabled={loading}
         >
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <LockKeyhole className="h-4 w-4" />}
