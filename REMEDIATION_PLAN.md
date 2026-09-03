@@ -13,22 +13,22 @@ Detailed audit record: https://claude.ai/code/artifact/329316b0-3a6b-48b0-9d27-d
 
 **Current Stage:** Stage 3 — Fiscal correctness. (Stage 1 is **partly done**: 1.1 and 1.2 COMPLETED, 1.3 `IMPLEMENTED — TESTING REQUIRED` on hardware, 1.4 deferred. Stage 2 is COMPLETED.)
 
-**Current Batch:** Batch 3.5 — Fiscal audit-trail completeness · `NOT STARTED`
+**Current Batch:** Batch 3.6 — Close chain ordering and fiscal document content · `NOT STARTED`
 
-**Last Completed Batch:** Batch 3.4 — Fiscal operator interface (C-27; commits `f8c9e9a`, `36ef20c`). **The fiscal module is reachable and works**: five journal event types that the application had never once written are now written from the UI.
+**Last Completed Batch:** Batch 3.5 — Fiscal audit-trail completeness (C-13, M-04). The manager who approves a discount is now recorded, and a refund's journal entry names the printed ticket instead of a cuid. **C-22's chain-design half stays `REQUIRES EXTERNAL VERIFICATION`** and was carried forward untouched, as the batch allows. **The migration is written and rehearsed but NOT applied to the production database** — see *OPEN THREADS → A*.
 
-**Next Batch:** Batch 3.5. **Batch 1.4 is unblocked in design** (DD-02 answered) but still deferred on hardware — see *Hardware-dependent validation* below.
+**Next Batch:** Batch 3.6. **Batch 1.4 is unblocked in design** (DD-02 answered) but still deferred on hardware — see *Hardware-dependent validation* below.
 
 **Blocked:** Batch 1.3 `[HW]` sign-off and Batch 1.4 — both need the app running on the restaurant's POS machine, which is in a different country from the developer and has no copy of the app installed (decision of 2026-09-03).
 
 **Awaiting decision:** Batch 5.3 (cross-shift refunds), Batch 5.5 (cash movements), Batch 5.6 (order cancellation) — see *Design Decisions Required*. **DD-03 and DD-17 were answered on 2026-09-03**; nothing blocks Stage 3.
 
-**Last Updated:** 2026-09-03 (end of session 3 — Stage 3 worked through 3.4; read *OPEN THREADS* below before starting anything)
+**Last Updated:** 2026-09-04 (session 4 — Batch 3.5; read *OPEN THREADS* below before starting anything)
 
 ### OPEN THREADS — read this before starting a batch
 
-*Rewritten at the end of session 3 (2026-09-03). Everything below is current
-as of commit `36ef20c`.*
+*Rewritten at the end of session 3 (2026-09-03), updated for Batch 3.5.
+Everything below is current as of the Batch 3.5 commit.*
 
 Work in this plan does not finish batch-by-batch. Several completed batches
 shipped a mechanism whose **benefit is not yet delivered**, and several items
@@ -48,12 +48,14 @@ real till until an action below is taken. Do not report them as delivered.
 | **Thermal printing + drawer** (1.3) | `printerEnabled` is `false` and no printer IP is set. Confirmed this session: a reprint journals its `REIMPRESSION` event and then reports *"Impression désactivée dans les réglages."* | Commissioning on the real Sunso WTP-801 |
 | **FACTICE simulation mode** (3.1b) | The switch now exists in Réglages but is **off**. Any testing before go-live is still journalled as genuine trading. | The operator turning it on for test sessions |
 | **Audit-log retention** (2.4) | Deliberately `0` = keep forever. That table is still unbounded. | An operator decision, if a retention obligation appears |
+| **`Order.discountApprovedById`** (3.5) | The migration `20260903230305_order_discount_approver` is written and rehearsed, **not applied** — Claude cannot run `migrate deploy` against production. Until the operator runs it, the live install has no column to write to and **checkout will fail** on the new code. Do not deploy the code without the migration. | The operator running the command in *B* |
 
 #### B. Waiting on the operator
 
 | Action | Why it matters | Related |
 |---|---|---|
-| **Push session-3 commits** | Session 3 added ~20 commits. Claude cannot push (explicit-permission action, and the classifier refuses it). Check with `git rev-list --left-right --count origin/main...HEAD`. | P-01 |
+| **Apply the Batch 3.5 migration** | `bunx prisma migrate deploy` from the project root. Adds one nullable column to `Order`; rehearsed on a copy with a before/after fingerprint diff showing nothing else moved. **Required before the 3.5 code runs on the live install.** | C-13 |
+| **Push session-3 and session-4 commits** | Session 3 added ~20 commits. Claude cannot push (explicit-permission action, and the classifier refuses it). Check with `git rev-list --left-right --count origin/main...HEAD`. | P-01 |
 | Correct `printerName` in Réglages | Stored value is `"Epson TM-m30"`; the physical printer is the **Sunso WTP-801** (Ethernet). Cosmetic — nothing reads it. **This was impossible until Batch 3.1d**; the settings form now saves. | DOC-15 |
 | Choose a second volume for backups | See A. | C-06 |
 | Turn FACTICE on for any pre-go-live testing | See A. | L-18 |
@@ -85,10 +87,18 @@ Batch 1.4, and Batch 8.2.
   already in cloud storage.
 - **Batch 8.0 / P-04** (pre-go-live fiscal reset) must run **after** 1.3 and
   1.4 — otherwise commissioning puts fresh test sales into the journal that
-  was just reset. Its scope grew this session: the journal now also contains
+  was just reset. Its scope grew in session 3: the journal now also contains
   `CLOTURE_M`, `CLOTURE_A`, `ARCHIVE_GENEREE`, `OUVERTURE_TIROIR` and
   `REIMPRESSION` events whenever the operator exercises the new fiscal screen,
   plus any `FiscalArchive` rows and files.
+- **Batch 3.5 changed two event payload shapes**, so the journal now contains
+  events of two vintages. `VENTE` gained `discountApprovedById`; `REMBOURSEMENT`
+  and `ANNULATION` changed `orderNumber` from a cuid to the ticket number.
+  Older rows keep what they were sealed with and **must never be re-serialised
+  to match** — their hashes cover the old bytes, and the chain verifies fine
+  across the boundary (proved on a copy of production). Anything that later
+  reads a payload — an archive reader, an inspection export, Batch 3.6's
+  document work — has to tolerate both.
 - **L-14** is unresolved by choice: receipts archived before Batch 2.2 are 80
   columns wide and will wrap when reprinted on 48-column paper. They must
   **not** be re-rendered — an archived receipt is immutable.
@@ -112,19 +122,20 @@ with `sha256sum`); the compliance judgement is not a code question.
 | **L-19** | `report-widgets.tsx:76` renders rates with `toFixed(1)`, so a two-decimal rate (1,05 %) would display as "1.1 %". Not reachable while only 10 % and 5,5 % are in use. | 7.1 |
 | **L-21** | `renderReceipt()` centres but never wraps, so the restaurant's real 56-character address overflows 48-column paper on every ticket. | with the printer work |
 | **L-22** | Validation errors surface as untranslated English zod messages in a French UI. | 7.1 |
+| **L-24** | `bun test src` fails 23 tests on a slow machine — the backup/restore suite exceeds Bun's default 5 s timeout because scrypt at N=2^17 costs ~1.5 s per call here. Nothing to do with the code; it cost most of an hour to establish that in session 4. Run `bun test src --timeout 30000` if the failures are all in `backup*.test.ts`. | 6.1 |
 | **L-12**, **L-10**, **L-11** | Pre-existing, unchanged this session. | as recorded |
 
 #### G. Current baselines — check these before trusting anything
 
 | Thing | Value at the end of session 3 |
 |---|---|
-| Tests | **329 pass, 0 fail** (`bun test src`) |
-| Production DB sha256 | `711de2f1280e30cad04d0cb49ba5cd7d7084453078ed5390e34b708de84a2534` |
+| Tests | **340 pass, 0 fail** (`bun test src --timeout 30000` — see L-24 for why the timeout flag) |
+| Production DB sha256 | `711de2f1280e30cad04d0cb49ba5cd7d7084453078ed5390e34b708de84a2534` (unchanged by Batch 3.5) |
 | Fiscal chain | `/api/fiscal/verify` → all three chains `ok`, `lastSequence: 2` |
 | Fiscal counters | `20/3/2/2` (receipt / shift / Z / event) |
-| Migrations | 3 applied, latest `20260903203715_category_vat_rates` |
+| Migrations | **3 applied on production**, latest `20260903203715_category_vat_rates`. A **4th is committed and unapplied**: `20260903230305_order_discount_approver` |
 | Catalogue | 78 products — 17 drinks at **5,5 %**, 61 at 10 % |
-| Out-of-band snapshot | `db-snapshots/custom.db.pre-3.1c.2026-09-03T20-54-10Z` (outside the repo) |
+| Out-of-band snapshots | `db-snapshots/custom.db.pre-3.1c.2026-09-03T20-54-10Z` and `db-snapshots/custom.db.pre-3.5.2026-09-03T23-01-34Z` (outside the repo; both hash `711de2f1…`) |
 
 **When running the app against a scratch copy**, override **both**
 `DATABASE_URL` and `HIBAPOS_DATA_DIR` — Batch 3.4 overrode only the first and
@@ -157,7 +168,9 @@ These are **deferred, not waived.** Stage 1 cannot be declared complete, and no 
 
 7. **When running the app against a scratch copy, override `HIBAPOS_DATA_DIR` as well as `DATABASE_URL`.** Batch 3.4 overrode only the database and a generated archive landed in the real `db/fiscal-archives/`, orphaned from its row. It was deleted, but the next session should not repeat it.
 
-8. **Claude cannot do four things in this project** — the permission classifier refuses them, and each is correct: `git push`, `prisma migrate deploy` against production, writes to real menu data, and killing processes. Prepare, rehearse and verify; then hand the operator the exact command.
+8. **`bun test src` fails 23 tests on this machine, and the code is fine.** All 23 are in `backup*.test.ts` / `auth.test.ts` and every one is a 5 s timeout: scrypt at N=2^17 costs ~1.5 s per call here, and a backup→restore round trip makes several. `bun test src --timeout 30000` gives **340 pass, 0 fail**. Confirmed on the untouched commit before any Batch 3.5 change was made. Recorded as **L-24**. Do not "fix" a test that fails this way.
+
+9. **Claude cannot do four things in this project** — the permission classifier refuses them, and each is correct: `git push`, `prisma migrate deploy` against production, writes to real menu data, and killing processes. Prepare, rehearse and verify; then hand the operator the exact command.
 
 ---
 
@@ -1286,11 +1299,11 @@ Both print paths call `window.print()` directly (`orders-view.tsx:253`, `receipt
 
 ## Batch 3.5 — Fiscal audit-trail completeness
 
-**Status:** `NOT STARTED`
+**Status:** `COMPLETED` (2026-09-04) — C-22 carried forward as the batch allows
 
 ### C-13 — The manager who approved a discount is verified and then discarded
 
-**Status:** `NOT STARTED` · Severity: HIGH · Category: audit trail
+**Status:** `COMPLETED` · Severity: HIGH · Category: audit trail
 
 **Problem.** `discountApproverId` is assigned from the verified approval token and never read again. `Order` has no approver column; the audit entry and the `VENTE` fiscal event both omit it.
 
@@ -1304,9 +1317,11 @@ Both print paths call `window.print()` directly (`orders-view.tsx:253`, `receipt
 
 **⚠ Schema note.** Adding a column requires a migration. Coordinate with Batch 1.4's update procedure and confirm `migrate deploy` runs on the production machine.
 
+**Resolved.** `Order.discountApprovedById` (nullable, **no FK** — the same choice as `Refund.approvedById`, so a soft-deleted approver cannot take a fiscal record with them), written at `orders/route.ts:321` from the `discountApproverId` the route already had. The id also travels into the `VENTE` payload and the `ORDER_CREATED` audit entry, both now built by `services/sale-journal.ts` so a test runs the same code the route runs. The audit entry carries `discountTotal` alongside the approver: an audit row naming an approver but not the amount cannot answer the question C-13 says cannot be asked. Migration `20260903230305_order_discount_approver` — a plain `ADD COLUMN`, **unapplied on production**.
+
 ### C-22 (chain-design half) — The hash chain is unkeyed
 
-**Status:** `REQUIRES EXTERNAL VERIFICATION` · Severity: HIGH · Category: fiscal / requires external input
+**Status:** `REQUIRES EXTERNAL VERIFICATION` — **carried forward out of Batch 3.5 untouched** · Severity: HIGH · Category: fiscal / requires external input
 
 **Problem.** Event hashes are plain SHA-256 over public inputs — no HMAC key, no signature, no external timestamp. Anyone who can write to `db/custom.db` can alter a row and recompute the rest of the chain; `/api/fiscal/verify` then reports `ok`.
 
@@ -1320,9 +1335,11 @@ Both print paths call `window.print()` directly (`orders-view.tsx:253`, `receipt
 
 ### M-04 — Refund fiscal events record a cuid in a field named `orderNumber`
 
-**Status:** `NOT STARTED` · Severity: MEDIUM · Category: fiscal traceability
+**Status:** `COMPLETED` · Severity: MEDIUM · Category: fiscal traceability
 
 `services/refund.ts:131` passes `order.id` as `orderNumber`, so the journal payload cannot be tied to a printed ticket number without a join. Direction: pass the real `order.number`. **Warning:** changing an event payload changes its hash — this affects only *new* events; existing rows must not be touched.
+
+**Resolved.** `refund.ts:142` passes `order.number`. `number` was added to `OrderForRefund` as a **required** field rather than an optional one, so the defect cannot quietly return through a caller that omits it; the route's structural cast was widened to match. A sweep of every `orderNumber:` assignment in `src/` found only one other — `orders/[id]/reprint/route.ts:44,55` — and it was already correct. Existing rows keep the cuid they were sealed with.
 
 ### Batch 3.5 — Validation Required
 
@@ -1335,7 +1352,33 @@ Both print paths call `window.print()` directly (`orders-view.tsx:253`, `receipt
 
 ### Batch 3.5 — Status Record
 
-**Status:** `NOT STARTED` · **Completed:** — · **Changes:** — · **Files:** — · **Tests:** — · **Commit:** — · **Notes:** —
+**Status:** `COMPLETED` · **Completed:** 2026-09-04
+
+**Changes:** **(1) Schema.** `Order.discountApprovedById`, nullable, **no foreign key** — deliberately the same convention as `Refund.approvedById`. An FK would make a fiscal record refuse to let its approver's account be deleted, and would silently blank the approver on a `SetNull`; a plain id keeps the sale intact either way, which a test proves by hard-deleting the approver. **(2) Persistence.** The route already held a verified `discountApproverId` and threw it away; `orders/route.ts:321` now writes it. **(3) Payloads.** `services/sale-journal.ts` (new) builds the `VENTE` data and the `ORDER_CREATED` audit details, and the route calls it at `:420` and `:438`. Extraction was the point: these two payloads sit inside an HTTP-bound handler that no test can reach, so a test would otherwise have asserted against a copy of the code instead of the code. The audit entry gained `discountTotal` as well as the approver — C-13's stated impact is that a manager cannot be shown *which discounts* they authorised, and an `AuditLog` query returning rows that do not say what was approved does not answer it. The key is present-and-null on a sale with no approver rather than omitted, because absent is what every pre-3.5 event says and those rows are sealed. **(4) M-04.** `refund.ts:142` passes `order.number`; `number` joined `OrderForRefund` as **required**, not optional, so no future caller can quietly reintroduce the cuid.
+
+**Files:** `prisma/schema.prisma`, `prisma/migrations/20260903230305_order_discount_approver/`, `src/lib/services/sale-journal.ts` (new), `src/lib/services/sale-journal.test.ts` (new), `src/app/api/orders/route.ts`, `src/lib/services/refund.ts`, `src/app/api/orders/[id]/refund/route.ts`, `src/lib/services/refund.test.ts`
+
+**Tests:** `bun test src --timeout 30000` — **340/340 PASS** (baseline 329 + 11 new). `bun run typecheck` — PASS. `bun run lint` — PASS. `bun run build` — compiled successfully. Both fixes were **proved to fail on the pre-fix code**, not assumed to: reverting `order.number` → `order.id` failed the two M-04 tests; reverting the two payload builders to their pre-batch shape failed six of the nine C-13 tests, and the three that still passed are the three that assert what *did not* change (the untouched audit fields, chain verifiability, and the no-FK behaviour, which lives in the column rather than the payload). Both files were restored from copies taken before the revert.
+
+**Commit:** `83c3cfa` (code + migration + tests) + this plan update.
+
+**Notes:**
+
+**(1) The migration is written, rehearsed and NOT applied.** `20260903230305_order_discount_approver` is one line — `ALTER TABLE "Order" ADD COLUMN "discountApprovedById" TEXT;`. Prisma chose a plain `ADD COLUMN`, not the whole-table rebuild it used for `Product` in Batch 3.1c, because the column is nullable with no default: much less invasive on a table holding fiscal order rows. Rehearsed on a copy of production and fingerprint-diffed before and after: **every key identical except the new column and the `_prisma_migrations` row** — 20 orders, 82 lines, 21 payments, 20 receipts, 3 shifts, 2 Z reports, 2 fiscal events, 78 products, 14 categories, 460 audit rows, `FiscalCounter` 20/3/2/2, `GrandTotal` 5480/2/502/0, both Z breakdowns still keyed `"10"`, `integrity_check ok`, 0 FK errors, pre-existing column order preserved. **The operator must run `bunx prisma migrate deploy` before this code runs on the live install** — without the column, every checkout fails. Recorded in *OPEN THREADS → A and B*.
+
+**(2) Verified end-to-end on a migrated copy of the real database, not only in unit tests.** A rehearsal drove the actual service code against a copy carrying the real catalogue and the real journal: chain before `ok / lastSequence 2`; a 25 % manager-approved discount on a 100,00 € sale; a 10,00 € partial refund through `processRefund`. Results: `Order.discountApprovedById` = the manager's id; audit details `{"number":21,"total":7500,"items":2,"payments":1,"discountTotal":2500,"discountApprovedById":"cms5rne7l…"}`; `VENTE` payload carrying the approver and ticket 21; `REMBOURSEMENT` payload carrying `"orderNumber":21` where it would have carried a cuid. Chain after: `ok`, `lastSequence 4` — the baseline 2 plus exactly the 2 events the rehearsal created.
+
+**(3) The sealed rows were checked, not assumed.** Both pre-existing events came through byte-identical: hashes `9471bd79…` and `b794c6a1…` unchanged, `dataJson` unchanged, and both still **omit** `discountApprovedById` — asserted explicitly, because "the old rows must not be rewritten to match" is the kind of claim that is easy to state and easy to violate. The journal now holds two payload vintages and the chain verifies across the boundary; that is a property of chaining on the predecessor's hash rather than on a payload schema, and Batch 3.6 inherits it.
+
+**(4) The production database was not written to.** sha256 `711de2f1280e30cad04d0cb49ba5cd7d7084453078ed5390e34b708de84a2534` before and after — the same value session 3 recorded. Every write went to a copy under the session scratch directory, with **both** `DATABASE_URL` and `HIBAPOS_DATA_DIR` overridden (the Batch 3.4 lesson: overriding only the first put a real fiscal archive in `db/fiscal-archives/`). Re-checked afterwards: no `db/fiscal-archives/` directory exists, `db/backups/` is unchanged, and the rehearsal's data directory is empty. A fresh out-of-band snapshot was taken first: `db-snapshots/custom.db.pre-3.5.2026-09-03T23-01-34Z`, outside the repo tree, byte-identical to the live file.
+
+**(5) What is proved and what is only pinned.** The two payloads and the refund path are proved by execution — the tests call the same functions the routes call. The checkout transaction around them is **not**: it is still inline in an HTTP handler, so `sale-journal.test.ts` reproduces its writes and pins the composition by comment (`orders/route.ts:321`, `:420`, `:438`), the same technique Batch 3.1b used. Extracting that transaction was considered and rejected as out of scope — it is **T-02, T-05 and T-06 in Batch 6.1**, and moving ~140 lines of the most critical path in the app on a batch that asked for three small items would trade a real risk for a testing convenience. The rehearsal in note (2) covers the gap for this batch by exercising the whole path against real data once.
+
+**(6) C-22 is carried forward untouched**, as the batch's own validation section allows. Keying the chain or anchoring digests externally is a certification question (V-01), and implementing either without that answer would bake a guess into the one mechanism that is supposed to be unarguable.
+
+**(7) The value is stored and journalled but not yet displayed anywhere.** No screen shows who approved a discount, and no report groups by approver. C-13's remediation direction asked for the record, and the record now exists — but the manager-facing view that would make it useful is a UI question for a later batch, not something this one invented a scope for. Flagged rather than built.
+
+**(8) One environment finding, recorded not fixed** (safety rule 10): **L-24** — `bun test src` fails 23 tests on this machine purely on the 5 s default timeout. Established on the untouched pre-batch commit, before any change was made.
 
 ---
 
@@ -2250,6 +2293,7 @@ Record anything found *during* remediation that is outside the current batch's s
 
 | ID | Date | Found during | Description | Severity | Assigned to batch |
 |---|---|---|---|---|---|
+| **L-24** | 2026-09-04 | Batch 3.5 baseline | **`bun test src` fails 23 tests on a machine this slow, with no code defect involved.** All 23 are timeouts against Bun's 5 s default: 22 in `backup*.test.ts` and 1 in `auth.test.ts`. Measured cause — `scryptSync` at N=2^17 costs **~1519 ms** per call here (N=2^16 costs ~727 ms), and a backup→restore round trip performs several: the archive encrypt, the pre-restore safety-snapshot encrypt, and the decrypt. The cascade that follows is misleading: the test times out, `afterEach` deletes the temp directory, and the still-running `VACUUM INTO` then reports `unable to open database` (SQLITE_CANTOPEN, P2010), which reads like a filesystem or Prisma fault and is not one. `bun test src --timeout 30000` → **340 pass, 0 fail**. Whole-suite runtime is ~192 s against the 25,9 s the plan recorded for the same suite, so this is machine state, not a regression. Established on the untouched pre-batch commit `e86c5e4`. Options: raise the timeout in `bunfig.toml`, or lower the scrypt cost in test runs only — the second must not touch the production KDF parameters. | LOW (test infrastructure; hides real failures behind noise and costs a session an hour to diagnose) | 6.1 |
 | **L-23** ✅ **RESOLVED in Batch 3.2b** (`54aa7ef`) | 2026-09-03 | Batch 3.2 | **Three more aggregation sites the audit did not count, two with the C-11 half-cent defect and one with the C-10 shape.** `dashboard/route.ts:47` and `reports/products/route.ts:70` both compute `round2(lineTotal × (1 − discountRatio) × …)` — a ratio product through a euros helper, so the half-cent survives exactly as C-11 described (`round2(1250 × 0.85)` = `1062.5`, where the Z report gives `1063`). `reports/cashiers/route.ts:77-79` sums payments **gross** and never nets refunds off them, which is the C-10 shape in a management report. Also `dashboard:27` and `customers/[id]/detail:37` return `avgTicket` as a fractional cent. Note most other `round2` calls in these files are **no-ops** — `round2` of an integer returns the integer — so the defect is specifically where a ratio or a division feeds it. None of these feeds a sealed fiscal document, which is why Batch 3.2 did not widen to cover them; but they mean a manager comparing the dashboard or the cashier report against a Z report still sees different figures for the same period. Fix by routing them through `aggregateOrders`. | MEDIUM (management reports disagree with the fiscal ones) | needs a decision — a small follow-on to 3.2 |
 | **L-22** | 2026-09-03 | Batch 3.1d | **Validation errors reach the French UI as untranslated English zod messages.** `settings/route.ts` returns `parsed.error.issues[0]?.message`, and `settingsSchema` defines custom messages for only a few fields, so the operator saw `Too big: expected number to be <=48` (L-20). That specific message is now unreachable, but any other out-of-range settings value produces the same class of output. Applies to other schemas in `validation.ts` too. | LOW (operator-facing text) | 7.1 or 3.4 |
 | **L-20** ✅ **RESOLVED in Batch 3.1d** (`be9efa1`) | 2026-09-03 | Batch 3.1b manual validation | **The Réglages screen cannot be saved at all on the live install.** `Setting.receiptWidth` still holds the legacy millimetre value `80`. Batch 1.3 (L-13) tightened `settingsSchema` to `z.number().int().min(32).max(48)` and `getSettings()` returns the stored value raw, so the form loads 80 and PUTs it straight back: **`PUT /api/settings` → 400 "Too big: expected number to be <=48"**. Reproduced on a scratch copy of the production database. `normalizeReceiptColumns()` already exists but runs only in the receipt renderer, not on the settings read path. Consequences: **every** settings change is blocked — including the two operator actions this plan already asks for (correcting `printerName` per DOC-15, and saving `receiptWidth` as 48) — and the operator sees an untranslated English zod message in a French UI. Workaround: re-pick the width in the selector before saving anything, which is not discoverable (the selector renders blank because 80 matches no option). Candidate fix: normalise on read in `getSettings()`, as the renderer already does. | **HIGH** (live install; blocks all configuration) | needs a decision — suggest a small batch before 3.1c |
@@ -2274,6 +2318,7 @@ Record anything found *during* remediation that is outside the current batch's s
 | 0.1 | COMPLETED | 2026-09-03 | `e97a3e1` | C-26, C-26b: anchored 4 bare `.gitignore` patterns; recovered 3 untracked backup API route files into version control. |
 | 0.2 | COMPLETED | 2026-09-03 | *(this update)* | P-01/P-02/P-03: repo pushed to `origin/main` (user, interactive), `.env` confirmed preserved out-of-band by user, pre-remediation snapshot + fiscal/row-count baseline recorded. No code changes. |
 | 1.1 | COMPLETED | 2026-09-03 | `4766ceb` | C-01: refund dialog made a euros boundary (`parseEuroInput()` in `money.ts`, pre-fill + submit + max-check in `orders-view.tsx`). 9 new tests; 145/145. Validated end-to-end on a scratch copy of the production DB — 5,00 € → 500, 5,50 € → 550, full refund → 690, fiscal chain ok. Production DB untouched. |
+| 3.5 | COMPLETED | 2026-09-04 | `83c3cfa` | C-13 + M-04: the manager who approves an above-threshold discount is recorded — a nullable, FK-free `Order.discountApprovedById`, plus the id in the `VENTE` payload and in the `ORDER_CREATED` audit entry (with the amount approved, so an audit query can answer what was authorised). The two payloads moved into `services/sale-journal.ts` so the tests run the route's own code rather than a copy of it. M-04: a refund's journal entry names the printed ticket instead of a cuid, with `number` made a **required** field of `OrderForRefund` so it cannot silently come back. Migration is a plain `ADD COLUMN`, rehearsed on a copy with a fingerprint diff showing nothing else moved — and **not applied to production**; the operator must run `migrate deploy`. Rehearsed end-to-end on a migrated copy: approver in all three places, `orderNumber` 21 not a cuid, chain `ok` at `lastSequence 4`, both pre-existing events byte-identical and still omitting the new key. Both fixes proved to fail on the pre-fix code. **C-22 carried forward as `REQUIRES EXTERNAL VERIFICATION`.** Recorded L-24. 340/340. |
 | 3.4 | COMPLETED | 2026-09-03 | `f8c9e9a`, `36ef20c` | C-27: built the fiscal operator screen the backend was already waiting for — chain verification, grand total, sealed closes + the actions to seal, archive generate/download, traced drawer opening, and the journal. Reprint routed through `/api/orders/[id]/reprint` so `REIMPRESSION` is journalled and `reprintCount` increments; the Hello-World scaffold stub became a liveness probe for Batch 1.4's launcher. Validated against the production build on a scratch copy: **five journal event types that had never once been written** (CLOTURE_M, CLOTURE_A, ARCHIVE_GENEREE, OUVERTURE_TIROIR, REIMPRESSION) now written from the UI, all three chains still `ok`, and `sha256sum -c` OK on the archive the UI produced. Manual run found that the home grid keeps its own module list (fixed). 329/329. |
 | 3.3 | COMPLETED | 2026-09-03 | `a673a54` | C-04 + M-02: `canonicalize()` gains a Date branch — every timestamp used to serialise to `{}`, so two payloads seven years apart hashed identically — and the archive checksum became the SHA-256 of the exact file bytes, with a `.sha256` manifest, so `sha256sum -c` returns OK for a third party. The checksum is deliberately no longer inside the file. Archive generation split from recording so the file is written before the row, ending the dead end where a failed write blocked regeneration; a row with a missing file is now repaired only if it reproduces byte for byte. Chain re-verified against a copy of production: ok, lastSequence 2, both hashes identical, no payload's canonical form moved. 324/324. |
 | 3.2b | COMPLETED | 2026-09-03 | `54aa7ef` | L-23: the four reports the audit did not count — dashboard, cashiers, products, customer detail — routed through the same aggregation. `orderNet()` extracted as the per-order primitive so reports that group by cashier, hour or product id share the rules without sharing an output shape. Tests contrast old against new: the dashboard's face-value sum gave 3500 where the netted figure is 3000; the cashier report gave 900 of cash for a cashier whose only sale was fully refunded. `round2` now only on percentages. 311/311. |
@@ -2299,7 +2344,7 @@ Quick lookup from audit ID to batch.
 | C-01 | 1.1 | M-01 | 3.6 | M-25 | 4.4 |
 | C-02 | 1.2 | M-02 ✅ | 3.3 | M-26 | 4.4 |
 | C-03 | 1.3 | M-03 | 2.2 | M-27 | 4.3 |
-| C-04 ✅ | 3.3 | M-04 | 3.5 | M-28 | 4.3 |
+| C-04 ✅ | 3.3 | M-04 ✅ | 3.5 | M-28 | 4.3 |
 | C-05 | 2.1 | M-05 | 5.5 | M-29 | 2.4 |
 | C-06 | 2.2 | M-06 | 3.6 | M-30 | 2.4 |
 | C-07 | 1.4 | M-07 | 3.6 | M-31 | 2.4 |
@@ -2308,7 +2353,7 @@ Quick lookup from audit ID to batch.
 | C-10 ✅ | 3.2 | M-10 | 5.7 | L-03 | 7.2 |
 | C-11 ✅ | 3.2 | M-11 | 5.7 | L-04 | 2.4 / 7.3 |
 | C-12 ✅ | 3.1 | M-12 | 5.7 | L-05 | 2.4 (deferred) |
-| C-13 | 3.5 | M-13 ✅ | 3.2 | L-06 | 6.3 |
+| C-13 ✅ | 3.5 | M-13 ✅ | 3.2 | L-06 | 6.3 |
 | C-14 | 5.3 | M-14 ✅ | 3.2 | L-07 | 7.2 |
 | C-15 | 2.3 + 4.7 | M-15 | 5.7 | L-08 | 7.2 |
 | C-16 | 4.4 | M-16 | 5.7 | L-09 | deferred |
