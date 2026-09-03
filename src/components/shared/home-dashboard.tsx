@@ -19,6 +19,7 @@ import {
   Grid3x3,
   Clock,
   ScrollText,
+  ShieldCheck,
   ArrowRight,
   Zap,
 } from "lucide-react";
@@ -48,6 +49,12 @@ const MODULE_META: Partial<
   media: { label: "Médiathèque", subtitle: "Images & médias", icon: Images, image: "/home-cards/supplements.png" },
   customers: { label: "Clients", subtitle: "Base de clientèle", icon: Users, image: "/home-cards/clients.png" },
   reports: { label: "Rapports", subtitle: "Analyses & rapports", icon: BarChart3, image: "/home-cards/rapports.png" },
+  // C-27 (Batch 3.4). The home grid keeps its OWN module list, so adding the
+  // nav entry alone left the fiscal module reachable from the sidebar but not
+  // from the screen operators actually start on. Role filtering below reads
+  // NAV_ITEMS, so the MANAGER+ gate applies here too. No card image yet — the
+  // renderer falls back to the icon.
+  fiscal: { label: "Fiscal", subtitle: "Journal, clôtures & archives", icon: ShieldCheck },
   users: { label: "Utilisateurs", subtitle: "Gestion des accès", icon: UserCog, image: "/home-cards/utilisateurs.png" },
   settings: { label: "Paramètres", subtitle: "Configuration", icon: Settings, image: "/home-cards/parametres.png" },
   backups: { label: "Sauvegardes", subtitle: "Données & sauvegarde", icon: DatabaseBackup, image: "/home-cards/sauvegardes.png" },
@@ -63,6 +70,7 @@ const MODULE_ORDER: AppView[] = [
   "media",
   "customers",
   "reports",
+  "fiscal",
   "users",
   "settings",
   "backups",
