@@ -9,6 +9,7 @@ import { appendFiscalEvent, incrementGrandTotal } from "@/lib/services/fiscal";
 import { computeLinePricing } from "@/lib/services/pricing";
 import { sum2, addToVatBreakdown } from "@/lib/money";
 import { verifyApprovalToken, ApprovalError } from "@/lib/approvals";
+import { TX_CHECKOUT } from "@/lib/tx-options";
 
 // Server-authoritative checkout intent schema.
 // The client sends ONLY intent: product ids, option ids, addon ids, quantities.
@@ -277,6 +278,9 @@ export const POST = withAuth(async (req, { user }) => {
   }
 
   // --- Transaction: numbering + order + receipt + audit all atomic ---
+  // C-15 (Batch 2.3): an explicit budget. Prisma's default is 5 s and this
+  // body performs 8+ sequential writes — exceeding it rolls back the sale
+  // AFTER the customer has paid, which is the worst moment to fail.
   const order = await db.$transaction(async (tx) => {
     const number = await nextReceiptNumber(tx);
 
@@ -419,7 +423,7 @@ export const POST = withAuth(async (req, { user }) => {
     });
 
     return orderWithRelations;
-  });
+  }, TX_CHECKOUT);
 
   return NextResponse.json(order, { status: 201 });
 });

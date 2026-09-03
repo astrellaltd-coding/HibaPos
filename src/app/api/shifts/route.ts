@@ -4,6 +4,7 @@ import { withAuth, parseJson } from "@/lib/api-handler";
 import { shiftOpenSchema } from "@/lib/validation";
 import { nextShiftNumber } from "@/lib/services/sequence";
 import { audit } from "@/lib/services/audit";
+import { TX_FISCAL } from "@/lib/tx-options";
 
 export const GET = withAuth(async () => {
   const shifts = await db.shift.findMany({
@@ -44,7 +45,7 @@ export const POST = withAuth(async (req, { user }) => {
       include: { openedBy: { select: { name: true, username: true } } },
     });
     return created;
-  });
+  }, TX_FISCAL);
   await audit("SHIFT_OPENED", "Shift", shift.id, { number: shift.number, openingFloat: parsed.data.openingFloat }, user.id);
   return NextResponse.json(shift, { status: 201 });
 });

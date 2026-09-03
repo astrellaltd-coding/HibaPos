@@ -14,6 +14,7 @@ import {
 } from "@/lib/fiscal";
 import { nextFiscalEventSequence } from "@/lib/services/sequence";
 import { addToVatBreakdown, sum2, type VatBreakdown } from "@/lib/money";
+import { TX_FISCAL } from "@/lib/tx-options";
 
 type Tx = Prisma.TransactionClient;
 
@@ -308,7 +309,7 @@ export async function closeMonth(
     });
     await tx.monthlyClose.update({ where: { id: close.id }, data: { fiscalEventId: ev.id } });
     return tx.monthlyClose.findUniqueOrThrow({ where: { id: close.id } });
-  });
+  }, TX_FISCAL);
 }
 
 export async function closeYear(year: number, sealedById: string, factice = false) {
@@ -361,7 +362,7 @@ export async function closeYear(year: number, sealedById: string, factice = fals
     });
     await tx.annualClose.update({ where: { id: close.id }, data: { fiscalEventId: ev.id } });
     return tx.annualClose.findUniqueOrThrow({ where: { id: close.id } });
-  });
+  }, TX_FISCAL);
 }
 
 // ---------------------------------------------------------------------------
@@ -451,7 +452,7 @@ export async function generateAnnualArchive(year: number, generatedById: string)
       archiveId: archive.id,
     });
     await tx.fiscalArchive.update({ where: { id: archive.id }, data: { fiscalEventId: ev.id } });
-  });
+  }, TX_FISCAL);
 
   return { json, checksum, sizeBytes, filename, notice: ARCHIVE_NOTICE(year) };
 }

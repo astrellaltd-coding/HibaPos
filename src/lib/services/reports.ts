@@ -5,6 +5,7 @@ import { addToVatBreakdown, sum2, splitVat, type VatBreakdown } from "@/lib/mone
 import { nextZReportNumber } from "@/lib/services/sequence";
 import { appendFiscalEvent } from "@/lib/services/fiscal";
 import { getSettings } from "@/lib/services/settings";
+import { TX_Z_CLOSE } from "@/lib/tx-options";
 
 export type SalesReport = {
   salesTotal: number; // cents
@@ -186,7 +187,7 @@ export async function generateZReport(shiftId: string, closingFloat: number, clo
     await tx.zReport.update({ where: { id: zReport.id }, data: { fiscalEventId: ev.id } });
 
     return zReport;
-  });
+  }, TX_Z_CLOSE);
 
   return { z, report, cashVariance };
 }

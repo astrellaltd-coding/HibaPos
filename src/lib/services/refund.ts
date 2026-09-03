@@ -10,6 +10,7 @@
 import { db } from "@/lib/db";
 import { appendFiscalEvent, addRefundToGrandTotal } from "@/lib/services/fiscal";
 import type { PaymentMethod } from "@prisma/client";
+import { TX_FISCAL } from "@/lib/tx-options";
 
 /** In-transaction validation failure with an HTTP status. */
 export class RefundError extends Error {
@@ -147,5 +148,5 @@ export async function processRefund(input: RefundInput, order: OrderForRefund): 
       fullyRefunded,
       fiscalEventId: ev.id,
     };
-  });
+  }, TX_FISCAL);
 }
