@@ -5,6 +5,7 @@ import { shiftCloseSchema } from "@/lib/validation";
 import { generateZReport } from "@/lib/services/reports";
 import { audit } from "@/lib/services/audit";
 import { createBackup } from "@/lib/services/backup";
+import { logTechnical } from "@/lib/services/technical-logger";
 
 export const POST = withAuthParams(async (req, { user, params }) => {
   const shift = await db.shift.findUnique({ where: { id: params.id } });
@@ -30,11 +31,31 @@ export const POST = withAuthParams(async (req, { user, params }) => {
   }
 
   // Automatic backup after Z report (business rule).
+  //
+  // C-06, Batch 2.2: this used to swallow the failure into console.error and
+  // return 200 regardless, so a restaurant could believe it had been backing
+  // up nightly for months and have nothing. The Z report itself must still
+  // succeed — it is a sealed fiscal document and a backup problem cannot be
+  // allowed to block a shift from closing — but the operator is now told.
   let backup: unknown = null;
+  let backupError: string | null = null;
   try {
     backup = await createBackup(user.id);
   } catch (e) {
+    backupError = e instanceof Error ? e.message : "Échec de la sauvegarde automatique";
     console.error("[z-report] backup failed", e);
+    await logTechnical(
+      "ERROR",
+      "z-report",
+      `Automatic backup after Z report ${z.number} FAILED: ${backupError}`,
+    );
+    await audit(
+      "BACKUP_FAILED",
+      "ZReport",
+      z.id,
+      { zReportNumber: z.number, error: backupError },
+      user.id,
+    );
   }
 
   await audit("SHIFT_CLOSED", "Shift", shift.id, { zReportNumber: z.number, cashVariance }, user.id);
@@ -63,5 +84,6 @@ export const POST = withAuthParams(async (req, { user, params }) => {
     report,
     cashVariance,
     backup,
+    backupError,
   });
 });

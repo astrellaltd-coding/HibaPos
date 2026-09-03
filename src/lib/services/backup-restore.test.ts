@@ -31,10 +31,12 @@ beforeEach(async () => {
   paths = {
     backupDir: path.join(tmpRoot, "backups"),
     dbPath: TEST_DB_PATH, // the database Prisma is actually connected to
-    uploadsDir: path.join(tmpRoot, "uploads"),
+    uploadsDir: path.join(tmpRoot, "public", "uploads"),
+    archivesDir: path.join(tmpRoot, "db", "fiscal-archives"),
   };
   await fs.mkdir(paths.backupDir, { recursive: true });
   await fs.mkdir(paths.uploadsDir, { recursive: true });
+  await fs.mkdir(paths.archivesDir, { recursive: true });
 
   await db.backup.deleteMany({});
   await db.fiscalEvent.deleteMany({});

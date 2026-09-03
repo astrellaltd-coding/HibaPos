@@ -27,9 +27,47 @@ import { logTechnical } from "@/lib/services/technical-logger";
 import { appendFiscalEvent } from "@/lib/services/fiscal";
 import { beginRestore, endRestore } from "@/lib/services/maintenance";
 
-const BACKUP_DIR = path.join(process.cwd(), "db", "backups");
+/**
+ * Where backups are written (C-06, Batch 2.2).
+ *
+ * `BACKUP_LOCATION` has been documented in `.env.example` since the project
+ * started and read by nothing. It exists so backups can live on a SECOND
+ * physical volume: kept next to `custom.db`, as they were, one disk failure,
+ * one ransomware event or one deleted folder takes the database and every
+ * copy of it at the same time.
+ *
+ * Unset falls back to the previous location, so an existing install keeps
+ * working and finds its old backups.
+ */
+function resolveBackupDir(): string {
+  const configured = process.env.BACKUP_LOCATION?.trim();
+  if (configured) return path.resolve(configured);
+  return path.join(process.cwd(), "db", "backups");
+}
+
+const BACKUP_DIR = resolveBackupDir();
 const DB_PATH = path.join(process.cwd(), "db", "custom.db");
 const UPLOADS_DIR = path.join(process.cwd(), "public", "uploads");
+const ARCHIVES_DIR = path.join(process.cwd(), "db", "fiscal-archives");
+
+/**
+ * How many backups to keep (C-06). Every Z close creates one, so without a
+ * cap the POS accumulates them until the disk fills and SQLite writes start
+ * failing — roughly 17 GB a year at the pre-fix archive size.
+ *
+ * 30 keeps about a month of daily closes. Pruning removes the `Backup` row
+ * and its files together, and is journalled.
+ */
+const DEFAULT_RETENTION = 30;
+
+export function backupRetentionCount(): number {
+  const raw = process.env.BACKUP_RETENTION_COUNT?.trim();
+  if (!raw) return DEFAULT_RETENTION;
+  const n = Number(raw);
+  // A retention of 0 would delete the backup it just made. Refuse to go
+  // below 1 rather than honouring a typo that destroys every copy.
+  return Number.isFinite(n) && n >= 1 ? Math.floor(n) : DEFAULT_RETENTION;
+}
 
 /**
  * The three locations a backup touches.
@@ -45,10 +83,17 @@ export type BackupPaths = {
   backupDir: string;
   dbPath: string;
   uploadsDir: string;
+  /** Generated annual fiscal archives — the files an inspector asks for (M-03). */
+  archivesDir: string;
 };
 
 export function defaultBackupPaths(): BackupPaths {
-  return { backupDir: BACKUP_DIR, dbPath: DB_PATH, uploadsDir: UPLOADS_DIR };
+  return {
+    backupDir: BACKUP_DIR,
+    dbPath: DB_PATH,
+    uploadsDir: UPLOADS_DIR,
+    archivesDir: ARCHIVES_DIR,
+  };
 }
 
 // Strong scrypt parameters. N=2^17 (~131k) is the OWASP 2024 recommendation
@@ -128,34 +173,129 @@ export async function decryptFile(
   await fs.writeFile(outputPath, decrypted);
 }
 
-/** Stream-tar the `public/uploads/` directory into a single `.tar.gz` file.
- * `tar` is an optional dependency: when not installed (e.g. minimal deploys
- * that exclude media from backups), uploads are skipped with a console warn.
+/**
+ * The directories carried alongside the database, and the base they are
+ * relative to inside the tar (M-03, Batch 2.2).
+ *
+ * `db/fiscal-archives/` is included because the annual archive is the file an
+ * inspector actually asks for, and until now the backup mechanism did not
+ * protect it at all.
  */
-async function archiveUploads(
-  targetPath: string,
-  uploadsDir: string = UPLOADS_DIR,
-): Promise<number | null> {
-  if (!existsSync(uploadsDir)) return null;
+function mediaSources(paths: { uploadsDir: string; archivesDir: string }) {
+  const base = commonBaseDir(paths.uploadsDir, paths.archivesDir);
+  const entries: string[] = [];
+  for (const dir of [paths.uploadsDir, paths.archivesDir]) {
+    if (existsSync(dir)) {
+      entries.push(path.relative(base, dir).split(path.sep).join("/"));
+    }
+  }
+  return { base, entries };
+}
+
+/** Deepest directory that contains both paths. */
+function commonBaseDir(a: string, b: string): string {
+  const aParts = path.resolve(a).split(path.sep);
+  const bParts = path.resolve(b).split(path.sep);
+  const shared: string[] = [];
+  for (let i = 0; i < Math.min(aParts.length, bParts.length); i++) {
+    if (aParts[i] !== bParts[i]) break;
+    shared.push(aParts[i]);
+  }
+  // Different volumes on Windows share nothing — fall back to the uploads
+  // parent, which is what the pre-2.2 archives used.
+  return shared.length > 1 ? shared.join(path.sep) : path.dirname(path.resolve(a));
+}
+
+/**
+ * A cheap content fingerprint of the media set: every file's path, size and
+ * mtime, hashed (C-06).
+ *
+ * This is what stops every Z close re-tarring and re-encrypting ~49 MiB of
+ * product images that have not changed since the last close. Photos are
+ * uploaded once and then sit still for months, so in practice the archive is
+ * built once and reused by reference thereafter.
+ *
+ * mtime + size is not a cryptographic guarantee, but nothing here is
+ * security-critical: the worst case of a missed change is that one backup
+ * carries slightly stale images, and the very next upload changes the
+ * fingerprint again.
+ */
+async function mediaFingerprint(base: string, entries: string[]): Promise<string> {
+  const hash = crypto.createHash("sha256");
+  const walk = async (dir: string) => {
+    let items: import("fs").Dirent<string>[];
+    try {
+      items = (await fs.readdir(dir, { withFileTypes: true })) as import("fs").Dirent<string>[];
+    } catch {
+      return;
+    }
+    for (const item of items.sort((a, b) => a.name.localeCompare(b.name))) {
+      const full = path.join(dir, item.name);
+      if (item.isDirectory()) {
+        await walk(full);
+      } else if (item.isFile()) {
+        const st = await fs.stat(full).catch(() => null);
+        if (!st) continue;
+        hash.update(`${path.relative(base, full)}|${st.size}|${Math.floor(st.mtimeMs)}\n`);
+      }
+    }
+  };
+  for (const entry of entries) await walk(path.join(base, entry));
+  return hash.digest("hex").slice(0, 16);
+}
+
+/**
+ * Build (or reuse) the encrypted media archive for the current state of
+ * `public/uploads/` and `db/fiscal-archives/`.
+ *
+ * Returns the encrypted filename to record in `Backup.imagesPath`, or null
+ * when there is nothing to archive. Several `Backup` rows may point at the
+ * same file — deletion is reference-counted accordingly.
+ */
+async function ensureMediaArchive(
+  backupDir: string,
+  paths: { uploadsDir: string; archivesDir: string },
+  secret: string,
+): Promise<{ filename: string; bytes: number; reused: boolean } | null> {
+  const { base, entries } = mediaSources(paths);
+  if (entries.length === 0) return null;
+
   let tar: typeof import("tar") | null = null;
   try {
     tar = (await import("tar")) as typeof import("tar");
   } catch {
-    console.warn("[backup] tar package not installed — public/uploads excluded from backup.");
+    console.warn("[backup] tar package not installed — media excluded from backup.");
     return null;
   }
-  // In `tar` v7 `tar.c({ file, gzip })` returns a Promise that resolves once
-  // the archive is fully written. We await directly.
-  await tar.c(
-    { gzip: true, file: targetPath, cwd: path.dirname(uploadsDir), portable: true },
-    [path.basename(uploadsDir)],
-  );
-  try {
-    const stat = await fs.stat(targetPath);
-    return stat.size;
-  } catch {
-    return null;
+
+  const fingerprint = await mediaFingerprint(base, entries);
+  const encFilename = `hibapos-media-${fingerprint}.enc`;
+  const encPath = path.join(backupDir, encFilename);
+
+  if (existsSync(encPath)) {
+    const stat = await fs.stat(encPath);
+    return { filename: encFilename, bytes: stat.size, reused: true };
   }
+
+  const plainPath = path.join(backupDir, `hibapos-media-${fingerprint}.tar.gz`);
+  await tar.c({ gzip: true, file: plainPath, cwd: base, portable: true }, entries);
+  await encryptFile(plainPath, encPath, secret);
+  await fs.unlink(plainPath).catch(() => {});
+  const stat = await fs.stat(encPath);
+  return { filename: encFilename, bytes: stat.size, reused: false };
+}
+
+/**
+ * Is this media archive still referenced by another backup?
+ *
+ * Fingerprint dedupe means one file can back several `Backup` rows; deleting
+ * one row must not take the images of the others with it.
+ */
+async function mediaStillReferenced(imagesPath: string, excludeBackupId: string): Promise<boolean> {
+  const count = await db.backup.count({
+    where: { imagesPath, id: { not: excludeBackupId } },
+  });
+  return count > 0;
 }
 
 /**
@@ -176,7 +316,8 @@ async function archiveUploads(
  */
 async function restoreUploadsArchive(
   tarPath: string,
-  uploadsDir: string,
+  paths: { uploadsDir: string; archivesDir: string },
+  legacyLayout: boolean,
 ): Promise<{ restored: number } | { failed: string }> {
   let tar: typeof import("tar") | null = null;
   try {
@@ -184,12 +325,20 @@ async function restoreUploadsArchive(
   } catch {
     return { failed: "le paquet tar n'est pas installé" };
   }
+  // Archives written before Batch 2.2 hold a single `uploads/` entry relative
+  // to the uploads parent. Newer ones hold uploads AND fiscal archives
+  // relative to their common base. Extracting either at the wrong root would
+  // scatter files into a second tree, so the layout is decided by the
+  // filename the backup recorded, not guessed.
+  const cwd = legacyLayout
+    ? path.dirname(paths.uploadsDir)
+    : commonBaseDir(paths.uploadsDir, paths.archivesDir);
   try {
-    await fs.mkdir(path.dirname(uploadsDir), { recursive: true });
+    await fs.mkdir(cwd, { recursive: true });
     let restored = 0;
     await tar.x({
       file: tarPath,
-      cwd: path.dirname(uploadsDir),
+      cwd,
       onentry: () => {
         restored += 1;
       },
@@ -201,14 +350,18 @@ async function restoreUploadsArchive(
 }
 
 /**
- * Create an encrypted backup of the SQLite database. A uploads archive is
- * included when the `tar` package is installed and `public/uploads/` exists.
+ * Create an encrypted backup: the database, plus a media archive covering
+ * `public/uploads/` and `db/fiscal-archives/` when `tar` is available.
+ *
+ * The media archive is content-addressed and reused across backups whose
+ * media has not changed, and old backups are pruned to the retention limit
+ * afterwards (C-06).
  */
 export async function createBackup(
   userId: string | null,
   paths: BackupPaths = defaultBackupPaths(),
 ) {
-  const { backupDir, uploadsDir } = paths;
+  const { backupDir, uploadsDir, archivesDir } = paths;
   await ensureDir(backupDir);
   const secret = process.env.BACKUP_ENCRYPTION_KEY || process.env.BACKUP_SECRET;
   if (!secret) {
@@ -231,10 +384,8 @@ export async function createBackup(
   // Compute SHA-256 of the plaintext snapshot.
   const checksum = await sha256OfFile(plainDbPath);
 
-  // Archive uploads alongside the DB snapshot.
-  const uploadsPlainPath = path.join(backupDir, `hibapos-backup-${stamp}.uploads.tar.gz`);
-  const uploadsSize = await archiveUploads(uploadsPlainPath, uploadsDir);
-  const uploadsIncluded = uploadsSize != null;
+  // Media archive (uploads + fiscal archives), reused when unchanged.
+  const media = await ensureMediaArchive(backupDir, { uploadsDir, archivesDir }, secret);
 
   // Encrypt the DB snapshot.
   const encDbFilename = `hibapos-backup-${stamp}.dbenc`;
@@ -242,15 +393,7 @@ export async function createBackup(
   await encryptFile(plainDbPath, encDbPath, secret);
   await fs.unlink(plainDbPath);
 
-  // Encrypt the uploads archive (when present).
-  let imagesPath: string | null = null;
-  if (uploadsIncluded) {
-    const encUploadsFilename = `hibapos-backup-${stamp}.uploads.enc`;
-    const encUploadsPath = path.join(backupDir, encUploadsFilename);
-    await encryptFile(uploadsPlainPath, encUploadsPath, secret);
-    await fs.unlink(uploadsPlainPath);
-    imagesPath = encUploadsFilename;
-  }
+  const imagesPath = media?.filename ?? null;
 
   const encStat = await fs.stat(encDbPath);
   const sizeBytes = encStat.size;
@@ -271,10 +414,26 @@ export async function createBackup(
     "BACKUP_CREATED",
     "Backup",
     backup.id,
-    { filename: encDbFilename, size: sizeBytes, encrypted: true, uploadsIncluded },
+    {
+      filename: encDbFilename,
+      size: sizeBytes,
+      encrypted: true,
+      mediaIncluded: media != null,
+      mediaReused: media?.reused ?? false,
+      mediaBytes: media?.bytes ?? 0,
+      backupDir,
+    },
     userId,
   );
-  return backup;
+
+  const pruned = await pruneBackups(userId, paths);
+
+  return Object.assign(backup, {
+    media: media
+      ? { filename: media.filename, bytes: media.bytes, reused: media.reused }
+      : null,
+    pruned,
+  });
 }
 
 /**
@@ -301,7 +460,7 @@ export async function restoreBackup(
   userId: string,
   paths: BackupPaths = defaultBackupPaths(),
 ) {
-  const { backupDir, dbPath, uploadsDir } = paths;
+  const { backupDir, dbPath, uploadsDir, archivesDir } = paths;
   const backup = await db.backup.findUnique({ where: { id: backupId } });
   if (!backup) throw new Error("Sauvegarde introuvable");
 
@@ -390,7 +549,11 @@ export async function restoreBackup(
     }
 
     if (stagedUploadsTar) {
-      uploadsResult = await restoreUploadsArchive(stagedUploadsTar, uploadsDir);
+      uploadsResult = await restoreUploadsArchive(
+        stagedUploadsTar,
+        { uploadsDir, archivesDir },
+        backup.imagesPath!.endsWith(".uploads.enc"),
+      );
       await fs.unlink(stagedUploadsTar).catch(() => {});
     }
   } finally {
@@ -543,6 +706,86 @@ export async function restoreBackup(
   };
 }
 
+/**
+ * Enforce the retention limit (C-06).
+ *
+ * Every Z close creates a backup and nothing ever removed one, so the POS
+ * accumulated them until the disk filled and SQLite writes began to fail.
+ * Keeps the newest N by creation time and removes the rest — row and files
+ * together, so the list can never show a backup whose file is gone.
+ *
+ * The whole prune is journalled as ONE `SUPPRESSION_SAUVEGARDE` event: the
+ * destruction of a recovery path has to leave a trace (C-22), but an event
+ * per pruned file would bury the journal in housekeeping.
+ */
+export async function pruneBackups(
+  userId: string | null,
+  paths: BackupPaths = defaultBackupPaths(),
+): Promise<{ deleted: number; freedBytes: number }> {
+  const keep = backupRetentionCount();
+  const all = await db.backup.findMany({ orderBy: { createdAt: "desc" } });
+  const doomed = all.slice(keep);
+  if (doomed.length === 0) return { deleted: 0, freedBytes: 0 };
+
+  let freedBytes = 0;
+  const removed: { id: string; filename: string; createdAt: string }[] = [];
+
+  for (const backup of doomed) {
+    const dbFile = path.join(paths.backupDir, backup.filename);
+    try {
+      const stat = await fs.stat(dbFile);
+      freedBytes += stat.size;
+      await fs.unlink(dbFile);
+    } catch {
+      // Already gone — the row still has to go.
+    }
+
+    // Media archives are content-addressed and shared between backups whose
+    // images did not change. Only remove one when nothing else points at it.
+    if (backup.imagesPath && !(await mediaStillReferenced(backup.imagesPath, backup.id))) {
+      const mediaFile = path.join(paths.backupDir, backup.imagesPath);
+      try {
+        const stat = await fs.stat(mediaFile);
+        freedBytes += stat.size;
+        await fs.unlink(mediaFile);
+      } catch {
+        // ignore
+      }
+    }
+
+    await db.backup.delete({ where: { id: backup.id } }).catch(() => {});
+    removed.push({
+      id: backup.id,
+      filename: backup.filename,
+      createdAt: backup.createdAt.toISOString(),
+    });
+  }
+
+  try {
+    await db.$transaction((tx) =>
+      appendFiscalEvent(tx, {
+        type: "SUPPRESSION_SAUVEGARDE",
+        userId,
+        data: { reason: "retention", keep, deleted: removed, freedBytes },
+      }),
+    );
+  } catch (e) {
+    await logTechnical(
+      "ERROR",
+      "backup-service",
+      `Retention prune: SUPPRESSION_SAUVEGARDE event could not be appended: ${e instanceof Error ? e.message : String(e)}`,
+    );
+  }
+
+  await logTechnical(
+    "INFO",
+    "backup-service",
+    `Retention prune removed ${removed.length} backup(s), freeing ${(freedBytes / 1024 / 1024).toFixed(1)} MiB (keep=${keep}).`,
+  );
+
+  return { deleted: removed.length, freedBytes };
+}
+
 export async function listBackups() {
   return db.backup.findMany({
     orderBy: { createdAt: "desc" },
@@ -593,11 +836,13 @@ export async function deleteBackup(
   } catch {
     // file may already be gone
   }
-  // Also clean up any uploads archive referenced by this backup.
-  if (backup.imagesPath) {
-    const uploadsFile = path.join(paths.backupDir, backup.imagesPath);
+  // Media archives are content-addressed and may back several backups whose
+  // images never changed. Removing one because a single row was deleted
+  // would silently strip the images from every other backup pointing at it.
+  if (backup.imagesPath && !(await mediaStillReferenced(backup.imagesPath, backup.id))) {
+    const mediaFile = path.join(paths.backupDir, backup.imagesPath);
     try {
-      await fs.unlink(uploadsFile);
+      await fs.unlink(mediaFile);
     } catch {
       // ignore
     }

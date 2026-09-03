@@ -117,6 +117,7 @@ export function ShiftsView() {
     zReport: ZReportSummary;
     cashVariance: number;
     backup: { filename: string } | null;
+    backupError?: string | null;
   } | null>(null);
 
   // --- Open shift mutation ---
@@ -147,7 +148,7 @@ export function ShiftsView() {
   // --- Close shift mutation ---
   const closeMutation = useMutation({
     mutationFn: (vars: { closingFloat: number; notes?: string }) =>
-      api.post<{ zReport: ZReportSummary; cashVariance: number; backup: { filename: string } | null }>(
+      api.post<{ zReport: ZReportSummary; cashVariance: number; backup: { filename: string } | null; backupError?: string | null }>(
         `/api/shifts/${current?.id}/close`,
         vars,
       ),
@@ -718,6 +719,7 @@ function ZReportSuccessDialog({
     zReport: ZReportSummary;
     cashVariance: number;
     backup: { filename: string } | null;
+    backupError?: string | null;
   } | null;
 }) {
   if (!result) return null;
@@ -767,6 +769,27 @@ function ZReportSuccessDialog({
               <div>
                 <p className="font-medium text-foreground">Sauvegarde automatique créée</p>
                 <p className="text-muted-foreground">{result.backup.filename}</p>
+              </div>
+            </div>
+          )}
+
+          {/* C-06 (Batch 2.2): a failed automatic backup used to be swallowed
+              into console.error while the close returned 200, so a restaurant
+              could go months believing it was protected. The Z report is still
+              valid — that is why this is a warning on a successful close and
+              not an error — but it must be impossible to miss. */}
+          {result.backupError && (
+            <div className="flex items-start gap-2 rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-xs">
+              <DatabaseBackup className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+              <div>
+                <p className="font-semibold text-destructive">
+                  Échec de la sauvegarde automatique
+                </p>
+                <p className="text-muted-foreground">{result.backupError}</p>
+                <p className="mt-1 text-muted-foreground">
+                  Le rapport Z est valide et la caisse est clôturée, mais aucune
+                  sauvegarde n&apos;a été créée. Prévenez le responsable.
+                </p>
               </div>
             </div>
           )}
