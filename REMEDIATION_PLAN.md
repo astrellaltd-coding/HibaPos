@@ -13,19 +13,22 @@ Detailed audit record: https://claude.ai/code/artifact/329316b0-3a6b-48b0-9d27-d
 
 **Current Stage:** Stage 3 — Fiscal correctness. (Stage 1 is **partly done**: 1.1 and 1.2 COMPLETED, 1.3 `IMPLEMENTED — TESTING REQUIRED` on hardware, 1.4 deferred. Stage 2 is COMPLETED.)
 
-**Current Batch:** Batch 3.4 — Fiscal operator interface · `NOT STARTED`
+**Current Batch:** Batch 3.5 — Fiscal audit-trail completeness · `NOT STARTED`
 
-**Last Completed Batch:** Batch 3.3 — Archive integrity and lifecycle (C-04, M-02; commit `a673a54`). An archive's checksum is now reproducible with `sha256sum`.
+**Last Completed Batch:** Batch 3.4 — Fiscal operator interface (C-27; commits `f8c9e9a`, `36ef20c`). **The fiscal module is reachable and works**: five journal event types that the application had never once written are now written from the UI.
 
-**Next Batch:** Batch 3.4. **Batch 1.4 is unblocked in design** (DD-02 answered) but still deferred on hardware — see *Hardware-dependent validation* below.
+**Next Batch:** Batch 3.5. **Batch 1.4 is unblocked in design** (DD-02 answered) but still deferred on hardware — see *Hardware-dependent validation* below.
 
 **Blocked:** Batch 1.3 `[HW]` sign-off and Batch 1.4 — both need the app running on the restaurant's POS machine, which is in a different country from the developer and has no copy of the app installed (decision of 2026-09-03).
 
 **Awaiting decision:** Batch 5.3 (cross-shift refunds), Batch 5.5 (cash movements), Batch 5.6 (order cancellation) — see *Design Decisions Required*. **DD-03 and DD-17 were answered on 2026-09-03**; nothing blocks Stage 3.
 
-**Last Updated:** 2026-09-03 (session 3 — Batch 3.1 completed; 3.1b and 3.1c newly defined and approved; see *Open threads* below before starting anything)
+**Last Updated:** 2026-09-03 (end of session 3 — Stage 3 worked through 3.4; read *OPEN THREADS* below before starting anything)
 
 ### OPEN THREADS — read this before starting a batch
+
+*Rewritten at the end of session 3 (2026-09-03). Everything below is current
+as of commit `36ef20c`.*
 
 Work in this plan does not finish batch-by-batch. Several completed batches
 shipped a mechanism whose **benefit is not yet delivered**, and several items
@@ -39,23 +42,22 @@ real till until an action below is taken. Do not report them as delivered.
 
 | What | Why it is inert | Unblocked by |
 |---|---|---|
-| **WAL journal mode** (2.3) | The database is on a OneDrive-synced path and the startup guard deliberately refuses WAL there. `db/custom.db` byte 18 is still `1`. | Moving data to `C:\HibaPOS\data` (DD-02), then any restart |
+| **WAL journal mode** (2.3) | The database is on a OneDrive-synced path and the startup guard deliberately refuses WAL there. `db/custom.db` byte 18 is still `1` — re-verified this session. | Moving data to `C:\HibaPOS\data` (DD-02), then any restart |
 | **`BACKUP_LOCATION`** (2.2) | Honoured by the code, but **unset** — backups still land next to the database on the same disk. | Choosing a second volume at deployment |
 | **`HIBAPOS_DATA_DIR`** (2.2) | Defaults to the old layout on purpose, so an update cannot silently repoint a running install at an empty folder. | The deployment step in Batch 1.4 |
-| **Thermal printing + drawer** (1.3) | `printerEnabled` is `false` and no printer IP is set. | Commissioning on the real Sunso WTP-801 |
+| **Thermal printing + drawer** (1.3) | `printerEnabled` is `false` and no printer IP is set. Confirmed this session: a reprint journals its `REIMPRESSION` event and then reports *"Impression désactivée dans les réglages."* | Commissioning on the real Sunso WTP-801 |
+| **FACTICE simulation mode** (3.1b) | The switch now exists in Réglages but is **off**. Any testing before go-live is still journalled as genuine trading. | The operator turning it on for test sessions |
 | **Audit-log retention** (2.4) | Deliberately `0` = keep forever. That table is still unbounded. | An operator decision, if a retention obligation appears |
 
 #### B. Waiting on the operator
 
 | Action | Why it matters | Related |
 |---|---|---|
-| ~~Push to `origin/main`~~ **DONE** | Verified 2026-09-03 (session 3): `git fetch` then `git rev-list --left-right --count origin/main...HEAD` → `0  0`. `origin/main` was already at `d31c8c9`, identical to local HEAD. The session-2 note was stale. Claude still cannot push, so **new** commits from this session need the same treatment. | P-01 |
-| Correct `printerName` in Réglages | Stored value is `"Epson TM-m30"`; the physical printer is the **Sunso WTP-801** (Ethernet), confirmed 2026-09-03. Cosmetic — nothing reads it. **This was impossible until Batch 3.1d** — the whole settings form was rejected (L-20). It now saves. | DOC-15 |
-| ~~Save `receiptWidth` as **48** in Réglages~~ **NO LONGER NEEDED** — Batch 3.1d normalises it on read (so `renderReceipt` also stopped emitting 80-column text) and the row corrects itself at the operator's next save of anything. | L-13, L-20 |
+| **Push session-3 commits** | Session 3 added ~20 commits. Claude cannot push (explicit-permission action, and the classifier refuses it). Check with `git rev-list --left-right --count origin/main...HEAD`. | P-01 |
+| Correct `printerName` in Réglages | Stored value is `"Epson TM-m30"`; the physical printer is the **Sunso WTP-801** (Ethernet). Cosmetic — nothing reads it. **This was impossible until Batch 3.1d**; the settings form now saves. | DOC-15 |
 | Choose a second volume for backups | See A. | C-06 |
-| ~~Answer **DD-03**~~ **ANSWERED** 2026-09-03 — *not applicable*, no row was ever affected. | Batch 3.1 is now COMPLETED. | C-12 |
-| ~~Set the 17 drinks to 5,5 %~~ **DONE** 2026-09-03 in Batch 3.1c. `Canette` and `Bouteilles` carry 5,5 %; all 17 products inherit it; `Boissons` stays unset so a cup drink added later gets 10 %. Verified on the live database. | L-16 |
-| ~~Confirm 5,5 % with whoever files the TVA~~ **DETERMINED** 2026-09-03 by the operator's own research — 10 % standard, 5,5 % sealed cans/bottles, no alcohol sold. Recorded under *VAT rate policy*; nothing is blocked on it. | V-14 |
+| Turn FACTICE on for any pre-go-live testing | See A. | L-18 |
+| Stop the stale `next dev` processes | Leftovers from the 3.1b run hold `.next/dev/lock`, so `bun run dev` fails. Claude is blocked from killing processes. `bunx next start` works meanwhile. | — |
 
 #### C. Waiting on hardware / deployment
 
@@ -64,20 +66,29 @@ Batch 1.4, and Batch 8.2.
 
 #### D. Ordering constraints between batches
 
+- **Batch letters are labels, not an order.** Stage 3 ran 3.1 → 3.1b → 3.1d →
+  3.1c → 3.2 → 3.2b → 3.3 → 3.4. Nothing was renumbered, because the finding
+  index maps `C-10 → 3.2`, `C-16 → 3.3` and so on.
 - **Batch 1.4 needs Batch 2.2** — done. DD-02 is answered, so 1.4 is
   unblocked *in design* and waits only on the till.
 - **Batch 1.4 carries the deployment step** that activates WAL,
-  `BACKUP_LOCATION` and `HIBAPOS_DATA_DIR` — the three inert items in A.
+  `BACKUP_LOCATION` and `HIBAPOS_DATA_DIR` — the inert items in A.
 - **Batch 7.1** should re-check **DOC-01** (`README.md:10` "WAL"), which
   Batch 2.3 made *conditionally* true — true off a synced folder, false on
   one. DOC-02 and DOC-03 still describe the deleted `start.sh` mechanism.
-- **Batch 7.3 / DD-04** (secret rotation) is now informed by L-05: the live
+  **DOC-12** is a special case: `IMPLEMENTATION_PLAN.md:162` claimed
+  `VatBreakdown` is `Record<string, …>`, which was wrong when written and
+  became true in Batch 3.1 — append a correction note, do not silently "fix"
+  the line.
+- **Batch 7.3 / DD-04** (secret rotation) is informed by L-05: the live
   `.env` sits in a OneDrive-synced folder, so the secrets are very likely
   already in cloud storage.
 - **Batch 8.0 / P-04** (pre-go-live fiscal reset) must run **after** 1.3 and
   1.4 — otherwise commissioning puts fresh test sales into the journal that
-  was just reset.
-- **Batch letters are labels, not an order.** Stage 3 ran 3.1 → 3.1b → **3.1d** → 3.1c. 3.1d was defined after 3.1c but run before it, because L-20 froze the settings screen and 3.1c adds a VAT selector to that same surface. Nothing was renumbered: the finding index maps `C-10 → 3.2`, `C-16 → 3.3` and so on, and renumbering would break every cross-reference.
+  was just reset. Its scope grew this session: the journal now also contains
+  `CLOTURE_M`, `CLOTURE_A`, `ARCHIVE_GENEREE`, `OUVERTURE_TIROIR` and
+  `REIMPRESSION` events whenever the operator exercises the new fiscal screen,
+  plus any `FiscalArchive` rows and files.
 - **L-14** is unresolved by choice: receipts archived before Batch 2.2 are 80
   columns wide and will wrap when reprinted on 48-column paper. They must
   **not** be re-rendered — an archived receipt is immutable.
@@ -86,7 +97,39 @@ Batch 1.4, and Batch 8.2.
 
 **V-13** — must the JFP carry an `OUVERTURE_TIROIR` entry for the *automatic*
 drawer kick on a cash tender, or only for the traced manual open? Batch 1.3
-journals the manual open only. Fiscal question, flagged not decided.
+journals the manual open only, and Batch 3.4 gave that manual open a UI.
+Fiscal question, flagged not decided.
+
+**V-02** — whether the annual archive format satisfies the archiving
+obligation. Batch 3.3 established the narrower, checkable part (the checksum
+covers every byte including every date, and a third party can reproduce it
+with `sha256sum`); the compliance judgement is not a code question.
+
+#### F. Findings still open from session 3
+
+| ID | What | Suggested home |
+|---|---|---|
+| **L-19** | `report-widgets.tsx:76` renders rates with `toFixed(1)`, so a two-decimal rate (1,05 %) would display as "1.1 %". Not reachable while only 10 % and 5,5 % are in use. | 7.1 |
+| **L-21** | `renderReceipt()` centres but never wraps, so the restaurant's real 56-character address overflows 48-column paper on every ticket. | with the printer work |
+| **L-22** | Validation errors surface as untranslated English zod messages in a French UI. | 7.1 |
+| **L-12**, **L-10**, **L-11** | Pre-existing, unchanged this session. | as recorded |
+
+#### G. Current baselines — check these before trusting anything
+
+| Thing | Value at the end of session 3 |
+|---|---|
+| Tests | **329 pass, 0 fail** (`bun test src`) |
+| Production DB sha256 | `711de2f1280e30cad04d0cb49ba5cd7d7084453078ed5390e34b708de84a2534` |
+| Fiscal chain | `/api/fiscal/verify` → all three chains `ok`, `lastSequence: 2` |
+| Fiscal counters | `20/3/2/2` (receipt / shift / Z / event) |
+| Migrations | 3 applied, latest `20260903203715_category_vat_rates` |
+| Catalogue | 78 products — 17 drinks at **5,5 %**, 61 at 10 % |
+| Out-of-band snapshot | `db-snapshots/custom.db.pre-3.1c.2026-09-03T20-54-10Z` (outside the repo) |
+
+**When running the app against a scratch copy**, override **both**
+`DATABASE_URL` and `HIBAPOS_DATA_DIR` — Batch 3.4 overrode only the first and
+wrote a test archive into the real `db/fiscal-archives/`, which had to be
+deleted afterwards.
 
 ### Hardware-dependent validation (policy set 2026-09-03)
 
@@ -104,11 +147,17 @@ These are **deferred, not waived.** Stage 1 cannot be declared complete, and no 
 
 ### Immediate warnings for any session picking this up
 
-1. ~~`src/app/api/backups/**` is not in git.~~ **RESOLVED in Batch 0.1** (commit `e97a3e1`, 2026-09-03) — `.gitignore` anchored, the three route files are now tracked. The repo has still never been pushed (see P-01, Batch 0.2). Do not run `git clean`, do not reset, do not delete the working tree until Batch 0.2 (push + snapshot) is done.
+1. ~~`src/app/api/backups/**` is not in git.~~ **RESOLVED in Batch 0.1** (commit `e97a3e1`) — `.gitignore` anchored, the three route files are now tracked. The repo **is** pushed: `origin/main` is `astrellaltd-coding/HibaPos`, and every session must leave its own commits pushed by the operator (Claude cannot push). Still: do not run `git clean` and do not delete the working tree without checking `git rev-list --left-right --count origin/main...HEAD` first.
 2. **Do not run `bun run test:e2e`.** `playwright.config.ts` starts `bun run dev`, which loads the real `.env` and writes orders, refunds and Z reports into the **production database** and into an append-only hash chain that cannot be cleaned up. Fixed in Batch 6.3.
 3. **Do not run `bunx vitest` / `npx vitest`.** Only `bun test src` is safe. The test-DB redirect lives in `bunfig.toml` → `test-setup.ts` preload, which vitest does not read; four test files begin by wiping 17 tables.
-4. **The production database holds the user's real recovered data** (commit `0c5ede6`, 797 rows). Treat every DB-touching change as destructive until proven otherwise.
-5. **Do not run scripts in `scripts/`** without reading them first. `seed-users.ts` and `seed-category-options.ts` begin with unguarded `deleteMany({})` calls (finding C-17).
+4. **The CATALOGUE in the production database is real and irreplaceable; the TRADING data is not.** Confirmed by the operator on 2026-09-03: categories, products, options and images are real work (commit `0c5ede6`); every order, payment, receipt, shift, Z report and fiscal event was created by the developer for testing, and P-04 deletes all of it before the first genuine sale. Treat catalogue changes as destructive and irreversible. Trading-data mistakes cost test data — which lowers the risk of exercising fiscal flows, but does **not** license careless writes to the live database: work on a scratch copy, as every batch in Stage 3 did.
+5. **Do not run scripts in `scripts/`** without reading them first. `seed-users.ts` and `seed-category-options.ts` begin with unguarded `deleteMany({})` calls (finding C-17). The exception is `set-drink-vat-rates.ts` (Batch 3.1c), which is dry-run by default, idempotent, and refuses to run against an unexpected category tree.
+
+6. **`bun run dev` currently fails.** Stale `next dev` processes from Batch 3.1b hold `.next/dev/lock`; Claude is blocked from killing processes, so the operator must stop them. `bunx next start` (after `bun run build`) works meanwhile and is what Batch 3.4 validated against.
+
+7. **When running the app against a scratch copy, override `HIBAPOS_DATA_DIR` as well as `DATABASE_URL`.** Batch 3.4 overrode only the database and a generated archive landed in the real `db/fiscal-archives/`, orphaned from its row. It was deleted, but the next session should not repeat it.
+
+8. **Claude cannot do four things in this project** — the permission classifier refuses them, and each is correct: `git push`, `prisma migrate deploy` against production, writes to real menu data, and killing processes. Prepare, rehearse and verify; then hand the operator the exact command.
 
 ---
 
@@ -722,7 +771,7 @@ See *Design Decisions Required → DD-02*.
 
 # STAGE 3 — FISCAL CORRECTNESS
 
-**Stage status:** `IN PROGRESS` — 3.1, 3.1b, 3.1c, 3.1d, 3.2, 3.2b and 3.3 are `COMPLETED`; 3.4 through 3.6 are `NOT STARTED`. The VAT-*rate* thread (C-12, L-16, L-17) and the reconciliation thread (C-10, C-11, M-13, M-14, L-23) are both closed — **every revenue figure in the application now comes from one aggregation**. What remains is archives, the operator interface, the audit trail and close ordering.
+**Stage status:** `IN PROGRESS` — 3.1, 3.1b, 3.1c, 3.1d, 3.2, 3.2b, 3.3 and 3.4 are `COMPLETED`; 3.5 and 3.6 are `NOT STARTED`. The VAT-*rate* thread (C-12, L-16, L-17) and the reconciliation thread (C-10, C-11, M-13, M-14, L-23) are both closed — **every revenue figure in the application now comes from one aggregation**. What remains is archives, the operator interface, the audit trail and close ordering.
 
 Audit section J, step 4: before the first Z report you would show an inspector. These are cheap now and expensive later, because sealed closes and generated archives cannot be corrected once written.
 
@@ -1155,11 +1204,11 @@ The `FiscalArchive` row is created inside the service transaction; the route wri
 
 ## Batch 3.4 — Fiscal operator interface
 
-**Status:** `NOT STARTED`
+**Status:** `COMPLETED` (2026-09-03)
 
 ### C-27 — The fiscal operator surface has no user interface
 
-**Status:** `NOT STARTED` · Severity: CRITICAL · Category: incomplete functionality
+**Status:** `COMPLETED` · Severity: CRITICAL · Category: incomplete functionality
 
 **Problem.** Nineteen of 59 API routes have zero client callers, and the group includes every `/api/fiscal/*` endpoint.
 
@@ -1207,7 +1256,31 @@ Both print paths call `window.print()` directly (`orders-view.tsx:253`, `receipt
 
 ### Batch 3.4 — Status Record
 
-**Status:** `NOT STARTED` · **Completed:** — · **Changes:** — · **Files:** — · **Tests:** — · **Commit:** — · **Notes:** —
+**Status:** `COMPLETED` · **Completed:** 2026-09-03
+
+**Changes:** A new `src/features/fiscal/fiscal-view.tsx` plus a **Fiscal (JFP)** entry in `nav-config.ts` (MANAGER+, hidden from cashiers) and in the home grid. It covers: **chain verification** across all three chains, naming the break sequence if there is one; the **perpetual grand total**; **sealed closes** with their hashes and the actions to seal a month and a year; **annual archives** — generate and download; a **traced drawer opening** with an optional reason; and the **last 50 journal entries** with their FACTICE marking. The UI mirrors the server's own gates — closing a year and generating an archive are SUPER_ADMIN — so an operator is never offered a button that will 403. **Reprint** in `orders-view.tsx` now posts to `/api/orders/[id]/reprint` **before** printing, so the `REIMPRESSION` event is journalled and `Receipt.reprintCount` increments; the route is MANAGER+ by its own design, so a cashier is told to ask rather than being silently given an untraced copy. `src/app/api/route.ts` — the `{"message":"Hello, world!"}` scaffold stub — became a **liveness probe** rather than being deleted, because Batch 1.4's launcher needs to know the server is accepting requests before opening the kiosk window; it is deliberately unauthenticated and uninformative, touches no database and reports no version or environment detail.
+
+**Files:** `src/features/fiscal/fiscal-view.tsx` (new), `src/components/shared/nav-config.ts`, `src/components/shared/home-dashboard.tsx`, `src/components/shared/app-shell.tsx`, `src/store/app-store.ts`, `src/features/orders/orders-view.tsx`, `src/app/api/route.ts`, `src/lib/services/fiscal-surface.test.ts` (new)
+
+**Tests:** `bun test src` — **329/329 PASS** (baseline 324 + 5 new). `bun run typecheck` — PASS. `bun run lint` — PASS. `bun run build` — PASS.
+
+**Commit:** `f8c9e9a` + `36ef20c` (home grid) + this plan update.
+
+**Notes:**
+
+**(1) Manual validation ran against the PRODUCTION BUILD on a scratch copy** — `bunx next start` rather than `next dev`, because leftover `next dev` processes from Batch 3.1b still hold `.next/dev/lock` (see *Immediate warnings*). Testing the built artifact is the stronger check anyway. `db/custom.db` was copied to the scratchpad, a marker written into the **copy only**, and which database the server had open was proved before any write by that marker returning from the pre-auth `GET /api/auth/profiles`. The operator entered the SUPER_ADMIN PIN; everything after was driven by Claude.
+
+**(2) Everything the batch claims was exercised from the UI, and the journal proves it.** Sealing 2026-08 → `Clôture mensuelle scellée`; sealing 2025 → `Clôture annuelle scellée`; generating the 2026 archive → `Archive 2026 générée — 3e3fd349470d…`; the drawer → `Ouverture de tiroir enregistrée`; a reprint → `201`, `reprintCount` **0 → 1**. Afterwards the journal read: `1:VENTE 2:VENTE 3:CLOTURE_M 4:CLOTURE_A 5:ARCHIVE_GENEREE 6:OUVERTURE_TIROIR 7:REIMPRESSION`. **Five of those seven event types had never been written by this application before this batch** — the mechanisms existed and nothing could reach them. `/api/fiscal/verify` afterwards: all three chains `ok`, `firstBreakAt: null`, 7 events. Download returned 200 with the right `Content-Disposition`, `version: 2`, and no checksum field inside — and `sha256sum -c` on the file **the UI produced** returned **OK**, which re-proves Batch 3.3's property through the real path.
+
+**(3) The reprint reported `printed: false` — correctly.** `printerEnabled` is `false` on this install, so the route answered *"Impression désactivée dans les réglages."* The fiscal event is written regardless, which is the right order: the trace does not depend on the hardware. The UI surfaces that message as a warning rather than swallowing it.
+
+**(4) A defect found by the manual run, fixed in `36ef20c`.** The nav entry alone was not enough: `home-dashboard.tsx` keeps its **own** module list, so the module was reachable from the sidebar but invisible on the screen operators start on — the same class of defect as C-27 itself. Its role filter reads `NAV_ITEMS`, so the gate needed no duplication.
+
+**(5) A test artifact was written into the real data directory, and removed.** The server ran with `DATABASE_URL` overridden but **not** `HIBAPOS_DATA_DIR`, so the generated archive landed in the project's `db/fiscal-archives/` — a directory that did not exist before — while its `FiscalArchive` row went to the scratch database. That orphan would have confused a later real generation, so `db/fiscal-archives/` was deleted afterwards; it is gitignored (`.gitignore:58`) and nothing was committed. **Any future scratch run must override `HIBAPOS_DATA_DIR` as well as `DATABASE_URL`.**
+
+**(6) One manual criterion is NOT met and is deferred, not waived.** *"A MANAGER sees exactly what nav-config and the server gates allow; a CASHIER sees none of it"* was verified on the **UI** side by test (the fiscal entry excludes `CASHIER`, and the cashier's module list is asserted unchanged), but not walked through by logging in as each role — that needs two more PINs, and role-gate parity across every route is Batch **4.4**'s own subject. The multi-role walkthrough belongs with the full-day rehearsal in **V-07 / Batch 8.2**.
+
+**(7) The drawer control lives in the fiscal screen, not the POS.** `/api/fiscal/drawer` is MANAGER+, so mid-service use already required a manager; putting it on the admin surface is consistent with that gate. If the operator wants a manager-gated drawer button inside the POS for making change, that is a UX follow-up, not a fiscal one.
 
 ---
 
@@ -2201,6 +2274,7 @@ Record anything found *during* remediation that is outside the current batch's s
 | 0.1 | COMPLETED | 2026-09-03 | `e97a3e1` | C-26, C-26b: anchored 4 bare `.gitignore` patterns; recovered 3 untracked backup API route files into version control. |
 | 0.2 | COMPLETED | 2026-09-03 | *(this update)* | P-01/P-02/P-03: repo pushed to `origin/main` (user, interactive), `.env` confirmed preserved out-of-band by user, pre-remediation snapshot + fiscal/row-count baseline recorded. No code changes. |
 | 1.1 | COMPLETED | 2026-09-03 | `4766ceb` | C-01: refund dialog made a euros boundary (`parseEuroInput()` in `money.ts`, pre-fill + submit + max-check in `orders-view.tsx`). 9 new tests; 145/145. Validated end-to-end on a scratch copy of the production DB — 5,00 € → 500, 5,50 € → 550, full refund → 690, fiscal chain ok. Production DB untouched. |
+| 3.4 | COMPLETED | 2026-09-03 | `f8c9e9a`, `36ef20c` | C-27: built the fiscal operator screen the backend was already waiting for — chain verification, grand total, sealed closes + the actions to seal, archive generate/download, traced drawer opening, and the journal. Reprint routed through `/api/orders/[id]/reprint` so `REIMPRESSION` is journalled and `reprintCount` increments; the Hello-World scaffold stub became a liveness probe for Batch 1.4's launcher. Validated against the production build on a scratch copy: **five journal event types that had never once been written** (CLOTURE_M, CLOTURE_A, ARCHIVE_GENEREE, OUVERTURE_TIROIR, REIMPRESSION) now written from the UI, all three chains still `ok`, and `sha256sum -c` OK on the archive the UI produced. Manual run found that the home grid keeps its own module list (fixed). 329/329. |
 | 3.3 | COMPLETED | 2026-09-03 | `a673a54` | C-04 + M-02: `canonicalize()` gains a Date branch — every timestamp used to serialise to `{}`, so two payloads seven years apart hashed identically — and the archive checksum became the SHA-256 of the exact file bytes, with a `.sha256` manifest, so `sha256sum -c` returns OK for a third party. The checksum is deliberately no longer inside the file. Archive generation split from recording so the file is written before the row, ending the dead end where a failed write blocked regeneration; a row with a missing file is now repaired only if it reproduces byte for byte. Chain re-verified against a copy of production: ok, lastSequence 2, both hashes identical, no payload's canonical form moved. 324/324. |
 | 3.2b | COMPLETED | 2026-09-03 | `54aa7ef` | L-23: the four reports the audit did not count — dashboard, cashiers, products, customer detail — routed through the same aggregation. `orderNet()` extracted as the per-order primitive so reports that group by cashier, hour or product id share the rules without sharing an output shape. Tests contrast old against new: the dashboard's face-value sum gave 3500 where the netted figure is 3000; the cashier report gave 900 of cash for a cashier whose only sale was fully refunded. `round2` now only on percentages. 311/311. |
 | 3.2 | COMPLETED | 2026-09-03 | `2631308` | C-10 + C-11 + M-13 + M-14: five aggregations collapsed into one pure `aggregateOrders()`. C-10 was the critical one — `aggregatePeriod` summed payments gross, so one refund anywhere in a month put a sealed MonthlyClose permanently out of step with its own Z reports. New `apportion()` (largest remainder) makes per-line splits sum exactly to the whole, at checkout and in the aggregation. `round2` gone from the cents paths this batch owns; `avgTicket` is an integer. Fiscal verification against a copy of production: both sealed Z reports recompute **identically**, zero fields changed. Recorded L-23 — the audit's "four aggregations" was an undercount and three more remain. 306/306. |
@@ -2247,7 +2321,7 @@ Quick lookup from audit ID to batch.
 | C-23 | 5.4 | M-22 | 5.7 | DOC-01…12 | 7.1 |
 | C-24 | 4.6 | M-23 | 4.3 | V-01…V-03, V-08…V-12 | external |
 | C-25 | 4.6 | M-24 | 4.4 | V-04…V-07 | 8.1 / 8.2 |
-| C-26, C-26b | 0.1 | C-27 | 3.4 | P-01…P-03 | 0.2 |
+| C-26, C-26b | 0.1 | C-27 ✅ | 3.4 | P-01…P-03 | 0.2 |
 
 ---
 
