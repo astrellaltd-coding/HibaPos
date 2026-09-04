@@ -119,15 +119,17 @@ obligation. Batch 3.3 established the narrower, checkable part (the checksum
 covers every byte including every date, and a third party can reproduce it
 with `sha256sum`); the compliance judgement is not a code question.
 
-#### F. Findings still open from session 3
+#### F. Findings still open (sessions 3 and 4)
 
 | ID | What | Suggested home |
 |---|---|---|
-| **L-19** | `report-widgets.tsx:76` renders rates with `toFixed(1)`, so a two-decimal rate (1,05 %) would display as "1.1 %". Not reachable while only 10 % and 5,5 % are in use. | 7.1 |
-| **L-21** | `renderReceipt()` centres but never wraps, so the restaurant's real 56-character address overflows 48-column paper on every ticket. | with the printer work |
+| **L-19** | `report-widgets.tsx:76` renders rates with `toFixed(1)`, so a two-decimal rate (1,05 %) would display as "1.1 %". Not reachable while only 10 % and 5,5 % are in use. **Batch 3.6 deliberately did not reproduce it**: the receipt's new per-rate block labels rates from the breakdown *key*, not `toFixed`. So the defect is now confined to that one display site. | 7.1 |
+| **L-21** | `renderReceipt()` centres but never wraps, so the restaurant's real 56-character address overflows 48-column paper on every ticket. **Re-measured in Batch 3.6 and still live** — 56 columns against a 48-column width, on a ticket rendered from the real settings. The four lines M-06 adds are at most 48, so the overflow is the address alone. | with the printer work |
 | **L-22** | Validation errors surface as untranslated English zod messages in a French UI. | 7.1 |
 | **L-24** | `bun test src` fails 23 tests on a slow machine — the backup/restore suite exceeds Bun's default 5 s timeout because scrypt at N=2^17 costs ~1.5 s per call here. Nothing to do with the code; it cost most of an hour to establish that in session 4. Run `bun test src --timeout 30000` if the failures are all in `backup*.test.ts`. | 6.1 |
-| **L-12**, **L-10**, **L-11** | Pre-existing, unchanged this session. | as recorded |
+| **L-25** | The close guard added in 3.6 enforces *order* but not *timing*: sealing September on 4 September succeeds and permanently seals a partial month. Decide before the first real close. | needs a decision — before 8.0 |
+| **L-26** | `MonthlyClose` / `AnnualClose` hash a `totalRefunded` they have no column for, so no query can read it. Trivial while zero closes exist. | 3.6 follow-on or 8.0 |
+| **L-12**, **L-10**, **L-11** | Pre-existing, unchanged in sessions 3 and 4. | as recorded |
 
 #### G. Current baselines — check these before trusting anything
 
@@ -172,9 +174,11 @@ These are **deferred, not waived.** Stage 1 cannot be declared complete, and no 
 
 7. **When running the app against a scratch copy, override `HIBAPOS_DATA_DIR` as well as `DATABASE_URL`.** Batch 3.4 overrode only the database and a generated archive landed in the real `db/fiscal-archives/`, orphaned from its row. It was deleted, but the next session should not repeat it.
 
-8. **`bun test src` fails 23 tests on this machine, and the code is fine.** All 23 are in `backup*.test.ts` / `auth.test.ts` and every one is a 5 s timeout: scrypt at N=2^17 costs ~1.5 s per call here, and a backup→restore round trip makes several. `bun test src --timeout 30000` gives **340 pass, 0 fail**. Confirmed on the untouched commit before any Batch 3.5 change was made. Recorded as **L-24**. Do not "fix" a test that fails this way.
+8. **`bun test src` fails 23 tests on this machine, and the code is fine.** All 23 are in `backup*.test.ts` / `auth.test.ts` and every one is a 5 s timeout: scrypt at N=2^17 costs ~1.5 s per call here, and a backup→restore round trip makes several. `bun test src --timeout 30000` gives **363 pass, 0 fail**. Confirmed on the untouched commit before any Batch 3.5 change was made. Recorded as **L-24**. Do not "fix" a test that fails this way.
 
-9. **Claude cannot do four things in this project** — the permission classifier refuses them, and each is correct: `git push`, `prisma migrate deploy` against production, writes to real menu data, and killing processes. Prepare, rehearse and verify; then hand the operator the exact command.
+9. **Claude cannot do three things in this project** — the permission classifier refuses them, and each refusal is correct: `prisma migrate deploy` against production, writes to real menu data, and killing processes. Prepare, rehearse and verify; then hand the operator the exact command.
+
+   **`git push` is a fourth case and behaves differently.** Earlier sessions recorded it alongside the three above; that was wrong. It is an *explicit-permission* action, not a prohibited one — it goes through when the user asks for it in the session, which they did on 2026-09-04 (`3f31779..8a311dc`). Do not push unprompted, and do not tell the user it is impossible.
 
 ---
 
@@ -219,7 +223,7 @@ Audit IDs are **never renamed**. `T-`, `DOC-` and `V-` items are new IDs assigne
 
 | Command | What it does | Safe? |
 |---|---|---|
-| `bun test src` | 136 unit + integration tests, Bun runner, redirected to a temp DB | ✅ Safe |
+| `bun test src` | **363** unit + integration tests, Bun runner, redirected to a temp DB. On a slow machine add `--timeout 30000` — see **L-24**, and warning 8 below | ✅ Safe |
 | `bun run typecheck` | `tsc --noEmit` (note: `scripts/` is excluded by `tsconfig.json:41`) | ✅ Safe |
 | `bun run lint` | `eslint .` (note: `scripts/` is excluded by `eslint.config.mjs:49`) | ✅ Safe |
 | `bun run build` | `next build` — requires `SESSION_SECRET` in env or it throws at import time | ✅ Safe |
@@ -248,7 +252,7 @@ Audit IDs are **never renamed**. `T-`, `DOC-` and `V-` items are new IDs assigne
 
 # STAGE 0 — PRESERVE / ESTABLISH SAFE BASELINE
 
-**Stage status:** `NOT STARTED`
+**Stage status:** `COMPLETED` (2026-09-03) — both batches done. Corrected 2026-09-04: this header still read `NOT STARTED` long after 0.1 and 0.2 were recorded as `COMPLETED` in their own status blocks and in the history table.
 
 Rationale (audit section J, step 1): the source of the backup/restore API exists on exactly one machine and in no commit. Nothing else should be touched until that is fixed, because ordinary remediation hygiene (`git clean`, branch switching, reset) would destroy it silently.
 
@@ -390,7 +394,7 @@ These are preconditions derived from findings C-05, C-06 and the audit's Stage 2
 
 # STAGE 1 — CRITICAL BLOCKERS
 
-**Stage status:** `IN PROGRESS` (Batches 1.1 and 1.2 COMPLETED; 1.3 REQUIRES DECISION; 1.4 NOT STARTED)
+**Stage status:** `IN PROGRESS` (1.1 and 1.2 `COMPLETED`; 1.3 `IMPLEMENTED — TESTING REQUIRED` — DD-01 was answered on 2026-09-03 and it now waits only on the physical printer; 1.4 `NOT STARTED`, unblocked in design but deferred on hardware). **Stage 1 cannot be declared complete on loopback evidence** — see *Hardware-dependent validation*.
 
 Audit section J, step 2: the restaurant cannot open without these. The printing/drawer decision comes first because it is the only item that is a build rather than a fix; the two unit bugs are small, localised edits with disproportionate impact.
 
@@ -788,7 +792,14 @@ See *Design Decisions Required → DD-02*.
 
 # STAGE 3 — FISCAL CORRECTNESS
 
-**Stage status:** `IN PROGRESS` — 3.1, 3.1b, 3.1c, 3.1d, 3.2, 3.2b, 3.3 and 3.4 are `COMPLETED`; 3.5 and 3.6 are `NOT STARTED`. The VAT-*rate* thread (C-12, L-16, L-17) and the reconciliation thread (C-10, C-11, M-13, M-14, L-23) are both closed — **every revenue figure in the application now comes from one aggregation**. What remains is archives, the operator interface, the audit trail and close ordering.
+**Stage status:** `COMPLETED` (2026-09-04) — all ten batches done: 3.1, 3.1b, 3.1d, 3.1c, 3.2, 3.2b, 3.3, 3.4, 3.5, 3.6. Every thread the stage opened is closed: the VAT-*rate* thread (C-12, L-16, L-17), the reconciliation thread (C-10, C-11, M-13, M-14, L-23) — **every revenue figure in the application now comes from one aggregation** — archives (C-04, M-02), the operator interface (C-27), the audit trail (C-13, M-04) and close ordering (M-01, M-06, M-07).
+
+**Two items leave the stage deliberately unresolved, and neither is a code question:**
+
+- **C-22 (chain-design half)** — `REQUIRES EXTERNAL VERIFICATION`. Whether an unkeyed SHA-256 chain satisfies the inalterability requirement is V-01.
+- **V-03** — what a compliant receipt must contain. Batch 3.6 added the per-rate VAT breakdown and the TVA number on the operator's own determination; whether anything further is required is open.
+
+Safety rule 13 stands: **no claim of French fiscal compliance rests on any of this work.**
 
 Audit section J, step 4: before the first Z report you would show an inspector. These are cheap now and expensive later, because sealed closes and generated archives cannot be corrected once written.
 
@@ -2372,34 +2383,51 @@ Record anything found *during* remediation that is outside the current batch's s
 
 Quick lookup from audit ID to batch.
 
+**✅ = remediated and validated.** It means the *code* is done and the batch is
+recorded — several ✅ items are **not yet in effect on the production install**
+(WAL, `BACKUP_LOCATION`, `HIBAPOS_DATA_DIR`, thermal printing); *OPEN THREADS →
+A* is the list. **◐ = one half done, one half open** — the finding was split
+across two batches. Audit IDs are never renamed, so a split keeps its ID.
+
+*Ticks audited and corrected 2026-09-04: seventeen findings were `COMPLETED` in
+their own status blocks while the index still showed them untouched.*
+
 | ID | Batch | ID | Batch | ID | Batch |
 |---|---|---|---|---|---|
-| C-01 | 1.1 | M-01 ✅ | 3.6 | M-25 | 4.4 |
-| C-02 | 1.2 | M-02 ✅ | 3.3 | M-26 | 4.4 |
-| C-03 | 1.3 | M-03 | 2.2 | M-27 | 4.3 |
+| C-01 ✅ | 1.1 | M-01 ✅ | 3.6 | M-25 | 4.4 |
+| C-02 ✅ | 1.2 | M-02 ✅ | 3.3 | M-26 | 4.4 |
+| C-03 | 1.3 | M-03 ✅ | 2.2 | M-27 | 4.3 |
 | C-04 ✅ | 3.3 | M-04 ✅ | 3.5 | M-28 | 4.3 |
-| C-05 | 2.1 | M-05 | 5.5 | M-29 | 2.4 |
-| C-06 | 2.2 | M-06 ✅ | 3.6 | M-30 | 2.4 |
-| C-07 | 1.4 | M-07 ✅ | 3.6 | M-31 | 2.4 |
+| C-05 ✅ | 2.1 | M-05 | 5.5 | M-29 ✅ | 2.4 |
+| C-06 ✅ | 2.2 | M-06 ✅ | 3.6 | M-30 ✅ | 2.4 |
+| C-07 | 1.4 | M-07 ✅ | 3.6 | M-31 ✅ | 2.4 |
 | C-08 | 4.1 | M-08 | 5.6 | L-01 | 7.2 |
 | C-09 | 4.2 | M-09 | 5.7 | L-02 | 7.2 |
 | C-10 ✅ | 3.2 | M-10 | 5.7 | L-03 | 7.2 |
-| C-11 ✅ | 3.2 | M-11 | 5.7 | L-04 | 2.4 / 7.3 |
+| C-11 ✅ | 3.2 | M-11 | 5.7 | L-04 ◐ | 2.4 / 7.3 |
 | C-12 ✅ | 3.1 | M-12 | 5.7 | L-05 | 2.4 (deferred) |
 | C-13 ✅ | 3.5 | M-13 ✅ | 3.2 | L-06 | 6.3 |
 | C-14 | 5.3 | M-14 ✅ | 3.2 | L-07 | 7.2 |
-| C-15 | 2.3 + 4.7 | M-15 | 5.7 | L-08 | 7.2 |
+| C-15 ◐ | 2.3 + 4.7 | M-15 | 5.7 | L-08 | 7.2 |
 | C-16 | 4.4 | M-16 | 5.7 | L-09 | deferred |
 | C-17 | 4.5 | M-17 | 5.7 | L-10 | deferred |
 | C-18 | 4.3 | M-18 | 5.7 | L-11 | deferred |
-| C-19 | 2.3 | M-19 | 5.7 | L-12 | 7.2 |
+| C-19 ✅ | 2.3 | M-19 | 5.7 | L-12 | 7.2 |
 | C-20 | 5.1 | M-19s | 4.4 | T-01…T-07 | 6.1 |
 | C-21 | 5.2 | M-20 | 5.7 | T-08, T-09 | 6.2 |
-| C-22 | 2.1 + 3.5 | M-21 | 5.7 | T-10…T-12 | 6.3 |
+| C-22 ◐ | 2.1 + 3.5 | M-21 | 5.7 | T-10…T-12 | 6.3 |
 | C-23 | 5.4 | M-22 | 5.7 | DOC-01…12 | 7.1 |
 | C-24 | 4.6 | M-23 | 4.3 | V-01…V-03, V-08…V-12 | external |
 | C-25 | 4.6 | M-24 | 4.4 | V-04…V-07 | 8.1 / 8.2 |
-| C-26, C-26b | 0.1 | C-27 ✅ | 3.4 | P-01…P-03 | 0.2 |
+| C-26, C-26b ✅ | 0.1 | C-27 ✅ | 3.4 | P-01…P-03 ✅ | 0.2 |
+
+**The three ◐ items, so nobody has to go looking:**
+
+| ID | Done | Still open |
+|---|---|---|
+| **C-15** | Transaction timeouts, Batch 2.3 | The shift-state race, Batch 4.7 |
+| **C-22** | Restore/deletion journalling, Batch 2.1 | Whether an unkeyed chain suffices — `REQUIRES EXTERNAL VERIFICATION`, V-01 |
+| **L-04** | The 297 MB `.next/standalone/` tree carrying live secrets, deleted in Batch 2.4 | Rotating the secrets it exposed, Batch 7.3 / DD-04 |
 
 ---
 
