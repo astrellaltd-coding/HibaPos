@@ -1,10 +1,11 @@
 // Auth utilities: PIN hashing (scrypt) and signed session cookies.
 // Server-only module.
 
-import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from "crypto";
+import { randomBytes, randomUUID, scrypt, timingSafeEqual } from "crypto";
 import { createHmac } from "crypto";
 import { cookies } from "next/headers";
 import { db } from "@/lib/db";
+import { runPinDerivation } from "@/lib/pin-hash-queue";
 
 const SESSION_COOKIE = "hibapos_session";
 const SESSION_TTL_MS = 1000 * 60 * 60 * 12; // 12 hours
@@ -27,13 +28,44 @@ if (SESSION_SECRET.length < 32) {
 // instead of seconds. maxmem must be raised to accommodate the larger N.
 const SCRYPT_OPTS = { N: 1 << 17, r: 8, p: 1, maxmem: 1 << 30 } as const;
 
+// The pre-Phase-2A parameters, written out rather than left to Node's
+// defaults. `scryptSync(pin, salt, 64)` used N=16384, r=8, p=1 — these exact
+// numbers — and hashes created that way are still in the database. Spelling
+// them out means a future change to the library defaults cannot quietly lock
+// those users out; `auth-legacy-pin.test.ts` (T-04) generates its fixtures
+// with the old default-argument form and asserts they still verify here.
+const LEGACY_SCRYPT_OPTS = { N: 1 << 14, r: 8, p: 1 } as const;
+
 // ---------------------------------------------------------------------------
 // PIN hashing
 // ---------------------------------------------------------------------------
 
-export function hashPin(pin: string): string {
+/** One scrypt derivation, off the event loop and inside the concurrency bound.
+ *
+ *  C-09, Batch 4.2: these calls were `scryptSync`, which froze the single
+ *  Node process serving the till for ~390 ms each — twice per wrong PIN
+ *  (strong params, then the legacy fallback) and once per manager on
+ *  `/api/auth/approve`. The work is identical; only the thread changed.
+ *  `runPinDerivation` throws `ScryptBusyError` when too many are already
+ *  queued, which the auth routes answer with 503 rather than piling on. */
+function derive(
+  pin: string,
+  salt: string,
+  opts: typeof SCRYPT_OPTS | typeof LEGACY_SCRYPT_OPTS,
+): Promise<Buffer> {
+  return runPinDerivation(
+    () =>
+      new Promise<Buffer>((resolve, reject) => {
+        scrypt(pin, salt, 64, opts, (err, key) =>
+          err ? reject(err) : resolve(key),
+        );
+      }),
+  );
+}
+
+export async function hashPin(pin: string): Promise<string> {
   const salt = randomBytes(16).toString("hex");
-  const hash = scryptSync(pin, salt, 64, SCRYPT_OPTS).toString("hex");
+  const hash = (await derive(pin, salt, SCRYPT_OPTS)).toString("hex");
   return `${salt}:${hash}`;
 }
 
@@ -49,28 +81,31 @@ export type PinVerifyResult = {
  *  Tries the current strong scrypt params (N=2^17) first, then falls back
  *  to the legacy params (N=2^14 default — hashes created before the
  *  Phase 2A hardening). Returns boolean for simple call sites. */
-export function verifyPin(pin: string, stored: string): boolean {
-  return verifyPinDetail(pin, stored).valid;
+export async function verifyPin(pin: string, stored: string): Promise<boolean> {
+  return (await verifyPinDetail(pin, stored)).valid;
 }
 
 /** Detailed verify — returns whether the match came from legacy params so
  *  login/unlock/switch-user routes can trigger a transparent re-hash. */
-export function verifyPinDetail(pin: string, stored: string): PinVerifyResult {
+export async function verifyPinDetail(
+  pin: string,
+  stored: string,
+): Promise<PinVerifyResult> {
   const [salt, hash] = stored.split(":");
   if (!salt || !hash) return { valid: false, legacy: false };
   const hashBuf = Buffer.from(hash, "hex");
   if (hashBuf.length !== 64) return { valid: false, legacy: false };
 
   // Current strong params (N=2^17, r=8, p=1).
-  const strongTest = scryptSync(pin, salt, 64, SCRYPT_OPTS);
+  const strongTest = await derive(pin, salt, SCRYPT_OPTS);
   if (timingSafeEqual(hashBuf, strongTest)) {
     return { valid: true, legacy: false };
   }
 
-  // Legacy fallback (N=2^14 default — pre-Phase-2A hashes).
+  // Legacy fallback (N=2^14 — pre-Phase-2A hashes).
   // Without this, every user created before the scrypt hardening is
   // permanently locked out (their stored hash can never match the new params).
-  const legacyTest = scryptSync(pin, salt, 64);
+  const legacyTest = await derive(pin, salt, LEGACY_SCRYPT_OPTS);
   if (hashBuf.length === legacyTest.length && timingSafeEqual(hashBuf, legacyTest)) {
     return { valid: true, legacy: true };
   }

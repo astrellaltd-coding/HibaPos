@@ -3,6 +3,8 @@ import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { hashPin } from "@/lib/auth";
 import { seedCatalogAndSettings, isEmojiImage } from "@/lib/services/seed";
+import { isScryptBusyError } from "@/lib/pin-hash-queue";
+import { scryptBusyResponse } from "@/lib/api-handler";
 
 // Re-export helper so any consumer (none currently, but defensive) keeps it.
 export { isEmojiImage };
@@ -20,6 +22,17 @@ export { isEmojiImage };
  * them after first login.
  */
 export async function POST() {
+  // C-09, Batch 4.2 — `hashPin` is async and bounded; answer 503 rather than
+  // a raw 500 if the bootstrap lands while the queue is saturated.
+  try {
+    return await seed();
+  } catch (e) {
+    if (isScryptBusyError(e)) return scryptBusyResponse();
+    throw e;
+  }
+}
+
+async function seed() {
   const existingCount = await db.user.count();
   if (existingCount > 0) {
     const session = await getSession();
@@ -45,6 +58,7 @@ export async function POST() {
     return NextResponse.json({ error: "SEED_MANAGER_PIN doit contenir 6 chiffres." }, { status: 500 });
   }
 
+  const adminPinHash = await hashPin(adminPin);
   let admin: { id: string };
   try {
     admin = await db.user.create({
@@ -52,7 +66,7 @@ export async function POST() {
         username: "admin",
         name: "Administrateur",
         role: "SUPER_ADMIN",
-        pinHash: hashPin(adminPin),
+        pinHash: adminPinHash,
         active: true,
       },
       select: { id: true },
@@ -74,13 +88,14 @@ export async function POST() {
     }
     throw e;
   }
+  const managerPinHash = await hashPin(managerPin);
   try {
     await db.user.create({
       data: {
         username: "manager",
         name: "Gérant",
         role: "MANAGER",
-        pinHash: hashPin(managerPin),
+        pinHash: managerPinHash,
         active: true,
       },
     });

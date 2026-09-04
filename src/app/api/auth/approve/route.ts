@@ -120,11 +120,15 @@ export const POST = withAuth(async (req: NextRequest, { user: caller }) => {
     },
   });
 
+  // One derivation at a time, deliberately. Since Batch 4.2 each `verifyPin`
+  // is async and off the event loop, so the sequential loop no longer freezes
+  // the till; verifying the managers in parallel would instead multiply the
+  // 128 MiB scrypt footprint by the number of managers.
   let approver: (typeof managers)[number] | null = null;
   for (const u of managers) {
     if (!u.pinHash) continue;
     if (u.lockedUntil && u.lockedUntil > new Date()) continue;
-    if (verifyPin(pin, u.pinHash)) {
+    if (await verifyPin(pin, u.pinHash)) {
       approver = u;
       break;
     }

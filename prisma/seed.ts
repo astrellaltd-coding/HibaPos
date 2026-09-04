@@ -26,7 +26,7 @@ async function main() {
       username: "admin",
       name: "Administrateur",
       role: "SUPER_ADMIN",
-      pinHash: hashPin(adminPin),
+      pinHash: await hashPin(adminPin),
       active: true,
     },
   });
@@ -35,7 +35,7 @@ async function main() {
       username: "manager",
       name: "Gérant",
       role: "MANAGER",
-      pinHash: hashPin(managerPin),
+      pinHash: await hashPin(managerPin),
       active: true,
     },
   });

@@ -11,19 +11,19 @@ Detailed audit record: https://claude.ai/code/artifact/329316b0-3a6b-48b0-9d27-d
 
 **Overall:** NOT READY FOR PRODUCTION
 
-**Current Stage:** Stage 4 — Security & integrity, `IN PROGRESS` (4.1 COMPLETED; 4.2 through 4.7 `NOT STARTED`). (**Stage 3 is COMPLETED** — every batch 3.1 through 3.6, plus 3.6b, which reopened it for one small batch on 2026-09-04 — with C-22's chain-design half carried forward as `REQUIRES EXTERNAL VERIFICATION` and V-03 open for professional confirmation. Stage 1 is **partly done**: 1.1 and 1.2 COMPLETED, 1.3 `IMPLEMENTED — TESTING REQUIRED` on hardware, 1.4 deferred. Stage 2 is COMPLETED.)
+**Current Stage:** Stage 4 — Security & integrity, `IN PROGRESS` (4.1 and 4.2 COMPLETED; 4.3 through 4.7 `NOT STARTED`). (**Stage 3 is COMPLETED** — every batch 3.1 through 3.6, plus 3.6b, which reopened it for one small batch on 2026-09-04 — with C-22's chain-design half carried forward as `REQUIRES EXTERNAL VERIFICATION` and V-03 open for professional confirmation. Stage 1 is **partly done**: 1.1 and 1.2 COMPLETED, 1.3 `IMPLEMENTED — TESTING REQUIRED` on hardware, 1.4 deferred. Stage 2 is COMPLETED.)
 
-**Current Batch:** Batch 4.2 — Asynchronous scrypt · `NOT STARTED`
+**Current Batch:** Batch 4.3 — Credentials, sessions and network exposure · `NOT STARTED`
 
-**Last Completed Batch:** Batch 4.1 — Manager-approval brute force (C-08). A wrong manager PIN now counts against the *caller*, and five inside fifteen minutes refuse further approvals with `423` until the window clears; the rate-limit key no longer carries a client IP, so rotating `X-Real-IP` cannot mint a fresh bucket. **No migration — the fix is in force as soon as the code runs.** The caller's *account* is deliberately not locked: that would revoke their session and eject a cashier from the till mid-service.
+**Last Completed Batch:** Batch 4.2 — Asynchronous scrypt (C-09). PIN key derivation moved off the event loop to the async `crypto.scrypt`, and behind a bound of two concurrent derivations with a thirty-two-deep queue; past that the auth routes answer `503` rather than let a caller queue unbounded 128 MiB scrypt buffers. Measured on two builds of the same tree: during one wrong manager PIN the pre-batch build served **6** concurrent requests at a worst latency of **1608 ms**, the fixed build **491** at **24 ms**. **No migration.** **T-04 was written here as its prerequisite** and the legacy N=2^14 fallback is proved to still verify and to still upgrade transparently, through both `login` and `unlock`.
 
-**Next Batch:** Batch 4.2 — Asynchronous scrypt. Note its **prerequisite**: T-04 (the legacy-PIN fallback test) must exist and pass *before* any change to `verifyPinDetail`. **Batch 1.4 is unblocked in design** (DD-02 answered) but still deferred on hardware — see *Hardware-dependent validation* below.
+**Next Batch:** Batch 4.3 — Credentials, sessions and network exposure (C-18, M-23, M-27, M-28). Note it carries **DD-06**, which is unanswered: whether LAN access is required decides the bind address and the cookie's `secure` flag. **Batch 1.4 is unblocked in design** (DD-02 answered) but still deferred on hardware — see *Hardware-dependent validation* below.
 
 **Blocked:** Batch 1.3 `[HW]` sign-off and Batch 1.4 — both need the app running on the restaurant's POS machine, which is in a different country from the developer and has no copy of the app installed (decision of 2026-09-03).
 
-**Awaiting decision:** Batch 5.3 (cross-shift refunds), Batch 5.5 (cash movements), Batch 5.6 (order cancellation) — see *Design Decisions Required*. **DD-03 and DD-17 were answered on 2026-09-03, DD-05 and DD-18 on 2026-09-04**; nothing blocks Stage 4.
+**Awaiting decision:** **the rest of Stage 4 is not decision-free** — 4.1 and 4.2 were, and the next three are not: **DD-06** shapes Batch 4.3 (LAN access → bind address and cookie `secure` flag), **DD-07** blocks Batch 4.4 (the cashier visibility matrix), **DD-08** blocks Batch 4.5 (guard the operator scripts or remove them). Then Batch 5.3 (cross-shift refunds), Batch 5.5 (cash movements), Batch 5.6 (order cancellation) — see *Design Decisions Required*. **DD-03 and DD-17 were answered on 2026-09-03, DD-05 and DD-18 on 2026-09-04.**
 
-**Last Updated:** 2026-09-04 (session 6 — Batch 4.1, opening Stage 4; read *OPEN THREADS* below before starting anything. Session 6 found thread A stale again: the operator has applied the Batch 3.6b migration, so **nothing is now waiting on a `migrate deploy`**)
+**Last Updated:** 2026-09-04 (session 7 — Batch 4.2; read *OPEN THREADS* below before starting anything. Nothing waits on a `migrate deploy`: neither 4.1 nor 4.2 added a migration. Session 7 corrected the environment item about the leftover server — port 3010 is free and `bunx prisma generate` still fails `EPERM`)
 **Restructured:** 2026-09-04 — completed batches now live verbatim in `REMEDIATION_RECORD.md`; this file keeps the resume block, the open work, the registers and a stub per completed batch. Everything a session must know before acting sits above the first stage heading. See *HOW TO USE THIS FILE*.
 
 ### OPEN THREADS — read this before starting a batch
@@ -61,7 +61,7 @@ real till until an action below is taken. Do not report them as delivered.
 | Action | Why it matters | Related |
 |---|---|---|
 | ~~**Apply the Batch 3.6b migration**~~ ✅ **DONE 2026-09-04 09:43** | Applied by the operator; verified read-only in Batch 4.1. See the correction in *A*. **No migration is pending** — Batch 4.1 added none. | L-26 |
-| **Stop the leftover server on port 3010** | PID 2072 is a `next start` from Batch 3.1b, still serving a session-3 scratch copy. It holds the Prisma query-engine DLL open, so `bunx prisma generate` fails `EPERM` (harmlessly — the TypeScript client is written first). Claude is blocked from killing the operator's processes. | — |
+| **Stop the two leftover servers on ports 3011 and 3012** | *Corrected 2026-09-04 (session 7): port **3010** is now free and PID 2072 is gone, and `bunx prisma generate` **still** fails `EPERM` on the query-engine DLL rename.* The remaining candidates are two `next start` servers from an earlier session: PIDs **4016** (`-p 3011`) and **24116** (`-p 3012`), with their `bunx` parents 10540 and 22844, started 2026-09-03 23:05 and 23:12. Still harmless — Prisma writes the TypeScript client before copying the engine. Claude does not kill the operator's processes. | — |
 | ~~**Apply the Batch 3.6 migration**~~ ✅ **DONE 2026-09-04** | Applied by the operator; verified read-only in Batch 3.6b. See the correction in *A*. | M-07 |
 | Correct `printerName` in Réglages | Stored value is `"Epson TM-m30"`; the physical printer is the **Sunso WTP-801** (Ethernet). Cosmetic — nothing reads it. **This was impossible until Batch 3.1d**; the settings form now saves. | DOC-15 |
 | Choose a second volume for backups | See A. | C-06 |
@@ -144,11 +144,11 @@ with `sha256sum`); the compliance judgement is not a code question.
 
 | Thing | Value at the end of session 3 (updated through session 4) |
 |---|---|
-| Tests | **400 pass, 0 fail** (`bun test src --timeout 30000` — see L-24 for why the timeout flag). 384 before Batch 4.1 |
-| Production DB sha256 | `a66bc96c20d3f00282ea249361dd80d6303434b1a43331c0725258b637db46f9` — changed **only** by the operator applying the 3.5, 3.6 and (2026-09-04 09:43) 3.6b migrations. Re-verified read-only in Batch 4.1, unchanged across that batch. The pre-3.6b value `7cc3367b…` is preserved in `db-snapshots/custom.db.pre-3.6b.2026-09-04T08-27-38Z` |
+| Tests | **413 pass, 0 fail** (`bun test src --timeout 30000` — see L-24 for why the timeout flag). 400 before Batch 4.2. Whole-suite runtime measured 80–100 s this session, against the ~192 s L-24 records |
+| Production DB sha256 | `a66bc96c20d3f00282ea249361dd80d6303434b1a43331c0725258b637db46f9` — changed **only** by the operator applying the 3.5, 3.6 and (2026-09-04 09:43) 3.6b migrations. Re-verified read-only in Batch 4.2, unchanged across that batch and 4.1. The pre-3.6b value `7cc3367b…` is preserved in `db-snapshots/custom.db.pre-3.6b.2026-09-04T08-27-38Z` |
 | Fiscal chain | `/api/fiscal/verify` → all three chains `ok`, `lastSequence: 2`. **Zero monthly and annual closes have ever been sealed** — which is why M-01's guard, DD-18's timing rules and L-26's payload change could all be imposed with nothing to accommodate. Re-verified read-only 2026-09-04 |
-| Fiscal counters | `20/3/2/2` (receipt / shift / Z / event). Re-verified read-only in Batch 4.1 |
-| Migrations | **6 applied on production**, latest `20260904091947_close_refund_totals` (applied 2026-09-04 09:43:54). **None pending.** Batch 4.1 added none |
+| Fiscal counters | `20/3/2/2` (receipt / shift / Z / event). Re-verified read-only in Batch 4.2 |
+| Migrations | **6 applied on production**, latest `20260904091947_close_refund_totals` (applied 2026-09-04 09:43:54). **None pending.** Batches 4.1 and 4.2 added none |
 | Catalogue | 78 products — 17 drinks at **5,5 %**, 61 at 10 % |
 | Out-of-band snapshots | `db-snapshots/custom.db.pre-3.1c.2026-09-03T20-54-10Z` and `…pre-3.5.2026-09-03T23-01-34Z` (both hash `711de2f1…`), and `…pre-3.6b.2026-09-04T08-27-38Z` (`7cc3367b…`). All outside the repo |
 
@@ -191,7 +191,7 @@ These are **deferred, not waived.** Stage 1 cannot be declared complete, and no 
 
 *These items describe the developer's machine at the end of session 4, not the project. Check each before acting on it, and delete it here once it no longer holds. Their numbers are kept because other sections refer to them.*
 
-6. **`bun run dev` currently fails, and `bunx prisma generate` fails `EPERM`.** Both have the same cause, identified in Batch 3.6b: the Batch 3.1b leftover is a **`next start` server still listening on port 3010** (PID 2072 as of 2026-09-04), serving a session-3 scratch copy. It holds `.next/dev/lock` and the Prisma query-engine DLL. The `generate` failure is harmless — Prisma writes the TypeScript client *before* copying the engine, so the client is up to date and only the redundant DLL copy fails — but the operator must stop the process. `bunx next start` on a **spare port** works meanwhile; Batch 3.6b used 3021.
+6. **`bunx prisma generate` fails `EPERM`, and the cause recorded here was wrong.** *Corrected 2026-09-04 (session 7).* Batch 3.6b attributed it to a `next start` still listening on **port 3010** (PID 2072). That port is now free and that PID is gone, and `bunx prisma generate` **still** fails `EPERM` renaming `node_modules/.prisma/client/query_engine-windows.dll.node`. Two older `next start` servers are still running — PIDs 4016 (`-p 3011`) and 24116 (`-p 3012`), started 2026-09-03 — and are the remaining candidates; OneDrive holding the file is another. The failure is harmless either way: Prisma writes the TypeScript client *before* copying the engine, so the client is up to date and only the redundant DLL copy fails. `bunx next start` on a **spare port** works meanwhile; Batch 3.6b used 3021, Batch 4.1 used 3022/3023, Batch 4.2 used 3024/3025.
 
 8. **`bun test src` fails 23 tests on this machine, and the code is fine.** All 23 are in `backup*.test.ts` / `auth.test.ts` and every one is a 5 s timeout: scrypt at N=2^17 costs ~1.5 s per call here, and a backup→restore round trip makes several. `bun test src --timeout 30000` gives **384 pass, 0 fail**. Confirmed on the untouched commit before any Batch 3.5 change was made. Recorded as **L-24**. Do not "fix" a test that fails this way.
 
@@ -199,7 +199,7 @@ These are **deferred, not waived.** Stage 1 cannot be declared complete, and no 
 
 | Action | Why it matters | Related |
 |---|---|---|
-| Stop the leftover Batch 3.1b server (PID 2072, port 3010) | It holds `.next/dev/lock` and the Prisma engine DLL, so `bun run dev` and `bunx prisma generate` both fail. Claude is blocked from killing processes. `bunx next start -p <spare port>` works meanwhile. | — |
+| Stop the two leftover servers (PIDs 4016 on port 3011 and 24116 on port 3012, with their `bunx` parents 10540 and 22844) | *Corrected 2026-09-04 (session 7): the port-3010 process named here before is gone and the `EPERM` remains.* `bunx prisma generate` still fails renaming the Prisma engine DLL. Claude does not kill the operator's processes. `bunx next start -p <spare port>` works meanwhile. | — |
 
 ---
 
@@ -319,7 +319,7 @@ their own status blocks while the index still showed them untouched.*
 | C-06 ✅ | 2.2 | M-06 ✅ | 3.6 | M-30 ✅ | 2.4 |
 | C-07 | 1.4 | M-07 ✅ | 3.6 | M-31 ✅ | 2.4 |
 | C-08 ✅ | 4.1 | M-08 | 5.6 | L-01 | 7.2 |
-| C-09 | 4.2 | M-09 | 5.7 | L-02 | 7.2 |
+| C-09 ✅ | 4.2 | M-09 | 5.7 | L-02 | 7.2 |
 | C-10 ✅ | 3.2 | M-10 | 5.7 | L-03 | 7.2 |
 | C-11 ✅ | 3.2 | M-11 | 5.7 | L-04 ◐ | 2.4 / 7.3 |
 | C-12 ✅ | 3.1 | M-12 | 5.7 | L-05 | 2.4 (deferred) |
@@ -871,7 +871,7 @@ Nothing else in the catalogue changes: all 61 non-drink products stay at 10 %.
 
 # STAGE 4 — SECURITY & INTEGRITY
 
-**Stage status:** `IN PROGRESS` — 4.1 `COMPLETED` (2026-09-04); 4.2 through 4.7 `NOT STARTED`.
+**Stage status:** `IN PROGRESS` — 4.1 and 4.2 `COMPLETED` (both 2026-09-04); 4.3 through 4.7 `NOT STARTED`.
 
 Audit section J, step 5: close the one real privilege-escalation path, stop blocking the event loop, rotate the default credentials, and stop the silent data-loss paths.
 
@@ -900,36 +900,23 @@ Audit section J, step 5: close the one real privilege-escalation path, stop bloc
 
 ## Batch 4.2 — Asynchronous scrypt
 
-**Status:** `NOT STARTED`
+**Status:** `COMPLETED` · **Completed:** 2026-09-04 · **Commit:** `PENDING_SHA` · **Findings:** C-09 (T-04 written here as its prerequisite)
+**Record:** `REMEDIATION_RECORD.md` → *Batch 4.2* — specification, validation criteria and status record, moved there verbatim on 2026-09-04.
 
-### C-09 — Synchronous scrypt on the request thread freezes the POS
+**Constraints this batch leaves behind** *(sentences copied from the record, not paraphrased)*
+- Nothing about the KDF moved: same N=2^17, r=8, p=1, same 64-byte output, same `salt:hash` storage, so no stored hash is invalidated and there is **no migration**. *(record, Changes (1))*
+- The fallback was `scryptSync(pin, salt, 64)`, i.e. whatever Node's defaults happen to be. It is now `{ N: 1 << 14, r: 8, p: 1 }` explicitly, so a change in a library default cannot silently lock out every pre-hardening account. *(record, Changes (2))*
+- Two derivations run at once, thirty-two may wait, and the next is refused with `ScryptBusyError` **before** it starts. *(record, Changes (3))*
+- Two rather than the pool's four: the pool also serves file I/O, and two caps derivation memory near 256 MiB. *(record, Changes (3))*
+- `withAuth` / `withAuthParams` catch **only** `ScryptBusyError` and rethrow everything else, so no route's existing failure behaviour changes. *(record, Changes (4))*
+- `login` and `unlock` spread `hashPin(pin)` straight into Prisma's `data` on the legacy-upgrade path; unawaited that writes the string `"[object Promise]"` into `User.pinHash` and locks the account out at the next login. *(record, Changes (5))*
+- `scripts/seed-users.ts` is excluded from **both** `tsconfig.json` and `eslint.config.mjs`, so nothing but reading it catches the same mistake there. *(record, Changes (5))*
+- `/api/auth/approve` still verifies managers sequentially. Deliberate: the loop no longer blocks anything, and running the managers in parallel would multiply the 128 MiB footprint by their number. *(record, Changes (6))*
+- Refusing is a behaviour change: under a flood of PIN guesses an honest cashier can now be told `503` instead of waiting. *(record, note 2)*
+- No real PIN was used anywhere, and the two real rows in the copy were never touched. *(record, note 3)*
+- Nothing in the file says whether the two real PINs are legacy-hashed. That is precisely why the fallback had to survive this batch, and why T-04 was made its prerequisite. *(record, note 5)*
 
-**Status:** `NOT STARTED` · Severity: HIGH · Category: security / availability
-
-**Problem.** `hashPin`/`verifyPinDetail` use `scryptSync` with `N=2^17, r=8` (~128 MiB, ~100 ms) directly on the Node event loop. A failed verify runs it **twice** (strong params, then the legacy fallback). `/api/auth/approve` runs it once per manager, sequentially. An unknown username at login deliberately burns a full `hashPin("dummy")`.
-
-**Evidence.** `auth.ts:28` `SCRYPT_OPTS = { N: 1 << 17, r: 8, p: 1, maxmem: 1 << 30 }`; `:36, :65, :73` all `scryptSync`; `login/route.ts:52`; `approve/route.ts:97-104`.
-
-**Location.** `src/lib/auth.ts:28-79`; `src/app/api/auth/login/route.ts:52`; `src/app/api/auth/approve/route.ts:97-104`
-
-**Impact.** The parameters are correctly chosen for PIN security — running them synchronously means every wrong PIN stalls the single Node process serving the till. With five managers, one wrong approval PIN blocks the event loop for roughly a second. An unauthenticated client on the LAN can freeze the POS and exhaust memory (128 MiB per in-flight call).
-
-**Remediation direction.** Switch to the async `crypto.scrypt` callback/promise form, as `backup.ts:55-70` already does. Bound concurrency on the auth routes.
-
-**⚠ Regression risk.** `verifyPinDetail`'s legacy-N=2^14 fallback (commit `5ef7dc4`) is what keeps existing users able to log in. It is currently untested (T-04). Do not touch this function without first adding that test.
-
-### Batch 4.2 — Validation Required
-
-- **Prerequisite:** T-04 (legacy-PIN fallback test) exists and passes *before* this change. A regression here locks every user out of the till.
-- Targeted test: a legacy N=2^14 hash still verifies and is transparently upgraded on success.
-- Targeted test: a strong N=2^17 hash verifies without touching the legacy path.
-- Load check: concurrent requests during a wrong-PIN attempt are still served (event loop not blocked); measure and record.
-- Manual: login, unlock, switch-user and manager approval all still work at the till.
-- `bun test src` — PASS. `bun run typecheck` — PASS.
-
-### Batch 4.2 — Status Record
-
-**Status:** `NOT STARTED` · **Completed:** — · **Changes:** — · **Files:** — · **Tests:** — · **Commit:** — · **Notes:** —
+**Left open:** L-30 → *Newly Discovered Issues*. **T-04's status stays `NOT STARTED` in Batch 6.1** — the test was written here because 4.2 required it, and 6.1 closes the row, as it does for T-01. The validation criterion "login, unlock, switch-user and manager approval all still work **at the till**" is satisfied only at the route level (*record, note 4*); the till itself is covered by *Hardware-dependent validation*.
 
 ---
 
@@ -1419,7 +1406,7 @@ Audit section J, step 7: the suite is honest but tests the wrong third. 136 test
 | **T-01** | `NOT STARTED` | `createBackup` and `restoreBackup` have **zero tests**. The suite proves AES-GCM round-trips a buffer; nothing proves a backup of a real database is produced or restorable. | The most destructive function in the codebase. Directly where C-05 lives. Required by Batch 2.1. *Correction 2026-09-04: T-01 was written in Batch 2.1 (`backup-restore.test.ts`) and extended in 2.2 — record → Batch 2.1. Status left as recorded for Batch 6.1 to close.* |
 | **T-02** | `NOT STARTED` | Discount-authorization *enforcement* is untested. The token primitive has 7 tests in isolation; nothing exercises the route branch deciding whether a discount needs one. | A regression accepting an unapproved discount passes 136/136. The classic POS fraud vector. |
 | **T-03** | `NOT STARTED` | RBAC has zero tests across 59 routes. Nothing asserts a CASHIER cannot close a shift, reprint, or restore a backup. | Required by Batch 4.4. |
-| **T-04** | `NOT STARTED` | The legacy-PIN fallback that broke login in commit `5ef7dc4` is untested. `auth.test.ts` only feeds `verifyPin` a freshly-generated strong hash; no test supplies a legacy N=2^14 hash, and the re-hash-on-login upgrade is untested. | **Required before Batch 4.2.** A regression re-locks every pre-hardening account out of the till. |
+| **T-04** | `NOT STARTED` | The legacy-PIN fallback that broke login in commit `5ef7dc4` is untested. `auth.test.ts` only feeds `verifyPin` a freshly-generated strong hash; no test supplies a legacy N=2^14 hash, and the re-hash-on-login upgrade is untested. | **Required before Batch 4.2.** A regression re-locks every pre-hardening account out of the till. *Correction 2026-09-04: T-04 was written in Batch 4.2 as its prerequisite (`src/lib/auth-legacy-pin.test.ts`, 6 cases) and proved to bite — deleting the legacy fallback fails 2 of the 6 — record → Batch 4.2. Status left as recorded for Batch 6.1 to close, as for T-01.* |
 | **T-05** | `NOT STARTED` | Order-level money assembly is untested — subtotal → discount → VAT breakdown → payment reconciliation. `orders/route.ts:290` `addToVatBreakdown` on `netLineTotal` is never asserted. | Where C-11, C-12 and M-13 live. |
 | **T-06** | `NOT STARTED` | No transaction-rollback test. Nothing proves a mid-checkout failure leaves no orphaned order, payment, sequence gap or fiscal event. | The failure mode most likely to break gapless numbering in production. |
 | **T-07** | `NOT STARTED` | Concurrency tests cover only counter increments via in-process `Promise.all`. Nothing tests two simultaneous checkouts, a double Z close, or concurrent refunds on one order. | Required by Batch 4.7. |
@@ -1688,6 +1675,7 @@ Open rows only. A row resolved by a batch moves, unchanged, to `REMEDIATION_RECO
 
 | ID | Date | Found during | Description | Severity | Assigned to batch |
 |---|---|---|---|---|---|
+| **L-30** | 2026-09-04 | Batch 4.2 | **The unknown-username burn at login competes for the bounded PIN queue, so username enumeration can push honest cashiers to `503`.** `login/route.ts:52` runs a full `hashPin("dummy")` for an unknown user, on purpose, to flatten the timing signal that would otherwise enumerate accounts. Batch 4.2 put that derivation inside the concurrency bound, which is where it belongs — unbounded it is the memory-exhaustion path C-09 names. The residue is that the login rate limit is keyed `login:<ip>:<username>` and, since Batch 4.1 correctly stopped believing the proxy headers, `<ip>` is the constant `"local"`: each distinct username is its own bucket and nothing caps how many buckets a caller can mint. Measured on a scratch copy: **60 simultaneous logins with 60 unknown usernames → 34 served, 26 refused `503`**, and a legitimate login arriving inside that window would have been among the refused. Candidate fixes: a global (not per-username) budget for the unknown-user path, a cheaper constant-time burn, or binding the login limiter to something the caller cannot vary. Interacts with **DD-06** — if the app binds `127.0.0.1` the reachable surface shrinks to the till itself. | MEDIUM (availability of the login screen under a LAN-side flood) | 4.3 |
 | **L-28** | 2026-09-04 | Batch 4.1 | **`test-setup.ts` clears a stale `-wal` and `-shm` beside the test database but not a stale `-journal`.** The preload deletes `test.db`, `test.db-wal` and `test.db-shm` before `prisma db push` recreates the file (`test-setup.ts:27`). The test DB runs in rollback-journal mode, so the sidecar it actually produces is `test.db-journal` — and a run killed mid-transaction leaves one behind. Observed this session: a runaway test loop was stopped and left a 21 KB `test.db-journal` next to a deleted `test.db`. SQLite treats a journal beside a database as *hot* and tries to roll it back into the new file, so the failure mode is a confusing lock or corruption error on the **next** run, attributed to whatever code that run happened to touch. One extra path in the existing delete loop. | LOW (test infrastructure; misattributed failures) | 6.1 |
 | **L-29** | 2026-09-04 | Batch 4.1 | **`limitOr429` is exported from `http-rate-limit.ts` and called from nowhere.** Every route reaches for `clientIp` + `rateLimit` directly and builds its own 429 response, so the helper meant to standardise that is dead code — and it embeds the same key shape (`<ip>:<parts>`) whose IP component was the C-08 bypass. It inherits Batch 4.1's fix because it calls `clientIp`, so there is no live risk; the hazard is a future route adopting it and reintroducing an IP-keyed limit without noticing. Either use it everywhere or delete it. | LOW (dead code in a security-relevant module) | 7.2 |
 | **L-27** | 2026-09-04 | Batch 3.6b (L-25) | **The open-caisse guard is scoped to caisses *opened inside* the period, so one opened earlier and still open does not block the close.** DD-18 defined the rule that way and Batch 3.6b implemented it as written rather than widening it. The residual path is narrow but real: sealing any period other than the first requires the previous one to be sealed, and a caisse opened in that previous period would itself have blocked it — so the only way through is the **first-ever close**, with a caisse opened before the period, still open, and carrying orders inside the period. Those orders *are* counted (the aggregation keys on `Order.createdAt`, not on the shift), so the figures are right; what is missing is the guarantee that the period's last Z report exists before the period is sealed. Widening the rule — to any caisse still open at sealing time, or to any caisse holding an order inside the period — is a decision, not a bug fix. | LOW (narrow path; figures correct, reconciliation guarantee incomplete) | needs a decision — before 8.0 |

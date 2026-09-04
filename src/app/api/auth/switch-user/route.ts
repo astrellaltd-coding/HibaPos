@@ -71,7 +71,7 @@ export const POST = withAuth(async (req, { user: caller }) => {
     );
   }
 
-  if (!verifyPin(pin, user.pinHash)) {
+  if (!(await verifyPin(pin, user.pinHash))) {
     // Increment failed attempts (same lockout logic as login).
     const newFailed = user.failedAttempts + 1;
     const lockedUntil =

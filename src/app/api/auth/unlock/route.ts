@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { verifyPinDetail, createSession, hashPin } from "@/lib/auth";
+import { isScryptBusyError } from "@/lib/pin-hash-queue";
+import { scryptBusyResponse } from "@/lib/api-handler";
 import { loginSchema } from "@/lib/validation";
 import { audit } from "@/lib/services/audit";
 import { clientIp } from "@/lib/http-rate-limit";
@@ -12,6 +14,16 @@ const RL_MAX = 10;
 const RL_WINDOW_MS = 60_000;
 
 export async function POST(req: NextRequest) {
+  // C-09, Batch 4.2 — see the note on the login route.
+  try {
+    return await unlock(req);
+  } catch (e) {
+    if (isScryptBusyError(e)) return scryptBusyResponse();
+    throw e;
+  }
+}
+
+async function unlock(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const parsed = loginSchema.safeParse(body);
   if (!parsed.success) {
@@ -69,7 +81,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const pinResult = verifyPinDetail(pin, user.pinHash);
+  const pinResult = await verifyPinDetail(pin, user.pinHash);
   if (!pinResult.valid) {
     const newFailed = (freshUser?.failedAttempts ?? 0) + 1;
     const lockedUntil = newFailed >= MAX_FAILED_ATTEMPTS
@@ -97,13 +109,15 @@ export async function POST(req: NextRequest) {
   }
 
   // Success — transparent hash upgrade if the PIN matched under legacy params.
+  // Awaited before the update: `hashPin` is async since Batch 4.2.
+  const upgradedHash = pinResult.legacy ? await hashPin(pin) : null;
   await db.user.update({
     where: { id: user.id },
     data: {
       failedAttempts: 0,
       lockedUntil: null,
       lastLoginAt: new Date(),
-      ...(pinResult.legacy ? { pinHash: hashPin(pin) } : {}),
+      ...(upgradedHash ? { pinHash: upgradedHash } : {}),
     },
   });
 

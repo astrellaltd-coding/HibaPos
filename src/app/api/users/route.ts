@@ -29,12 +29,13 @@ export const POST = withAuth(async (req, { user }) => {
   if (existing) {
     return NextResponse.json({ error: "Ce nom d'utilisateur existe déjà" }, { status: 409 });
   }
+  const pinHash = await hashPin(parsed.data.pin);
   const created = await db.user.create({
     data: {
       username: parsed.data.username.toLowerCase(),
       name: parsed.data.name,
       role: parsed.data.role,
-      pinHash: hashPin(parsed.data.pin),
+      pinHash,
       active: parsed.data.active,
     },
     select: { id: true, username: true, name: true, role: true, active: true, createdAt: true },

@@ -1,4 +1,8 @@
 import { PrismaClient } from "@prisma/client";
+// NOTE: `hashPin` is async since Batch 4.2 (C-09). `scripts/` is excluded
+// from both tsconfig.json and eslint.config.mjs, so a missing `await` here
+// would not be caught by `bun run typecheck` — it would silently store the
+// string "[object Promise]" as a PIN hash.
 import { hashPin } from "../src/lib/auth";
 
 const db = new PrismaClient();
@@ -17,7 +21,7 @@ async function main() {
       username: "admin",
       name: "Administrateur",
       role: "SUPER_ADMIN",
-      pinHash: hashPin(adminPin),
+      pinHash: await hashPin(adminPin),
       active: true,
     },
   });
@@ -27,7 +31,7 @@ async function main() {
       username: "manager",
       name: "Gérant",
       role: "MANAGER",
-      pinHash: hashPin(managerPin),
+      pinHash: await hashPin(managerPin),
       active: true,
     },
   });

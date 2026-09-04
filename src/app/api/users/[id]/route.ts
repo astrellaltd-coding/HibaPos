@@ -25,7 +25,7 @@ export const PUT = withAuthParams(async (req, { user, params }) => {
   const data: Record<string, unknown> = {};
   if (parsed.data.name !== undefined) data.name = parsed.data.name;
   if (parsed.data.active !== undefined) data.active = parsed.data.active;
-  if (parsed.data.pin) data.pinHash = hashPin(parsed.data.pin);
+  if (parsed.data.pin) data.pinHash = await hashPin(parsed.data.pin);
   if (parsed.data.role !== undefined && user.role === "SUPER_ADMIN") data.role = parsed.data.role;
 
   const updated = await db.user.update({

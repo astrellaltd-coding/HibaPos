@@ -4,6 +4,11 @@ import { getSession } from "@/lib/auth";
 import type { SessionPayload, AuthUser } from "@/lib/auth";
 import type { Role } from "@/types/api";
 import { isRestoreInProgress, restoreElapsedSeconds } from "@/lib/services/maintenance";
+import {
+  isScryptBusyError,
+  PIN_HASH_BUSY_MESSAGE,
+  PIN_HASH_BUSY_RETRY_AFTER_SEC,
+} from "@/lib/pin-hash-queue";
 
 export type RequestContext = { params: Promise<Record<string, string | string[]>> };
 
@@ -35,6 +40,24 @@ function maintenanceResponse(): NextResponse | null {
   );
 }
 
+/**
+ * 503 when the bounded PIN-derivation queue is full (C-09, Batch 4.2).
+ *
+ * Same shape as the maintenance 503 above, and the same reasoning: this is a
+ * capacity answer, not an error. Every route that hashes or verifies a PIN
+ * returns it, so a caller flooding the till with PIN guesses is told to come
+ * back rather than being allowed to queue unbounded 128 MiB derivations.
+ */
+export function scryptBusyResponse(): NextResponse {
+  return NextResponse.json(
+    { error: PIN_HASH_BUSY_MESSAGE, busy: true },
+    {
+      status: 503,
+      headers: { "Retry-After": String(PIN_HASH_BUSY_RETRY_AFTER_SEC) },
+    },
+  );
+}
+
 /** Wrap a handler so it requires a valid session. Returns 401 if not authed. */
 export function withAuth<T>(
   handler: Handler<T>,
@@ -51,7 +74,14 @@ export function withAuth<T>(
     if (options?.roles && !options.roles.includes(user.role as Role)) {
       return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
     }
-    return handler(req, { session, user });
+    // Only ScryptBusyError is caught; every other error propagates exactly as
+    // it did before, so no route's failure behaviour changes.
+    try {
+      return await handler(req, { session, user });
+    } catch (e) {
+      if (isScryptBusyError(e)) return scryptBusyResponse();
+      throw e;
+    }
   };
 }
 
@@ -76,7 +106,12 @@ export function withAuthParams<T>(
     for (const [k, v] of Object.entries(rawParams)) {
       params[k] = Array.isArray(v) ? v[0] : v;
     }
-    return handler(req, { session, user, params });
+    try {
+      return await handler(req, { session, user, params });
+    } catch (e) {
+      if (isScryptBusyError(e)) return scryptBusyResponse();
+      throw e;
+    }
   };
 }
 

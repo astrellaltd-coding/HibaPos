@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { hashPin, verifyPinDetail, createSession } from "@/lib/auth";
+import { isScryptBusyError } from "@/lib/pin-hash-queue";
+import { scryptBusyResponse } from "@/lib/api-handler";
 import { loginSchema } from "@/lib/validation";
 import { audit } from "@/lib/services/audit";
 import { clientIp } from "@/lib/http-rate-limit";
@@ -14,6 +16,19 @@ const RL_MAX = 10;
 const RL_WINDOW_MS = 60_000;
 
 export async function POST(req: NextRequest) {
+  // C-09, Batch 4.2: every PIN derivation on this route is bounded. When the
+  // queue is full the caller is answered 503 rather than being allowed to
+  // queue another 128 MiB scrypt — this route burns one for an unknown user
+  // by design, so it is the DoS surface the bound exists for.
+  try {
+    return await login(req);
+  } catch (e) {
+    if (isScryptBusyError(e)) return scryptBusyResponse();
+    throw e;
+  }
+}
+
+async function login(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const parsed = loginSchema.safeParse(body);
   if (!parsed.success) {
@@ -71,7 +86,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const pinResult = verifyPinDetail(pin, user.pinHash);
+  const pinResult = await verifyPinDetail(pin, user.pinHash);
   if (!pinResult.valid) {
     const newFailed = user.failedAttempts + 1;
     const lockedUntil = newFailed >= MAX_FAILED_ATTEMPTS
@@ -104,14 +119,17 @@ export async function POST(req: NextRequest) {
   // Success: reset failed attempts, update lastLoginAt.
   // Transparent hash upgrade: if the PIN matched under the legacy scrypt
   // params (pre-Phase-2A N=2^14), re-hash with the strong params so the
-  // next login verifies under the current parameters.
+  // next login verifies under the current parameters. Awaited before the
+  // update — `hashPin` returns a promise since Batch 4.2, and spreading one
+  // into Prisma's `data` would write "[object Promise]" as the PIN hash.
+  const upgradedHash = pinResult.legacy ? await hashPin(pin) : null;
   await db.user.update({
     where: { id: user.id },
     data: {
       failedAttempts: 0,
       lockedUntil: null,
       lastLoginAt: new Date(),
-      ...(pinResult.legacy ? { pinHash: hashPin(pin) } : {}),
+      ...(upgradedHash ? { pinHash: upgradedHash } : {}),
     },
   });
 
