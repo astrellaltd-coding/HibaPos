@@ -114,7 +114,20 @@ export const productSchema = z.object({
   available: z.boolean().default(true),
   inheritCategoryGlobals: z.boolean().default(true),
   sortOrder: z.number().int().default(0),
-  options: z.array(optionGroupSchema).default([]),
+  /**
+   * Product-specific option groups — C-24, Batch 4.6.
+   *
+   * `.optional()`, NOT `.default([])`. The PUT handler replaces these groups
+   * wholesale: it deletes every existing group for the product and recreates
+   * them from this field. With a `[]` default, a PUT that simply omitted
+   * `options` — any partial update, any second client — parsed as "the empty
+   * list" and silently destroyed the product's whole option configuration,
+   * answering 200. Absent now means *leave them alone*; an explicit `[]`
+   * still clears them, which is how the form deletes the last group.
+   *
+   * On create there is nothing to preserve, so absent means "none" there.
+   */
+  options: z.array(optionGroupSchema).optional(),
 });
 export type ProductInput = z.infer<typeof productSchema>;
 

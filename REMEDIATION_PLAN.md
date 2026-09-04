@@ -11,19 +11,19 @@ Detailed audit record: https://claude.ai/code/artifact/329316b0-3a6b-48b0-9d27-d
 
 **Overall:** NOT READY FOR PRODUCTION
 
-**Current Stage:** Stage 4 — Security & integrity, `IN PROGRESS` (4.1 through 4.4, **4.4b**, **4.4c** and **4.5** COMPLETED; **4.6 and 4.7** `NOT STARTED`, in either order, nothing blocked). **Stage 3 is COMPLETED** (3.1 through 3.6 plus 3.6b), with C-22's chain-design half carried forward as `REQUIRES EXTERNAL VERIFICATION` and V-03 open. Stage 1 is **partly done**: 1.1 and 1.2 COMPLETED, 1.3 `IMPLEMENTED — TESTING REQUIRED` on hardware, 1.4 deferred. Stage 2 is COMPLETED.
+**Current Stage:** Stage 4 — Security & integrity, `IN PROGRESS` (4.1 through 4.4, **4.4b**, **4.4c**, **4.5** and **4.6** COMPLETED; **4.7** `NOT STARTED` and unblocked — it is the last one). **Stage 3 is COMPLETED** (3.1 through 3.6 plus 3.6b), with C-22's chain-design half carried forward as `REQUIRES EXTERNAL VERIFICATION` and V-03 open. Stage 1 is **partly done**: 1.1 and 1.2 COMPLETED, 1.3 `IMPLEMENTED — TESTING REQUIRED` on hardware, 1.4 deferred. Stage 2 is COMPLETED.
 
-**Current Batch:** none — **Batch 4.6** (catalogue data-loss paths, C-24/C-25) or **Batch 4.7** (transaction and race safety, C-15's open half) next, in either order. No decision blocks either.
+**Current Batch:** none — **Batch 4.7** (transaction and race safety, C-15's open half: the shift-state race) is next and finishes Stage 4. No decision blocks it.
 
-**Last Completed Batch:** Batch 4.5 — Dangerous operator scripts. **`scripts/` no longer contains a way to destroy production.** `port-real-data.ts` is **deleted** (L-37 — it wiped `db/custom.db` by a hardcoded literal, ignoring both `DATABASE_URL` and `HIBAPOS_DATA_DIR`, so the scratch-copy method every batch since Stage 3 relies on did not cover it), `seed-category-options.ts` is **deleted** (C-17), and `seed-users.ts` is **rebuilt as a PIN reset that deletes nothing** — no PIN in the file, typed at a hidden prompt, and both published defaults refused via new `PUBLISHED_DEFAULT_PINS` in `src/lib/auth.ts`. The two counter scripts now **refuse to lower a fiscal counter** (L-38), including `lastFiscalEventSequence`, a fourth counter L-38 did not name. **Every script in the folder is now a dry run unless given `--apply`**, and `scripts/` is under `tsc` and `eslint` for the first time. **No migration; nothing waits on the operator.** DOC-09 closed.
+**Last Completed Batch:** Batch 4.6 — Catalogue data-loss paths. Two HIGH data-loss findings in the catalogue, which is the one irreplaceable thing in this database (warning 4). **C-24:** the category PUT validated each option group *after* `deleteMany` had already run and skipped a failing entry with `continue`, so one malformed entry destroyed the category's sauces, breads and toppings and answered **200**; demonstrated on the real `Sandwichs` category, where the pre-batch code deleted **4 groups and 19 choices**. Validation now happens before the transaction opens (new `catalog-payload.ts`) and any bad entry 400s having deleted nothing. Separately, `productSchema.options` was `.default([])`, so any PUT that merely **omitted** the field wiped every product-specific option group — now `.optional()`, with absent meaning *unchanged*. **C-25:** the media library's usage scan and its delete-time cleanup each covered three of the schema's **six** image columns; measured against production, **30 of 124 referenced images (24 %) — the entire condiment and topping catalogue — displayed as *unused* and were offered for deletion**. Both now derive from one `IMAGE_COLUMNS` declaration, a test pins it to the schema, and `DELETE /api/media` finally journals a `MEDIA_DELETED` audit row. **No migration; nothing waits on the operator.**
 
-**Next Batch:** **4.6** or **4.7**. Then Stage 5.
+**Next Batch:** **4.7**, then Stage 5 (workflow gaps, 5.1 through 5.7 — several need decisions DD-09 through DD-16).
 
 **Blocked:** Batch 1.3 `[HW]` sign-off and Batch 1.4 — both need the app running on the restaurant's POS machine, which is in a different country from the developer and has no copy of the app installed (decision of 2026-09-03).
 
-**Awaiting decision:** **nothing blocks Stage 4 or Stage 5's start.** All of DD-01, DD-02, DD-03, DD-05, DD-06, DD-07, DD-08, DD-17, DD-18 and DD-19 are answered; DD-04 and DD-09 through DD-16 are open and named against their batches in *Design Decisions Required*. Two recorded-but-not-urgent questions stand: `/api/auth/approve` and `manager-approval-dialog.tsx` have **no caller at all** since 4.4c, so whether to delete them is a real question; and **L-27** needs a decision before Batch 8.0.
+**Awaiting decision:** **nothing blocks Batch 4.7 or Stage 5's start.** All of DD-01, DD-02, DD-03, DD-05, DD-06, DD-07, DD-08, DD-17, DD-18 and DD-19 are answered; DD-04 and DD-09 through DD-16 are open and named against their batches in *Design Decisions Required*. Two recorded-but-not-urgent questions stand: `/api/auth/approve` and `manager-approval-dialog.tsx` have **no caller at all** since 4.4c, so whether to delete them is a real question; and **L-27** needs a decision before Batch 8.0.
 
-**Last Updated:** 2026-09-04 (session 10 — Batch 4.5). Three things worth carrying forward. (1) **The front-matter debt is cleared**: this batch retired six superseded items to the record — including the answered-decision rows, which *HOW TO USE THIS FILE* step 5.5 always required to be one-liners — bringing the front matter from **47 506 bytes** to under the ~40 KB ceiling. Keep it there: retire something before adding. (2) **Revert in both directions** — L-38's guard needed three one-property reverts before every test had failed under something; the rule is now in *Methods*. (3) **`readonly: true` on a WAL-mode database still touches its `-shm`.** A read-only `bun:sqlite` open of `real-data.db` moved that sidecar's mtime while leaving the `.db` byte-identical — harmless here, but *Methods*' “no `-wal`/`-shm` appeared” check would misread it as a write. `db/custom.db` is in rollback-journal mode, so the check still holds for production.
+**Last Updated:** 2026-09-04 (session 10 — Batches 4.5 and 4.6). Three things worth carrying forward. (1) **The front matter is inside its ~40 KB ceiling again** after 4.5 retired six superseded items; keep it there by retiring something before adding. (2) **Revert in both directions, and keep reverting until every test has failed once.** 4.6's guards needed **eight** one-property reverts before all 33 of its new tests had been accounted for — 25 failed under one of them, and the other 8 are regression assertions that by construction cannot fail against the old code. Say which is which rather than implying full coverage. (3) **Restoring a scratch copy now has a documented procedure** — it runs in WAL mode even though production does not, and two Git-Bash gotchas cost 4.6 real time. All three are in *Methods → Scratch copy*.
 
 ### OPEN THREADS — read this before starting a batch
 
@@ -109,15 +109,7 @@ Batch 1.4, and Batch 8.2.
 
 #### E. Open questions recorded for others to answer
 
-**V-13** — must the JFP carry an `OUVERTURE_TIROIR` entry for the *automatic*
-drawer kick on a cash tender, or only for the traced manual open? Batch 1.3
-journals the manual open only, and Batch 3.4 gave that manual open a UI.
-Fiscal question, flagged not decided.
-
-**V-02** — whether the annual archive format satisfies the archiving
-obligation. Batch 3.3 established the narrower, checkable part (the checksum
-covers every byte including every date, and a third party can reproduce it
-with `sha256sum`); the compliance judgement is not a code question.
+**V-13** (must the JFP journal the *automatic* drawer kick, or only the traced manual open?) and **V-02** (does the annual archive format satisfy the archiving obligation?) are fiscal questions, flagged not decided. Both are stated in full in *External / Legal / Fiscal Verification* below — this thread exists only so a session planning work knows they are open.
 
 #### F. Findings still open — **retired 2026-09-04 (Batch 4.4c)**
 
@@ -144,13 +136,7 @@ The developer is in a different country from the restaurant, and the restaurant'
 
 **One consequence a session should use when triaging, and stop using the day deployment is scheduled.** Nothing in this application currently has a live audience: no operator reads its screens, no sale is real, and every defect found is found by us. That is what makes it defensible to carry a user-visible defect across a batch boundary rather than guess at a fix — Batch 4.4b did exactly that with **L-35**, leaving a French banner that promises an approval which no longer happens, because Batch 4.4c changes the words anyway. **The moment an install date exists, that reasoning expires**: re-triage every open finding whose severity was discounted for want of an audience.
 
-**Decision:** proceed with software-only work; defer every item that requires the app to be running on the POS all-in-one device. Affected items, none of which may be marked `COMPLETED` on automated evidence alone:
-
-| Item | What is deferred | What was done instead |
-|---|---|---|
-| Batch 1.3 `[HW]` criteria | Real print, real drawer kick, real paper width | Full loopback validation against a mock ESC/POS printer — see the Batch 1.3 status record |
-| Batch 1.4 (C-07) | Cold-reboot, supervisor restart, kiosk launch, update rehearsal | Not started. Also blocked on Batch 2.2 / DD-02 by its own dependency note |
-| Batch 8.2 | Restore rehearsal, full-day trading | Not started |
+**Decision:** proceed with software-only work; defer every item that requires the app to be running on the POS all-in-one device — Batch 1.3's `[HW]` criteria (real print, real drawer kick, real paper width; validated instead against a mock ESC/POS printer on loopback), all of Batch 1.4 (cold reboot, supervisor restart, kiosk launch, update rehearsal), and Batch 8.2 (restore rehearsal, full-day trading). None may be marked `COMPLETED` on automated evidence alone.
 
 These are **deferred, not waived.** Stage 1 cannot be declared complete, and no claim of production readiness may rest on the loopback evidence.
 
@@ -158,7 +144,7 @@ These are **deferred, not waived.** Stage 1 cannot be declared complete, and no 
 
 1. The repo **is** pushed: `origin/main` is `astrellaltd-coding/HibaPos`, and every session should leave its own commits pushed — **Claude can push when the user asks in the session** (warning 9). Do not push unprompted. Do not run `git clean`, and do not delete the working tree without checking `git rev-list --left-right --count origin/main...HEAD` first.
 2. **Do not run `bun run test:e2e`.** `playwright.config.ts` starts `bun run dev`, which loads the real `.env` and writes orders, refunds and Z reports into the **production database** and into an append-only hash chain that cannot be cleaned up. **Assigned to Batch 6.3, which is `NOT STARTED` — the command stays forbidden until it lands.**
-3b. **Two sessions must not run `bun test src` at the same time, and should not work two batches in parallel on this machine.** The test database path is **fixed** — `test-setup.ts:21-22` builds it from `os.tmpdir()` with no per-run suffix — and every run **deletes it first** (`:27-29`) before `prisma db push`. A second run starting mid-first-run therefore destroys the first one's database, and the failures it produces look like code failures. Session 9 spent real time on the milder version of this: one **leftover** `bun` process made 12 backup tests fail `EPERM`. Two further collisions apply on Windows: a `next start` in one session holds `node_modules/.prisma/client/query_engine-windows.dll.node`, which makes `bunx prisma generate` fail `EPERM` in the other (warning 6's whole history), and both sessions would edit this file and `REMEDIATION_RECORD.md` — an append-only audit trail is the worst place to resolve a merge conflict. **What is safe in a second session:** read-only measurement, decision briefs, and reviewing a finished batch's diff. **What would make parallel batches safe** is a per-run test-database path; that is a change to `test-setup.ts` and belongs to Batch 6.3, not to whichever batch trips over it first.
+3b. **Two sessions must not run `bun test src` at the same time, and should not work two batches in parallel on this machine.** The test database path is **fixed** — `test-setup.ts:21-22` builds it from `os.tmpdir()` with no per-run suffix — and every run **deletes it first**, so a second run destroys the first one's database and the failures look like code failures. Two further Windows collisions: a `next start` in one session holds `query_engine-windows.dll.node`, making `bunx prisma generate` fail `EPERM` in the other (warning 6), and both sessions would edit this file and `REMEDIATION_RECORD.md` — an append-only audit trail is the worst place to resolve a merge conflict. **Safe in a second session:** read-only measurement, decision briefs, reviewing a finished diff. A per-run test-DB path would fix it and belongs to **Batch 6.3**.
 
 3. **Do not run `bunx vitest` / `npx vitest`.** Only `bun test src` is safe. The test-DB redirect lives in `bunfig.toml` → `test-setup.ts` preload, which vitest does not read; four test files begin by wiping 17 tables.
 4. **The CATALOGUE in the production database is real and irreplaceable; the TRADING data is not.** Confirmed by the operator on 2026-09-03: categories, products, options and images are real work (commit `0c5ede6`); every order, payment, receipt, shift, Z report and fiscal event was created by the developer for testing, and P-04 deletes all of it before the first genuine sale. Treat catalogue changes as destructive and irreversible. Trading-data mistakes cost test data — which lowers the risk of exercising fiscal flows, but does **not** license careless writes to the live database: work on a scratch copy, as every batch in Stage 3 did.
@@ -179,7 +165,7 @@ These are **deferred, not waived.** Stage 1 cannot be declared complete, and no 
 
 6. ~~**`bunx prisma generate` fails `EPERM`.**~~ **RESOLVED 2026-09-04.** **The lesson is the whole of what matters: a stale `next start` holds `node_modules/.prisma/client/query_engine-windows.dll.node`, so stop every leftover server before blaming the filesystem or OneDrive, and check the port list rather than trusting a PID from an earlier session.** Forensics retired to the record. **`bun run dev` stays untried here** — it loads the real `.env` and would open the production database. Use `bunx next start` on a spare port (3021, 3022/3023, 3024/3025, 3026, 3033/3034 are spoken for) and stop it with `taskkill //PID <pid> //T //F` (warning 9).
 
-8. **`bun test src` fails 23 tests on this machine, and the code is fine.** All 23 are in `backup*.test.ts` / `auth.test.ts` and every one is a 5 s timeout: scrypt at N=2^17 costs ~1.5 s per call here, and a backup→restore round trip makes several. The current count is in *G*. Confirmed on the untouched commit before any Batch 3.5 change was made. Recorded as **L-24**. Do not "fix" a test that fails this way.
+8. **`bun test src` fails 23 tests on this machine, and the code is fine.** All 23 are 5 s timeouts in `backup*.test.ts` / `auth.test.ts`: scrypt at N=2^17 costs ~1.5 s per call here and a backup→restore round trip makes several. Use `--timeout 30000`; the current count is in *G*. Recorded as **L-24** — do not "fix" a test that fails this way.
 
 ---
 
@@ -264,7 +250,7 @@ Audit IDs are **never renamed**. `T-`, `DOC-` and `V-` items are new IDs assigne
 
 Stated once here so no session has to rediscover them. The record sections named are where each was first used and proved; read them before departing from a method.
 
-- **Scratch copy, proved before any write.** Copy `db/custom.db` to the session scratchpad, write a marker into the **copy only**, start the app with **both** `DATABASE_URL` and `HIBAPOS_DATA_DIR` pointed at the copy, and prove which database the server has open by reading the marker back from the pre-auth `GET /api/auth/profiles` **before** the first write. Afterwards confirm the production file's sha256 and mtime are unchanged and that no `-wal`/`-shm` files appeared beside it, and that `db/fiscal-archives/` and `db/backups/` are untouched. Record → Batch 1.1 (Tests), Batch 3.1b note 2, Batch 3.4 note 5 (why `HIBAPOS_DATA_DIR` too).
+- **Scratch copy, proved before any write.** Copy `db/custom.db` to the session scratchpad, write a marker into the **copy only**, start the app with **both** `DATABASE_URL` and `HIBAPOS_DATA_DIR` pointed at the copy, and prove which database the server has open by reading the marker back from the pre-auth `GET /api/auth/profiles` **before** the first write. Afterwards confirm the production file's sha256 and mtime are unchanged and that no `-wal`/`-shm` files appeared beside it, and that `db/fiscal-archives/` and `db/backups/` are untouched. **A scratch copy runs in WAL mode even though production does not** — the startup guard enables WAL off a cloud-synced path — so **restoring one means stopping the server first and deleting `-wal` and `-shm` with the `.db`**; overwriting the `.db` alone lets the WAL replay over the fresh bytes. Two harness gotchas: Git Bash rewrites a leading-slash argument into a Windows path (`MSYS_NO_PATHCONV=1`), and round-tripping JSON through a shell pipeline corrupts UTF-8 — build request bodies in a file and send with `--data-binary @file`. Record → Batch 1.1 (Tests), Batch 3.1b note 2, Batch 3.4 note 5 (why `HIBAPOS_DATA_DIR` too), Batch 4.6 notes 6 and 7.
 - **Migration rehearsal with a fingerprint diff.** Never apply a migration to production first. Take an out-of-band snapshot (`db-snapshots/…`, outside the repo tree), apply the migration to a copy, and diff a fingerprint of every fiscal table before and after — row counts, `FiscalCounter`, `GrandTotal`, every event hash, both sealed Z rows, order lines, `integrity_check`, foreign-key errors, column order. Only the intended columns and the `_prisma_migrations` row may differ. Then hand the operator the exact `bunx prisma migrate deploy` command; Claude cannot run it against production. Record → Batch 3.1c note 3, Batch 3.5 note 1, Batch 3.6 note 3.
 - **Prove the test fails on the old code.** For any fiscal change, temporarily revert the fix, re-run the suite, confirm the new tests fail, and restore the files from a copy taken before the revert. This is Stage 3's rule and it is satisfied by demonstration, not assertion. Record → Batch 3.1 (Tests), Batch 3.5 (Tests), Batch 3.6 (Tests). **Refined in Batch 4.4c: revert ONE property at a time, and treat a revert that changes nothing as a defect in the test, not a pass. Refined again in Batch 4.5: revert in BOTH directions. One revert rarely reaches every test — 4.5's guard needed three (no floor, refuse-everything, and an off-by-one at the boundary) before all thirteen tests had failed under something, and one test passed vacuously until the code was changed to make its empty case impossible.** Applying several reverts together can mask one another — 4.4c's bypassed `verifyPin` never touched the bounded queue, which hid the fact that the lockout had been moved after the derivation, so that revert had to be re-run alone. And two of its tests survived their reverts because they asserted an outcome both the right and the wrong ordering produce; both were strengthened rather than accepted. A revert that everything survives has told you something. Record → Batch 4.4c (Tests, notes 3 and 4).
 - **Read-only inspection of live data.** Use `bun:sqlite` with `readonly: true`; do not load Prisma or the WAL startup hook against the production file. Record → Batch 3.1 note 4.
@@ -310,8 +296,8 @@ half open**, split across two batches. Audit IDs are never renamed.
 | C-21 | 5.2 | M-20 | 5.7 | T-08, T-09 | 6.2 |
 | C-22 ◐ | 2.1 + 3.5 | M-21 | 5.7 | T-10…T-12 | 6.3 |
 | C-23 | 5.4 | M-22 | 5.7 | DOC-01…12 (**09 ✅** 4.5) | 7.1 |
-| C-24 | 4.6 | M-23 ✅ | 4.3 | V-01…V-03, V-08…V-12 | external |
-| C-25 | 4.6 | M-24 ✅ | 4.4 | V-04…V-07 | 8.1 / 8.2 |
+| C-24 ✅ | 4.6 | M-23 ✅ | 4.3 | V-01…V-03, V-08…V-12 | external |
+| C-25 ✅ | 4.6 | M-24 ✅ | 4.4 | V-04…V-07 | 8.1 / 8.2 |
 | C-26, C-26b ✅ | 0.1 | C-27 ✅ | 3.4 | P-01…P-03 ✅ | 0.2 |
 
 **The three ◐ items, so nobody has to go looking:**
@@ -1025,56 +1011,23 @@ Removed `scripts/port-real-data.ts` and `scripts/seed-category-options.ts`; rebu
 
 ## Batch 4.6 — Catalogue data-loss paths
 
-**Status:** `NOT STARTED`
+**Status:** `COMPLETED` · 2026-09-04 · commit `PENDING` · **Findings:** C-24 ✅, C-25 ✅
 
-### C-24 — Category and product updates delete option groups wholesale and skip invalid entries silently
+Full section, validation and evidence: `REMEDIATION_RECORD.md` → *Batch 4.6*.
 
-**Status:** `NOT STARTED` · Severity: HIGH · Category: data loss
+Category and product updates no longer delete option groups before validating the payload, and `options` absent no longer means "delete them all". The media library now sees all six image columns instead of three, and journals a deletion.
 
-**Problem.** Both PUT handlers `deleteMany` the existing option groups and re-create from the request body. A group that fails validation is skipped with `continue` — after the delete has run — and the response is 200.
+**Constraints this batch leaves behind:**
 
-**Evidence.**
-```
-categories/[id]:134  tx.categoryOptionGroup.deleteMany({categoryId})
-categories/[id]:140  if (!groupParsed.success) continue;   ← old gone, new not created
-categories/[id]:172  tx.categoryAddOn.deleteMany({categoryId})
-categories/[id]:177  if (!addonParsed.success) continue;
-products/[id]:207    tx.optionGroup.deleteMany({productId})
-validation.ts:88     options: z.array(optionGroupSchema).default([])
-                     → a PUT omitting "options" wipes every option group
-```
+- **Validate the whole payload before deleting anything.** A collection that is replaced wholesale must be parsed in full first, and any invalid entry must refuse the entire request. The rule lives in `src/lib/services/catalog-payload.ts` with its own tests; a route must not re-introduce per-entry validation inside the transaction that deletes.
+- **`absent` and `[]` are different, and must stay different.** Absent means *leave the existing rows alone*; an explicit `[]` means *delete them all*. `productSchema.options` is `.optional()` and must never be given a `.default([])` again — that default is the whole product-side defect. `PayloadCheck` returns three states for the same reason.
+- **Never add an image column to the schema without adding it to `IMAGE_COLUMNS`** in `src/lib/services/media-usage.ts`. The usage scan and the reference cleanup both derive from that one declaration, and they drifted apart the last time each kept its own copy. `media-usage.test.ts` counts the schema's `image`/`icon` columns and fails if the two disagree.
+- **`DELETE /api/media` must journal every deletion** as `MEDIA_DELETED` with its per-column reference counts. It wrote no audit row at all before this batch, alone among the destructive routes.
+- **Validate the path before touching the database**, in that handler and generally.
+- Deliberate non-action: **deleting an in-use image stays allowed with a warning, not refused.** The media view already lists what will break; C-25's remediation asks only that the warning be complete. Making it a refusal is a behaviour decision, not a bug fix.
+- Method note: **a scratch copy runs in WAL mode** (the startup guard allows WAL off a cloud-synced path), so restoring one means stopping the server and deleting `-wal` and `-shm` with the `.db` — otherwise the WAL replays over the fresh bytes.
 
-**Location.** `src/app/api/catalog/categories/[id]/route.ts:134-190`; `src/app/api/catalog/products/[id]/route.ts:207`; `src/lib/validation.ts:88`
-
-**Impact.** A malformed option in an otherwise-valid save silently loses the existing configuration with a success response. The product-side variant is currently latent (the one UI form always sends the full payload) but is a live hazard for any partial update.
-
-**Remediation direction.** Validate the whole payload up front and 400 on any invalid entry before deleting anything. Make `options` absent-means-unchanged rather than defaulting to `[]`.
-
-### C-25 — The media library invites deletion of images that are in use
-
-**Status:** `NOT STARTED` · Severity: HIGH · Category: data integrity
-
-**Problem.** Usage detection covers `Category.icon`, `Product.image` and `OptionChoice.image` only. `CategoryOptionChoice.image`, `CategoryAddOn.image` and `AddOn.image` are counted neither as usage nor cleared on delete. The DELETE handler also writes no audit entry, unlike every other destructive route.
-
-**Location.** `src/app/api/media/route.ts:12-44, 118-162`
-
-**Impact.** Images used by category option choices and add-ons — the ones actually used at this restaurant, per the ported dataset — display as unused, inviting cleanup. Deleting one removes the file and leaves a dangling `/uploads/…` reference, producing broken images in the POS with no audit record.
-
-**Remediation direction.** Add the three missing models to both the usage scan and the reference cleanup, and audit the deletion.
-
-### Batch 4.6 — Validation Required
-
-- Targeted test: a category PUT with one malformed option group returns 400 and leaves the existing groups intact.
-- Targeted test: a product PUT omitting `options` leaves the existing option groups intact.
-- Targeted test: an image referenced by a `CategoryOptionChoice`, `CategoryAddOn` or `AddOn` is reported as *used* by `GET /api/media`.
-- Targeted test: deleting a media file clears references in all six models and writes an audit entry.
-- Manual: against a copy of the real dataset, confirm no in-use image is listed as unused.
-- Regression: normal category and product editing still saves correctly.
-- `bun test src` — PASS. `bun run typecheck` — PASS.
-
-### Batch 4.6 — Status Record
-
-**Status:** `NOT STARTED` · **Completed:** — · **Changes:** — · **Files:** — · **Tests:** — · **Commit:** — · **Notes:** —
+**Left open:** nothing from this batch. `AddOn.image` is covered but carries zero rows in production today, so that column's protection is latent. Duplicate `CategoryOptionChoice` rows sharing one image are pre-existing and out of scope; the usage list correctly reports both.
 
 ---
 

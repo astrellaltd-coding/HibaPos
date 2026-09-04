@@ -242,8 +242,12 @@ export const POST = withAuth(async (req, { user }) => {
       },
       include: { options: { include: { choices: true } } },
     });
-    for (let i = 0; i < options.length; i++) {
-      const g = options[i];
+    // `options` is optional since C-24 (Batch 4.6) so that a PUT omitting it
+    // cannot wipe a product's groups. On create there is nothing to preserve,
+    // so absent simply means "no product-specific groups".
+    const groups = options ?? [];
+    for (let i = 0; i < groups.length; i++) {
+      const g = groups[i];
       const group = await tx.optionGroup.create({
         data: {
           productId: created.id,

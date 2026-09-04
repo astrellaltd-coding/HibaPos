@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { withAuthParams, parseJson } from "@/lib/api-handler";
-import { categorySchema, categoryOptionGroupSchema, categoryAddOnSchema } from "@/lib/validation";
+import { categorySchema } from "@/lib/validation";
 import { audit } from "@/lib/services/audit";
+import { checkCategoryCollections } from "@/lib/services/catalog-payload";
 
 export const GET = withAuthParams(async (_req, { params }) => {
   const cat = await db.category.findUnique({
@@ -76,6 +77,16 @@ export const PUT = withAuthParams(async (req, { user, params }) => {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalide" }, { status: 400 });
   }
 
+  // C-24 (Batch 4.6): validate the option groups and add-ons NOW, before the
+  // transaction opens. These collections are replaced wholesale, and the old
+  // code parsed each entry inside the recreate loop — after `deleteMany` had
+  // run — so one malformed entry destroyed the category's configuration and
+  // still answered 200. Nothing is deleted unless the whole payload is good.
+  const collections = checkCategoryCollections(body);
+  if ("error" in collections) {
+    return NextResponse.json({ error: collections.error }, { status: 400 });
+  }
+
   const incomingParentId = body.parentId as string | null | undefined;
 
   // --- parentId guards ---
@@ -127,28 +138,28 @@ export const PUT = withAuthParams(async (req, { user, params }) => {
       });
     }
 
-    // Replace option groups wholesale if provided
-    const optionGroups = body.optionGroups;
-    if (Array.isArray(optionGroups)) {
+    // Replace option groups wholesale if provided. Every entry was validated
+    // before this transaction opened (C-24), so there is no `continue` here
+    // any more — reaching this loop means the whole payload is good.
+    if (collections.optionGroups.kind === "ok") {
+      const optionGroups = collections.optionGroups.entries;
       // Delete old groups (cascade deletes choices)
       await tx.categoryOptionGroup.deleteMany({ where: { categoryId: params.id } });
 
       for (let i = 0; i < optionGroups.length; i++) {
-        const g = optionGroups[i];
-        const groupParsed = categoryOptionGroupSchema.safeParse(g);
-        if (!groupParsed.success) continue;
+        const group = optionGroups[i];
 
         const created = await tx.categoryOptionGroup.create({
           data: {
             categoryId: params.id,
-            name: groupParsed.data.name,
-            required: groupParsed.data.required,
-            multiple: groupParsed.data.multiple,
+            name: group.name,
+            required: group.required,
+            multiple: group.multiple,
             sortOrder: i,
           },
         });
-        for (let j = 0; j < groupParsed.data.choices.length; j++) {
-          const ch = groupParsed.data.choices[j];
+        for (let j = 0; j < group.choices.length; j++) {
+          const ch = group.choices[j];
           await tx.categoryOptionChoice.create({
             data: {
               groupId: created.id,
@@ -166,24 +177,21 @@ export const PUT = withAuthParams(async (req, { user, params }) => {
       }
     }
 
-    // Replace add-ons wholesale if provided
-    const addOns = body.addOns;
-    if (Array.isArray(addOns)) {
+    // Replace add-ons wholesale if provided — same story as the groups above.
+    if (collections.addOns.kind === "ok") {
+      const addOns = collections.addOns.entries;
       await tx.categoryAddOn.deleteMany({ where: { categoryId: params.id } });
 
       for (let i = 0; i < addOns.length; i++) {
         const a = addOns[i];
-        const addonParsed = categoryAddOnSchema.safeParse(a);
-        if (!addonParsed.success) continue;
-
         await tx.categoryAddOn.create({
           data: {
             categoryId: params.id,
-            name: addonParsed.data.name,
-            price: addonParsed.data.price,
-            image: addonParsed.data.image ?? null,
+            name: a.name,
+            price: a.price,
+            image: a.image ?? null,
             sortOrder: i,
-            active: addonParsed.data.active,
+            active: a.active,
           },
         });
       }

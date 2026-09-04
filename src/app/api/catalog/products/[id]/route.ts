@@ -210,32 +210,38 @@ export const PUT = withAuthParams(async (req, { user, params }) => {
         sortOrder: productData.sortOrder,
       },
     });
-    // Replace product-specific option groups wholesale.
-    await tx.optionGroup.deleteMany({ where: { productId: params.id } });
-    for (let i = 0; i < options.length; i++) {
-      const g = options[i];
-      const group = await tx.optionGroup.create({
-        data: {
-          productId: params.id,
-          name: g.name,
-          required: g.required,
-          multiple: g.multiple,
-          sortOrder: i,
-        },
-      });
-      for (let j = 0; j < g.choices.length; j++) {
-        const ch = g.choices[j];
-        await tx.optionChoice.create({
+    // Replace product-specific option groups wholesale — but ONLY when the
+    // caller actually sent the field (C-24, Batch 4.6). `options` used to
+    // default to `[]`, so a PUT that omitted it deleted every option group
+    // the product had and returned 200. Absent now leaves them untouched;
+    // an explicit `[]` still clears them.
+    if (options !== undefined) {
+      await tx.optionGroup.deleteMany({ where: { productId: params.id } });
+      for (let i = 0; i < options.length; i++) {
+        const g = options[i];
+        const group = await tx.optionGroup.create({
           data: {
-            groupId: group.id,
-            name: ch.name,
-            priceModifier: ch.priceModifier,
-            pickupPriceModifier: ch.pickupPriceModifier ?? null,
-            deliveryPriceModifier: ch.deliveryPriceModifier ?? null,
-            image: ch.image ?? null,
-            sortOrder: j,
+            productId: params.id,
+            name: g.name,
+            required: g.required,
+            multiple: g.multiple,
+            sortOrder: i,
           },
         });
+        for (let j = 0; j < g.choices.length; j++) {
+          const ch = g.choices[j];
+          await tx.optionChoice.create({
+            data: {
+              groupId: group.id,
+              name: ch.name,
+              priceModifier: ch.priceModifier,
+              pickupPriceModifier: ch.pickupPriceModifier ?? null,
+              deliveryPriceModifier: ch.deliveryPriceModifier ?? null,
+              image: ch.image ?? null,
+              sortOrder: j,
+            },
+          });
+        }
       }
     }
     return tx.product.findUnique({

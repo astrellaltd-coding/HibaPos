@@ -30,6 +30,7 @@ import {
   Package,
   Settings2,
   Folder,
+  PlusCircle,
 } from "lucide-react";
 
 type MediaItem = {
@@ -53,6 +54,9 @@ const TYPE_META: Record<string, { label: string; icon: typeof Package; color: st
   produit: { label: "Produit", icon: Package, color: "bg-blue-500/10 text-blue-600 border-blue-200" },
   option:  { label: "Option",  icon: Settings2, color: "bg-violet-500/10 text-violet-600 border-violet-200" },
   categorie: { label: "Catégorie", icon: Folder, color: "bg-amber-500/10 text-amber-600 border-amber-200" },
+  // C-25 (Batch 4.6): add-ons became visible as usage. Without an entry
+  // here the badge would fall back to rendering the raw type string.
+  supplement: { label: "Supplément", icon: PlusCircle, color: "bg-emerald-500/10 text-emerald-600 border-emerald-200" },
 };
 
 export function MediaView() {

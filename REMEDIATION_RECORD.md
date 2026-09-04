@@ -6,7 +6,7 @@ Evidence record for the controlled remediation of HibaPOS France. Companion to `
 
 **Rules.** Append-only. Nothing here is rewritten; a correction is an appended, dated note. When a batch completes, its whole section moves here verbatim from the plan, under its stage heading, and a stub stays in the plan carrying the constraints the batch leaves behind. Sessions slice this file by heading; it is not meant to be read whole.
 
-**Contents.** Batch 0.1 · Batch 0.2 · Batch 1.1 · Batch 1.2 · Batch 2.1 · Batch 2.2 · Batch 2.3 · Batch 2.4 · Batch 3.1 · Batch 3.1b · Batch 3.1d · Batch 3.1c · Batch 3.2 · Batch 3.2b · Batch 3.3 · Batch 3.4 · Batch 3.5 · Batch 3.6 · Batch 3.6b · Batch 4.1 · Batch 4.2 · Batch 4.3 · Batch 4.4 · Batch 4.4b · Batch 4.4c · Batch 4.5 · Completed Remediation History · Resolved findings · Answered design decisions · Retired open-thread rows · Superseded procedure
+**Contents.** Batch 0.1 · Batch 0.2 · Batch 1.1 · Batch 1.2 · Batch 2.1 · Batch 2.2 · Batch 2.3 · Batch 2.4 · Batch 3.1 · Batch 3.1b · Batch 3.1d · Batch 3.1c · Batch 3.2 · Batch 3.2b · Batch 3.3 · Batch 3.4 · Batch 3.5 · Batch 3.6 · Batch 3.6b · Batch 4.1 · Batch 4.2 · Batch 4.3 · Batch 4.4 · Batch 4.4b · Batch 4.4c · Batch 4.5 · Batch 4.6 · Completed Remediation History · Resolved findings · Answered design decisions · Retired open-thread rows · Superseded procedure
 
 ---
 
@@ -1921,6 +1921,89 @@ seed-category-options.ts:12-21
 
 ---
 
+*Moved verbatim from REMEDIATION_PLAN.md lines 1026–1106 (commit `c23ae13`) on 2026-09-04.*
+
+## Batch 4.6 — Catalogue data-loss paths
+
+**Status:** `COMPLETED` · **Findings:** C-24, C-25 — both closed
+
+### C-24 — Category and product updates delete option groups wholesale and skip invalid entries silently
+
+**Status:** `COMPLETED` · Severity: HIGH · Category: data loss
+
+**Problem.** Both PUT handlers `deleteMany` the existing option groups and re-create from the request body. A group that fails validation is skipped with `continue` — after the delete has run — and the response is 200.
+
+**Evidence.**
+```
+categories/[id]:134  tx.categoryOptionGroup.deleteMany({categoryId})
+categories/[id]:140  if (!groupParsed.success) continue;   ← old gone, new not created
+categories/[id]:172  tx.categoryAddOn.deleteMany({categoryId})
+categories/[id]:177  if (!addonParsed.success) continue;
+products/[id]:207    tx.optionGroup.deleteMany({productId})
+validation.ts:88     options: z.array(optionGroupSchema).default([])
+                     → a PUT omitting "options" wipes every option group
+```
+
+**Location.** `src/app/api/catalog/categories/[id]/route.ts:134-190`; `src/app/api/catalog/products/[id]/route.ts:207`; `src/lib/validation.ts:88`
+
+**Impact.** A malformed option in an otherwise-valid save silently loses the existing configuration with a success response. The product-side variant is currently latent (the one UI form always sends the full payload) but is a live hazard for any partial update.
+
+**Remediation direction.** Validate the whole payload up front and 400 on any invalid entry before deleting anything. Make `options` absent-means-unchanged rather than defaulting to `[]`.
+
+### C-25 — The media library invites deletion of images that are in use
+
+**Status:** `COMPLETED` · Severity: HIGH · Category: data integrity
+
+**Problem.** Usage detection covers `Category.icon`, `Product.image` and `OptionChoice.image` only. `CategoryOptionChoice.image`, `CategoryAddOn.image` and `AddOn.image` are counted neither as usage nor cleared on delete. The DELETE handler also writes no audit entry, unlike every other destructive route.
+
+**Location.** `src/app/api/media/route.ts:12-44, 118-162`
+
+**Impact.** Images used by category option choices and add-ons — the ones actually used at this restaurant, per the ported dataset — display as unused, inviting cleanup. Deleting one removes the file and leaves a dangling `/uploads/…` reference, producing broken images in the POS with no audit record.
+
+**Remediation direction.** Add the three missing models to both the usage scan and the reference cleanup, and audit the deletion.
+
+### Batch 4.6 — Validation Required
+
+- Targeted test: a category PUT with one malformed option group returns 400 and leaves the existing groups intact.
+- Targeted test: a product PUT omitting `options` leaves the existing option groups intact.
+- Targeted test: an image referenced by a `CategoryOptionChoice`, `CategoryAddOn` or `AddOn` is reported as *used* by `GET /api/media`.
+- Targeted test: deleting a media file clears references in all six models and writes an audit entry.
+- Manual: against a copy of the real dataset, confirm no in-use image is listed as unused.
+- Regression: normal category and product editing still saves correctly.
+- `bun test src` — PASS. `bun run typecheck` — PASS.
+
+### Batch 4.6 — Status Record
+
+**Status:** `COMPLETED` · **Completed:** 2026-09-04 (session 10)
+
+**Changes:** **C-24.** `PUT /api/catalog/categories/[id]` validated each option group and add-on *inside* the loop that recreated them — after `deleteMany` had run — and skipped a failing entry with `continue`, so one malformed entry destroyed the category's whole configuration and answered **200**. Validation now happens before the transaction opens, in new **`src/lib/services/catalog-payload.ts`**, and any invalid entry refuses the whole request with a 400 naming its 1-based position. A present-but-not-array value, which used to fall through `Array.isArray` and be silently ignored, is now also a 400. On the product side the defect was the schema: `productSchema.options` was `.default([])`, so a PUT that merely **omitted** `options` parsed as the empty list and deleted every product-specific option group. It is now `.optional()`; the PUT skips the replace entirely when the field is absent, an explicit `[]` still clears, and the create path treats absent as "none". **C-25.** The media library's usage scan and its reference cleanup each carried their own hardcoded list of three image columns while the schema has six. Both now derive from one declaration, **`IMAGE_COLUMNS` in new `src/lib/services/media-usage.ts`**, adding `CategoryOptionChoice.image`, `CategoryAddOn.image` and `AddOn.image`. `DELETE /api/media` now also writes a **`MEDIA_DELETED`** audit row with per-column counts — it wrote none at all before, alone among the destructive routes — and its path-traversal guard was moved **ahead of** the database writes. Add-ons get a new `supplement` usage badge, registered in `media-view.tsx` so it renders as "Supplément" rather than raw text.
+
+**Files:** added `src/lib/services/catalog-payload.ts` + `.test.ts`, `src/lib/services/media-usage.ts` + `.test.ts`; edited `src/lib/validation.ts`, `src/lib/validation.test.ts`, `src/app/api/catalog/categories/[id]/route.ts`, `src/app/api/catalog/products/[id]/route.ts`, `src/app/api/catalog/products/route.ts`, `src/app/api/media/route.ts`, `src/features/media/media-view.tsx`.
+
+**Tests:** `bun test src --timeout 30000` → **531 pass, 0 fail** (498 before; +33). `bun run typecheck`, `bun run lint`, `bun run build` all PASS. **Proved against the pre-batch code with eight one-property reverts**, in both directions: (1) invalid entries skipped → **7 fail**; (2) non-array treated as absent → **1**; (3) `options` back to `.default([])` → **1**; (4) usage scan back to three columns → **4**; (5) cleanup back to three columns → **3**; (6) `IMAGE_COLUMNS` back to three entries → **2**; (7) refuse every payload → **12**; (8) count non-`/uploads/` references → **1**. 25 of the 33 new tests failed under at least one revert; the remaining 8 assert pre-existing behaviour that must not break, which by construction cannot fail against the pre-batch code. All three files restored byte-identical after each revert (`96b6f4eb…`, `3fb2bebd…`, `0719d0a3…`). **Manual validation on a scratch copy of the real catalogue**, `next start` on ports 3040–3043 with both `DATABASE_URL` and `HIBAPOS_DATA_DIR` overridden and `public/uploads` copied alongside; open database proved before the first write by reading the marker `ZZ-SCRATCH-46` back from the pre-auth `GET /api/auth/profiles`. **C-24:** against the real `Sandwichs` category (4 option groups, 19 choices, 7 add-ons), a payload whose second group was nameless → **400** *« Groupe d'options n°2 invalide : Le nom est requis. Aucune modification n'a été enregistrée. »* with the configuration **byte-identical afterwards**; a malformed add-on beside valid groups → **400** naming *Supplément n°1*, groups again intact. Running the pre-batch logic on the same category deleted **4 groups and 19 choices** and would have returned 200. On the real `Tenders box` product (2 own groups, 21 own choices), a PUT omitting `options` → **200**, price 990 → 1350, **groups and choices intact**. Regression: a normal valid save returned 200 and stored 4 groups / 19 choices / 8 add-ons with all 19 choice images preserved. **C-25:** `GET /api/media` reported **124 of 139 files as used** — exactly the 124 distinct references measured read-only, against the 94 the three-column scan would have found; each of the 15 still reported unused was cross-checked against all six columns and none is referenced. Deleting `/uploads/Options/sauce-algerienne.webp` (used by two `CategoryOptionChoice` rows, invisible before) → 200, **both references cleared**, file removed, and a `MEDIA_DELETED` row recording `referencesCleared: 2` with all six per-column counts. **Production untouched:** `7839db18…`, mtime 2026-09-04 16:41:52, 696 320 bytes, unchanged throughout; no sidecars beside it; `public/uploads` still 139 files; `db/fiscal-archives/` still absent; every scratch server stopped with `taskkill //PID <pid> //T //F`.
+
+**Commit:** `PENDING`
+
+**Notes:**
+
+1. **The measurement was worse than the finding said.** C-25 described the missing columns as covering "the ones actually used at this restaurant"; measured read-only against production, it is **30 of the 124 referenced images — 24 %**. They are the entire condiment and topping catalogue: `sauce-algerienne.webp`, `sauce-samourai.webp`, `add_mozzarela.webp`, `add_viande_hache.webp` and 26 more. Every one displayed in the media library as *unused* and, because the list sorts unused first, presented at the top as a cleanup candidate. `AddOn.image` has **zero** rows today, so that third column is latent — covered anyway, because leaving one of six out is how this defect happened in the first place.
+
+2. **The two lists are now one, and a test pins it to the schema.** The scan and the cleanup drifted apart because each hardcoded its own copy of the column list: three models were added to the schema and only the routes that wrote them were updated. `IMAGE_COLUMNS` is the single declaration both derive from, and `media-usage.test.ts` counts the schema's own `image`/`icon` columns and asserts `IMAGE_COLUMNS` has the same length. A seventh image column cannot now be added without that test failing — which is a stronger guarantee than either list being correct today.
+
+3. **C-24 is two different defects that the finding names as one, and they needed different fixes.** The *category* route's fault was ordering: it validated inside the transaction, after the delete. The *product* route already validated the whole body up front and would 400 correctly on a malformed group — its fault was purely `.default([])` in the schema, which made "absent" indistinguishable from "clear everything". So one half needed a new module and the other needed one word. Worth keeping straight, because a reader who fixes only the ordering will leave the product path wiping option groups on every partial update.
+
+4. **`absent` is a third state, deliberately.** `PayloadCheck` returns `absent` / `ok` / `invalid` rather than a boolean, and `productSchema.options` is `.optional()` rather than defaulted, because collapsing "not sent" into "empty" is the entire product-side defect. An explicit `[]` still deletes everything — that is how the form removes the last group — so the distinction has to survive all the way from the JSON body to the `if`.
+
+5. **One correction made in passing, with no reachable impact.** `DELETE /api/media` cleared database references *before* running its path-traversal guard, so an unauthorised path did its writes and only then answered 400. Nothing was reachable through it: the cleanup matches the literal request string and no catalogue row holds a traversal path, so it always matched zero rows. Moved the guard first anyway — a handler in the batch about validating before mutating should not mutate before validating. Recorded here rather than as a finding because it was impact-free and lives in the lines this batch was already rewriting.
+
+6. **A scratch copy runs in WAL mode, and that broke a restore.** `HIBAPOS_DATA_DIR` pointed at the scratchpad, which is not a cloud-synced path, so the startup guard *allowed* WAL — the scratch database ran `journal_mode=wal` while production sits in rollback-journal mode on OneDrive. Restoring the copy by overwriting `custom.db` alone therefore did nothing: the server's committed pages were in `custom.db-wal`, which replayed over the fresh bytes on the next start, and a category I had deliberately emptied came back empty. **Delete `-wal` and `-shm` with the `.db`, and stop the server first.** Costs a confusing ten minutes if missed, and it is the mirror image of *Open Threads → A*'s note that production is still not on WAL.
+
+7. **Two harness gotchas, both mine, neither an application defect.** (a) **Git Bash rewrites a leading-slash argument into a Windows path**: passing `/uploads/Options/sauce-algerienne.webp` to a script arrived as `C:/Program Files/Git/uploads/…`, so an exact-match query returned 0 references and briefly looked like the cleanup had already run. `MSYS_NO_PATHCONV=1` and `MSYS2_ARG_CONV_EXCL='*'` suppress it. (b) **Round-tripping the category JSON through a shell pipeline corrupted its UTF-8**: re-sending `Crudités` and `Algérienne` through `curl | bun -e | curl` stored mojibake and duplicated rows in the scratch copy. Build request bodies in a file and send them with `--data-binary @file`. The scratch copy was rebuilt from production before the C-25 checks were trusted.
+
+8. **What this batch did NOT change.** Deleting an in-use image is still **allowed with a warning**, not refused: the media view already lists what will break and says *« Les images de ces éléments seront retirées. »*, so the design intent was clear and C-25's remediation direction asks only that the warning be *complete*. Making it a refusal would be a behaviour decision, not a bug fix. `CategoryOptionChoice` rows duplicated on the same image (two rows both hold `sauce-algerienne.webp`) are pre-existing in production and out of scope — the usage list correctly reports both. No migration was added; nothing waits on the operator.
+
+---
+
 # COMPLETED REMEDIATION HISTORY
 
 *Moved verbatim from `REMEDIATION_PLAN.md` lines 2357–2378 (commit `5f0c2b1`) on 2026-09-04. Nothing in this section has been rewritten; corrections, if any, are appended dated notes.*
@@ -1957,6 +2040,7 @@ seed-category-options.ts:12-21
 | 4.4b | COMPLETED | 2026-09-04 | `45a6fb8` | M-19s, on DD-07's final answer. The owner asked for a **single operational role**, so `CASHIER` left the enum, the `Role` union, both zod schemas, five nav rows, the login screen, the CASHIER-only privilege-escalation guard on `switch-user`, and the CASHIER arms of the discount and refund gates. **Zero `User` rows carried it**, confirmed read-only before the schema changed. **M-19s closes as a no-op by construction**: `GET /api/settings` (SIRET, TVA number, discount threshold) and `GET /api/reports/x` were open to any authenticated caller while their writes were SUPER_ADMIN and MANAGER+; raising both to `["SUPER_ADMIN", "MANAGER"]` makes read and write agree without changing what anyone can do — which is the point, and is only possible because the role that made the fix breaking is gone. **Whether a migration was needed was measured, not assumed**: `prisma migrate diff` printed an empty migration both before and after the schema edit, so the enum really is app-level TEXT and **nothing waits on the operator**. Two consequences were carried deliberately and written down rather than hidden — `LEAST_PRIVILEGED_ROLE` degrades `CASHIER` → `MANAGER`, one rung weaker but still refusing `users` / `backups` / `logs`; and the approval machinery is **dormant, not deleted**, because 4.4c reuses it. Two test assertions were **revisited, not deleted**: the floor property in `nav-access.test.ts`, and the destructive-route table in `api-authorization.test.ts`, which now pins each declared role list — stronger than the vacuous `not.toContain("CASHIER")` it replaced, and the rewrite is what surfaced L-33. A new `role-model.test.ts` walks all 245 source files and fails if the role returns; 4 of its 7 tests were proved to fail against a deliberately reintroduced role, then the files were restored from copies. Manual walkthrough on a scratch copy and in a real browser: the manager takes payment, discounts 40 %, refunds with no token, reprints, opens all 14 entitled views and is refused the other three; production `db/custom.db` byte-identical throughout. Recorded L-33, L-34, L-35. 461/461. |
 | 4.4c | COMPLETED | 2026-09-04 | `d9b1b08` | DD-19, plus L-34, L-35 and — unplanned — the audit's own **M-17** and **M-18**. A discount above the configured threshold and **every** refund at any amount now require the signed-in operator to re-enter **their own** PIN; until this batch both were self-approved with no keystroke, so an unattended till would take a 100 % discount or refund the day's takings from anyone who walked up. Re-authentication, not second-person approval: with one operational role (DD-07) `/api/auth/approve` forbids self-approval and can never succeed, so a distinct `POST /api/auth/step-up` was built — reusing Batch 4.1's lockout (**one shared counter**, five attempts in total), Batch 4.2's bounded scrypt queue, and `approvals.ts`'s signed single-use amount-bound token, which now must **name the caller**. Four implementation choices were put to the operator and answered: replace the old manager token rather than keep both; close M-18 here rather than in 5.7; **no change to the sealed journal payloads** (a “PIN was typed” flag would be true on every record and would create a third vintage — the audit log carries the deliberate act instead); keep 5 wrong PINs / 15 minutes, accepting that five fumbles cost fifteen minutes of refunds. L-34 and the banner it sits under (L-35) both closed — the discount dialog showed a real 40 % as « 0.4% » and promised an approval that no longer happened. **No migration; nothing waits on the operator.** Five-revert negative control, with two tests strengthened when it showed they proved less than they claimed. Validated on a scratch copy through the routes and the real UI; production untouched at `7839db18…`. Recorded L-36. 482/482. |
 | 4.5 | COMPLETED | 2026-09-04 | `1a0836b` | DD-08's six parts, closing C-17, L-37, L-38 and DOC-09: deleted `port-real-data.ts` (which wiped production by a hardcoded path, defeating the scratch-copy method) and `seed-category-options.ts`; rebuilt `seed-users.ts` as a delete-free PIN reset with both published defaults refused from `src/lib/auth.ts`; guarded both counter scripts against lowering any of four counters via the tested `fiscal-counter-floor.ts`; made every script dry-run-by-default; brought `scripts/` under `tsc` and `eslint`; rewrote `scripts/README.md`. 498/498 tests. Production untouched; no migration. Retired 6 656 bytes of plan front matter, bringing it under its ~40 KB ceiling. |
+| 4.6 | COMPLETED | 2026-09-04 | `PENDING` | C-24 and C-25, both HIGH catalogue data-loss. Category PUT no longer validates entries after `deleteMany` — one malformed option group used to destroy a category's sauces and breads and return 200 (proved on the real `Sandwichs`: 4 groups, 19 choices deleted); `productSchema.options` no longer defaults to `[]`, so a PUT omitting it no longer wipes a product's option groups. Media usage scan and delete-time cleanup now cover all six image columns from one declaration instead of three each — 30 of 124 referenced images (the whole condiment catalogue) displayed as unused — and `DELETE /api/media` journals `MEDIA_DELETED`. 531/531 tests, eight one-property reverts. Production untouched; no migration. |
 
 # RESOLVED FINDINGS
 
@@ -2141,6 +2225,10 @@ below the stage sections is the authoritative list.* Merge this into it in 7.1.
 **(6) The answered design decisions, compressed to one line each.** *HOW TO USE THIS FILE* step 5.5 requires an answered decision's row to be cut to one line here with the full row moved to *Answered design decisions* — that had been done for the rationale but not for the rows, so ten answered decisions still occupied multi-sentence rows above the first stage heading. Every one of them is present in full in *Answered design decisions* above (DD-01, DD-02, DD-03, DD-05, DD-06, DD-07, DD-08, DD-17, DD-18, DD-19), verified before trimming. Nothing was summarised away that is not recorded there; the corrections some of them carry — DD-06's "protective by accident" premise, DD-07's two amendments, DD-08's undercounted premise — are all in those record entries.
 
 ---
+**Compressed 2026-09-04 (Batch 4.6), from `REMEDIATION_PLAN.md` at commit `c23ae13`.** Batch 4.6's status block is longer than the one it replaced, which pushed the front matter back over the ~40 KB ceiling, so four passages were cut to pointers. Nothing was lost: (1) ***Open Threads → E*** held V-13 and V-02 in full while *External / Legal / Fiscal Verification* states both completely — E is now one sentence saying they are open. (2) **Warning 3b** kept its rule and lost the retold history of the leftover-`bun` incident, which is in Batch 4.5's record. (3) The **hardware-deferral table** became a sentence; each deferred criterion is in its own batch's status record. (4) **Environment item 8** kept the L-24 rule and lost the re-diagnosis. Batch 4.6's own WAL-restore and Git-Bash lessons were put in *Methods → Scratch copy* rather than in *Last Updated*, so they have one home.
+
+---
+
 # SUPERSEDED PROCEDURE
 
 *The plan's original *HOW TO USE THIS FILE* steps, lines 186–194, replaced on 2026-09-04 by the two-file protocol.*

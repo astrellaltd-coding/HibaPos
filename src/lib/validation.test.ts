@@ -180,6 +180,56 @@ describe("productSchema", () => {
     });
     expect(r.success).toBe(false);
   });
+
+  // C-24, Batch 4.6 — `options` must not default to `[]`.
+  //
+  // `PUT /api/catalog/products/[id]` replaces option groups wholesale: it
+  // runs `optionGroup.deleteMany({ productId })` and recreates from this
+  // field. While it defaulted to `[]`, any PUT that omitted `options`
+  // parsed as "the empty list" and silently deleted every option group the
+  // product had, answering 200. The route now skips the replace entirely
+  // when the field is absent, and this is the parse-level half of that.
+  describe("options — absent means unchanged (C-24)", () => {
+    const base = { name: "Test", price: 100, categoryId: "cat-1" };
+
+    it("leaves `options` undefined when the field is omitted", () => {
+      const r = productSchema.safeParse(base);
+      expect(r.success).toBe(true);
+      if (r.success) expect(r.data.options).toBeUndefined();
+    });
+
+    it("keeps an explicit empty array distinct from absent", () => {
+      // An explicit `[]` still means "clear them" — that is how the form
+      // removes the last group, so it must survive as an empty array.
+      const r = productSchema.safeParse({ ...base, options: [] });
+      expect(r.success).toBe(true);
+      if (r.success) expect(r.data.options).toEqual([]);
+    });
+
+    it("still parses a populated list", () => {
+      const r = productSchema.safeParse({
+        ...base,
+        options: [{ name: "Cuisson", choices: [{ name: "Saignant" }] }],
+      });
+      expect(r.success).toBe(true);
+      if (r.success) {
+        expect(r.data.options).toHaveLength(1);
+        expect(r.data.options![0].choices[0].name).toBe("Saignant");
+      }
+    });
+
+    it("rejects a malformed option group rather than dropping it", () => {
+      // The product side validates the whole body up front, so a nameless
+      // group fails the parse and the route 400s before any delete. The
+      // category side needed a new module for this; here it was already
+      // structurally right and only the default was wrong.
+      const r = productSchema.safeParse({
+        ...base,
+        options: [{ name: "", choices: [{ name: "x" }] }],
+      });
+      expect(r.success).toBe(false);
+    });
+  });
 });
 
 describe("customerSchema", () => {

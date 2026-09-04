@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
 import { withAuth, parseJson } from "@/lib/api-handler";
 import { z } from "zod";
 import { promises as fs } from "fs";
@@ -7,8 +6,13 @@ import { existsSync } from "fs";
 import path from "path";
 import sharp from "sharp";
 import { uploadsDir as mediaRoot } from "@/lib/paths";
-
-type UsageEntry = { type: string; label: string };
+import { audit } from "@/lib/services/audit";
+import {
+  collectImageUsage,
+  clearImageReferences,
+  totalCleared,
+  type UsageEntry,
+} from "@/lib/services/media-usage";
 
 /**
  * Cached image dimensions, keyed by path + size + mtime.
@@ -62,42 +66,11 @@ async function mapWithConcurrency<T, R>(
 
 
 
-async function collectDbImages(): Promise<Map<string, UsageEntry[]>> {
-  const [categories, products, choices] = await Promise.all([
-    db.category.findMany({ select: { icon: true } }),
-    db.product.findMany({ select: { id: true, name: true, image: true } }),
-    db.optionChoice.findMany({ select: { id: true, name: true, image: true } }),
-  ]);
-
-  const usageMap = new Map<string, UsageEntry[]>();
-
-  for (const c of categories) {
-    if (c.icon && c.icon.startsWith("/uploads/")) {
-      const arr = usageMap.get(c.icon) ?? [];
-      arr.push({ type: "categorie", label: "Categorie" });
-      usageMap.set(c.icon, arr);
-    }
-  }
-  for (const p of products) {
-    if (p.image && p.image.startsWith("/uploads/")) {
-      const arr = usageMap.get(p.image) ?? [];
-      arr.push({ type: "produit", label: p.name });
-      usageMap.set(p.image, arr);
-    }
-  }
-  for (const ch of choices) {
-    if (ch.image && ch.image.startsWith("/uploads/")) {
-      const arr = usageMap.get(ch.image) ?? [];
-      arr.push({ type: "option", label: ch.name });
-      usageMap.set(ch.image, arr);
-    }
-  }
-
-  return usageMap;
-}
-
 export const GET = withAuth(async () => {
-  const usageMap = await collectDbImages();
+  // C-25 (Batch 4.6): the usage scan lives in `media-usage.ts` and covers all
+  // SIX image columns. It used to cover three, so 30 of the 124 referenced
+  // images — every sauce and topping — displayed as unused here.
+  const usageMap = await collectImageUsage();
 
   // M-30 (Batch 2.4): the walk used to be readdirSync + statSync, and ran
   // sharp().metadata() on EVERY file, sequentially, unpaginated. On the real
@@ -200,14 +173,14 @@ export const DELETE = withAuth(async (req, { user }) => {
     return NextResponse.json({ error: "URL non autorisee" }, { status: 400 });
   }
 
-  // 1. Clean up references in DB
-  await Promise.all([
-    db.category.updateMany({ where: { icon: url }, data: { icon: null } }),
-    db.product.updateMany({ where: { image: url }, data: { image: null } }),
-    db.optionChoice.updateMany({ where: { image: url }, data: { image: null } }),
-  ]);
-
-  // 2. Delete file if it exists — path-traversal hardened.
+  // 1. Resolve and validate the path FIRST — path-traversal hardened.
+  //
+  // The reference cleanup below used to run before this guard, so a request
+  // carrying an unauthorised path did its database writes and only then
+  // answered 400. Nothing was reachable through it (the cleanup matches the
+  // literal request string, and no catalogue row holds a traversal path, so
+  // it always matched zero rows), but a handler in the batch about validating
+  // before mutating should not mutate before validating.
   const uploadsRoot = path.resolve(mediaRoot());
   const filename = url.replace("/uploads/", "");
   const target = path.resolve(uploadsRoot, filename);
@@ -220,9 +193,29 @@ export const DELETE = withAuth(async (req, { user }) => {
     return NextResponse.json({ error: "Chemin non autorise" }, { status: 400 });
   }
 
-  if (existsSync(target)) {
+  // 2. Clear references in DB — all SIX image columns (C-25, Batch 4.6).
+  // This used to clear three of them, so deleting an image used by a category
+  // option choice or an add-on left a dangling `/uploads/…` reference and a
+  // broken image in the POS picker.
+  const cleared = await clearImageReferences(url);
+
+  // 3. Delete the file.
+  const fileExisted = existsSync(target);
+  if (fileExisted) {
     await fs.unlink(target);
   }
+
+  // 4. Journal it (C-25, Batch 4.6). Every other destructive route audits;
+  // this one did not, so an image disappearing from the POS was untraceable.
+  // The per-column counts are recorded because detaching an image from nine
+  // toppings is a different event from deleting an unused file.
+  await audit(
+    "MEDIA_DELETED",
+    "Media",
+    url,
+    { url, fileExisted, referencesCleared: totalCleared(cleared), byColumn: cleared },
+    user.id,
+  );
 
   return NextResponse.json({ success: true });
 });
