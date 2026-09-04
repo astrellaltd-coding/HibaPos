@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import type { ShiftDto } from "@/types/api";
-import { useAppStore } from "@/store/app-store";
+import { useAppStore, POS_SEARCH_INPUT_ID } from "@/store/app-store";
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Lock, Unlock, LogOut, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -138,6 +138,7 @@ export function Topbar() {
         <div className="relative mx-4 flex max-w-sm flex-1 items-center">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
           <input
+            id={POS_SEARCH_INPUT_ID}
             ref={searchInputRef}
             value={posSearch}
             onChange={(e) => setPosSearch(e.target.value)}

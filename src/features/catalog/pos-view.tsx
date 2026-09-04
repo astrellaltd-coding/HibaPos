@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef, useCallback, memo } from "react";
+import { useState, useMemo, useCallback, memo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import type { CategoryDto, ProductDto, OrderDto } from "@/types/api";
@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 import { formatEuro } from "@/lib/format";
 // uuid replaced with built-in crypto.randomUUID() (Node 19+, all evergreen browsers)
 import { Search, PackageX, Loader2, LockKeyhole, Keyboard, ShoppingCart as CartIcon, X } from "lucide-react";
-import { useAppStore } from "@/store/app-store";
+import { useAppStore, POS_SEARCH_INPUT_ID } from "@/store/app-store";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -38,7 +38,6 @@ export function PosView() {
   const [receiptOrder, setReceiptOrder] = useState<OrderDto | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
-  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const { data: categories, isLoading: catLoading } = useQuery({
     queryKey: ["categories"],
@@ -108,9 +107,15 @@ export function PosView() {
     }
   };
 
+  // Batch 5.1: the search box is the topbar's (topbar.tsx), rendered only on
+  // this view. The ref that used to stand here was never attached to an
+  // element, so this stayed a no-op even after the matcher was fixed — F1
+  // and "/" fired and focused nothing. Reach it by the id both files import.
   const focusSearch = useCallback(() => {
-    searchInputRef.current?.focus();
-    searchInputRef.current?.select();
+    const el = document.getElementById(POS_SEARCH_INPUT_ID);
+    if (!(el instanceof HTMLInputElement)) return;
+    el.focus();
+    el.select();
   }, []);
 
   const [discountOpen, setDiscountOpen] = useState(false);
@@ -138,6 +143,11 @@ export function PosView() {
       { key: "F9", handler: () => itemsLength > 0 && setPayOpen(true) },
       { key: "?", shift: true, handler: () => setHelpOpen(true) },
       { key: "/", handler: focusSearch },
+      // Batch 5.1: on the French AZERTY keyboard this restaurant uses, "/" is
+      // typed as Shift+":" (Windows VkKeyScanEx, layout 0000040C: vk 0xBF +
+      // SHIFT), so the shift-less entry above never matches there. A numeric
+      // keypad's "/" is unshifted on every layout and still uses it.
+      { key: "/", shift: true, handler: focusSearch },
     ],
     [focusSearch, setOrderType, holdCurrent, itemsLength, heldOrdersCount],
   );

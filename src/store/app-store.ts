@@ -43,6 +43,18 @@ function viewToHash(view: AppView): string {
   return view === "home" ? "#/" : `#/${view}`;
 }
 
+/**
+ * DOM id of the POS search box.
+ *
+ * Batch 5.1: the input lives in the topbar (it is only rendered on the POS
+ * view) while the F1 and "/" shortcuts are registered in pos-view. Those two
+ * are in different component trees with no shared ref, and pos-view's own
+ * `searchInputRef` was never attached to anything — so `focusSearch()` was a
+ * no-op even once the matcher started firing. Both sides import this constant,
+ * which is what keeps them in step.
+ */
+export const POS_SEARCH_INPUT_ID = "pos-search-input";
+
 type AppState = {
   user: UserDto | null;
   loadingUser: boolean;
