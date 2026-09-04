@@ -1016,7 +1016,7 @@ Category and product updates no longer delete option groups before validating th
 
 ## Batch 4.7 — Transaction and race safety
 
-**Status:** `COMPLETED` · **Completed:** 2026-09-04 · **Commit:** `<pending>` · **Findings:** C-15 (shift-race half — **closes C-15**)
+**Status:** `COMPLETED` · **Completed:** 2026-09-04 · **Commit:** `951e14c` · **Findings:** C-15 (shift-race half — **closes C-15**)
 **Record:** `REMEDIATION_RECORD.md` → *Batch 4.7* — specification, validation criteria and status record, moved there verbatim on 2026-09-04.
 
 **Constraints this batch leaves behind** *(sentences copied from the record, not paraphrased)*
