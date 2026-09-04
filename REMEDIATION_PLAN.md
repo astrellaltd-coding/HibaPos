@@ -23,11 +23,11 @@ Detailed audit record: https://claude.ai/code/artifact/329316b0-3a6b-48b0-9d27-d
 
 **Awaiting decision:** **only DD-04 and DD-16 remain open** — DD-04 (backup key rotation) blocks 7.3, DD-16 (tracking `public/uploads/` in git) shapes 7.1. Every other design decision is answered. Two recorded-but-not-urgent questions stand: `/api/auth/approve` and `manager-approval-dialog.tsx` have **no caller at all** since 4.4c, so whether to delete them is a real question; and **L-27** needs a decision before Batch 8.0.
 
-**Last Updated:** 2026-09-05 (session 12 — Batch 5.1, then the DD-09…DD-15 brief). Three things worth carrying forward. (1) **"No design decision against it" is a claim to test.** 5.1 was handed over as pure coercion; measuring the keyboard found one behaviour choice and *running the app* found a second. (2) **Measure the premise before writing the brief.** Three of the seven decisions had a premise that did not survive contact with the data — the floor plan holds one stale table, `PENDING` is dead alongside `CANCELLED`, and `ProductAddon` is superseded rather than lost, the category-level design having 21 live rows. All three are corrected in the record. (3) **The front matter has about 820 bytes of headroom.** Retire something before adding, and say in the record what moved and where the fact lives.
+**Last Updated:** 2026-09-05 (session 12 — Batch 5.1, then the DD-09…DD-15 brief). Three things worth carrying forward. (1) **"No design decision against it" is a claim to test.** 5.1 was handed over as pure coercion; measuring the keyboard found one behaviour choice and *running the app* found a second. (2) **Measure the premise before writing the brief.** Three of the seven decisions had a premise that did not survive contact with the data — the floor plan holds one stale table, `PENDING` is dead alongside `CANCELLED`, and `ProductAddon` is superseded rather than lost, the category-level design having 21 live rows. All three are corrected in the record. (3) **The front matter has about 540 bytes of headroom.** Retire something before adding, and say in the record what moved and where the fact lives.
 
 ### OPEN THREADS — read this before starting a batch
 
-*Updated through Batch 4.7.*
+*Updated through Batch 5.1 and the DD-09…DD-15 answers.*
 
 Work in this plan does not finish batch-by-batch. Several completed batches
 shipped a mechanism whose **benefit is not yet delivered**, and several items
@@ -155,7 +155,7 @@ These are **deferred, not waived.** Stage 1 cannot be declared complete, and no 
 
 9. **Claude cannot do two things in this project** — the permission classifier refuses them, and each refusal is correct: `prisma migrate deploy` against production, and writes to real menu data. Prepare, rehearse and verify; then hand the operator the exact command.
 
-   **Killing processes was listed here as a third and needs one distinction (Batch 4.4b, 2026-09-04).** Claude does not kill **the operator's** processes. A server **Claude started in the same session** is a different matter: 4.4b's `bunx next start -p 3026` (PID 24188) survived `TaskStop` — which killed only the `bunx` parent — and was terminated with `taskkill //PID <pid> //T //F`, after which `bunx prisma generate` succeeded. **Do this every time.** A leftover `next start` holds `node_modules/.prisma/client/query_engine-windows.dll.node` and makes `bunx prisma generate` fail `EPERM` in another session — that phantom cost sessions 3 through 7 hours, and the environment item recording it was retired to the record in Batch 4.7 once the habit above replaced it. **`bun run dev` stays untried here** (it loads the real `.env` and would open the production database); use `bunx next start` on a spare port — 3021–3026, 3033/3034, 3040–3043 and 3050–3052 are spoken for.
+   **Killing processes was listed here as a third and needs one distinction (Batch 4.4b, 2026-09-04).** Claude does not kill **the operator's** processes. A server **Claude started in the same session** is a different matter: 4.4b's `bunx next start -p 3026` (PID 24188) survived `TaskStop` — which killed only the `bunx` parent — and was terminated with `taskkill //PID <pid> //T //F`, after which `bunx prisma generate` succeeded. **Do this every time.** A leftover `next start` holds `node_modules/.prisma/client/query_engine-windows.dll.node` and makes `bunx prisma generate` fail `EPERM` in another session — that phantom cost sessions 3 through 7 hours, and the environment item recording it was retired to the record in Batch 4.7 once the habit above replaced it. **`bun run dev` stays untried here** (it loads the real `.env` and would open the production database); use `bunx next start` on a spare port — 3021–3026, 3033/3034, 3040–3043, 3050–3052 and 3060 are spoken for.
 
    **`git push` is another case and behaves differently.** Earlier sessions recorded it as prohibited; that was wrong. It is an *explicit-permission* action — it goes through when the user asks for it in the session, which they did on 2026-09-04 (`3f31779..8a311dc`, and again for `7449683..1856cd7`). Do not push unprompted, and do not tell the user it is impossible.
 
@@ -240,7 +240,7 @@ Stated once here so no session has to rediscover them. The record sections named
 - **Read-only inspection of live data.** Use `bun:sqlite` with `readonly: true`; do not load Prisma or the WAL startup hook against the production file. Record → Batch 3.1 note 4.
 - **Manual validation against the production build.** `bun run build` then `bunx next start` on the scratch copy; testing the built artifact is the stronger check, and `next dev` is blocked on this machine anyway (warning 9). Record → Batch 3.4 note 1.
 - **A scratch copy can carry a PIN Claude knows, which makes the walkthrough unattended.** Claude cannot type a *production* PIN — the live values were never seen and are recorded nowhere. On a **copy**, write a known PIN with the app's own `hashPin` before starting the server and the whole manual validation runs without the operator. Guard the script on the target path (refuse anything outside the scratchpad) so it can never address the live file. Record → Batch 4.4b (Tests).
-- **Browser driving.** Claude cannot type PINs on production; the operator enters them, everything after is driven by Claude. When synthetic clicks do not land in the browser pane, dispatch through the DOM and say so in the record. Record → Batch 1.1 note 1, Batch 3.1b note 3.
+- **Browser driving.** Claude cannot type PINs on production; the operator enters them, everything after is driven by Claude. When synthetic clicks do not land in the browser pane, dispatch through the DOM and say so in the record. **A `keydown` probe reading `e.defaultPrevented` reports false for a handler that did fire, if the app re-registered its listener after the probe went on** — install the probe last, or observe the effect instead of the flag. Record → Batch 1.1 note 1, Batch 3.1b note 3, Batch 5.1 note 7.
 - **Journal payload vintages.** Anything that reads `FiscalEvent.dataJson` must tolerate the pre-3.5 and post-3.5 shapes; sealed rows are never re-serialised. *Open Threads → D*; record → Batch 3.5 note 3.
 - **Out-of-scope findings.** Record them in *Newly Discovered Issues* with an ID, a severity and a suggested home; do not fix them in the batch (safety rule 10).
 
@@ -1030,7 +1030,7 @@ Category and product updates no longer delete option groups before validating th
 
 # STAGE 5 — WORKFLOW GAPS
 
-**Stage status:** `IN PROGRESS` — 5.1 `COMPLETED` 2026-09-05; **5.2 through 5.7 are each gated by DD-09 through DD-15**
+**Stage status:** `IN PROGRESS` — 5.1 `COMPLETED` 2026-09-05. **DD-09 through DD-15 were all answered 2026-09-05 in one brief**, so 5.2 through 5.7 are unblocked and can be worked in turn. Each batch's spec below carries its answer inline. **5.2 is the exception to pick up carefully:** its *Validation Required* was written for the answer DD-09 did not get and must be re-derived before the batch starts.
 
 Audit section J, step 6: none of these are subtle; all of them generate support calls in week one.
 
