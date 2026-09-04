@@ -1836,6 +1836,26 @@ Every site is listed so the next session does not have to rediscover them
 
 ---
 
+**Retired 2026-09-04 (after Batch 4.4b, preparing the file for a cold session).** Two more resolved items, retired to keep the front matter inside its own ~40 KB ceiling while warnings 1, 6 and 9 were corrected. Both concern the `EPERM` that cost sessions 3 through 7 several hours and turned out to be a stale `next start` holding the Prisma engine DLL: (1) warning 6's forensics — the dead PID 2072 on port 3010, and the live holders 4016 and 24116 — with the lesson kept in place; (2) the ticked *Stop the leftover servers* row in *Waiting on the operator*, whose operative instruction now lives in warning 9 as a rule about a session cleaning up after itself.
+
+```
+6. ~~**`bunx prisma generate` fails `EPERM`.**~~ **RESOLVED 2026-09-04 (session 7)** — and the diagnosis was right in kind, wrong in detail. Batch 3.6b named a `next start` on **port 3010** (PID 2072); that process was already gone while the `EPERM` persisted. The actual holders were two *other* Batch 3.1b leftovers, PIDs 4016 (`-p 3011`) and 24116 (`-p 3012`), started 2026-09-03 23:05 and 23:12 and both serving the session-3 scratch copy. The user asked for them to be stopped; with all three ports free, `bunx prisma generate` **succeeded**, regenerating the client to v6.19.2, and `bun test src --timeout 30000` still gives 413 pass / 0 fail against it. **The lesson worth keeping: a stale `next start` holds `node_modules/.prisma/client/query_engine-windows.dll.node`, so kill every leftover server before blaming the filesystem or OneDrive — and check the port list rather than trusting a PID recorded in an earlier session.** The `bun run dev` half of the original claim was never re-tested here: `dev` loads the real `.env` and would open the production database, so it stays untried on this machine. Sessions that need a server should keep using `bunx next start` on a **spare port** — 3.6b used 3021, 4.1 used 3022/3023, 4.2 used 3024/3025, 4.4 used 3033/3034, 4.4b used 3026 — and stop it by PID afterwards, `//T //F` so the child dies with the `bunx` parent (warning 9).
+```
+
+```
+| ~~**Stop the leftover servers**~~ ✅ **DONE 2026-09-04 (session 7)** | Stopped at the user's explicit request: PIDs 4016 (`-p 3011`) and 24116 (`-p 3012`) with their `bunx` parents 10540 and 22844, all Batch 3.1b leftovers serving the session-3 scratch copy (marker `SCRATCH-3.1b-Administrateur`), none holding the production database. **`bunx prisma generate` then succeeded**, so the leftover `next start` really was the `EPERM` cause — the port number recorded against it was simply wrong. Ports 3010, 3011 and 3012 are now free. | — |
+```
+
+---
+
+**Retired 2026-09-04 (after Batch 4.4b, same cold-session pass).** Session 6's migration correction in *Open Threads → A*. Everything operative in it is stated in three other places: the *G* baselines table carries the full hash lineage, the struck row it annotated now names the migration and its timestamp inline, and the status block says no migration is pending. The hash it announced, `a66bc96c…`, has since moved twice — to `e40735ca…` and then to `7839db18…` — through the operator's PIN change, so leaving it in the resume block was actively misleading.
+
+```
+**Correction, 2026-09-04 (session 6).** The 3.6b row above said its migration was unapplied. It is applied: `20260904091947_close_refund_totals` is in `_prisma_migrations` with `finished_at` **2026-09-04 09:43:54 (UTC+1)**, matching `db/custom.db`'s mtime, and `refundsTotal` / `refundsCount` are present on both `MonthlyClose` and `AnnualClose`, both tables still **empty** — so no sealed document was rewritten, exactly as the rehearsal predicted. **The production hash is now `a66bc96c20d3f00282ea249361dd80d6303434b1a43331c0725258b637db46f9`**, not the `7cc3367b…` recorded in *G*. Nothing is waiting on a `migrate deploy` any more. Everything else in the baseline is unchanged. Verified read-only.
+```
+
+---
+
 # SUPERSEDED PROCEDURE
 
 *The plan's original *HOW TO USE THIS FILE* steps, lines 186–194, replaced on 2026-09-04 by the two-file protocol.*

@@ -23,7 +23,7 @@ Detailed audit record: https://claude.ai/code/artifact/329316b0-3a6b-48b0-9d27-d
 
 **Awaiting decision:** **nothing blocks 4.4c.** **DD-08** blocks Batch 4.5 (guard the operator scripts, or remove them from the shipped tree) — note that C-17 also reintroduces default PINs if `scripts/seed-users.ts` is ever run, which now matters more than it did. DD-06, DD-07 and DD-19 were answered on 2026-09-04. A new question is recorded but not yet urgent: whether the now-dormant discount/refund approval machinery should eventually be removed — see DD-07's rationale in the record. Then Batch 5.3 (cross-shift refunds), Batch 5.5 (cash movements), Batch 5.6 (order cancellation) — see *Design Decisions Required*. **DD-03 and DD-17 were answered on 2026-09-03, DD-05 and DD-18 on 2026-09-04.**
 
-**Last Updated:** 2026-09-04 (session 8 — Batch 4.4b only; read *OPEN THREADS* below before starting anything. Nothing waits on a `migrate deploy`: none of 4.1 through 4.4b added a migration, and 4.4b's was measured with `prisma migrate diff` rather than assumed — it emits an empty migration. The Prisma `EPERM` is resolved — stale `next start` servers were holding the engine DLL, and this session stopped its own scratch server by PID and re-verified `prisma generate` afterwards)
+**Last Updated:** 2026-09-04 (session 8 — Batch 4.4b, then a pass over the resume block for the next session: warnings 1, 6 and 9 corrected, Batch 4.4c prepared with L-34 and L-35 as closing criteria, and the operator's *finish the software before installing it* order recorded under the hardware policy; read *OPEN THREADS* below before starting anything. Nothing waits on a `migrate deploy`: none of 4.1 through 4.4b added a migration, and 4.4b's was measured with `prisma migrate diff` rather than assumed — it emits an empty migration. The Prisma `EPERM` is resolved — stale `next start` servers were holding the engine DLL, and this session stopped its own scratch server by PID and re-verified `prisma generate` afterwards)
 **Restructured:** 2026-09-04 — completed batches now live verbatim in `REMEDIATION_RECORD.md`; this file keeps the resume block, the open work, the registers and a stub per completed batch. Everything a session must know before acting sits above the first stage heading. See *HOW TO USE THIS FILE*.
 
 ### OPEN THREADS — read this before starting a batch
@@ -49,10 +49,8 @@ real till until an action below is taken. Do not report them as delivered.
 | **Thermal printing + drawer** (1.3) | `printerEnabled` is `false` and no printer IP is set. Confirmed this session: a reprint journals its `REIMPRESSION` event and then reports *"Impression désactivée dans les réglages."* | Commissioning on the real Sunso WTP-801 |
 | **FACTICE simulation mode** (3.1b) | The switch now exists in Réglages but is **off**. Any testing before go-live is still journalled as genuine trading. | The operator turning it on for test sessions |
 | **Audit-log retention** (2.4) | Deliberately `0` = keep forever. That table is still unbounded. | An operator decision, if a retention obligation appears |
-| ~~**`MonthlyClose` / `AnnualClose` refunds columns** (3.6b)~~ ✅ **APPLIED** — see the correction below | — | — |
+| ~~**`MonthlyClose` / `AnnualClose` refunds columns** (3.6b)~~ ✅ **APPLIED** — `20260904091947_close_refund_totals`, 2026-09-04 09:43:54, both tables still empty so no sealed document was rewritten | — | — |
 | ~~**`ZReport.refundsTotal` / `refundsCount`** (3.6)~~ ✅ **APPLIED** — applied 2026-09-04 00:54:37; its own correction was retired to the record in Batch 4.4b, and *G* carries the state | — | — |
-
-**Correction, 2026-09-04 (session 6).** The 3.6b row above said its migration was unapplied. It is applied: `20260904091947_close_refund_totals` is in `_prisma_migrations` with `finished_at` **2026-09-04 09:43:54 (UTC+1)**, matching `db/custom.db`'s mtime, and `refundsTotal` / `refundsCount` are present on both `MonthlyClose` and `AnnualClose`, both tables still **empty** — so no sealed document was rewritten, exactly as the rehearsal predicted. **The production hash is now `a66bc96c20d3f00282ea249361dd80d6303434b1a43331c0725258b637db46f9`**, not the `7cc3367b…` recorded in *G*. Nothing is waiting on a `migrate deploy` any more. Everything else in the baseline is unchanged. Verified read-only.
 
 #### B. Waiting on the operator
 
@@ -67,7 +65,6 @@ real till until an action below is taken. Do not report them as delivered.
 
 | Action | Why it matters | Related |
 |---|---|---|
-| ~~**Stop the leftover servers**~~ ✅ **DONE 2026-09-04 (session 7)** | Stopped at the user's explicit request: PIDs 4016 (`-p 3011`) and 24116 (`-p 3012`) with their `bunx` parents 10540 and 22844, all Batch 3.1b leftovers serving the session-3 scratch copy (marker `SCRATCH-3.1b-Administrateur`), none holding the production database. **`bunx prisma generate` then succeeded**, so the leftover `next start` really was the `EPERM` cause — the port number recorded against it was simply wrong. Ports 3010, 3011 and 3012 are now free. | — |
 | Correct `printerName` in Réglages | Stored value is `"Epson TM-m30"`; the physical printer is the **Sunso WTP-801** (Ethernet). Cosmetic — nothing reads it. **This was impossible until Batch 3.1d**; the settings form now saves. | DOC-15 |
 | Choose a second volume for backups | See A. | C-06 |
 | Turn FACTICE on for any pre-go-live testing | See A. | L-18 |
@@ -134,7 +131,12 @@ obligation. Batch 3.3 established the narrower, checkable part (the checksum
 covers every byte including every date, and a third party can reproduce it
 with `sha256sum`); the compliance judgement is not a code question.
 
-#### F. Findings still open (sessions 3 and 4)
+#### F. Findings still open — a sessions 3-and-4 snapshot, NOT the register
+
+*Read this as annotation, not inventory.* It carries re-measurements that exist
+nowhere else (L-19's and L-21's especially), but it has not been extended since
+session 4 and therefore **omits L-28 through L-35**. **`NEWLY DISCOVERED ISSUES`
+below the stage sections is the authoritative list.* Merge this into it in 7.1.
 
 | ID | What | Suggested home |
 |---|---|---|
@@ -167,6 +169,10 @@ deleted afterwards.
 
 The developer is in a different country from the restaurant, and the restaurant's POS machine has **no copy of the app** — deployment is deliberately on hold until the software is fit to ship. Remote access to that machine is available in principle.
 
+**Reaffirmed by the operator 2026-09-04:** *“we're not going to install it now, we are working on having a complete fixed app first.”* So the order is settled — **the software is finished before it is deployed**, not in parallel.
+
+**One consequence a session should use when triaging, and stop using the day deployment is scheduled.** Nothing in this application currently has a live audience: no operator reads its screens, no sale is real, and every defect found is found by us. That is what makes it defensible to carry a user-visible defect across a batch boundary rather than guess at a fix — Batch 4.4b did exactly that with **L-35**, leaving a French banner that promises an approval which no longer happens, because Batch 4.4c changes the words anyway. **The moment an install date exists, that reasoning expires**: re-triage every open finding whose severity was discounted for want of an audience, L-35 and L-34 first.
+
 **Decision:** proceed with software-only work; defer every item that requires the app to be running on the POS all-in-one device. Affected items, none of which may be marked `COMPLETED` on automated evidence alone:
 
 | Item | What is deferred | What was done instead |
@@ -179,7 +185,7 @@ These are **deferred, not waived.** Stage 1 cannot be declared complete, and no 
 
 ### Immediate warnings for any session picking this up
 
-1. The repo **is** pushed: `origin/main` is `astrellaltd-coding/HibaPos`, and every session must leave its own commits pushed by the operator (Claude cannot push). Still: do not run `git clean` and do not delete the working tree without checking `git rev-list --left-right --count origin/main...HEAD` first.
+1. The repo **is** pushed: `origin/main` is `astrellaltd-coding/HibaPos`, and every session should leave its own commits pushed — **Claude can push when the user asks in the session** (see warning 9; the old parenthesis here said otherwise and was wrong). Do not push unprompted. Do not run `git clean`, and do not delete the working tree without checking `git rev-list --left-right --count origin/main...HEAD` first.
 2. **Do not run `bun run test:e2e`.** `playwright.config.ts` starts `bun run dev`, which loads the real `.env` and writes orders, refunds and Z reports into the **production database** and into an append-only hash chain that cannot be cleaned up. Fixed in Batch 6.3. *(Batch 6.3 is `NOT STARTED`; until it lands the command stays forbidden.)*
 3. **Do not run `bunx vitest` / `npx vitest`.** Only `bun test src` is safe. The test-DB redirect lives in `bunfig.toml` → `test-setup.ts` preload, which vitest does not read; four test files begin by wiping 17 tables.
 4. **The CATALOGUE in the production database is real and irreplaceable; the TRADING data is not.** Confirmed by the operator on 2026-09-03: categories, products, options and images are real work (commit `0c5ede6`); every order, payment, receipt, shift, Z report and fiscal event was created by the developer for testing, and P-04 deletes all of it before the first genuine sale. Treat catalogue changes as destructive and irreversible. Trading-data mistakes cost test data — which lowers the risk of exercising fiscal flows, but does **not** license careless writes to the live database: work on a scratch copy, as every batch in Stage 3 did.
@@ -189,17 +195,19 @@ These are **deferred, not waived.** Stage 1 cannot be declared complete, and no 
 7. **When running the app against a scratch copy, override `HIBAPOS_DATA_DIR` as well as `DATABASE_URL`.** Batch 3.4 overrode only the database and a generated archive landed in the real `db/fiscal-archives/`, orphaned from its row. It was deleted, but the next session should not repeat it.
 
 
-9. **Claude cannot do three things in this project** — the permission classifier refuses them, and each refusal is correct: `prisma migrate deploy` against production, writes to real menu data, and killing processes. Prepare, rehearse and verify; then hand the operator the exact command.
+9. **Claude cannot do two things in this project** — the permission classifier refuses them, and each refusal is correct: `prisma migrate deploy` against production, and writes to real menu data. Prepare, rehearse and verify; then hand the operator the exact command.
 
-   **`git push` is a fourth case and behaves differently.** Earlier sessions recorded it alongside the three above; that was wrong. It is an *explicit-permission* action, not a prohibited one — it goes through when the user asks for it in the session, which they did on 2026-09-04 (`3f31779..8a311dc`). Do not push unprompted, and do not tell the user it is impossible.
+   **Killing processes was listed here as a third and needs one distinction (Batch 4.4b, 2026-09-04).** Claude does not kill **the operator's** processes. A server **Claude started in the same session** is a different matter: 4.4b's `bunx next start -p 3026` (PID 24188) survived `TaskStop` — which killed only the `bunx` parent — and was terminated with `taskkill //PID <pid> //T //F`, after which `bunx prisma generate` succeeded. **Do this every time.** A session that leaves its own server running is how sessions 3 through 7 lost hours to a phantom `EPERM` (warning 6).
+
+   **`git push` is another case and behaves differently.** Earlier sessions recorded it as prohibited; that was wrong. It is an *explicit-permission* action — it goes through when the user asks for it in the session, which they did on 2026-09-04 (`3f31779..8a311dc`, and again for `7449683..1856cd7`). Do not push unprompted, and do not tell the user it is impossible.
 
 #### Environment as last seen — verify before trusting
 
 *These items describe the developer's machine at the end of session 4, not the project. Check each before acting on it, and delete it here once it no longer holds. Their numbers are kept because other sections refer to them.*
 
-6. ~~**`bunx prisma generate` fails `EPERM`.**~~ **RESOLVED 2026-09-04 (session 7)** — and the diagnosis was right in kind, wrong in detail. Batch 3.6b named a `next start` on **port 3010** (PID 2072); that process was already gone while the `EPERM` persisted. The actual holders were two *other* Batch 3.1b leftovers, PIDs 4016 (`-p 3011`) and 24116 (`-p 3012`), started 2026-09-03 23:05 and 23:12 and both serving the session-3 scratch copy. The user asked for them to be stopped; with all three ports free, `bunx prisma generate` **succeeded**, regenerating the client to v6.19.2, and `bun test src --timeout 30000` still gives 413 pass / 0 fail against it. **The lesson worth keeping: a stale `next start` holds `node_modules/.prisma/client/query_engine-windows.dll.node`, so kill every leftover server before blaming the filesystem or OneDrive — and check the port list rather than trusting a PID recorded in an earlier session.** The `bun run dev` half of the original claim was never re-tested here: `dev` loads the real `.env` and would open the production database, so it stays untried on this machine. Sessions that need a server should keep using `bunx next start` on a **spare port** — 3.6b used 3021, 4.1 used 3022/3023, 4.2 used 3024/3025 — and stop it by PID afterwards.
+6. ~~**`bunx prisma generate` fails `EPERM`.**~~ **RESOLVED 2026-09-04 (session 7)**, and re-confirmed in Batch 4.4b. **The lesson, which is the whole of what matters now: a stale `next start` holds `node_modules/.prisma/client/query_engine-windows.dll.node`, so stop every leftover server before blaming the filesystem or OneDrive — and check the port list rather than trusting a PID recorded in an earlier session.** Two sessions lost hours to a PID that was already dead. The forensics were retired to the record on 2026-09-04. **`bun run dev` stays untried on this machine** — it loads the real `.env` and would open the production database. Sessions that need a server use `bunx next start` on a **spare port** (3021, 3022/3023, 3024/3025, 3026 and 3033/3034 are all spoken for) and stop it afterwards with `taskkill //PID <pid> //T //F` — `TaskStop` alone kills only the `bunx` parent and leaves the server listening (warning 9).
 
-8. **`bun test src` fails 23 tests on this machine, and the code is fine.** All 23 are in `backup*.test.ts` / `auth.test.ts` and every one is a 5 s timeout: scrypt at N=2^17 costs ~1.5 s per call here, and a backup→restore round trip makes several. `bun test src --timeout 30000` gives **384 pass, 0 fail**. Confirmed on the untouched commit before any Batch 3.5 change was made. Recorded as **L-24**. Do not "fix" a test that fails this way.
+8. **`bun test src` fails 23 tests on this machine, and the code is fine.** All 23 are in `backup*.test.ts` / `auth.test.ts` and every one is a 5 s timeout: scrypt at N=2^17 costs ~1.5 s per call here, and a backup→restore round trip makes several. `bun test src --timeout 30000` gave **384 pass, 0 fail** *at the time* — that figure is a session-4 measurement kept for context; the current count is in *G*. Confirmed on the untouched commit before any Batch 3.5 change was made. Recorded as **L-24**. Do not "fix" a test that fails this way.
 
 ---
 
@@ -253,7 +261,7 @@ Audit IDs are **never renamed**. `T-`, `DOC-` and `V-` items are new IDs assigne
 
 | Command | What it does | Safe? |
 |---|---|---|
-| `bun test src` | **363** unit + integration tests, Bun runner, redirected to a temp DB. On a slow machine add `--timeout 30000` — see **L-24**, and warning 8 below | ✅ Safe |
+| `bun test src` | Unit + integration tests, Bun runner, redirected to a temp DB. **461 as of Batch 4.4b** — *G* carries the current count, not this row. On a slow machine add `--timeout 30000` — see **L-24**, and warning 8 below | ✅ Safe |
 | `bun run typecheck` | `tsc --noEmit` (note: `scripts/` is excluded by `tsconfig.json:41`) | ✅ Safe |
 | `bun run lint` | `eslint .` (note: `scripts/` is excluded by `eslint.config.mjs:49`) | ✅ Safe |
 | `bun run build` | `next build` — requires `SESSION_SECRET` in env or it throws at import time | ✅ Safe |
@@ -998,14 +1006,35 @@ Audit section J, step 5: close the one real privilege-escalation path, stop bloc
 
 ## Batch 4.4c — Step-up PIN for large discounts and every refund
 
-**Status:** `NOT STARTED` · **Decisions:** DD-19 · **Findings:** none — this is a behaviour change the operator asked for
+**Status:** `NOT STARTED` · **Decisions:** DD-19 · **Findings:** **L-34** and **L-35**, both in `discount-dialog.tsx` and both required by *Validation Required* below. The step-up itself is a behaviour change the operator asked for, not a finding.
 
 **What exists today.** Above the configured threshold a MANAGER or SUPER_ADMIN
-is **silently self-approved**: `orders/route.ts:251` sets
+is **silently self-approved**: `orders/route.ts:238` sets
 `discountApproverId = user.id` with no prompt and no keystroke, and
-`refund/route.ts:87` does the same for a refund of any amount. The record is
+`refund/route.ts:96` does the same for a refund of any amount. The record is
 therefore not empty — it names the manager as their own approver — but
-nothing about the act is deliberate.
+nothing about the act is deliberate. *(Line numbers re-measured after Batch
+4.4b, which removed the CASHIER arms that used to sit above both. Re-grep
+before trusting them.)*
+
+**What Batch 4.4b left standing for this batch, deliberately.** Read its stub
+above before starting; the short version is that the wiring is already there.
+
+- `payment-dialog.tsx:121` holds `const MANAGER_APPROVAL_TOKEN_REQUIRED = false`
+  and the gate it feeds at `:124`. The `ManagerApprovalDialog`, its
+  `handleApproved`, and the **`finalize(tokenArg)` re-entry mechanism** are all
+  still mounted and working — that mechanism was a post-audit bug fix (N1: a
+  state-based re-entry captured a stale closure and re-opened the dialog
+  forever), so **reuse it rather than rebuilding it**.
+- `/api/auth/approve`, `approvals.ts`, `manager-approval-dialog.tsx` and Batch
+  4.1's `approval-lockout.ts` are untouched and dormant.
+- `discount.approvalToken` is still accepted on the wire at
+  `orders/route.ts:40` and ignored. Decide whether the step-up replaces it or
+  sits beside it.
+- `orders-view.tsx` still opens the manager dialog on **every** refund and
+  sends a token — that is **M-18**, assigned to Batch 5.7, and this batch will
+  collide with it. Decide explicitly whether 4.4c supersedes M-18 or leaves it;
+  do not let it be decided by accident.
 
 **What DD-19 asks for.** The signed-in user re-enters **their own PIN** to
 confirm. The control is not distrust of the manager; it is the unattended
@@ -1043,6 +1072,8 @@ with no challenge whatsoever.
 - Targeted test: the derivation goes through the bounded queue — the event loop is not blocked (Batch 4.2's property).
 - Each new test **fails against the pre-batch code**.
 - Manual, on a scratch copy through the real routes: discount below threshold unchanged; above threshold prompts; refund prompts; both appear correctly in the journal and the audit log.
+- **L-35 must be closed by this batch.** `discount-dialog.tsx:74-80` still promises « Un manager doit approuver lors de l'encaissement », which Batch 4.4b made false and deliberately did not reword because DD-19 changes the words (the caller's **own** PIN, not a manager's). This batch may not close while that banner is wrong.
+- **L-34 must be closed by this batch.** `discount-dialog.tsx:35` computes `percent` as euros ÷ cents, so a real 40 % discount displays as « 0.4% du sous-total ». This batch makes that very threshold the trigger for a PIN prompt, so an operator reading the wrong figure will be surprised by the challenge. `handleChange` at `:38` already has the arithmetic right — copy it, do not invent a third form.
 - `bun test src` — PASS. `bun run typecheck` — PASS. `bun run lint` — PASS. `bun run build` — PASS.
 
 ### Batch 4.4c — Status Record
