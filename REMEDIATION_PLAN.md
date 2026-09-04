@@ -11,19 +11,19 @@ Detailed audit record: https://claude.ai/code/artifact/329316b0-3a6b-48b0-9d27-d
 
 **Overall:** NOT READY FOR PRODUCTION
 
-**Current Stage:** Stage 4 — Security & integrity. (**Stage 3 is COMPLETED** — every batch 3.1 through 3.6 — with C-22's chain-design half carried forward as `REQUIRES EXTERNAL VERIFICATION` and V-03 open for professional confirmation. Stage 1 is **partly done**: 1.1 and 1.2 COMPLETED, 1.3 `IMPLEMENTED — TESTING REQUIRED` on hardware, 1.4 deferred. Stage 2 is COMPLETED.)
+**Current Stage:** Stage 3, **reopened 2026-09-04 for one small batch, 3.6b** (L-25, L-26 — decided in DD-18), which runs before Stage 4. (**Stage 3 is COMPLETED** — every batch 3.1 through 3.6 — with C-22's chain-design half carried forward as `REQUIRES EXTERNAL VERIFICATION` and V-03 open for professional confirmation. Stage 1 is **partly done**: 1.1 and 1.2 COMPLETED, 1.3 `IMPLEMENTED — TESTING REQUIRED` on hardware, 1.4 deferred. Stage 2 is COMPLETED.)
 
-**Current Batch:** Batch 4.1 — Manager-approval brute force · `NOT STARTED`
+**Current Batch:** Batch 3.6b — Close timing and close columns · `NOT STARTED` (DD-18 answered 2026-09-04)
 
 **Last Completed Batch:** Batch 3.6 — Close chain ordering and fiscal document content (M-01, M-06, M-07). Period closes must now be sealed in order; receipts carry a per-rate VAT block and the restaurant's TVA number; the Z report and its sealed journal entry itemise the day's refunds. **A migration is written and rehearsed but NOT applied to production** — see *OPEN THREADS → A*.
 
-**Next Batch:** Batch 4.1. **Batch 1.4 is unblocked in design** (DD-02 answered) but still deferred on hardware — see *Hardware-dependent validation* below.
+**Next Batch:** Batch 4.1 — Manager-approval brute force, after 3.6b. **Batch 1.4 is unblocked in design** (DD-02 answered) but still deferred on hardware — see *Hardware-dependent validation* below.
 
 **Blocked:** Batch 1.3 `[HW]` sign-off and Batch 1.4 — both need the app running on the restaurant's POS machine, which is in a different country from the developer and has no copy of the app installed (decision of 2026-09-03).
 
-**Awaiting decision:** Batch 5.3 (cross-shift refunds), Batch 5.5 (cash movements), Batch 5.6 (order cancellation) — see *Design Decisions Required*. **DD-03 and DD-17 were answered on 2026-09-03, DD-05 on 2026-09-04**; nothing blocks Stage 4.
+**Awaiting decision:** Batch 5.3 (cross-shift refunds), Batch 5.5 (cash movements), Batch 5.6 (order cancellation) — see *Design Decisions Required*. **DD-03 and DD-17 were answered on 2026-09-03, DD-05 on 2026-09-04**; nothing blocks Stage 4. **DD-18 answered 2026-09-04** (premature closes refused; L-26 bundled) and opened Batch 3.6b.
 
-**Last Updated:** 2026-09-04 (session 4 — Batches 3.5 and 3.6, which completes Stage 3; read *OPEN THREADS* below before starting anything)
+**Last Updated:** 2026-09-04 (session 4 — Batches 3.5 and 3.6, which completes Stage 3; then the split into plan and record, and DD-18 / Batch 3.6b; read *OPEN THREADS* below before starting anything)
 **Restructured:** 2026-09-04 — completed batches now live verbatim in `REMEDIATION_RECORD.md`; this file keeps the resume block, the open work, the registers and a stub per completed batch. Everything a session must know before acting sits above the first stage heading. See *HOW TO USE THIS FILE*.
 
 ### OPEN THREADS — read this before starting a batch
@@ -124,8 +124,8 @@ with `sha256sum`); the compliance judgement is not a code question.
 | **L-21** | `renderReceipt()` centres but never wraps, so the restaurant's real 56-character address overflows 48-column paper on every ticket. **Re-measured in Batch 3.6 and still live** — 56 columns against a 48-column width, on a ticket rendered from the real settings. The four lines M-06 adds are at most 48, so the overflow is the address alone. | with the printer work |
 | **L-22** | Validation errors surface as untranslated English zod messages in a French UI. | 7.1 |
 | **L-24** | `bun test src` fails 23 tests on a slow machine — the backup/restore suite exceeds Bun's default 5 s timeout because scrypt at N=2^17 costs ~1.5 s per call here. Nothing to do with the code; it cost most of an hour to establish that in session 4. Run `bun test src --timeout 30000` if the failures are all in `backup*.test.ts`. | 6.1 |
-| **L-25** | The close guard added in 3.6 enforces *order* but not *timing*: sealing September on 4 September succeeds and permanently seals a partial month. Decide before the first real close. | needs a decision — before 8.0 |
-| **L-26** | `MonthlyClose` / `AnnualClose` hash a `totalRefunded` they have no column for, so no query can read it. Trivial while zero closes exist. | 3.6 follow-on or 8.0 |
+| **L-25** | The close guard added in 3.6 enforces *order* but not *timing*: sealing September on 4 September succeeds and permanently seals a partial month. Decide before the first real close. | needs a decision — before 8.0 → **decided, DD-18; Batch 3.6b** |
+| **L-26** | `MonthlyClose` / `AnnualClose` hash a `totalRefunded` they have no column for, so no query can read it. Trivial while zero closes exist. | 3.6 follow-on or 8.0 → **Batch 3.6b** (DD-18) |
 | **L-12**, **L-10**, **L-11** | Pre-existing, unchanged in sessions 3 and 4. | as recorded |
 
 #### G. Current baselines — check these before trusting anything
@@ -348,6 +348,7 @@ These cannot be resolved from the code. **Claude must not decide them.** Each bl
 | **DD-17** | **ANSWERED 2026-09-03 — the VAT rate lives on the category, inherited nearest-wins** (own category → parent → default), with a per-product override flag and a constrained selector. The original row lists 20 / 10 / 5,5 / 2,1 %; Batch 3.1c's record says it shipped 20 / 10 / 5,5 with 2,1 % excluded. | Batch 3.1c (`COMPLETED`) | Decided by the user. Full rationale: record → *Answered design decisions*. |
 | **DD-04** | **Backup key rotation policy.** Rotating `BACKUP_ENCRYPTION_KEY` orphans every existing backup permanently. Re-encrypt the retained set first, accept the loss, or introduce key versioning before rotating? | Batch 7.3; P-02 | Retention obligations may make discarding old backups unacceptable — see V-04. |
 | **DD-05** | **ANSWERED 2026-09-04 — refuse out-of-order closes.** A close must be the period immediately following the last sealed one; the first close is unconstrained. Decided with zero closes in existence. | Batch 3.6 (`COMPLETED`) | Evidence: record → Batch 3.6 status record, and *Answered design decisions*. |
+| **DD-18** | **ANSWERED 2026-09-04 — refuse a premature close, with no override.** A month or year close is refused while its period has not ended, and while a shift inside the period is still `OPEN`; the close screen defaults to the last completed period instead of the current one. L-26's missing refunds columns on the period closes are added in the same batch, while zero closes exist. | Batch 3.6b (`NOT STARTED`) | Decided by the user on a plain-language brief. Reasoning: the first premature seal is unrepairable (a sealed period cannot be edited, deleted or re-sealed), the screen proposed the wrong period by default, and zero closes exist today so the rule costs nothing to impose. A confirmation dialog was rejected as too weak for an irreversible fiscal action. Whether French practice imposes further rules on period closes stays with V-08; this is a code decision and claims nothing fiscal. |
 | **DD-06** | **Is LAN access required?** If no, bind to `127.0.0.1`. If yes, set `APP_URL` to an `http://` value so the session cookie works, and accept unencrypted traffic on the restaurant network. | Batch 4.3 | Currently binds `0.0.0.0` with a `secure` cookie, so LAN login silently fails — protective by accident. |
 | **DD-07** | **Intended cashier visibility.** Which reports and settings should a CASHIER see? The X report is currently open to cashiers via the shifts view while `POST /api/reports/x` is MANAGER+. | Batch 4.4 (M-19s) | Decide the matrix first, then make GET and POST agree and update the README role table. |
 | **DD-08** | **Operator scripts.** Guard them, or remove them from the shipped tree? | Batch 4.5 (C-17) | Precedent exists: `scripts/delete-products.js` was removed for the same hazard. |
@@ -618,7 +619,7 @@ Audit section J, step 3: before any real data accumulates. Restore must put imag
 
 # STAGE 3 — FISCAL CORRECTNESS
 
-**Stage status:** `COMPLETED` (2026-09-04) — all ten batches done: 3.1, 3.1b, 3.1d, 3.1c, 3.2, 3.2b, 3.3, 3.4, 3.5, 3.6. Every thread the stage opened is closed: the VAT-*rate* thread (C-12, L-16, L-17), the reconciliation thread (C-10, C-11, M-13, M-14, L-23) — **every revenue figure in the application now comes from one aggregation** — archives (C-04, M-02), the operator interface (C-27), the audit trail (C-13, M-04) and close ordering (M-01, M-06, M-07).
+**Stage status:** `IN PROGRESS` — the ten batches 3.1, 3.1b, 3.1d, 3.1c, 3.2, 3.2b, 3.3, 3.4, 3.5, 3.6 are `COMPLETED` (2026-09-04); **Batch 3.6b** (L-25, L-26; DD-18) was added on 2026-09-04 to run before Stage 4 and is `NOT STARTED`. All ten original batches done. Every thread the stage opened is closed: the VAT-*rate* thread (C-12, L-16, L-17), the reconciliation thread (C-10, C-11, M-13, M-14, L-23) — **every revenue figure in the application now comes from one aggregation** — archives (C-04, M-02), the operator interface (C-27), the audit trail (C-13, M-04) and close ordering (M-01, M-06, M-07).
 
 **Two items leave the stage deliberately unresolved, and neither is a code question:**
 
@@ -833,6 +834,55 @@ Nothing else in the catalogue changes: all 61 non-drink products stay at 10 %.
 - **(6) V-03 is not answered and is not claimed to be.** *(record line 1104)*
 
 **Left open:** L-25, L-26 → *Newly Discovered Issues*; V-03 open (external); L-21 unchanged and not caused here; the migration is unapplied (*Open Threads → A, B*).
+
+---
+
+## Batch 3.6b — Close timing and close columns
+
+**Status:** `NOT STARTED` · Decided in **DD-18**, 2026-09-04 · Addresses **L-25**, **L-26**
+
+Runs **before Batch 4.1**. Both items are cheap while zero monthly and annual closes exist (*Open Threads → G*) and expensive afterwards: a premature seal is permanent, and L-26's migration would then rebuild tables holding sealed fiscal documents.
+
+### L-25 — A month or year can be sealed before it has ended
+
+**Status:** `NOT STARTED` · Severity: MEDIUM · Category: fiscal (sealed-period integrity)
+
+**Problem.** `closeMonth` and `closeYear` check order (Batch 3.6, `assertNextPeriod()`) but not time. Sealing the current month succeeds on any day of it and seals a partial period as the whole; the period is `@unique`, so the rest of the month can never be sealed and never appears in any close. The "Clôturer le mois" control defaults to the current month, so the wrong period is the one proposed. A second timing gap in the same place: a period can be sealed while a shift inside it is still `OPEN`, so the sealed period exists before its own last Z report does, and the reconciliation Batch 3.2 established (period close = sum of its Z reports) cannot be checked at sealing time.
+
+**Location.** `src/lib/services/fiscal.ts` (`closeMonth`, `closeYear`, `assertNextPeriod`); `src/features/fiscal/fiscal-view.tsx` (period fields and their defaults); `src/app/api/fiscal/close-month/route.ts`, `src/app/api/fiscal/close-year/route.ts`.
+
+**Decision (DD-18, 2026-09-04).** Refuse, server-side and without an override: a close whose period end is still in the future, and a close with any `OPEN` shift whose opening time falls inside the period. The screen defaults to the last completed month, and the last completed year, not the current one. "Ended" is judged the way the existing code derives period boundaries (confirm the convention in `aggregatePeriod` and reuse it rather than inventing a second one); refusing at 23:30 on the last day of the period is accepted behaviour.
+
+**Remediation direction.** A guard beside `assertNextPeriod()`, running **before** `aggregatePeriod` so a refusal writes nothing; French messages naming the period and the reason; the same two rules applied to `closeYear`. Confirm what `closeYear` currently requires of the year's monthly closes and record it — do not add a further requirement without a decision. Change only the defaults in the UI, not its shape.
+
+### L-26 — Monthly and annual closes hash a refunds total they have no column for
+
+**Status:** `NOT STARTED` · Severity: LOW · Category: data integrity (consistency with M-07)
+
+**Problem.** `aggregatePeriod` returns `totalRefunded`; it is spread into `dataPayload`, so it is inside `dataJson` and covered by the close hash, but `MonthlyClose` and `AnnualClose` have no column for it, so no query, report or screen can read it without parsing JSON. `ZReport` gained `refundsTotal` / `refundsCount` in M-07; the period closes did not, because M-07 named only `ZReport`.
+
+**Location.** `prisma/schema.prisma` (`MonthlyClose`, `AnnualClose`); `src/lib/services/fiscal.ts` (`closeMonth`, `closeYear`); `src/features/fiscal/fiscal-view.tsx` (closes list).
+
+**Remediation direction.** Add `refundsTotal` and `refundsCount` to both models, NOT NULL with default 0 (the M-07 convention), write them from the aggregation, and show them beside the sales figures. **The hashed payload must not change shape** unless the change is proved not to alter any existing close — with zero closes there is nothing to alter, and the test must say so explicitly rather than assume it. Requires a migration: rehearse and fingerprint-diff on a copy (*Methods*), then hand the operator the command.
+
+### Batch 3.6b — Validation Required
+
+- Targeted test: sealing the current month is refused, writes no row, no `CLOTURE_M`, and consumes no sequence number; sealing the previous month succeeds.
+- Targeted test: the boundary — a close attempted on the last day of the period is refused; the same close on the first day of the next period succeeds.
+- Targeted test: a period with an `OPEN` shift inside it is refused; the same period succeeds once the shift is closed.
+- Targeted test: `closeYear` obeys both rules.
+- Targeted test: `assertNextPeriod()` and the timing guard both run before `aggregatePeriod`; a refusal for either reason leaves the database untouched.
+- Test: the fiscal screen's default period is the last completed month and the last completed year.
+- Targeted test: `MonthlyClose.refundsTotal` / `refundsCount` and the annual equivalents equal the period's refunds; the `CLOTURE_M` / `CLOTURE_A` payloads still verify.
+- Migration applied cleanly on a copy of the production database; the fingerprint diff shows only the new columns and the `_prisma_migrations` row; every sealed row (Z reports, events) unchanged; `/api/fiscal/verify` reports `ok`.
+- Every new behavioural test proved to fail on the pre-fix code (Stage 3 rule).
+- `bun test src --timeout 30000` — PASS. `bun run typecheck` — PASS. `bun run lint` — PASS. `bun run build` — PASS.
+- Manual, on a scratch copy with **both** `DATABASE_URL` and `HIBAPOS_DATA_DIR` overridden: the screen proposes the last completed month; attempting the current month shows the French refusal and writes nothing.
+- **Fiscal question, not a code question:** whether a compliant period close must satisfy further timing rules stays with V-08. No compliance claim rests on this batch (safety rule 13).
+
+### Batch 3.6b — Status Record
+
+**Status:** `NOT STARTED` · **Completed:** — · **Changes:** — · **Files:** — · **Tests:** — · **Commit:** — · **Notes:** —
 
 ---
 
@@ -1665,8 +1715,8 @@ Open rows only. A row resolved by a batch moves, unchanged, to `REMEDIATION_RECO
 
 | ID | Date | Found during | Description | Severity | Assigned to batch |
 |---|---|---|---|---|---|
-| **L-25** | 2026-09-04 | Batch 3.6 (M-01) | **The close guard enforces order, but nothing stops you sealing a month that has not finished.** `closeMonth(2026, 9, …)` succeeds on 4 September and seals a partial September as if it were the whole month; the period is then `@unique`, so the rest of the month can never be sealed and never appears in any close. M-01's guard does not help — sealing September early is perfectly in sequence. Pre-existing, not introduced by Batch 3.6, and out of its scope (the batch's decision was about ordering, not about timing). Candidate fix: refuse a period whose end is still in the future, or require an explicit confirmation. Worth deciding before the first real close, because the first premature seal is unrepairable. | MEDIUM (a sealed, permanently incomplete fiscal period) | needs a decision — suggest a small batch before 8.0 |
-| **L-26** | 2026-09-04 | Batch 3.6 (M-07) | **`MonthlyClose` and `AnnualClose` hash a `totalRefunded` they have no column for.** `aggregatePeriod` returns `totalRefunded` and it is spread into `dataPayload`, so it *is* inside `dataJson` and *is* covered by the close hash — but there is no column, so no query, report or screen can read it without parsing the JSON. The Z report gained exactly these columns in M-07; the period closes did not, because the plan's M-07 names only `ZReport`. Trivial to add while zero closes exist (the same argument as DD-05); much less trivial afterwards. | LOW (data present but unreadable; consistency with M-07) | 3.6 follow-on or 8.0 |
+| **L-25** | 2026-09-04 | Batch 3.6 (M-01) | **The close guard enforces order, but nothing stops you sealing a month that has not finished.** `closeMonth(2026, 9, …)` succeeds on 4 September and seals a partial September as if it were the whole month; the period is then `@unique`, so the rest of the month can never be sealed and never appears in any close. M-01's guard does not help — sealing September early is perfectly in sequence. Pre-existing, not introduced by Batch 3.6, and out of its scope (the batch's decision was about ordering, not about timing). Candidate fix: refuse a period whose end is still in the future, or require an explicit confirmation. Worth deciding before the first real close, because the first premature seal is unrepairable. | MEDIUM (a sealed, permanently incomplete fiscal period) | needs a decision — suggest a small batch before 8.0 → **decided 2026-09-04, DD-18; Batch 3.6b** |
+| **L-26** | 2026-09-04 | Batch 3.6 (M-07) | **`MonthlyClose` and `AnnualClose` hash a `totalRefunded` they have no column for.** `aggregatePeriod` returns `totalRefunded` and it is spread into `dataPayload`, so it *is* inside `dataJson` and *is* covered by the close hash — but there is no column, so no query, report or screen can read it without parsing the JSON. The Z report gained exactly these columns in M-07; the period closes did not, because the plan's M-07 names only `ZReport`. Trivial to add while zero closes exist (the same argument as DD-05); much less trivial afterwards. | LOW (data present but unreadable; consistency with M-07) | 3.6 follow-on or 8.0 → **Batch 3.6b** (DD-18) |
 | **L-24** | 2026-09-04 | Batch 3.5 baseline | **`bun test src` fails 23 tests on a machine this slow, with no code defect involved.** All 23 are timeouts against Bun's 5 s default: 22 in `backup*.test.ts` and 1 in `auth.test.ts`. Measured cause — `scryptSync` at N=2^17 costs **~1519 ms** per call here (N=2^16 costs ~727 ms), and a backup→restore round trip performs several: the archive encrypt, the pre-restore safety-snapshot encrypt, and the decrypt. The cascade that follows is misleading: the test times out, `afterEach` deletes the temp directory, and the still-running `VACUUM INTO` then reports `unable to open database` (SQLITE_CANTOPEN, P2010), which reads like a filesystem or Prisma fault and is not one. `bun test src --timeout 30000` → **340 pass, 0 fail**. Whole-suite runtime is ~192 s against the 25,9 s the plan recorded for the same suite, so this is machine state, not a regression. Established on the untouched pre-batch commit `e86c5e4`. Options: raise the timeout in `bunfig.toml`, or lower the scrypt cost in test runs only — the second must not touch the production KDF parameters. | LOW (test infrastructure; hides real failures behind noise and costs a session an hour to diagnose) | 6.1 |
 | **L-22** | 2026-09-03 | Batch 3.1d | **Validation errors reach the French UI as untranslated English zod messages.** `settings/route.ts` returns `parsed.error.issues[0]?.message`, and `settingsSchema` defines custom messages for only a few fields, so the operator saw `Too big: expected number to be <=48` (L-20). That specific message is now unreachable, but any other out-of-range settings value produces the same class of output. Applies to other schemas in `validation.ts` too. | LOW (operator-facing text) | 7.1 or 3.4 |
 | **L-21** | 2026-09-03 | Batch 3.1b manual validation | **`renderReceipt()` centres but never wraps, so an over-long field overflows the paper.** A receipt rendered at the corrected 48 columns still contained a **56-character** line: the restaurant's real address, `23 Grande Rue 45210, 45210 Ferrières-en-Gâtinais, France`. On 48-column paper that wraps mid-address on every ticket. Distinct from L-14, which is about *archived* 80-column receipts — this is new output at the correct width. Affects any long `restaurantAddress`, `restaurantName` or `footerNote`. | MEDIUM (every printed ticket, once the printer is live) | 3.4 or with L-20 |
