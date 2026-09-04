@@ -1463,6 +1463,147 @@ that PINs stay as they are for now. Concretely, for this batch:
 
 **(9) Environment.** This batch's scratch servers ran on ports 3026 and 3028–3032 and were all stopped by PID. The `next start` child still survives `TaskStop` on the wrapper, as Batch 4.1 note 7 recorded. The Prisma `EPERM` is gone since the session-5 leftovers were stopped — see the correction appended to Batch 4.2.
 
+## Batch 4.4 — Authorization gating parity
+
+*Moved verbatim from `REMEDIATION_PLAN.md` lines 949–1046 (commit `250d26c`, plus this batch's status record) on 2026-09-04. Nothing in this section has been rewritten; corrections, if any, are appended dated notes.*
+
+**Status:** `COMPLETED` (2026-09-04)
+
+### Operating model (operator determination, 2026-09-04)
+
+DD-07 was asked as "which reports and settings should a CASHIER see". **It has
+no subject.** Production has carried exactly two accounts throughout —
+`manager` (MANAGER) and `admin` (SUPER_ADMIN) — and the user has confirmed the
+deployment:
+
+- **Only the MANAGER account operates the till.**
+- **The SUPER_ADMIN account is the developer's**, not the restaurant's. Staff
+  do not use it. **Its visibility is accepted**: the manager may see that such
+  an account exists, and the login screen keeps its SUPER_ADMIN button.
+- **`CASHIER` stays in the code but no cashier account will exist.** The role
+  is implemented and working; it is simply unused.
+- **No discount or refund approval control is required in operation.**
+
+**M-19s has no subject under this model — mark it `DEFERRED`, not
+`COMPLETED`.** It described reads left ungated *for a CASHIER*: `GET
+/api/settings` (SIRET, TVA number, discount threshold), `GET /api/reports/x`,
+and the shift endpoints. There are no cashiers, and the only two roles that
+exist are both entitled to all of it — a MANAGER running the restaurant may
+read its own SIRET. The `GET`/`POST` disagreement on `/api/reports/x` is real
+but unobservable here, because every account that can call the `GET` can also
+call the `POST`.
+
+Two things must therefore be written down rather than fixed, so neither is
+lost if a cashier account is ever created: the ungated reads above, and the
+fact that **`GET /api/auth/profiles` is public and returns every active user's
+id, username, name and role**, with `login-screen.tsx:486-489` rendering a
+dedicated button for the SUPER_ADMIN profile. The user has **accepted** that
+the manager sees the developer's account, so this batch does not hide it. C-18
+already carries the endpoint as an enumeration surface.
+
+**What this does NOT change.** C-16, M-24, M-25 and M-26 are untouched by the
+absence of cashiers. C-16 in particular is fully live between MANAGER and
+SUPER_ADMIN: `users`, `settings`, `audit`, `backups` and `logs` are all
+SUPER_ADMIN-only in `nav-config.ts`, but the render branch has no role
+condition, so **a manager typing `#/backups` still gets the restore button
+mounted**. The remediation direction's "default an unknown role to CASHIER"
+still stands — the role is retained precisely so it can serve as the
+least-privileged default.
+
+**Two consequences recorded, not acted on** (safety rule 10 and rule 11):
+
+1. **The approval gates never fire.** `orders/route.ts:223` requires an
+   approval token only when `user.role === "CASHIER"`; `refund/route.ts:87`
+   lets MANAGER and SUPER_ADMIN self-approve. So a manager may apply a discount
+   of any size with **no approver recorded**, and refund any amount by
+   self-approval. Batch 4.1's brute-force lockout and Batch 3.5's C-13 approver
+   trail are therefore guarding a path this deployment does not use. This is
+   the operator's decision and is not a defect to fix here.
+2. **The approval machinery is kept, not deleted.** The user retained the
+   `CASHIER` role, and that role is meaningless without the approval mechanism
+   that gives it a discount ceiling. Deleting `/api/auth/approve`,
+   `approvals.ts` and the dialog would also undo audited work from Batches 3.5
+   and 4.1. Removal stays available as a later decision; nothing in this batch
+   depends on it.
+
+### C-16 — Role gating is client-side only; every admin view renders for every user
+
+**Status:** `COMPLETED` · Severity: HIGH · Category: security
+
+**Problem.** `app-shell.tsx:124-139` renders by `view ===` with no role condition, and `initHashSync` accepts any of the 17 valid hashes from the URL. Role filtering exists in exactly one place — the home dashboard's module list.
+
+**Evidence.** A CASHIER typing `#/users`, `#/settings`, `#/audit`, `#/backups` or `#/logs` gets the full view mounted with live forms and buttons, including the database-restore button. `home-dashboard.tsx:207` — `const role = (user?.role as Role) ?? "MANAGER"` — an undefined role fails **open** to MANAGER.
+
+**Location.** `src/components/shared/app-shell.tsx:124-139`; `src/store/app-store.ts:103-121`; `src/components/shared/home-dashboard.tsx:207, 259-261`
+
+**Impact.** The server side was audited route by route and **holds** — every sensitive mutation re-checks the role. So this is exposure and confusion rather than direct compromise: a cashier sees admin screens, reads whatever the ungated GETs return, and gets 403s on the rest. But the UI is now the only thing between a curious employee and the restore button.
+
+**Remediation direction.** Gate the render branch on `NAV_ITEMS.roles`, reject unauthorised hashes in `initHashSync`, and default an unknown role to CASHIER.
+
+| ID | Status | Problem | Location | Direction |
+|---|---|---|---|---|
+| **M-19s** | `DEFERRED` — no subject under DD-07 | Ungated reads for CASHIER: `GET /api/settings` (SIRET, TVA number, discount threshold), `GET /api/reports/x`, all shift endpoints. The X report is deliberately open because the cashier-visible shifts view uses it — which makes the MANAGER+ gate on `POST /api/reports/x` decorative. | `settings/route.ts:7`; `reports/x/route.ts:38`; `shifts/*` | Decide the intended cashier visibility, then make GET and POST agree. See DD-07. |
+| **M-24** | `COMPLETED` | `POST /api/upload` has no role gate, trusts the client-declared MIME type, and imposes no quota. | `upload/route.ts:31-56` | Add a role gate, magic-byte validation and a quota. Disk exhaustion is the realistic impact. |
+| **M-25** | `COMPLETED` | `PUT`/`DELETE /api/customers/[id]` have no role check — any cashier can edit or deactivate any customer record. | `customers/[id]/route.ts:20,32` | Add role checks consistent with the intended matrix. |
+| **M-26** | `COMPLETED` | No security headers anywhere: no CSP, X-Frame-Options, Referrer-Policy or HSTS, and no `middleware.ts` to add them. | `next.config.ts` | Add headers. Lower risk on a kiosk, but the app is served unencrypted over the LAN. |
+
+**Note on M-19s:** this ID is a sub-label for the ungated-reads row in the audit's Medium table, which had no distinct number. Recorded here to preserve traceability without renaming an existing ID.
+
+### Batch 4.4 — Validation Required
+
+- **API authorization test matrix (T-03):** for each of the 59 routes, assert the expected status for CASHIER / MANAGER / SUPER_ADMIN / unauthenticated. This is currently untested in its entirety.
+- Manual: a CASHIER navigating to `#/users`, `#/settings`, `#/audit`, `#/backups`, `#/logs` is redirected or refused, not shown the view.
+- Targeted test: an unknown/undefined role resolves to the least-privileged behaviour.
+- Targeted test: upload rejects a non-image with an image MIME header (M-24).
+- Targeted test: a CASHIER cannot modify or deactivate a customer (M-25).
+- Response headers verified on a real request (M-26).
+- Regression: every legitimate role can still perform its documented work.
+- `bun test src` — PASS. `bun run typecheck` — PASS. `bun run lint` — PASS.
+
+### Batch 4.4 — Status Record
+
+**Status:** `COMPLETED` · **Completed:** 2026-09-04 · **Commit:** `PENDING_SHA` · **Findings:** C-16, M-24, M-25, M-26; M-19s `DEFERRED`; T-03 partly
+
+**Changes.**
+
+**(1) C-16 — one gate, and it fails closed.** `canAccessView(role, view)` in `nav-config.ts` is now the single authority, and `app-shell.tsx` renders `<AccessDenied />` instead of the view when it says no. Before this the shell rendered on `view ===` with no role condition and `initHashSync` accepted any valid hash, so typing `#/backups` mounted the backups view with its live controls. The check sits in the shell rather than in `initHashSync` because the hash is parsed before the session is known; the shell is the first point that has both, and it recomputes on every render, so a role change through switch-user takes effect immediately.
+
+**(2) The fail-open default is gone.** `home-dashboard.tsx` read `(user?.role as Role) ?? "MANAGER"` — a user that failed to load produced a *manager's* module list. Every such default now resolves to `LEAST_PRIVILEGED_ROLE`, which is `CASHIER`. That is the reason DD-07 kept the role in the product: it is the floor the gate falls to.
+
+**(3) The role table changed, on the operator's decision (DD-07).** `settings` and `audit` were opened to MANAGER — Réglages carries the printer IP and name, the receipt width and the SIRET / TVA number, and the plan still carries an operator action to correct `printerName` there; the audit journal is read-only. `backups` was deliberately **not** opened: it holds the restore button, backups already run automatically at the Z close (Batch 2.2), and the manager account is whoever is standing at the till. `users` and `logs` stay SUPER_ADMIN. Each decision is a comment at the row it governs.
+
+**(4) M-24 — the upload route stopped trusting the client.** It had no role gate at all, believed the declared MIME type, and had no ceiling on the directory. It is now MANAGER+ (uploading is a catalogue action and `media` is MANAGER+), the bytes must carry the signature of the type they claim (`bytesMatchDeclaredType` in the new `image-upload.ts`), and the tree has a 250 MB quota against a live catalogue of ~49 MB. A file whose content contradicts its type is `400`; a full directory is `507`.
+
+**(5) M-25 — customer writes are gated.** `PUT` and `DELETE /api/customers/[id]` carried no role check whatsoever. Both are MANAGER+ now. `GET` stays open to any authenticated role: the customers view is available to every role and reading a customer is what it is for.
+
+**(6) M-26 — security headers.** CSP, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer` and a `Permissions-Policy` denying camera, microphone, geolocation and payment. **No HSTS, deliberately**: DD-06 binds the server to `127.0.0.1` over plain HTTP, and `Strict-Transport-Security` would teach the browser to refuse that origin — it would break the till. `script-src` keeps `'unsafe-inline'`/`'unsafe-eval'` because Next injects inline bootstrap scripts and a nonce-based policy needs middleware on every response; the value taken here is `frame-ancestors`, `object-src` and pinning every fetch to `'self'`. A CSP that breaks the POS is worse than one that narrows it.
+
+**(7) T-03 — the API surface is now walkable.** `withAuth`/`withAuthParams` stamp the gate they declare onto the handler they return (`roleGateOf`), which nothing in the request path reads. `api-authorization.test.ts` walks all 61 route modules and asserts that every exported method is wrapped, except eight named unauthenticated routes each carrying its reason.
+
+**Files:** `src/components/shared/nav-config.ts`, `src/components/shared/app-shell.tsx`, `src/components/shared/home-dashboard.tsx`, `src/components/shared/nav-access.test.ts` (new), `src/lib/api-handler.ts`, `src/lib/api-authorization.test.ts` (new), `src/lib/services/image-upload.ts` (new), `src/lib/services/image-upload.test.ts` (new), `src/app/api/upload/route.ts`, `src/app/api/customers/[id]/route.ts`, `next.config.ts`. **No migration.**
+
+**Tests:** `bun test src --timeout 30000` → **453 pass, 0 fail** (430 before; 23 new across three files). `bun run typecheck` — PASS. `bun run lint` — PASS. `bun run build` — PASS. **C-16 proved against the pre-batch code** in a real browser, on the same build and scratch data: with `nav-config.ts`, `app-shell.tsx` and `home-dashboard.tsx` restored from `HEAD`, a **MANAGER** navigating to `#/backups` got the full *Sauvegardes* view — subtitle « Export et restauration des données », a live « Créer une sauvegarde » button — and after the fix the same navigation renders « Accès refusé » and the view never mounts. The three files were restored afterwards and verified with `sha256sum -c`, all three OK.
+
+**Notes.**
+
+**(1) The audit's characterisation is exactly right, and now measured.** C-16 was scored as exposure rather than compromise because the server holds. Confirmed on the pre-batch build: the manager saw the backups view *and* its buttons, and pressing one returned `403 « Réservé au super administrateur »`. So the fix closes a confusion and a temptation, not an open door — which is worth saying plainly rather than overselling.
+
+**(2) What the browser run actually showed, and did not.** On the old build the *view* mounted with live controls; the per-backup **restore** button is rendered per row and that scratch copy had no backups yet, so the restore control itself was not observed — only the view that hosts it, and its create button. Everything else was observed directly: after the fix, `settings`, `audit`, `fiscal`, `reports` and `pos` opened for the MANAGER and `users`, `logs` and `backups` were refused.
+
+**(3) The CSP was verified in a browser, not just on the wire.** Headers confirmed on a real response, then the app driven under them: the POS rendered, **85 images loaded with 0 broken**, and the console carried **no errors and no CSP violation reports**. This mattered enough to check — a policy that blocks the app's own assets would take the till down at exactly the moment nobody is watching a console.
+
+**(4) T-03 is declaration-level, and that limit is in the test file's own header.** It asserts the gate each route *declares* — that it is wrapped, and which roles it names. It does not drive requests and assert status codes; `withAuth` → `getSession()` → `cookies()` throws outside a request scope, so a status-level matrix needs a harness and stays with Batch 6.1. What this catches: a new unguarded route, a widened gate, and the whole class M-24 and M-25 were. What it does not: a handler that declares the right roles and then ignores them.
+
+**(5) The matrix found something on its first run, which is the point.** `POST /api/backups`, `DELETE /api/backups/[id]`, `POST /api/users` and `PUT /api/settings` are guarded by an inline `if (user.role !== "SUPER_ADMIN")` inside the handler rather than by the declarative option, so `roleGateOf` reports them as open to any authenticated role. They are **not** insecure — the handler refuses — but the two idioms mean the declarative matrix cannot see about twenty gates. Converting them would change the French error text each returns (« Réservé au super administrateur » against `withAuth`'s « Accès refusé »), which is user-visible and outside this batch. Recorded as **L-32**; the test pins which idiom each destructive route uses so a deleted inline guard is still visible in review.
+
+**(6) Closing a caisse is deliberately open to any role**, per the business rule stated at `reports/z/route.ts:16`. A test asserts that absence so it reads as a decision rather than a gap the matrix missed.
+
+**(7) M-19s is `DEFERRED`, not fixed.** DD-07 removed its subject: it described reads left ungated *for a CASHIER*, and the only two roles in existence are both entitled to them. The underlying facts are written into the DD-07 amendment so none is lost if a cashier account is ever created.
+
+**(8) Production untouched.** `db/custom.db` is `a66bc96c20d3f00282ea249361dd80d6303434b1a43331c0725258b637db46f9` before and after, no `-wal` / `-shm` sidecars, no `db/fiscal-archives/` created. The scratch copy was proved before the first write by reading `MARQUEUR-4.4-SCRATCH` from the pre-auth `GET /api/auth/profiles`; all accounts were synthetic with PINs generated for the run.
+
+**(9) Environment.** Scratch servers ran on ports 3033 and 3034 and were stopped by PID. One thing worth knowing for the next browser run: a session cookie set at `http://127.0.0.1:<port>` did **not** persist in the browser, while the same cookie at `http://localhost:<port>` did — so drive the UI at `localhost`. The bind is unaffected; both names resolve to the loopback interface the server listens on.
+
 ---
 
 # COMPLETED REMEDIATION HISTORY
@@ -1495,6 +1636,7 @@ that PINs stay as they are for now. Concretely, for this batch:
 | 4.1 | COMPLETED | 2026-09-04 | `f14a50c` | C-08, opening Stage 4. Two walls where there had been none that held. **The bypass**: `clientIp` believed `X-Real-IP` / `X-Forwarded-For` on the strength of a comment describing a Caddy proxy deleted in commit `0aeea30`, so an authenticated cashier could rotate a header per request, mint a fresh bucket each time and grind the 10⁶ PIN space. It now returns a constant unless `TRUST_PROXY_HEADERS` declares a real proxy — which costs nothing, because a browser sends neither header — and the approve key drops the IP outright. **The missing lockout**: five wrong manager PINs from one caller inside fifteen minutes now refuse further approvals `423` until the window slides, checked before the scrypt loop, counted from the `MANAGER_APPROVAL_FAILED` audit rows the route already wrote — so it is durable across a restart and needed **no migration**. The caller's *account* is deliberately not locked: `getSession()` treats a live `lockedUntil` as session revocation, which would eject a cashier from the till mid-service with their caisse open. Validated end-to-end against the production build on a scratch copy with synthetic PINs: 403 ×4 then 423 with `Retry-After 895` under a rotating forged IP, `429` on the sixth, the cashier's session still valid, a second cashier unaffected, a correct PIN still issuing an amount-bound token, self-approval still refused — then the server was restarted and the lock held at `423`. 10 of the 16 new tests proved to fail on the pre-batch behaviour. Found the plan stale again: the operator has applied the 3.6b migration, so **nothing waits on a `migrate deploy`**; the production hash is now `a66bc96c…`. Recorded L-28, L-29. 400/400. |
 | 4.2 | COMPLETED | 2026-09-04 | `4022c9c` | C-09 (and T-04, its prerequisite). PIN key derivation was `scryptSync` at N=2^17 on the request thread — ~390 ms of frozen event loop per call, twice for a wrong PIN and once per manager on `/api/auth/approve`, so five managers and one fumbled PIN stopped the whole till. It now uses the async `crypto.scrypt`, the form `backup.ts` already used, behind a bound of **two concurrent derivations and a thirty-two-deep queue** in a new `pin-hash-queue.ts`; past that the auth routes answer `503` rather than let a caller queue unbounded 128 MiB buffers, which is the memory-exhaustion half of the finding. Measured on two production builds of the same tree differing only in `auth.ts`: during one wrong manager PIN the old build served **6** concurrent requests at a worst latency of **1608 ms**, the new one **491** at **24 ms**; 60 simultaneous unknown-user logins took **29.3 s** and were all accepted before, and are now 34 served + 26 refused. **T-04 was written first**, as the plan required, and the legacy N=2^14 fallback survives: a pre-hardening hash verifies, is flagged legacy, and is transparently re-hashed on success — proved end-to-end through both `login` and `unlock` on a scratch copy with synthetic PINs. Both halves proved against the pre-batch code: zero timer ticks during a 476 ms derivation on old `auth.ts`, and 2 of T-04's 6 cases fail when the fallback is deleted. **No migration.** Corrected the environment note blaming port 3010 for the Prisma `EPERM` — that process is gone and the `EPERM` remains. Recorded L-30. 413/413. |
 | 4.3 | COMPLETED (C-18 `◐`) | 2026-09-04 | `aac03f6` | C-18 + M-23 + M-27 + M-28, on two operator decisions. **DD-06 answered — no LAN access**: the server binds `127.0.0.1`, and the measurement corrected the plan's own framing, which called the previous state "protective by accident". It was not: in a browser at the LAN address login returned 200 and the session silently never stuck, while unauthenticated `profiles` and `login` answered over the LAN perfectly well — the broken `Secure` cookie blocked the staff and no attacker. **M-23**: `PUT /api/users/[id]` let any caller rewrite their own `pin` and `active` with no current PIN, so anyone at an unlocked till could re-PIN the signed-in cashier or switch their account off; proved on the old build (200, hash changed, `active` 0) and now a flat refusal, with self-deactivation refused for everyone including the super administrator. The finding's own "require the current PIN" was **not** built: no self-service screen exists, and the operator decided PINs stay as they are. **C-18**: the seed bootstrap now refuses any database that has ever traded — the counter check catches the C-17 wipe that leaves counts at zero; proved on the old build, where a wiped copy with counters at 20/3/2/2 handed out a fresh SUPER_ADMIN with the published default PIN. **Its credential half stays open by decision**, so the finding is `◐` and the residual threat is physical rather than networked. **M-27**: the consumed-token set became a swept map (7 entries where 2 are expected, without the sweep). **M-28**: `Session.device` read the cookie jar, so it was null on every row ever written; now the header, verified end to end on both builds. **No migration.** Recorded L-31. 430/430. |
+| 4.4 | COMPLETED (M-19s `DEFERRED`) | 2026-09-04 | `PENDING_SHA` | C-16 + M-24 + M-25 + M-26, on DD-07's operating model. **C-16**: role gating was client-side only and lived in one place — the shell rendered on `view ===` with no role condition, so any account could type `#/backups` and mount the view with its live controls, and the home dashboard's `?? "MANAGER"` meant a user that failed to load failed **open**. `canAccessView` is now the single gate, defaulting to the least privilege (which is why DD-07 kept `CASHIER` in the product). Proved in a real browser on the same build and data: pre-batch, a MANAGER at `#/backups` got the full *Sauvegardes* view — « Export et restauration des données », live create button — and pressing it returned `403`, which is exactly the audit's "exposure and confusion rather than direct compromise"; post-batch the same navigation renders « Accès refusé » and nothing mounts. Per DD-07 the manager **gained** `settings` and `audit` and **did not gain** `backups`, which holds the restore button. **M-24**: upload had no role gate, believed the client's MIME type and had no ceiling — now MANAGER+, signature-checked against the declared type, 250 MB quota against a ~49 MB live catalogue. **M-25**: customer `PUT`/`DELETE` had no role check at all — now MANAGER+, `GET` left open. **M-26**: CSP, frame, nosniff, referrer and permissions headers, verified on the wire *and* in the browser (85 images, 0 broken, no violations); **no HSTS**, because DD-06 serves plain HTTP on loopback and HSTS would break the till. **T-03 delivered at declaration level**: wrappers now stamp their declared gate, and a test walks all 61 route modules asserting every method is wrapped bar eight named exceptions — status-level coverage stays with 6.1. **M-19s `DEFERRED`**: DD-07 removed its subject. **No migration.** Recorded L-32. 453/453. |
 
 ---
 

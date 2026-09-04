@@ -10,7 +10,9 @@ import { HomeDashboard } from "@/components/shared/home-dashboard";
 import { ErrorBoundary } from "@/components/shared/error-boundary";
 import dynamic from "next/dynamic";
 import { ViewLoader } from "@/components/shared/view-loader";
-import type { CategoryDto, ProductDto } from "@/types/api";
+import type { CategoryDto, ProductDto, Role } from "@/types/api";
+import { canAccessView } from "@/components/shared/nav-config";
+import { ShieldAlert } from "lucide-react";
 
 const DashboardView = dynamic(
   () => import("@/features/dashboard/dashboard-view").then((m) => m.DashboardView),
@@ -83,8 +85,34 @@ const TablesView = dynamic(
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
+/** Shown instead of a view the current role may not open (C-16, Batch 4.4).
+ *
+ *  A refusal rather than a redirect: sending the user to the home screen would
+ *  look like the app losing their click, and it would hide the fact that the
+ *  address they typed is gated. */
+function AccessDenied() {
+  const { setView } = useAppStore();
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-4 p-8 text-center">
+      <ShieldAlert className="h-10 w-10 text-[var(--icon-warm)]" strokeWidth={1.8} />
+      <div className="space-y-1">
+        <p className="text-lg font-semibold">Accès refusé</p>
+        <p className="max-w-sm text-sm text-muted-foreground">
+          Votre compte n&apos;a pas les droits nécessaires pour ouvrir cette section.
+        </p>
+      </div>
+      <Button variant="outline" onClick={() => setView("home")}>
+        Retour à l&apos;accueil
+      </Button>
+    </div>
+  );
+}
+
 export function AppShell() {
-  const { view, setUser } = useAppStore();
+  const { view, user, setUser } = useAppStore();
+  // C-16 (Batch 4.4). Recomputed on every render, so a role change through
+  // switch-user takes effect immediately rather than at the next navigation.
+  const viewAllowed = canAccessView(user?.role as Role | undefined, view);
   const [warnOpen, setWarnOpen] = useState(false);
   const [warnSeconds, setWarnSeconds] = useState(30);
   const queryClient = useQueryClient();
@@ -125,6 +153,18 @@ export function AppShell() {
           </div>
         ) : (
           <main className="scroll-thin flex-1 overflow-y-auto rounded-2xl">
+            {/* C-16 (Batch 4.4): every branch below used to render on `view ===`
+                alone, so any hash typed into the URL mounted its view with live
+                forms and buttons — `#/backups` included the database-restore
+                button. `canAccessView` is now the single gate, and it fails
+                closed: an unknown or not-yet-loaded role gets the least
+                privilege. The check is here rather than in `initHashSync`
+                because the hash is parsed before the session is known; this is
+                the first point that has both. */}
+            {!viewAllowed ? (
+              <AccessDenied />
+            ) : (
+            <>
             {view === "pos" && <PosView />}
             {view === "dashboard" && <DashboardView />}
             {view === "orders" && <OrdersView />}
@@ -142,6 +182,8 @@ export function AppShell() {
             {view === "audit" && <AuditView />}
             {view === "backups" && <BackupsView />}
             {view === "logs" && <LogsView />}
+            </>
+            )}
           </main>
         )}
 

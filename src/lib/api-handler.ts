@@ -12,6 +12,42 @@ import {
 
 export type RequestContext = { params: Promise<Record<string, string | string[]>> };
 
+/** The role gate a wrapped handler declares, attached to the returned function.
+ *
+ *  T-03 (Batch 4.4): the authorization matrix across the API was untested in
+ *  its entirety, and it could not be tested from outside — `withAuth` closed
+ *  over its `options` and the returned handler told you nothing. Every wrapper
+ *  now stamps what it requires, so `api-authorization.test.ts` can walk all 61
+ *  route modules and assert the declared gate of every exported method. That
+ *  is what caught nothing here only because M-24 and M-25 were fixed first;
+ *  it is what stops the next unguarded route being added silently.
+ *
+ *  Read by tests only. Nothing in the request path branches on it. */
+export type RoleGate = {
+  /** true once wrapped by withAuth/withAuthParams — i.e. a session is required. */
+  authenticated: true;
+  /** Roles allowed, or null when any authenticated role may call it. */
+  roles: Role[] | null;
+};
+
+const ROLE_GATE = Symbol.for("hibapos.roleGate");
+
+function stampGate<T extends object>(handler: T, roles: Role[] | undefined): T {
+  Object.defineProperty(handler, ROLE_GATE, {
+    value: { authenticated: true, roles: roles ?? null } satisfies RoleGate,
+    enumerable: false,
+  });
+  return handler;
+}
+
+/** Read the gate a route handler declares. `null` = never wrapped, so the
+ *  route is unauthenticated. */
+export function roleGateOf(handler: unknown): RoleGate | null {
+  if (typeof handler !== "function") return null;
+  const gate = (handler as unknown as Record<symbol, unknown>)[ROLE_GATE];
+  return (gate as RoleGate | undefined) ?? null;
+}
+
 export type AuthContext = {
   session: SessionPayload;
   user: AuthUser;
@@ -63,7 +99,7 @@ export function withAuth<T>(
   handler: Handler<T>,
   options?: { roles?: Role[] },
 ) {
-  return async (req: NextRequest) => {
+  return stampGate(async (req: NextRequest) => {
     const blocked = maintenanceResponse();
     if (blocked) return blocked;
     const session = await getSession();
@@ -82,7 +118,7 @@ export function withAuth<T>(
       if (isScryptBusyError(e)) return scryptBusyResponse();
       throw e;
     }
-  };
+  }, options?.roles);
 }
 
 /** Wrap a handler that also takes dynamic params. */
@@ -90,7 +126,7 @@ export function withAuthParams<T>(
   handler: (req: NextRequest, ctx: AuthContext & { params: Record<string, string> }) => Promise<T>,
   options?: { roles?: Role[] },
 ) {
-  return async (req: NextRequest, reqCtx: RequestContext) => {
+  return stampGate(async (req: NextRequest, reqCtx: RequestContext) => {
     const blocked = maintenanceResponse();
     if (blocked) return blocked;
     const session = await getSession();
@@ -112,7 +148,7 @@ export function withAuthParams<T>(
       if (isScryptBusyError(e)) return scryptBusyResponse();
       throw e;
     }
-  };
+  }, options?.roles);
 }
 
 /** Parse a JSON body safely. */

@@ -11,19 +11,19 @@ Detailed audit record: https://claude.ai/code/artifact/329316b0-3a6b-48b0-9d27-d
 
 **Overall:** NOT READY FOR PRODUCTION
 
-**Current Stage:** Stage 4 — Security & integrity, `IN PROGRESS` (4.1, 4.2 and 4.3 COMPLETED — 4.3 with C-18 `◐` by operator decision; 4.4 through 4.7 `NOT STARTED`). (**Stage 3 is COMPLETED** — every batch 3.1 through 3.6, plus 3.6b, which reopened it for one small batch on 2026-09-04 — with C-22's chain-design half carried forward as `REQUIRES EXTERNAL VERIFICATION` and V-03 open for professional confirmation. Stage 1 is **partly done**: 1.1 and 1.2 COMPLETED, 1.3 `IMPLEMENTED — TESTING REQUIRED` on hardware, 1.4 deferred. Stage 2 is COMPLETED.)
+**Current Stage:** Stage 4 — Security & integrity, `IN PROGRESS` (4.1 through 4.4 COMPLETED — 4.3 with C-18 `◐` and 4.4 with M-19s `DEFERRED`, both by operator decision; 4.5 through 4.7 `NOT STARTED`). (**Stage 3 is COMPLETED** — every batch 3.1 through 3.6, plus 3.6b, which reopened it for one small batch on 2026-09-04 — with C-22's chain-design half carried forward as `REQUIRES EXTERNAL VERIFICATION` and V-03 open for professional confirmation. Stage 1 is **partly done**: 1.1 and 1.2 COMPLETED, 1.3 `IMPLEMENTED — TESTING REQUIRED` on hardware, 1.4 deferred. Stage 2 is COMPLETED.)
 
-**Current Batch:** Batch 4.4 — Authorization gating parity · `NOT STARTED` — **unblocked: DD-07 answered 2026-09-04**
+**Current Batch:** Batch 4.5 — Dangerous operator scripts · `NOT STARTED` — **blocked on DD-08**
 
-**Last Completed Batch:** Batch 4.3 — Credentials, sessions and network exposure (C-18 `◐`, M-23, M-27, M-28). The server binds `127.0.0.1`, so the staff list and the login route no longer answer on the restaurant Wi-Fi; a caller can no longer rewrite their own PIN or switch their own account off; the seed bootstrap refuses any database that has ever traded, which is the C-17 wipe path; the consumed-token map is bounded; `Session.device` is populated for the first time. **No migration.** **C-18 is `◐`**: the default PINs stay live by operator decision, so the remaining threat is physical rather than networked.
+**Last Completed Batch:** Batch 4.4 — Authorization gating parity (C-16, M-24, M-25, M-26). Role gating was client-side only and existed in one place, so any account could type `#/backups` and mount the view; `canAccessView` is now the single gate, it fails closed to the least privilege, and it was proved in a browser — a MANAGER at `#/backups` gets « Accès refusé » where the pre-batch build gave the full view. Per DD-07 the manager gained `settings` and `audit` and did **not** gain `backups`. Upload is MANAGER+ with signature checking and a quota; customer writes are MANAGER+; security headers are set, without HSTS. **No migration.**
 
-**Next Batch:** Batch 4.4 — Authorization gating parity (C-16, M-19s, M-24, M-25, M-26). **DD-07 is answered**, so it is unblocked — read *Operating model* in that batch first: there are no cashiers, and M-19s now means hiding the developer's SUPER_ADMIN account from the restaurant rather than deciding what a cashier may read.
+**Next Batch:** Batch 4.5 — Dangerous operator scripts (C-17). **It is blocked on DD-08**: guard the scripts, or remove them from the shipped tree. Note that Batch 4.3's seed guard already blunts C-17's worst outcome — a wiped `User` table no longer lets the bootstrap mint a super administrator — but the unguarded `deleteMany({})` calls are untouched.
 
 **Blocked:** Batch 1.3 `[HW]` sign-off and Batch 1.4 — both need the app running on the restaurant's POS machine, which is in a different country from the developer and has no copy of the app installed (decision of 2026-09-03).
 
-**Awaiting decision:** **nothing blocks Batch 4.4** — DD-06 and DD-07 were both answered on 2026-09-04. **DD-08** blocks Batch 4.5 (guard the operator scripts or remove them). A new question is recorded but not yet urgent: whether the now-dormant discount/refund approval machinery should eventually be removed — see DD-07's rationale in the record. Then Batch 5.3 (cross-shift refunds), Batch 5.5 (cash movements), Batch 5.6 (order cancellation) — see *Design Decisions Required*. **DD-03 and DD-17 were answered on 2026-09-03, DD-05 and DD-18 on 2026-09-04.**
+**Awaiting decision:** **DD-08 blocks the next batch** — Batch 4.5 cannot start until it is decided whether the operator scripts are guarded or removed from the shipped tree. DD-06 and DD-07 were both answered on 2026-09-04 and are spent. A new question is recorded but not yet urgent: whether the now-dormant discount/refund approval machinery should eventually be removed — see DD-07's rationale in the record. Then Batch 5.3 (cross-shift refunds), Batch 5.5 (cash movements), Batch 5.6 (order cancellation) — see *Design Decisions Required*. **DD-03 and DD-17 were answered on 2026-09-03, DD-05 and DD-18 on 2026-09-04.**
 
-**Last Updated:** 2026-09-04 (session 7 — Batches 4.2 and 4.3; read *OPEN THREADS* below before starting anything. Nothing waits on a `migrate deploy`: none of 4.1, 4.2 or 4.3 added a migration. The Prisma `EPERM` is resolved — stale `next start` servers were holding the engine DLL)
+**Last Updated:** 2026-09-04 (session 7 — Batches 4.2, 4.3 and 4.4; read *OPEN THREADS* below before starting anything. Nothing waits on a `migrate deploy`: none of 4.1, 4.2 or 4.3 added a migration. The Prisma `EPERM` is resolved — stale `next start` servers were holding the engine DLL)
 **Restructured:** 2026-09-04 — completed batches now live verbatim in `REMEDIATION_RECORD.md`; this file keeps the resume block, the open work, the registers and a stub per completed batch. Everything a session must know before acting sits above the first stage heading. See *HOW TO USE THIS FILE*.
 
 ### OPEN THREADS — read this before starting a batch
@@ -144,11 +144,11 @@ with `sha256sum`); the compliance judgement is not a code question.
 
 | Thing | Value at the end of session 3 (updated through session 4) |
 |---|---|
-| Tests | **430 pass, 0 fail** (`bun test src --timeout 30000` — see L-24 for why the timeout flag). 413 before Batch 4.3. Whole-suite runtime measured 80–100 s this session, against the ~192 s L-24 records |
-| Production DB sha256 | `a66bc96c20d3f00282ea249361dd80d6303434b1a43331c0725258b637db46f9` — changed **only** by the operator applying the 3.5, 3.6 and (2026-09-04 09:43) 3.6b migrations. Re-verified read-only in Batch 4.3, unchanged across 4.1, 4.2 and 4.3. The pre-3.6b value `7cc3367b…` is preserved in `db-snapshots/custom.db.pre-3.6b.2026-09-04T08-27-38Z` |
+| Tests | **453 pass, 0 fail** (`bun test src --timeout 30000` — see L-24 for why the timeout flag). 430 before Batch 4.4. Whole-suite runtime measured 80–100 s this session, against the ~192 s L-24 records |
+| Production DB sha256 | `a66bc96c20d3f00282ea249361dd80d6303434b1a43331c0725258b637db46f9` — changed **only** by the operator applying the 3.5, 3.6 and (2026-09-04 09:43) 3.6b migrations. Re-verified read-only in Batch 4.4, unchanged across 4.1 through 4.4. The pre-3.6b value `7cc3367b…` is preserved in `db-snapshots/custom.db.pre-3.6b.2026-09-04T08-27-38Z` |
 | Fiscal chain | `/api/fiscal/verify` → all three chains `ok`, `lastSequence: 2`. **Zero monthly and annual closes have ever been sealed** — which is why M-01's guard, DD-18's timing rules and L-26's payload change could all be imposed with nothing to accommodate. Re-verified read-only 2026-09-04 |
-| Fiscal counters | `20/3/2/2` (receipt / shift / Z / event). Re-verified read-only in Batch 4.3 |
-| Migrations | **6 applied on production**, latest `20260904091947_close_refund_totals` (applied 2026-09-04 09:43:54). **None pending.** Batches 4.1, 4.2 and 4.3 added none |
+| Fiscal counters | `20/3/2/2` (receipt / shift / Z / event). Re-verified read-only in Batch 4.4 |
+| Migrations | **6 applied on production**, latest `20260904091947_close_refund_totals` (applied 2026-09-04 09:43:54). **None pending.** Batches 4.1 through 4.4 added none |
 | Catalogue | 78 products — 17 drinks at **5,5 %**, 61 at 10 % |
 | Out-of-band snapshots | `db-snapshots/custom.db.pre-3.1c.2026-09-03T20-54-10Z` and `…pre-3.5.2026-09-03T23-01-34Z` (both hash `711de2f1…`), and `…pre-3.6b.2026-09-04T08-27-38Z` (`7cc3367b…`). All outside the repo |
 
@@ -300,7 +300,7 @@ Stated once here so no session has to rediscover them. The record sections named
 Quick lookup from audit ID to batch.
 Each completed batch has a stub in its stage below and its full section in `REMEDIATION_RECORD.md`; the completion history table is in the record too.
 
-**✅ = remediated and validated.** It means the *code* is done and the batch is
+**⊖ = no subject / deferred by decision, not fixed** (M-19s, DD-07). **✅ = remediated and validated.** It means the *code* is done and the batch is
 recorded — several ✅ items are **not yet in effect on the production install**
 (WAL, `BACKUP_LOCATION`, `HIBAPOS_DATA_DIR`, thermal printing); *OPEN THREADS →
 A* is the list. **◐ = one half done, one half open** — the finding was split
@@ -311,8 +311,8 @@ their own status blocks while the index still showed them untouched.*
 
 | ID | Batch | ID | Batch | ID | Batch |
 |---|---|---|---|---|---|
-| C-01 ✅ | 1.1 | M-01 ✅ | 3.6 | M-25 | 4.4 |
-| C-02 ✅ | 1.2 | M-02 ✅ | 3.3 | M-26 | 4.4 |
+| C-01 ✅ | 1.1 | M-01 ✅ | 3.6 | M-25 ✅ | 4.4 |
+| C-02 ✅ | 1.2 | M-02 ✅ | 3.3 | M-26 ✅ | 4.4 |
 | C-03 | 1.3 | M-03 ✅ | 2.2 | M-27 ✅ | 4.3 |
 | C-04 ✅ | 3.3 | M-04 ✅ | 3.5 | M-28 ✅ | 4.3 |
 | C-05 ✅ | 2.1 | M-05 | 5.5 | M-29 ✅ | 2.4 |
@@ -326,16 +326,16 @@ their own status blocks while the index still showed them untouched.*
 | C-13 ✅ | 3.5 | M-13 ✅ | 3.2 | L-06 | 6.3 |
 | C-14 | 5.3 | M-14 ✅ | 3.2 | L-07 | 7.2 |
 | C-15 ◐ | 2.3 + 4.7 | M-15 | 5.7 | L-08 | 7.2 |
-| C-16 | 4.4 | M-16 | 5.7 | L-09 | deferred |
+| C-16 ✅ | 4.4 | M-16 | 5.7 | L-09 | deferred |
 | C-17 | 4.5 | M-17 | 5.7 | L-10 | deferred |
 | C-18 ◐ | 4.3 | M-18 | 5.7 | L-11 | deferred |
 | C-19 ✅ | 2.3 | M-19 | 5.7 | L-12 | 7.2 |
-| C-20 | 5.1 | M-19s | 4.4 | T-01…T-07 | 6.1 |
+| C-20 | 5.1 | M-19s ⊖ | 4.4 | T-01…T-07 | 6.1 |
 | C-21 | 5.2 | M-20 | 5.7 | T-08, T-09 | 6.2 |
 | C-22 ◐ | 2.1 + 3.5 | M-21 | 5.7 | T-10…T-12 | 6.3 |
 | C-23 | 5.4 | M-22 | 5.7 | DOC-01…12 | 7.1 |
 | C-24 | 4.6 | M-23 ✅ | 4.3 | V-01…V-03, V-08…V-12 | external |
-| C-25 | 4.6 | M-24 | 4.4 | V-04…V-07 | 8.1 / 8.2 |
+| C-25 | 4.6 | M-24 ✅ | 4.4 | V-04…V-07 | 8.1 / 8.2 |
 | C-26, C-26b ✅ | 0.1 | C-27 ✅ | 3.4 | P-01…P-03 ✅ | 0.2 |
 
 **The four ◐ items, so nobody has to go looking:**
@@ -872,7 +872,7 @@ Nothing else in the catalogue changes: all 61 non-drink products stay at 10 %.
 
 # STAGE 4 — SECURITY & INTEGRITY
 
-**Stage status:** `IN PROGRESS` — 4.1, 4.2 and 4.3 `COMPLETED` (all 2026-09-04); 4.4 through 4.7 `NOT STARTED`. **4.4 is unblocked** (DD-07 answered 2026-09-04).
+**Stage status:** `IN PROGRESS` — 4.1 through 4.4 `COMPLETED` (all 2026-09-04); 4.5 through 4.7 `NOT STARTED`. **4.5 is blocked on DD-08.**
 
 Audit section J, step 5: close the one real privilege-escalation path, stop blocking the event loop, rotate the default credentials, and stop the silent data-loss paths.
 
@@ -948,102 +948,25 @@ Audit section J, step 5: close the one real privilege-escalation path, stop bloc
 
 ## Batch 4.4 — Authorization gating parity
 
-**Status:** `NOT STARTED`
+**Status:** `COMPLETED` · **Completed:** 2026-09-04 · **Commit:** `PENDING_SHA` · **Findings:** C-16, M-24, M-25, M-26; **M-19s `DEFERRED`**; T-03 partly
+**Record:** `REMEDIATION_RECORD.md` → *Batch 4.4* — specification, the operating model, validation criteria and status record, moved there verbatim on 2026-09-04.
 
-### Operating model (operator determination, 2026-09-04)
+**Constraints this batch leaves behind** *(sentences copied from the record, not paraphrased)*
+- `canAccessView(role, view)` in `nav-config.ts` is now the single authority, and `app-shell.tsx` renders `<AccessDenied />` instead of the view when it says no. *(record, Changes (1))*
+- The check sits in the shell rather than in `initHashSync` because the hash is parsed before the session is known. *(record, Changes (1))*
+- Every such default now resolves to `LEAST_PRIVILEGED_ROLE`, which is `CASHIER`. That is the reason DD-07 kept the role in the product: it is the floor the gate falls to. *(record, Changes (2))*
+- `backups` was deliberately **not** opened: it holds the restore button, backups already run automatically at the Z close (Batch 2.2), and the manager account is whoever is standing at the till. *(record, Changes (3))*
+- `GET` stays open to any authenticated role: the customers view is available to every role and reading a customer is what it is for. *(record, Changes (5))*
+- **No HSTS, deliberately**: DD-06 binds the server to `127.0.0.1` over plain HTTP, and `Strict-Transport-Security` would teach the browser to refuse that origin — it would break the till. *(record, Changes (6))*
+- A CSP that breaks the POS is worse than one that narrows it. *(record, Changes (6))*
+- `withAuth`/`withAuthParams` stamp the gate they declare onto the handler they return (`roleGateOf`), which nothing in the request path reads. *(record, Changes (7))*
+- **No migration.** *(record, Files)*
+- It asserts the gate each route *declares* — that it is wrapped, and which roles it names. It does not drive requests and assert status codes. *(record, note 4)*
+- They are **not** insecure — the handler refuses — but the two idioms mean the declarative matrix cannot see about twenty gates. *(record, note 5)*
+- Closing a caisse is deliberately open to any role, per the business rule stated at `reports/z/route.ts:16`. *(record, note 6)*
+- Drive the UI at `localhost`: a session cookie set at `http://127.0.0.1:<port>` did **not** persist in the browser, while the same cookie at `http://localhost:<port>` did. *(record, note 9)*
 
-DD-07 was asked as "which reports and settings should a CASHIER see". **It has
-no subject.** Production has carried exactly two accounts throughout —
-`manager` (MANAGER) and `admin` (SUPER_ADMIN) — and the user has confirmed the
-deployment:
-
-- **Only the MANAGER account operates the till.**
-- **The SUPER_ADMIN account is the developer's**, not the restaurant's. Staff
-  do not use it. **Its visibility is accepted**: the manager may see that such
-  an account exists, and the login screen keeps its SUPER_ADMIN button.
-- **`CASHIER` stays in the code but no cashier account will exist.** The role
-  is implemented and working; it is simply unused.
-- **No discount or refund approval control is required in operation.**
-
-**M-19s has no subject under this model — mark it `DEFERRED`, not
-`COMPLETED`.** It described reads left ungated *for a CASHIER*: `GET
-/api/settings` (SIRET, TVA number, discount threshold), `GET /api/reports/x`,
-and the shift endpoints. There are no cashiers, and the only two roles that
-exist are both entitled to all of it — a MANAGER running the restaurant may
-read its own SIRET. The `GET`/`POST` disagreement on `/api/reports/x` is real
-but unobservable here, because every account that can call the `GET` can also
-call the `POST`.
-
-Two things must therefore be written down rather than fixed, so neither is
-lost if a cashier account is ever created: the ungated reads above, and the
-fact that **`GET /api/auth/profiles` is public and returns every active user's
-id, username, name and role**, with `login-screen.tsx:486-489` rendering a
-dedicated button for the SUPER_ADMIN profile. The user has **accepted** that
-the manager sees the developer's account, so this batch does not hide it. C-18
-already carries the endpoint as an enumeration surface.
-
-**What this does NOT change.** C-16, M-24, M-25 and M-26 are untouched by the
-absence of cashiers. C-16 in particular is fully live between MANAGER and
-SUPER_ADMIN: `users`, `settings`, `audit`, `backups` and `logs` are all
-SUPER_ADMIN-only in `nav-config.ts`, but the render branch has no role
-condition, so **a manager typing `#/backups` still gets the restore button
-mounted**. The remediation direction's "default an unknown role to CASHIER"
-still stands — the role is retained precisely so it can serve as the
-least-privileged default.
-
-**Two consequences recorded, not acted on** (safety rule 10 and rule 11):
-
-1. **The approval gates never fire.** `orders/route.ts:223` requires an
-   approval token only when `user.role === "CASHIER"`; `refund/route.ts:87`
-   lets MANAGER and SUPER_ADMIN self-approve. So a manager may apply a discount
-   of any size with **no approver recorded**, and refund any amount by
-   self-approval. Batch 4.1's brute-force lockout and Batch 3.5's C-13 approver
-   trail are therefore guarding a path this deployment does not use. This is
-   the operator's decision and is not a defect to fix here.
-2. **The approval machinery is kept, not deleted.** The user retained the
-   `CASHIER` role, and that role is meaningless without the approval mechanism
-   that gives it a discount ceiling. Deleting `/api/auth/approve`,
-   `approvals.ts` and the dialog would also undo audited work from Batches 3.5
-   and 4.1. Removal stays available as a later decision; nothing in this batch
-   depends on it.
-
-### C-16 — Role gating is client-side only; every admin view renders for every user
-
-**Status:** `NOT STARTED` · Severity: HIGH · Category: security
-
-**Problem.** `app-shell.tsx:124-139` renders by `view ===` with no role condition, and `initHashSync` accepts any of the 17 valid hashes from the URL. Role filtering exists in exactly one place — the home dashboard's module list.
-
-**Evidence.** A CASHIER typing `#/users`, `#/settings`, `#/audit`, `#/backups` or `#/logs` gets the full view mounted with live forms and buttons, including the database-restore button. `home-dashboard.tsx:207` — `const role = (user?.role as Role) ?? "MANAGER"` — an undefined role fails **open** to MANAGER.
-
-**Location.** `src/components/shared/app-shell.tsx:124-139`; `src/store/app-store.ts:103-121`; `src/components/shared/home-dashboard.tsx:207, 259-261`
-
-**Impact.** The server side was audited route by route and **holds** — every sensitive mutation re-checks the role. So this is exposure and confusion rather than direct compromise: a cashier sees admin screens, reads whatever the ungated GETs return, and gets 403s on the rest. But the UI is now the only thing between a curious employee and the restore button.
-
-**Remediation direction.** Gate the render branch on `NAV_ITEMS.roles`, reject unauthorised hashes in `initHashSync`, and default an unknown role to CASHIER.
-
-| ID | Status | Problem | Location | Direction |
-|---|---|---|---|---|
-| **M-19s** | `NOT STARTED` | Ungated reads for CASHIER: `GET /api/settings` (SIRET, TVA number, discount threshold), `GET /api/reports/x`, all shift endpoints. The X report is deliberately open because the cashier-visible shifts view uses it — which makes the MANAGER+ gate on `POST /api/reports/x` decorative. | `settings/route.ts:7`; `reports/x/route.ts:38`; `shifts/*` | Decide the intended cashier visibility, then make GET and POST agree. See DD-07. |
-| **M-24** | `NOT STARTED` | `POST /api/upload` has no role gate, trusts the client-declared MIME type, and imposes no quota. | `upload/route.ts:31-56` | Add a role gate, magic-byte validation and a quota. Disk exhaustion is the realistic impact. |
-| **M-25** | `NOT STARTED` | `PUT`/`DELETE /api/customers/[id]` have no role check — any cashier can edit or deactivate any customer record. | `customers/[id]/route.ts:20,32` | Add role checks consistent with the intended matrix. |
-| **M-26** | `NOT STARTED` | No security headers anywhere: no CSP, X-Frame-Options, Referrer-Policy or HSTS, and no `middleware.ts` to add them. | `next.config.ts` | Add headers. Lower risk on a kiosk, but the app is served unencrypted over the LAN. |
-
-**Note on M-19s:** this ID is a sub-label for the ungated-reads row in the audit's Medium table, which had no distinct number. Recorded here to preserve traceability without renaming an existing ID.
-
-### Batch 4.4 — Validation Required
-
-- **API authorization test matrix (T-03):** for each of the 59 routes, assert the expected status for CASHIER / MANAGER / SUPER_ADMIN / unauthenticated. This is currently untested in its entirety.
-- Manual: a CASHIER navigating to `#/users`, `#/settings`, `#/audit`, `#/backups`, `#/logs` is redirected or refused, not shown the view.
-- Targeted test: an unknown/undefined role resolves to the least-privileged behaviour.
-- Targeted test: upload rejects a non-image with an image MIME header (M-24).
-- Targeted test: a CASHIER cannot modify or deactivate a customer (M-25).
-- Response headers verified on a real request (M-26).
-- Regression: every legitimate role can still perform its documented work.
-- `bun test src` — PASS. `bun run typecheck` — PASS. `bun run lint` — PASS.
-
-### Batch 4.4 — Status Record
-
-**Status:** `NOT STARTED` · **Completed:** — · **Changes:** — · **Files:** — · **Tests:** — · **Commit:** — · **Notes:** —
+**Left open:** **M-19s** `DEFERRED` — no subject under DD-07's operating model; the ungated reads it described are written into the DD-07 amendment in the record so none is lost if a cashier account is ever created. **T-03** stays open for Batch 6.1 to close at status level; this batch delivered the declaration-level matrix. **L-32** → *Newly Discovered Issues*.
 
 ---
 
@@ -1714,6 +1637,7 @@ Open rows only. A row resolved by a batch moves, unchanged, to `REMEDIATION_RECO
 
 | ID | Date | Found during | Description | Severity | Assigned to batch |
 |---|---|---|---|---|---|
+| **L-32** | 2026-09-04 | Batch 4.4 | **Role gating uses two idioms, and only one is visible to the T-03 matrix.** About twenty routes declare their gate as `withAuth(handler, { roles })`; about twenty others admit any authenticated caller at the wrapper and then refuse inside the handler with `if (user.role !== "SUPER_ADMIN") return 403` — `POST /api/backups`, `DELETE /api/backups/[id]`, `POST /api/users` and `PUT /api/settings` among them. **Neither group is insecure**: the inline checks work. The cost is that `api-authorization.test.ts` cannot see the second group, so the declaration-level matrix is complete only for the first, and a future route copying the inline pattern inherits that blind spot. Converting them is mechanical but **user-visible**: the inline guards answer « Réservé au super administrateur » while `withAuth` answers « Accès refusé », so a conversion changes the message an operator reads on every one of those routes. Do it as one deliberate change with the message decided, not incidentally. The test pins which idiom each destructive route uses in the meantime. | LOW (test coverage blind spot; no live exposure) | 6.1 or 7.2 |
 | **L-31** | 2026-09-04 | Batch 4.3 | **`POST /api/seed` reports any catalogue-seeding failure as a won race.** The catalogue step is wrapped in `catch { return … "Base initialisée (requête concurrente)." }`, so every error — not just a genuine concurrent request — is reported to the operator as success. Observed during this batch's validation: on a copy whose users were empty but whose catalogue was intact, `seedCatalogAndSettings` threw on duplicate category names and the route answered `200` with that message. The two bootstrap users *were* created, so the C-18 behaviour under test was unaffected, but an operator seeing that message cannot tell a real race from a catalogue that failed to seed. Narrower after this batch — the new freshness guard refuses most databases that could reach it — but the swallow-everything catch is still there. Distinguish the P2002 unique-constraint case from the rest, as the users branch above it already does. | LOW (misleading operator message on a bootstrap path) | 5.7 or 7.1 |
 | **L-30** | 2026-09-04 | Batch 4.2 | **The unknown-username burn at login competes for the bounded PIN queue, so username enumeration can push honest cashiers to `503`.** `login/route.ts:52` runs a full `hashPin("dummy")` for an unknown user, on purpose, to flatten the timing signal that would otherwise enumerate accounts. Batch 4.2 put that derivation inside the concurrency bound, which is where it belongs — unbounded it is the memory-exhaustion path C-09 names. The residue is that the login rate limit is keyed `login:<ip>:<username>` and, since Batch 4.1 correctly stopped believing the proxy headers, `<ip>` is the constant `"local"`: each distinct username is its own bucket and nothing caps how many buckets a caller can mint. Measured on a scratch copy: **60 simultaneous logins with 60 unknown usernames → 34 served, 26 refused `503`**, and a legitimate login arriving inside that window would have been among the refused. Candidate fixes: a global (not per-username) budget for the unknown-user path, a cheaper constant-time burn, or binding the login limiter to something the caller cannot vary. Interacts with **DD-06** — if the app binds `127.0.0.1` the reachable surface shrinks to the till itself. | MEDIUM (availability of the login screen under a LAN-side flood) | 4.3 |
 | **L-28** | 2026-09-04 | Batch 4.1 | **`test-setup.ts` clears a stale `-wal` and `-shm` beside the test database but not a stale `-journal`.** The preload deletes `test.db`, `test.db-wal` and `test.db-shm` before `prisma db push` recreates the file (`test-setup.ts:27`). The test DB runs in rollback-journal mode, so the sidecar it actually produces is `test.db-journal` — and a run killed mid-transaction leaves one behind. Observed this session: a runaway test loop was stopped and left a 21 KB `test.db-journal` next to a deleted `test.db`. SQLite treats a journal beside a database as *hot* and tries to roll it back into the new file, so the failure mode is a confusing lock or corruption error on the **next** run, attributed to whatever code that run happened to touch. One extra path in the existing delete loop. | LOW (test infrastructure; misattributed failures) | 6.1 |

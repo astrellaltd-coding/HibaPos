@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { useAppStore, type AppView } from "@/store/app-store";
-import { NAV_ITEMS } from "@/components/shared/nav-config";
+import { NAV_ITEMS, LEAST_PRIVILEGED_ROLE } from "@/components/shared/nav-config";
 import type { Role } from "@/types/api";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
@@ -212,7 +212,10 @@ function ModuleCard({
 /* ------------------------------------------------------------------ */
 export function HomeDashboard() {
   const { user, setView } = useAppStore();
-  const role = (user?.role as Role | undefined) ?? "MANAGER";
+  // C-16 (Batch 4.4): this defaulted to "MANAGER", so a user that failed to
+  // load produced a MANAGER module list — a fail-open default in the one
+  // place role filtering existed. It now falls to the least privilege.
+  const role = (user?.role as Role | undefined) ?? LEAST_PRIVILEGED_ROLE;
 
   const quickViews = QUICK_ACCESS.map((q) => q.view);
   const allModules = MODULE_ORDER.filter((view) => {

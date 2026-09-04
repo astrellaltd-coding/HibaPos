@@ -17,6 +17,10 @@ export const GET = withAuthParams(async (_req, { params }) => {
   });
 });
 
+// M-25 (Batch 4.4): PUT and DELETE carried no role check at all, so any
+// authenticated caller could rewrite or deactivate any customer record. GET
+// stays open — the customers view is available to every role (`nav-config.ts`)
+// and reading a customer is what it is for. Only the writes are gated.
 export const PUT = withAuthParams(async (req, { user, params }) => {
   const body = await parseJson(req);
   const parsed = customerSchema.partial().safeParse(body);
@@ -27,7 +31,7 @@ export const PUT = withAuthParams(async (req, { user, params }) => {
   const customer = await db.customer.update({ where: { id: params.id }, data });
   await audit("CUSTOMER_UPDATED", "Customer", customer.id, { name: customer.name }, user.id);
   return NextResponse.json(customer);
-});
+}, { roles: ["SUPER_ADMIN", "MANAGER"] });
 
 export const DELETE = withAuthParams(async (_req, { user, params }) => {
   // Soft-delete: check for historical orders, then set active=false
@@ -42,4 +46,4 @@ export const DELETE = withAuthParams(async (_req, { user, params }) => {
   await db.customer.update({ where: { id: params.id }, data: { active: false } });
   await audit("CUSTOMER_DEACTIVATED", "Customer", params.id, null, user.id);
   return NextResponse.json({ ok: true });
-});
+}, { roles: ["SUPER_ADMIN", "MANAGER"] });
