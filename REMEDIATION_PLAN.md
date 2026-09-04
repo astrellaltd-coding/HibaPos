@@ -849,7 +849,7 @@ Nothing else in the catalogue changes: all 61 non-drink products stay at 10 %.
 
 ## Batch 3.6b — Close timing and close columns
 
-**Status:** `COMPLETED` · **Completed:** 2026-09-04 · **Commit:** `__COMMIT__` · **Findings:** L-25, L-26 · DD-18 applied
+**Status:** `COMPLETED` · **Completed:** 2026-09-04 · **Commit:** `545b255` · **Findings:** L-25, L-26 · DD-18 applied
 **Record:** `REMEDIATION_RECORD.md` → *Batch 3.6b* — specification, validation criteria and status record, moved there verbatim on 2026-09-04.
 
 **Constraints this batch leaves behind** *(sentences copied from the record, not paraphrased)*
