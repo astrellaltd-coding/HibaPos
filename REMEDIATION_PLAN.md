@@ -13,7 +13,7 @@ Detailed audit record: https://claude.ai/code/artifact/329316b0-3a6b-48b0-9d27-d
 
 **Current Stage:** Stage 4 — Security & integrity, `IN PROGRESS` (4.1 through 4.4, **4.4b**, **4.4c**, **4.5** and **4.6** COMPLETED; **4.7** `NOT STARTED` and unblocked — it is the last one). **Stage 3 is COMPLETED** (3.1 through 3.6 plus 3.6b), with C-22's chain-design half carried forward as `REQUIRES EXTERNAL VERIFICATION` and V-03 open. Stage 1 is **partly done**: 1.1 and 1.2 COMPLETED, 1.3 `IMPLEMENTED — TESTING REQUIRED` on hardware, 1.4 deferred. Stage 2 is COMPLETED.
 
-**Current Batch:** none — **Batch 4.7** (transaction and race safety, C-15's open half: the shift-state race) is next and finishes Stage 4. No decision blocks it.
+**Current Batch:** none — **Batch 4.7** (transaction and race safety, C-15's open half: the shift-state race) is next and finishes Stage 4. No decision blocks it, but its *Validation Required* deliberately leaves **one behaviour choice** open — an order created *while* a Z report is being generated may be either included or rejected, and the criteria accept both. Put that to the operator before writing code, with the closed-shift case (specified: **409**) alongside it.
 
 **Last Completed Batch:** Batch 4.6 — Catalogue data-loss paths. Two HIGH data-loss findings in the catalogue, which is the one irreplaceable thing in this database (warning 4). **C-24:** the category PUT validated each option group *after* `deleteMany` had already run and skipped a failing entry with `continue`, so one malformed entry destroyed the category's sauces, breads and toppings and answered **200**; demonstrated on the real `Sandwichs` category, where the pre-batch code deleted **4 groups and 19 choices**. Validation now happens before the transaction opens (new `catalog-payload.ts`) and any bad entry 400s having deleted nothing. Separately, `productSchema.options` was `.default([])`, so any PUT that merely **omitted** the field wiped every product-specific option group — now `.optional()`, with absent meaning *unchanged*. **C-25:** the media library's usage scan and its delete-time cleanup each covered three of the schema's **six** image columns; measured against production, **30 of 124 referenced images (24 %) — the entire condiment and topping catalogue — displayed as *unused* and were offered for deletion**. Both now derive from one `IMAGE_COLUMNS` declaration, a test pins it to the schema, and `DELETE /api/media` finally journals a `MEDIA_DELETED` audit row. **No migration; nothing waits on the operator.**
 
@@ -23,7 +23,7 @@ Detailed audit record: https://claude.ai/code/artifact/329316b0-3a6b-48b0-9d27-d
 
 **Awaiting decision:** **nothing blocks Batch 4.7 or Stage 5's start.** All of DD-01, DD-02, DD-03, DD-05, DD-06, DD-07, DD-08, DD-17, DD-18 and DD-19 are answered; DD-04 and DD-09 through DD-16 are open and named against their batches in *Design Decisions Required*. Two recorded-but-not-urgent questions stand: `/api/auth/approve` and `manager-approval-dialog.tsx` have **no caller at all** since 4.4c, so whether to delete them is a real question; and **L-27** needs a decision before Batch 8.0.
 
-**Last Updated:** 2026-09-04 (session 10 — Batches 4.5 and 4.6). Three things worth carrying forward. (1) **The front matter is inside its ~40 KB ceiling again** after 4.5 retired six superseded items; keep it there by retiring something before adding. (2) **Revert in both directions, and keep reverting until every test has failed once.** 4.6's guards needed **eight** one-property reverts before all 33 of its new tests had been accounted for — 25 failed under one of them, and the other 8 are regression assertions that by construction cannot fail against the old code. Say which is which rather than implying full coverage. (3) **Restoring a scratch copy now has a documented procedure** — it runs in WAL mode even though production does not, and two Git-Bash gotchas cost 4.6 real time. All three are in *Methods → Scratch copy*.
+**Last Updated:** 2026-09-04 (session 10 — Batches 4.5 and 4.6). Three things worth carrying forward. (1) **The front matter is inside its ~40 KB ceiling** — **40 735 bytes, about 220 to spare** after 4.5 retired six superseded items and 4.6 compressed five more. There is no room left: **retire something before adding anything**, and say in the record what moved and where the fact still lives. (2) **Revert in both directions, and keep reverting until every test has failed once.** 4.6's guards needed **eight** one-property reverts before all 33 of its new tests had been accounted for — 25 failed under one of them, and the other 8 are regression assertions that by construction cannot fail against the old code. Say which is which rather than implying full coverage. (3) **Restoring a scratch copy now has a documented procedure** — it runs in WAL mode even though production does not, and two Git-Bash gotchas cost 4.6 real time. All three are in *Methods → Scratch copy*.
 
 ### OPEN THREADS — read this before starting a batch
 
@@ -41,12 +41,12 @@ real till until an action below is taken. Do not report them as delivered.
 
 | What | Why it is inert | Unblocked by |
 |---|---|---|
-| **WAL journal mode** (2.3) | The database is on a OneDrive-synced path and the startup guard deliberately refuses WAL there. `db/custom.db` byte 18 is still `1`. | Moving data to `C:\HibaPOS\data` (DD-02), then any restart |
-| **`BACKUP_LOCATION`** (2.2) | Honoured by the code, but **unset** — backups still land next to the database on the same disk. | Choosing a second volume at deployment |
+| **WAL journal mode** (2.3) | The database is on a OneDrive-synced path and the guard refuses WAL there; byte 18 is still `1`. | Moving data to `C:\HibaPOS\data` (DD-02), then any restart |
+| **`BACKUP_LOCATION`** (2.2) | Honoured but **unset** — backups land beside the database, same disk. | Choosing a second volume at deployment |
 | **`HIBAPOS_DATA_DIR`** (2.2) | Defaults to the old layout on purpose, so an update cannot silently repoint a running install at an empty folder. | The deployment step in Batch 1.4 |
-| **Thermal printing + drawer** (1.3) | `printerEnabled` is `false` and no printer IP is set. A reprint journals its `REIMPRESSION` event, then reports *"Impression désactivée dans les réglages."* | Commissioning on the real Sunso WTP-801 |
-| **FACTICE simulation mode** (3.1b) | The switch now exists in Réglages but is **off**. Any testing before go-live is still journalled as genuine trading. | The operator turning it on for test sessions |
-| **Audit-log retention** (2.4) | Deliberately `0` = keep forever. That table is still unbounded. | An operator decision, if a retention obligation appears |
+| **Thermal printing + drawer** (1.3) | `printerEnabled` is `false`, no printer IP set. A reprint journals `REIMPRESSION`, then reports *"Impression désactivée…"* | Commissioning on the real Sunso WTP-801 |
+| **FACTICE simulation mode** (3.1b) | The switch exists in Réglages but is **off**, so pre-go-live testing is journalled as genuine trading. | The operator turning it on |
+| **Audit-log retention** (2.4) | Deliberately `0` = keep forever; the table is unbounded. | An operator decision, if an obligation appears |
 
 #### B. Waiting on the operator
 
@@ -119,7 +119,7 @@ The session-3/4 snapshot that stood here is in the record, verbatim, under *Reti
 
 | Thing | Value at the end of session 3 (updated through session 4) |
 |---|---|
-| Tests | **498 pass, 0 fail** (`bun test src --timeout 30000` — see L-24 for why the timeout flag). 482 before Batch 4.5, which added 16. **A run that fails 12 backup tests with `EPERM: rename … test.db.restore-staged` is not a code failure**: a leftover `bun` process from a stopped run is holding the shared test database — kill it and re-run (warning 3b). Whole-suite runtime 64–80 s |
+| Tests | **531 pass, 0 fail** (`bun test src --timeout 30000` — see L-24 for why the timeout flag). 498 before Batch 4.6, which added 33; 482 before 4.5. **A run that fails 12 backup tests with `EPERM: rename … test.db.restore-staged` is not a code failure**: a leftover `bun` process from a stopped run is holding the shared test database — kill it and re-run (warning 3b). Whole-suite runtime 64–80 s |
 | Production DB sha256 | **`7839db18a7c8b132d974bd834d39d2921def66dd234b2059b022949f22ea6f2e`** (mtime 2026-09-04 16:41:52, 696 320 bytes) — last moved by the operator's **PIN change**, not by any batch. **Re-verified unchanged after Batch 4.5.** The earlier lineage (`7cc3367b…` → `a66bc96c…` → `e40735ca…`) is in the record |
 | Fiscal chain | `/api/fiscal/verify` → all three chains `ok`, `lastSequence: 2`. **Zero monthly and annual closes have ever been sealed** — which is why M-01's guard, DD-18's timing rules and L-26's payload change could all be imposed with nothing to accommodate. Re-verified read-only 2026-09-04 |
 | Fiscal counters | `20/3/2/2` (receipt / shift / Z / event). Re-verified read-only after the PIN change, 2026-09-04 |
@@ -134,7 +134,7 @@ The developer is in a different country from the restaurant, and the restaurant'
 
 **Reaffirmed by the operator 2026-09-04** — the order is settled: **the software is finished before it is deployed**, not in parallel.
 
-**One consequence a session should use when triaging, and stop using the day deployment is scheduled.** Nothing in this application currently has a live audience: no operator reads its screens, no sale is real, and every defect found is found by us. That is what makes it defensible to carry a user-visible defect across a batch boundary rather than guess at a fix — Batch 4.4b did exactly that with **L-35**, leaving a French banner that promises an approval which no longer happens, because Batch 4.4c changes the words anyway. **The moment an install date exists, that reasoning expires**: re-triage every open finding whose severity was discounted for want of an audience.
+**One consequence for triage, and it expires the day deployment is scheduled.** Nothing in this application currently has a live audience: no operator reads its screens, no sale is real, and every defect is found by us. That is what makes it defensible to carry a user-visible defect across a batch boundary rather than guess at a fix. **The moment an install date exists, re-triage every open finding whose severity was discounted for want of an audience.** (Both of the findings once named here, L-34 and L-35, closed in Batch 4.4c, so this is a rule for the next one carried that way, not a list.)
 
 **Decision:** proceed with software-only work; defer every item that requires the app to be running on the POS all-in-one device — Batch 1.3's `[HW]` criteria (real print, real drawer kick, real paper width; validated instead against a mock ESC/POS printer on loopback), all of Batch 1.4 (cold reboot, supervisor restart, kiosk launch, update rehearsal), and Batch 8.2 (restore rehearsal, full-day trading). None may be marked `COMPLETED` on automated evidence alone.
 
@@ -163,7 +163,7 @@ These are **deferred, not waived.** Stage 1 cannot be declared complete, and no 
 
 *These items describe the developer's machine at the end of session 4, not the project. Check each before acting on it, and delete it here once it no longer holds. Their numbers are kept because other sections refer to them.*
 
-6. ~~**`bunx prisma generate` fails `EPERM`.**~~ **RESOLVED 2026-09-04.** **The lesson is the whole of what matters: a stale `next start` holds `node_modules/.prisma/client/query_engine-windows.dll.node`, so stop every leftover server before blaming the filesystem or OneDrive, and check the port list rather than trusting a PID from an earlier session.** Forensics retired to the record. **`bun run dev` stays untried here** — it loads the real `.env` and would open the production database. Use `bunx next start` on a spare port (3021, 3022/3023, 3024/3025, 3026, 3033/3034 are spoken for) and stop it with `taskkill //PID <pid> //T //F` (warning 9).
+6. ~~**`bunx prisma generate` fails `EPERM`.**~~ **RESOLVED 2026-09-04.** **The lesson: a stale `next start` holds `node_modules/.prisma/client/query_engine-windows.dll.node`, so stop every leftover server before blaming the filesystem or OneDrive, and check the port list rather than trusting a PID from an earlier session.** **`bun run dev` stays untried here** — it loads the real `.env` and would open the production database. Use `bunx next start` on a spare port (3021–3026, 3033/3034 and 3040–3043 are spoken for) and stop it with `taskkill //PID <pid> //T //F` (warning 9).
 
 8. **`bun test src` fails 23 tests on this machine, and the code is fine.** All 23 are 5 s timeouts in `backup*.test.ts` / `auth.test.ts`: scrypt at N=2^17 costs ~1.5 s per call here and a backup→restore round trip makes several. Use `--timeout 30000`; the current count is in *G*. Recorded as **L-24** — do not "fix" a test that fails this way.
 
@@ -204,16 +204,7 @@ Two rules keep this file small. **Every fact has one home**: a finding's story i
 
 ### Finding-ID prefixes
 
-| Prefix | Origin |
-|---|---|
-| `C-nn` | Audit finding, Critical or High severity. IDs are stable labels, not a ranking. |
-| `M-nn` | Audit finding, Medium severity. |
-| `L-nn` | Audit finding, Low severity. |
-| `T-nn` | Testing gap from audit section G. IDs newly assigned in this plan. |
-| `DOC-nn` | Documentation-vs-reality discrepancy from audit section D. IDs newly assigned in this plan. |
-| `V-nn` | Final-validation task from audit section J step 9. IDs newly assigned in this plan. |
-
-Audit IDs are **never renamed**. `T-`, `DOC-` and `V-` items are new IDs assigned here because the audit described them as groups rather than numbered findings.
+`C-nn` audit Critical/High · `M-nn` Medium · `L-nn` Low · `T-nn` testing gap (audit section G) · `DOC-nn` documentation-vs-reality (section D) · `V-nn` final-validation task (section J step 9) · `P-nn` preservation task. IDs are stable labels, not a ranking. **Audit IDs are never renamed**; `T-`, `DOC-`, `V-` and `P-` are new IDs assigned in this plan because the audit described those as groups rather than numbered findings.
 
 ### Validation commands available in this project
 
@@ -300,13 +291,7 @@ half open**, split across two batches. Audit IDs are never renamed.
 | C-25 ✅ | 4.6 | M-24 ✅ | 4.4 | V-04…V-07 | 8.1 / 8.2 |
 | C-26, C-26b ✅ | 0.1 | C-27 ✅ | 3.4 | P-01…P-03 ✅ | 0.2 |
 
-**The three ◐ items, so nobody has to go looking:**
-
-| ID | Done | Still open |
-|---|---|---|
-| **C-15** | Transaction timeouts, Batch 2.3 | The shift-state race, Batch 4.7 |
-| **C-22** | Restore/deletion journalling, Batch 2.1 | Whether an unkeyed chain suffices — `REQUIRES EXTERNAL VERIFICATION`, V-01 |
-| **L-04** | The 297 MB `.next/standalone/` tree carrying live secrets, deleted in Batch 2.4 | Rotating the secrets it exposed, Batch 7.3 / DD-04 |
+**The three ◐ items**, whose open halves are: **C-15** the shift-state race (Batch 4.7; transaction timeouts done in 2.3), **C-22** whether an unkeyed chain suffices (`REQUIRES EXTERNAL VERIFICATION`, V-01; restore journalling done in 2.1), **L-04** rotating the secrets the deleted `.next/standalone/` tree exposed (Batch 7.3 / DD-04).
 
 ---
 
@@ -834,7 +819,7 @@ Nothing else in the catalogue changes: all 61 non-drink products stay at 10 %.
 
 # STAGE 4 — SECURITY & INTEGRITY
 
-**Stage status:** `IN PROGRESS` — 4.1 through 4.4, **4.4b** and **4.4c** `COMPLETED` (all 2026-09-04); 4.5 through 4.7 `NOT STARTED` and **none of them blocked** — DD-08 was answered 2026-09-04.
+**Stage status:** `IN PROGRESS` — 4.1 through 4.4, **4.4b**, **4.4c**, **4.5** and **4.6** `COMPLETED` (all 2026-09-04); **only 4.7 remains** and it is not blocked.
 
 Audit section J, step 5: close the one real privilege-escalation path, stop blocking the event loop, rotate the default credentials, and stop the silent data-loss paths.
 
@@ -1411,7 +1396,7 @@ Do **not** correct these before the corresponding fix lands — a document that 
 | **DOC-06** | `NOT STARTED` | `README.md:107` "`public/uploads/` → Images téléchargées (non commité)" | 134 files tracked; `.gitignore:62` ignores `/upload/`, a different empty directory | Decide whether uploads should be tracked (DD-16), then make the doc match. |
 | **DOC-07** | `NOT STARTED` | `.env.example:20-21` `BACKUP_LOCATION` override | Read nowhere | True after Batch 2.2. |
 | **DOC-08** | `NOT STARTED` | `README.md:31`, `.env.example:9`, `README-windows.md:46` show a relative `DATABASE_URL` | The live `.env` uses an absolute Windows path | Make the docs match the decided convention (DD-02). |
-| **DOC-09** | `NOT STARTED` | `scripts/README.md` documents 8 scripts and describes two destructively-wrong | 9 files; `port-real-data.ts` undocumented; `inspect-product.ts` takes no argument; the "not `src/lib/db`" note is contradicted by `fix-duplicate-product-options.ts:1` | Rewrite with Batch 4.5. |
+| **DOC-09** ✅ | `COMPLETED` 2026-09-04 | `scripts/README.md` documents 8 scripts and describes two destructively-wrong | 9 files; `port-real-data.ts` undocumented; `inspect-product.ts` takes no argument; the "not `src/lib/db`" note is contradicted by `fix-duplicate-product-options.ts:1` | **Done in Batch 4.5**: README rewritten around what each script deletes, `port-real-data.ts` removed outright, `inspect-product.ts` now takes the product name as an argument, and the `src/lib/db` exception is stated. Record → Batch 4.5. |
 | **DOC-10** | `NOT STARTED` | `README.md:112-113` role table | Understates cashier privileges (shift open/close have no role gate); "suppression définitive" — no hard-delete path exists | Make the table match the enforced matrix after Batch 4.4. |
 | **DOC-11** | `NOT STARTED` | `README.md:80` reports list; `README.md:90` SUPER_ADMIN fiscal duties; `README.md:95` "tables (plan de salle)" | VAT/cashiers/products reports and all fiscal functions have no UI; tables cannot be attached to an order | True after Batches 3.4 and 5.2. |
 | **DOC-12** | `NOT STARTED` | `IMPLEMENTATION_PLAN.md` — Phase 1 "✅ COMPLETE (NF525/ISCA)"; `:63` cites two deleted migrations; `:162` claims `VatBreakdown` is `Record<string,…>` (it is `Record<number,…>` at `money.ts:35`); `:164` claims the printer default was fixed (both seed paths still write "Epson TM-m30"); `:144` justifies `X-Real-IP` by a Caddy proxy the same document deleted at `:120`; `:256` says 50 route files (59); `:38` vs `:123` contradict each other on 0f/4f; `:33` cites a git-history archive path that does not exist | Historical record. **Do not rewrite history** — append a correction note, and never mark compliance complete on the basis of code alone. |
@@ -1592,6 +1577,7 @@ Open rows only. A row resolved by a batch moves, unchanged, to `REMEDIATION_RECO
 
 | ID | Date | Found during | Description | Severity | Assigned to batch |
 |---|---|---|---|---|---|
+| **L-39** | 2026-09-04 | Batch 4.6 | **Thirteen catalogue names carry a leading space, which the POS picker renders as an indented label.** Measured read-only on production: **10 `CategoryOptionChoice` rows** (`" Mayonnaise"`, `" Barbecue"`, `" Algérienne"`, `" Harissa"`, `" Biggy"`, `" Potatoes"`, and duplicates of the first three in a second category's group) and **3 `CategoryAddOn` rows** (`" Pepperoni"`, `" Pomme de terre"`, `" Oeuf"`). Found while confirming that images shared across two categories' groups are legitimate rather than duplicates — they are, and no group contains the same choice twice, so this is purely cosmetic. It is **real catalogue data, not a code defect**: nothing in the app trims these on write, and `fix-duplicate-product-options.ts` matches on `name.trim().toLowerCase()` so it already tolerates them. Two ways to close it, and they are different decisions: the operator edits the thirteen names in Réglages, or the catalogue write paths start trimming (which changes what a save stores and would need the same treatment on the product side). **Claude must not edit real menu data** (warning 4), so the first is an operator action and the second is a batch. | LOW (cosmetic; every affected label is visible in the POS picker) | operator action, or 5.7 |
 | **L-36** | 2026-09-04 | Batch 4.4c | **`ApprovalPayload.amount` is documented as euros and has always carried cents.** `approvals.ts:17` declares `amount: number | null; // euros`, but every caller binds cents: `refund/route.ts` passes `parsed.data.amount` (cents, per the `refundSchema` comment), `orders-view.tsx` passes `amountCents` by that name, and `payment-dialog.tsx` passes `discountTotal`. The HMAC therefore binds a cent figure while the type says otherwise, and the `tolerance ?? 0.001` in `verifyApprovalToken` reads as a floating-point euro guard when it is in fact an exact-integer-cent comparison. Nothing is mis-computed today — both sides agree — so this is a comment and a type-doc defect, not a money defect. It matters because Batch 4.4c's step-up now binds amounts through the same field, and the next person to add a caller will read the comment. Recorded rather than fixed: `approvals.ts` is not this batch's file (safety rule 10). **Fix by correcting the comment, not the code.** | LOW (documentation contradicts the implementation in a money path) | 7.1 or 5.7 |
 | **L-33** | 2026-09-04 | Batch 4.4b | **With one operational role removed, every gate naming `["SUPER_ADMIN", "MANAGER"]` now admits the entire role model — it is no narrower than declaring no roles at all.** Measured after the removal: **29 declaration sites across 26 route files**, including `POST /api/reports/z` (closing the day) and `POST /api/orders/[id]/reprint` (a journalled REIMPRESSION). Nothing regressed — these gates were never wider than they are — but a reader now cannot tell a deliberate restriction from a decorative one, and `api-authorization.test.ts` had been asserting exactly that property via `not.toContain("CASHIER")`, which the removal made vacuous (the test was rewritten to pin each declared list instead). **Two sites are sharper than the rest:** `GET /api/users` and `GET /api/backups` both answer **200** to a MANAGER whose nav entry for those views is deliberately SUPER_ADMIN-only (DD-07), so the API contradicts the navigation. Verified on a scratch copy: `GET /api/users` returns ids, usernames, names, roles and active flags — **no PIN hashes** — and `GET /api/backups` returns the backup list. `GET /api/logs` correctly returns 403 and is the shape the other two should match. This is the same defect class as M-19s at two routes M-19s did not name. Deciding which of the 29 should narrow to `["SUPER_ADMIN"]` is a review, not a mechanical fix. | MEDIUM (authorization declarations no longer mean what they read as; two contradict the nav) | 6.1 or 7.2 |
 | **L-32** | 2026-09-04 | Batch 4.4 | **Role gating uses two idioms, and only one is visible to the T-03 matrix.** About twenty routes declare their gate as `withAuth(handler, { roles })`; about twenty others admit any authenticated caller at the wrapper and then refuse inside the handler with `if (user.role !== "SUPER_ADMIN") return 403` — `POST /api/backups`, `DELETE /api/backups/[id]`, `POST /api/users` and `PUT /api/settings` among them. **Neither group is insecure**: the inline checks work. The cost is that `api-authorization.test.ts` cannot see the second group, so the declaration-level matrix is complete only for the first, and a future route copying the inline pattern inherits that blind spot. Converting them is mechanical but **user-visible**: the inline guards answer « Réservé au super administrateur » while `withAuth` answers « Accès refusé », so a conversion changes the message an operator reads on every one of those routes. Do it as one deliberate change with the message decided, not incidentally. The test pins which idiom each destructive route uses in the meantime. | LOW (test coverage blind spot; no live exposure) | 6.1 or 7.2 |
