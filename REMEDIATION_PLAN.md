@@ -976,7 +976,7 @@ Audit section J, step 5: close the one real privilege-escalation path, stop bloc
 
 ## Batch 4.4b — Remove the CASHIER role, close M-19s
 
-**Status:** `COMPLETED` · **Completed:** 2026-09-04 · **Commit:** `<pending>` · **Findings:** M-19s; DD-07 applied
+**Status:** `COMPLETED` · **Completed:** 2026-09-04 · **Commit:** `45a6fb8` · **Findings:** M-19s; DD-07 applied
 **Record:** `REMEDIATION_RECORD.md` → *Batch 4.4b* — specification, the removal inventory, validation criteria and status record, moved there verbatim on 2026-09-04.
 
 **Constraints this batch leaves behind** *(sentences copied from the record, not paraphrased)*
