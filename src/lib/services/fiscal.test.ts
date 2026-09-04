@@ -221,13 +221,25 @@ describe("fiscal journal (JFP) integration", () => {
       });
     });
 
+    // L-25 (Batch 3.6b): the month can only be sealed once it has ended and
+    // its caisses are closed. This test seals the month the order is in, so it
+    // runs on a clock at the first instant of the NEXT month — the earliest
+    // legal moment — with the seeded caisse closed first.
     const now = new Date();
-    const close = await closeMonth(now.getFullYear(), now.getMonth() + 1, user.id);
+    const year = now.getFullYear();
+    const month = now.getMonth() + 1;
+    await db.shift.update({
+      where: { id: shift.id },
+      data: { status: "CLOSED", closedById: user.id, closedAt: new Date() },
+    });
+    const afterMonthEnd = new Date(year, month, 1);
+
+    const close = await closeMonth(year, month, user.id, false, afterMonthEnd);
     expect(close.salesTotal).toBe(1500);
     expect(close.salesCount).toBe(1);
     expect(close.hash).toMatch(/^[0-9a-f]{64}$/);
 
     // Duplicate close rejected.
-    await expect(closeMonth(now.getFullYear(), now.getMonth() + 1, user.id)).rejects.toThrow();
+    await expect(closeMonth(year, month, user.id, false, afterMonthEnd)).rejects.toThrow();
   });
 });

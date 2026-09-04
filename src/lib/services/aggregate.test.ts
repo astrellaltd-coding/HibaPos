@@ -250,7 +250,9 @@ describe("a sealed MonthlyClose equals the sum of its ZReports (C-10)", () => {
     const zReports = await db.zReport.findMany({ orderBy: { number: "asc" } });
     expect(zReports).toHaveLength(2);
 
-    const close = await closeMonth(2026, 4, user.id);
+    // L-25 (Batch 3.6b): a month is only sealable once it has ended, so the
+    // clock is pinned just past April rather than left to the real one.
+    const close = await closeMonth(2026, 4, user.id, false, new Date(2026, 4, 1));
 
     // The whole point: field by field, the close equals the sum of its Zs.
     const zSum = (pick: (z: (typeof zReports)[number]) => number) =>

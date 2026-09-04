@@ -13,6 +13,14 @@ import {
   type ChainVerifyResult,
 } from "@/lib/fiscal";
 import { nextFiscalEventSequence } from "@/lib/services/sequence";
+import {
+  monthlyPeriod,
+  monthBounds,
+  yearBounds,
+  hasPeriodEnded,
+  localDay,
+  type PeriodBounds,
+} from "@/lib/period";
 import { type VatBreakdown } from "@/lib/money";
 import { aggregateOrders, AGGREGATE_INCLUDE } from "@/lib/services/aggregate";
 import { TX_FISCAL } from "@/lib/tx-options";
@@ -219,6 +227,9 @@ type PeriodAgg = {
   voucherTotal: number; // cents
   discountsTotal: number; // cents
   totalRefunded: number; // cents
+  // L-26 (Batch 3.6b): how many refunds, not just how much — the M-07
+  // convention, applied to the period closes it named only `ZReport` for.
+  refundsCount: number;
   vatBreakdown: VatBreakdown;
   topProducts: { name: string; quantity: number; total: number }[]; // total in cents
 };
@@ -246,6 +257,7 @@ async function aggregatePeriod(from: Date, to: Date): Promise<PeriodAgg> {
     voucherTotal: agg.voucherTotal,
     discountsTotal: agg.discountsTotal,
     totalRefunded: agg.totalRefunded,
+    refundsCount: agg.refundsCount,
     vatBreakdown: agg.vatBreakdown,
     topProducts: agg.topProducts,
   };
@@ -287,6 +299,60 @@ function assertNextPeriod(latest: string | null, period: string, expected: strin
   );
 }
 
+/**
+ * L-25 (Batch 3.6b) — a period may only be sealed once it has ended.
+ *
+ * Batch 3.6's `assertNextPeriod` enforces ORDER but not TIME. Sealing the
+ * current month succeeded on any day of it and sealed a partial month as the
+ * whole: `period` is `@unique`, so the rest of that month could never be
+ * sealed and would never appear in any close. The screen's "Clôturer le mois"
+ * control proposed the current month by default, so the wrong period was the
+ * one on offer.
+ *
+ * DD-18, decided by the operator on 2026-09-04: **refuse, with no override.**
+ * A sealed close can be neither edited nor deleted, so the first premature
+ * seal is unrepairable; a confirmation dialog was rejected as too weak for an
+ * irreversible fiscal action. Zero closes exist, so the rule costs nothing to
+ * impose today and cannot be imposed cheaply later.
+ *
+ * "Ended" is `now >= bounds.to` — the same half-open local-time boundary
+ * `aggregatePeriod` already uses, derived in `@/lib/period` so there is one
+ * convention rather than two. Refusing at 23:30 on the last day of the period
+ * is accepted behaviour.
+ */
+function assertPeriodEnded(bounds: PeriodBounds, period: string, label: string, now: Date) {
+  if (hasPeriodEnded(bounds, now)) return;
+  throw new Error(
+    `Clôture prématurée : ${label} ${period} n'est pas terminé. ` +
+      `Il ne pourra être clôturé qu'à partir du ${localDay(bounds.to)}. ` +
+      `Une clôture scellée ne peut être ni modifiée ni supprimée.`,
+  );
+}
+
+/**
+ * L-25, second half — a period may not be sealed while a caisse opened inside
+ * it is still OPEN.
+ *
+ * Otherwise the sealed period exists before its own last Z report does, and
+ * the reconciliation Batch 3.2 established — a period close equals the sum of
+ * its Z reports — cannot be checked at sealing time.
+ *
+ * DD-18 scopes this to shifts whose OPENING falls inside the period, which is
+ * what is checked here; it is deliberately not widened.
+ */
+async function assertNoOpenShiftInPeriod(bounds: PeriodBounds, period: string, label: string) {
+  const open = await db.shift.findFirst({
+    where: { status: "OPEN", openedAt: { gte: bounds.from, lt: bounds.to } },
+    orderBy: { number: "asc" },
+    select: { number: true },
+  });
+  if (!open) return;
+  throw new Error(
+    `Clôture impossible : la caisse n° ${open.number}, ouverte pendant ${period}, ` +
+      `n'est pas clôturée. Clôturez-la (rapport Z) avant de sceller ${label} ${period}.`,
+  );
+}
+
 /** The period that must follow `YYYY-MM`. */
 export function nextMonthlyPeriod(period: string): string {
   const [y, m] = period.split("-").map(Number);
@@ -298,8 +364,9 @@ export async function closeMonth(
   month: number,
   sealedById: string,
   factice = false,
+  now: Date = new Date(),
 ) {
-  const period = `${year}-${String(month).padStart(2, "0")}`;
+  const period = monthlyPeriod(year, month);
   const existing = await db.monthlyClose.findUnique({ where: { period } });
   if (existing) throw new Error(`Clôture mensuelle déjà effectuée pour ${period}`);
 
@@ -316,8 +383,13 @@ export async function closeMonth(
     "mois",
   );
 
-  const from = new Date(year, month - 1, 1);
-  const to = new Date(year, month, 1);
+  // L-25: and refuse anything the calendar has not finished with. Both guards
+  // sit before the aggregation, for the same reason M-01's does.
+  const bounds = monthBounds(year, month);
+  assertPeriodEnded(bounds, period, "le mois", now);
+  await assertNoOpenShiftInPeriod(bounds, period, "le mois");
+
+  const { from, to } = bounds;
   const agg = await aggregatePeriod(from, to);
 
   return db.$transaction(async (tx) => {
@@ -348,6 +420,11 @@ export async function closeMonth(
         cardTotal: agg.cardTotal,
         voucherTotal: agg.voucherTotal,
         discountsTotal: agg.discountsTotal,
+        // L-26: the aggregation always returned these; the columns to hold
+        // them did not exist, so nothing could read them back without
+        // parsing `dataJson`.
+        refundsTotal: agg.totalRefunded,
+        refundsCount: agg.refundsCount,
         vatBreakdownJson: JSON.stringify(agg.vatBreakdown),
         topProductsJson: JSON.stringify(agg.topProducts),
         dataJson,
@@ -370,7 +447,20 @@ export async function closeMonth(
   }, TX_FISCAL);
 }
 
-export async function closeYear(year: number, sealedById: string, factice = false) {
+/**
+ * Seal an exercice.
+ *
+ * What this deliberately does NOT require, confirmed and recorded in Batch
+ * 3.6b: it asks nothing of the year's twelve monthly closes. The screen's hint
+ * text says « Clôturez les douze mois avant l'exercice », the code has never
+ * enforced it, and adding that requirement is a decision nobody has taken.
+ */
+export async function closeYear(
+  year: number,
+  sealedById: string,
+  factice = false,
+  now: Date = new Date(),
+) {
   const period = String(year);
   const existing = await db.annualClose.findUnique({ where: { period } });
   if (existing) throw new Error(`Clôture annuelle déjà effectuée pour ${period}`);
@@ -387,8 +477,12 @@ export async function closeYear(year: number, sealedById: string, factice = fals
     "exercice",
   );
 
-  const from = new Date(year, 0, 1);
-  const to = new Date(year + 1, 0, 1);
+  // L-25: same two timing rules as the month, same place in the sequence.
+  const bounds = yearBounds(year);
+  assertPeriodEnded(bounds, period, "l'exercice", now);
+  await assertNoOpenShiftInPeriod(bounds, period, "l'exercice");
+
+  const { from, to } = bounds;
   const agg = await aggregatePeriod(from, to);
 
   return db.$transaction(async (tx) => {
@@ -413,6 +507,8 @@ export async function closeYear(year: number, sealedById: string, factice = fals
         cardTotal: agg.cardTotal,
         voucherTotal: agg.voucherTotal,
         discountsTotal: agg.discountsTotal,
+        refundsTotal: agg.totalRefunded, // L-26, as for the month
+        refundsCount: agg.refundsCount,
         vatBreakdownJson: JSON.stringify(agg.vatBreakdown),
         topProductsJson: JSON.stringify(agg.topProducts),
         dataJson,

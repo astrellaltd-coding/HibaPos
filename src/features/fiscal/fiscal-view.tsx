@@ -27,6 +27,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Money } from "@/components/shared/money";
 import { toast } from "sonner";
 import { formatDateTime } from "@/lib/format";
+import { lastCompletedMonth, lastCompletedYear } from "@/lib/period";
 import {
   ShieldCheck,
   ShieldAlert,
@@ -63,6 +64,8 @@ type CloseRow = {
   salesTotal: number;
   salesCount: number;
   vatTotal: number;
+  refundsTotal: number;
+  refundsCount: number;
   sealedAt: string;
   hash: string;
   previousHash: string | null;
@@ -120,9 +123,13 @@ export function FiscalView() {
   const isSuperAdmin = user?.role === "SUPER_ADMIN";
   const now = new Date();
 
-  const [closeYearInput, setCloseYearInput] = useState(now.getFullYear());
-  const [closeMonthInput, setCloseMonthInput] = useState(now.getMonth() + 1);
-  const [annualYearInput, setAnnualYearInput] = useState(now.getFullYear() - 1);
+  // L-25 (Batch 3.6b): the month field used to propose the CURRENT month —
+  // the one period the server now refuses, and the one whose premature seal
+  // is unrepairable. Both close fields propose the last completed period.
+  const proposedMonth = lastCompletedMonth(now);
+  const [closeYearInput, setCloseYearInput] = useState(proposedMonth.year);
+  const [closeMonthInput, setCloseMonthInput] = useState(proposedMonth.month);
+  const [annualYearInput, setAnnualYearInput] = useState(lastCompletedYear(now));
   const [archiveYearInput, setArchiveYearInput] = useState(now.getFullYear() - 1);
   const [drawerReason, setDrawerReason] = useState("");
 
@@ -334,7 +341,8 @@ export function FiscalView() {
               Clôturer le mois
             </Button>
             <p className="text-xs text-muted-foreground">
-              Irréversible : une clôture scellée ne peut être ni modifiée ni supprimée.
+              Irréversible : une clôture scellée ne peut être ni modifiée ni supprimée. Un mois ne
+              peut être clôturé qu&apos;une fois terminé, et toutes ses caisses clôturées.
             </p>
           </div>
 
@@ -355,7 +363,8 @@ export function FiscalView() {
                 Clôturer l&apos;exercice
               </Button>
               <p className="text-xs text-muted-foreground">
-                Réservé au super administrateur. Clôturez les douze mois avant l&apos;exercice.
+                Réservé au super administrateur. Clôturez les douze mois avant l&apos;exercice. Un
+                exercice ne peut être clôturé qu&apos;une fois terminé.
               </p>
             </div>
           )}
@@ -376,6 +385,7 @@ export function FiscalView() {
                     <th className="py-2 pr-3">Période</th>
                     <th className="py-2 pr-3 text-right">Ventes</th>
                     <th className="py-2 pr-3 text-right">TVA</th>
+                    <th className="py-2 pr-3 text-right">Remboursements</th>
                     <th className="py-2 pr-3">Scellée le</th>
                     <th className="py-2">Condensat</th>
                   </tr>
@@ -386,6 +396,10 @@ export function FiscalView() {
                       <td className="py-2 pr-3 font-medium">{c.period}</td>
                       <td className="py-2 pr-3 text-right tabular-nums"><Money amount={c.salesTotal} /></td>
                       <td className="py-2 pr-3 text-right tabular-nums"><Money amount={c.vatTotal} /></td>
+                      <td className="py-2 pr-3 text-right tabular-nums">
+                        <Money amount={c.refundsTotal} />
+                        <span className="ml-1 text-xs text-muted-foreground">× {c.refundsCount}</span>
+                      </td>
                       <td className="py-2 pr-3 text-xs text-muted-foreground">{formatDateTime(c.sealedAt)}</td>
                       <td className="py-2 font-mono text-[11px] text-muted-foreground">{c.hash.slice(0, 16)}…</td>
                     </tr>

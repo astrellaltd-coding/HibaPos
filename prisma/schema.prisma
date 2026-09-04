@@ -592,6 +592,12 @@ model MonthlyClose {
   cardTotal       Int
   voucherTotal    Int
   discountsTotal  Int
+  // L-26 (Batch 3.6b): the aggregation has always produced these; the close
+  // hashed them inside dataJson and had nowhere to put them, so no query,
+  // report or screen could read them. NOT NULL + default 0, the M-07
+  // convention on ZReport.
+  refundsTotal    Int      @default(0)
+  refundsCount    Int      @default(0)
   vatBreakdownJson String
   topProductsJson  String
   dataJson        String   // canonical payload used to compute the hash (for chain verification)
@@ -616,6 +622,8 @@ model AnnualClose {
   cardTotal       Int
   voucherTotal    Int
   discountsTotal  Int
+  refundsTotal    Int      @default(0) // L-26 (Batch 3.6b), as on MonthlyClose
+  refundsCount    Int      @default(0)
   vatBreakdownJson String
   topProductsJson  String
   dataJson        String   // canonical payload used to compute the hash (for chain verification)

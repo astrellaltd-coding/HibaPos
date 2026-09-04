@@ -105,7 +105,8 @@ describe("the journal records what the new UI does", () => {
     const user = await db.user.create({
       data: { username: `cl-${Date.now()}`, name: "CL", role: "SUPER_ADMIN", pinHash: "x:y" },
     });
-    const close = await closeMonth(2026, 5, user.id);
+    // L-25 (Batch 3.6b): clock pinned past the period being sealed.
+    const close = await closeMonth(2026, 5, user.id, false, new Date(2026, 5, 1));
     expect(close.period).toBe("2026-05");
     expect(close.hash).toHaveLength(64);
 

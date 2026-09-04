@@ -24,6 +24,17 @@ import { ensureFiscalCounter } from "@/lib/services/sequence";
 // chain by insertion order. So the tests below assert a REFUSAL — and, just
 // as importantly, that a refusal writes nothing.
 
+// Batch 3.6b added a second guard beside this one: a period cannot be sealed
+// until it has ENDED (L-25). These tests are about ORDER, so they run on a
+// clock set well past every period they touch — otherwise a refusal could be
+// the timing guard's rather than the sequence guard's, and the test would no
+// longer prove what it says it proves. `reset()` deletes every shift, so the
+// open-caisse half of L-25 cannot fire here either.
+const NOW = new Date(2031, 0, 2);
+const seal = (year: number, month: number, userId: string) =>
+  closeMonth(year, month, userId, false, NOW);
+const sealYear = (year: number, userId: string) => closeYear(year, userId, false, NOW);
+
 async function reset() {
   await db.fiscalEvent.deleteMany();
   await db.monthlyClose.deleteMany();
@@ -59,16 +70,16 @@ describe("monthly close sequence (M-01)", () => {
   it("accepts any month as the very first close", async () => {
     // A restaurant adopting the feature in September must not be made to seal
     // eight earlier months first.
-    const close = await closeMonth(2026, 9, userId);
+    const close = await seal(2026, 9, userId);
     expect(close.period).toBe("2026-09");
     expect(close.previousHash).toBeNull();
     expect((await verifyMonthlyCloses()).ok).toBe(true);
   });
 
   it("accepts consecutive months and keeps the chain verifiable", async () => {
-    await closeMonth(2026, 1, userId);
-    await closeMonth(2026, 2, userId);
-    await closeMonth(2026, 3, userId);
+    await seal(2026, 1, userId);
+    await seal(2026, 2, userId);
+    await seal(2026, 3, userId);
 
     const rows = await db.monthlyClose.findMany({ orderBy: { period: "asc" } });
     expect(rows.map((r) => r.period)).toEqual(["2026-01", "2026-02", "2026-03"]);
@@ -82,27 +93,27 @@ describe("monthly close sequence (M-01)", () => {
   });
 
   it("REFUSES an earlier month after a later one — the exact M-01 case", async () => {
-    await closeMonth(2026, 3, userId);
-    await expect(closeMonth(2026, 1, userId)).rejects.toThrow(/hors séquence/);
-    await expect(closeMonth(2026, 1, userId)).rejects.toThrow(/2026-04/);
+    await seal(2026, 3, userId);
+    await expect(seal(2026, 1, userId)).rejects.toThrow(/hors séquence/);
+    await expect(seal(2026, 1, userId)).rejects.toThrow(/2026-04/);
   });
 
   it("REFUSES a skipped month, which would strand the one in between", async () => {
     // "Later than the last close" would let this through and leave 2026-02
     // permanently unsealable — the same hole in a smaller shape.
-    await closeMonth(2026, 1, userId);
-    await expect(closeMonth(2026, 3, userId)).rejects.toThrow(/hors séquence/);
-    await closeMonth(2026, 2, userId); // the month it actually wants
-    await closeMonth(2026, 3, userId); // now allowed
+    await seal(2026, 1, userId);
+    await expect(seal(2026, 3, userId)).rejects.toThrow(/hors séquence/);
+    await seal(2026, 2, userId); // the month it actually wants
+    await seal(2026, 3, userId); // now allowed
     expect((await verifyMonthlyCloses()).ok).toBe(true);
   });
 
   it("writes NOTHING when it refuses", async () => {
-    await closeMonth(2026, 3, userId);
+    await seal(2026, 3, userId);
     const eventsBefore = await db.fiscalEvent.count();
     const closesBefore = await db.monthlyClose.count();
 
-    await expect(closeMonth(2026, 1, userId)).rejects.toThrow();
+    await expect(seal(2026, 1, userId)).rejects.toThrow();
 
     // A rejected close must not leave a half-sealed row, a stray CLOTURE_M
     // event, or a consumed sequence number. The guard runs before the
@@ -114,22 +125,22 @@ describe("monthly close sequence (M-01)", () => {
   });
 
   it("rolls over the year boundary", async () => {
-    await closeMonth(2026, 12, userId);
-    await expect(closeMonth(2027, 2, userId)).rejects.toThrow(/2027-01/);
-    await closeMonth(2027, 1, userId);
+    await seal(2026, 12, userId);
+    await expect(seal(2027, 2, userId)).rejects.toThrow(/2027-01/);
+    await seal(2027, 1, userId);
     expect((await verifyMonthlyCloses()).ok).toBe(true);
   });
 
   it("still refuses a duplicate period, with the original message", async () => {
-    await closeMonth(2026, 5, userId);
-    await expect(closeMonth(2026, 5, userId)).rejects.toThrow(/déjà effectuée/);
+    await seal(2026, 5, userId);
+    await expect(seal(2026, 5, userId)).rejects.toThrow(/déjà effectuée/);
   });
 
   it("still detects a genuine tamper on a sealed row", async () => {
     // The guard must not be mistaken for the integrity check. Alter a sealed
     // close's payload and verification has to fail.
-    await closeMonth(2026, 1, userId);
-    await closeMonth(2026, 2, userId);
+    await seal(2026, 1, userId);
+    await seal(2026, 2, userId);
     expect((await verifyMonthlyCloses()).ok).toBe(true);
 
     const second = await db.monthlyClose.findUniqueOrThrow({ where: { period: "2026-02" } });
@@ -151,10 +162,10 @@ describe("annual close sequence (M-01)", () => {
   });
 
   it("accepts any year first, then only the next one", async () => {
-    await closeYear(2026, userId);
-    await expect(closeYear(2028, userId)).rejects.toThrow(/hors séquence/);
-    await expect(closeYear(2025, userId)).rejects.toThrow(/2027/);
-    await closeYear(2027, userId);
+    await sealYear(2026, userId);
+    await expect(sealYear(2028, userId)).rejects.toThrow(/hors séquence/);
+    await expect(sealYear(2025, userId)).rejects.toThrow(/2027/);
+    await sealYear(2027, userId);
 
     const rows = await db.annualClose.findMany({ orderBy: { period: "asc" } });
     expect(rows.map((r) => r.period)).toEqual(["2026", "2027"]);
@@ -163,7 +174,7 @@ describe("annual close sequence (M-01)", () => {
   });
 
   it("names the exercice, not the month, in its refusal", async () => {
-    await closeYear(2026, userId);
-    await expect(closeYear(2030, userId)).rejects.toThrow(/exercice/);
+    await sealYear(2026, userId);
+    await expect(sealYear(2030, userId)).rejects.toThrow(/exercice/);
   });
 });
