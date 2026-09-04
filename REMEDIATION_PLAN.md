@@ -11,19 +11,19 @@ Detailed audit record: https://claude.ai/code/artifact/329316b0-3a6b-48b0-9d27-d
 
 **Overall:** NOT READY FOR PRODUCTION
 
-**Current Stage:** Stage 4 — Security & integrity, `NOT STARTED`. (**Stage 3 is COMPLETED** — every batch 3.1 through 3.6, plus 3.6b, which reopened it for one small batch on 2026-09-04 — with C-22's chain-design half carried forward as `REQUIRES EXTERNAL VERIFICATION` and V-03 open for professional confirmation. Stage 1 is **partly done**: 1.1 and 1.2 COMPLETED, 1.3 `IMPLEMENTED — TESTING REQUIRED` on hardware, 1.4 deferred. Stage 2 is COMPLETED.)
+**Current Stage:** Stage 4 — Security & integrity, `IN PROGRESS` (4.1 COMPLETED; 4.2 through 4.7 `NOT STARTED`). (**Stage 3 is COMPLETED** — every batch 3.1 through 3.6, plus 3.6b, which reopened it for one small batch on 2026-09-04 — with C-22's chain-design half carried forward as `REQUIRES EXTERNAL VERIFICATION` and V-03 open for professional confirmation. Stage 1 is **partly done**: 1.1 and 1.2 COMPLETED, 1.3 `IMPLEMENTED — TESTING REQUIRED` on hardware, 1.4 deferred. Stage 2 is COMPLETED.)
 
-**Current Batch:** Batch 4.1 — Manager-approval brute force · `NOT STARTED`
+**Current Batch:** Batch 4.2 — Asynchronous scrypt · `NOT STARTED`
 
-**Last Completed Batch:** Batch 3.6b — Close timing and close columns (L-25, L-26). A month or exercice is now refused while it is still running, and while a caisse opened inside it is still open; the close screen proposes the last completed period instead of the current one; both period closes carry `refundsTotal` / `refundsCount`. **A migration is written and rehearsed but NOT applied to production** — see *OPEN THREADS → A*. (Batch 3.6's migration, which the plan recorded as unapplied, **has** been applied by the operator — thread A corrected.)
+**Last Completed Batch:** Batch 4.1 — Manager-approval brute force (C-08). A wrong manager PIN now counts against the *caller*, and five inside fifteen minutes refuse further approvals with `423` until the window clears; the rate-limit key no longer carries a client IP, so rotating `X-Real-IP` cannot mint a fresh bucket. **No migration — the fix is in force as soon as the code runs.** The caller's *account* is deliberately not locked: that would revoke their session and eject a cashier from the till mid-service.
 
-**Next Batch:** Batch 4.1 — Manager-approval brute force. **Batch 1.4 is unblocked in design** (DD-02 answered) but still deferred on hardware — see *Hardware-dependent validation* below.
+**Next Batch:** Batch 4.2 — Asynchronous scrypt. Note its **prerequisite**: T-04 (the legacy-PIN fallback test) must exist and pass *before* any change to `verifyPinDetail`. **Batch 1.4 is unblocked in design** (DD-02 answered) but still deferred on hardware — see *Hardware-dependent validation* below.
 
 **Blocked:** Batch 1.3 `[HW]` sign-off and Batch 1.4 — both need the app running on the restaurant's POS machine, which is in a different country from the developer and has no copy of the app installed (decision of 2026-09-03).
 
 **Awaiting decision:** Batch 5.3 (cross-shift refunds), Batch 5.5 (cash movements), Batch 5.6 (order cancellation) — see *Design Decisions Required*. **DD-03 and DD-17 were answered on 2026-09-03, DD-05 and DD-18 on 2026-09-04**; nothing blocks Stage 4.
 
-**Last Updated:** 2026-09-04 (session 5 — Batch 3.6b, closing Stage 3 for good; read *OPEN THREADS* below before starting anything, including thread A, which session 5 found stale)
+**Last Updated:** 2026-09-04 (session 6 — Batch 4.1, opening Stage 4; read *OPEN THREADS* below before starting anything. Session 6 found thread A stale again: the operator has applied the Batch 3.6b migration, so **nothing is now waiting on a `migrate deploy`**)
 **Restructured:** 2026-09-04 — completed batches now live verbatim in `REMEDIATION_RECORD.md`; this file keeps the resume block, the open work, the registers and a stub per completed batch. Everything a session must know before acting sits above the first stage heading. See *HOW TO USE THIS FILE*.
 
 ### OPEN THREADS — read this before starting a batch
@@ -49,8 +49,10 @@ real till until an action below is taken. Do not report them as delivered.
 | **Thermal printing + drawer** (1.3) | `printerEnabled` is `false` and no printer IP is set. Confirmed this session: a reprint journals its `REIMPRESSION` event and then reports *"Impression désactivée dans les réglages."* | Commissioning on the real Sunso WTP-801 |
 | **FACTICE simulation mode** (3.1b) | The switch now exists in Réglages but is **off**. Any testing before go-live is still journalled as genuine trading. | The operator turning it on for test sessions |
 | **Audit-log retention** (2.4) | Deliberately `0` = keep forever. That table is still unbounded. | An operator decision, if a retention obligation appears |
-| **`MonthlyClose` / `AnnualClose` refunds columns** (3.6b) | Migration `20260904091947_close_refund_totals` is written and rehearsed, **not applied**. Until the operator runs `migrate deploy`, sealing a period on the new code fails — `closeMonth` / `closeYear` write columns the live database does not have. It rebuilds both tables (Prisma's choice for NOT NULL + default) but both are **empty**, so no sealed document is rewritten; the fingerprint diff is in the 3.6b status record. | The operator running the command in *B* |
+| ~~**`MonthlyClose` / `AnnualClose` refunds columns** (3.6b)~~ ✅ **APPLIED** — see the second correction below | — | — |
 | ~~**`ZReport.refundsTotal` / `refundsCount`** (3.6)~~ ✅ **APPLIED** — see the correction below | — | — |
+
+**Correction, 2026-09-04 (session 6).** The 3.6b row above said its migration was unapplied. It is applied: `20260904091947_close_refund_totals` is in `_prisma_migrations` with `finished_at` **2026-09-04 09:43:54 (UTC+1)**, matching `db/custom.db`'s mtime, and `refundsTotal` / `refundsCount` are present on both `MonthlyClose` and `AnnualClose`, both tables still **empty** — so no sealed document was rewritten, exactly as the rehearsal predicted. **The production hash is now `a66bc96c20d3f00282ea249361dd80d6303434b1a43331c0725258b637db46f9`**, not the `7cc3367b…` recorded in *G*. Nothing is waiting on a `migrate deploy` any more. Everything else in the baseline is unchanged. Verified read-only.
 
 **Correction, 2026-09-04 (session 5).** The row above said the Batch 3.6 migration was unapplied. It is applied: `20260903233731_zreport_refund_totals` is in `_prisma_migrations` with `finished_at` 2026-09-04 00:54:37, matching `db/custom.db`'s mtime to the millisecond, and both sealed Z rows read `0/0`. **The production hash is now `7cc3367b8ff8518338bc5d00354cce4fde761d71d3b6a14336ed22c6209cc152`**, not the `ea990b79…` in *G*; everything else in the baseline is unchanged. Verified read-only.
 
@@ -58,7 +60,7 @@ real till until an action below is taken. Do not report them as delivered.
 
 | Action | Why it matters | Related |
 |---|---|---|
-| **Apply the Batch 3.6b migration** | `bunx prisma migrate deploy` from the project root. Adds `refundsTotal` and `refundsCount` to `MonthlyClose` and `AnnualClose`, both defaulting to 0. **Required before the 3.6b code runs on the live install** — sealing a month or an exercice writes those columns. | L-26 |
+| ~~**Apply the Batch 3.6b migration**~~ ✅ **DONE 2026-09-04 09:43** | Applied by the operator; verified read-only in Batch 4.1. See the correction in *A*. **No migration is pending** — Batch 4.1 added none. | L-26 |
 | **Stop the leftover server on port 3010** | PID 2072 is a `next start` from Batch 3.1b, still serving a session-3 scratch copy. It holds the Prisma query-engine DLL open, so `bunx prisma generate` fails `EPERM` (harmlessly — the TypeScript client is written first). Claude is blocked from killing the operator's processes. | — |
 | ~~**Apply the Batch 3.6 migration**~~ ✅ **DONE 2026-09-04** | Applied by the operator; verified read-only in Batch 3.6b. See the correction in *A*. | M-07 |
 | Correct `printerName` in Réglages | Stored value is `"Epson TM-m30"`; the physical printer is the **Sunso WTP-801** (Ethernet). Cosmetic — nothing reads it. **This was impossible until Batch 3.1d**; the settings form now saves. | DOC-15 |
@@ -142,11 +144,11 @@ with `sha256sum`); the compliance judgement is not a code question.
 
 | Thing | Value at the end of session 3 (updated through session 4) |
 |---|---|
-| Tests | **384 pass, 0 fail** (`bun test src --timeout 30000` — see L-24 for why the timeout flag) |
-| Production DB sha256 | `7cc3367b8ff8518338bc5d00354cce4fde761d71d3b6a14336ed22c6209cc152` — changed **only** by the operator applying the 3.5 and then the 3.6 migration. Re-verified read-only in Batch 3.6b; the pre-3.6b value is preserved in `db-snapshots/custom.db.pre-3.6b.2026-09-04T08-27-38Z` |
+| Tests | **400 pass, 0 fail** (`bun test src --timeout 30000` — see L-24 for why the timeout flag). 384 before Batch 4.1 |
+| Production DB sha256 | `a66bc96c20d3f00282ea249361dd80d6303434b1a43331c0725258b637db46f9` — changed **only** by the operator applying the 3.5, 3.6 and (2026-09-04 09:43) 3.6b migrations. Re-verified read-only in Batch 4.1, unchanged across that batch. The pre-3.6b value `7cc3367b…` is preserved in `db-snapshots/custom.db.pre-3.6b.2026-09-04T08-27-38Z` |
 | Fiscal chain | `/api/fiscal/verify` → all three chains `ok`, `lastSequence: 2`. **Zero monthly and annual closes have ever been sealed** — which is why M-01's guard, DD-18's timing rules and L-26's payload change could all be imposed with nothing to accommodate. Re-verified read-only 2026-09-04 |
-| Fiscal counters | `20/3/2/2` (receipt / shift / Z / event) |
-| Migrations | **5 applied on production**, latest `20260903233731_zreport_refund_totals` (applied 2026-09-04 00:54:37). A **6th is committed and unapplied**: `20260904091947_close_refund_totals` |
+| Fiscal counters | `20/3/2/2` (receipt / shift / Z / event). Re-verified read-only in Batch 4.1 |
+| Migrations | **6 applied on production**, latest `20260904091947_close_refund_totals` (applied 2026-09-04 09:43:54). **None pending.** Batch 4.1 added none |
 | Catalogue | 78 products — 17 drinks at **5,5 %**, 61 at 10 % |
 | Out-of-band snapshots | `db-snapshots/custom.db.pre-3.1c.2026-09-03T20-54-10Z` and `…pre-3.5.2026-09-03T23-01-34Z` (both hash `711de2f1…`), and `…pre-3.6b.2026-09-04T08-27-38Z` (`7cc3367b…`). All outside the repo |
 
@@ -316,7 +318,7 @@ their own status blocks while the index still showed them untouched.*
 | C-05 ✅ | 2.1 | M-05 | 5.5 | M-29 ✅ | 2.4 |
 | C-06 ✅ | 2.2 | M-06 ✅ | 3.6 | M-30 ✅ | 2.4 |
 | C-07 | 1.4 | M-07 ✅ | 3.6 | M-31 ✅ | 2.4 |
-| C-08 | 4.1 | M-08 | 5.6 | L-01 | 7.2 |
+| C-08 ✅ | 4.1 | M-08 | 5.6 | L-01 | 7.2 |
 | C-09 | 4.2 | M-09 | 5.7 | L-02 | 7.2 |
 | C-10 ✅ | 3.2 | M-10 | 5.7 | L-03 | 7.2 |
 | C-11 ✅ | 3.2 | M-11 | 5.7 | L-04 ◐ | 2.4 / 7.3 |
@@ -869,40 +871,30 @@ Nothing else in the catalogue changes: all 61 non-drink products stay at 10 %.
 
 # STAGE 4 — SECURITY & INTEGRITY
 
-**Stage status:** `NOT STARTED`
+**Stage status:** `IN PROGRESS` — 4.1 `COMPLETED` (2026-09-04); 4.2 through 4.7 `NOT STARTED`.
 
 Audit section J, step 5: close the one real privilege-escalation path, stop blocking the event loop, rotate the default credentials, and stop the silent data-loss paths.
 
 ## Batch 4.1 — Manager-approval brute force
 
-**Status:** `NOT STARTED`
+**Status:** `COMPLETED` · **Completed:** 2026-09-04 · **Commit:** `__SHA__` · **Findings:** C-08
+**Record:** `REMEDIATION_RECORD.md` → *Batch 4.1* — specification, validation criteria and status record, moved there verbatim on 2026-09-04.
 
-### C-08 — Manager-approval PIN can be brute-forced
+**Constraints this batch leaves behind** *(sentences copied from the record, not paraphrased)*
+- `clientIp()` now returns the constant `"local"` unless `TRUST_PROXY_HEADERS` declares a real proxy, in which case the old precedence is restored exactly. *(record, Changes (1))*
+- Five routes key on this one function (`login`, `unlock`, `switch-user`, `profiles`, `approve`), so the bypass closes for all five. *(record, Changes (1))*
+- The approve key is `approve:<caller>`, so header rotation cannot reach it even if a later deployment turns `TRUST_PROXY_HEADERS` on. *(record, Changes (2))*
+- The lockout is checked **before** the manager loop, so a locked caller cannot make the server run scrypt against every manager. *(record, Changes (3))*
+- A refusal records nothing, so hammering the lock cannot extend it. *(record, Changes (3))*
+- The caller's account is deliberately **not** locked: `getSession()` treats a live `User.lockedUntil` as session revocation, so writing the lock where login writes it would eject a cashier from the till mid-service, with their caisse still open, every time a manager fumbled five PINs. *(record, Changes (4))*
+- Locking every manager was never available either — the PIN is tested against all of them, and any cashier could then take manager approval off the till in twenty-five keystrokes. *(record, Changes (4))*
+- `MANAGER_APPROVAL_LOCKED` carries its own action name, so it never inflates the failure count it describes. *(record, Changes (5))*
+- **No migration** — nothing was added to the schema, so unlike Batches 3.5, 3.6 and 3.6b this fix is in force the moment the code runs. *(record, Files)*
+- `audit()` swallows its own write failures: if the row is never written the count does not advance, and the in-memory limiter is then the only wall. That is why wall 1 was kept rather than replaced. *(record, note 1)*
+- A successful approval does **not** reset the count, which login does. *(record, note 2)*
+- No real PIN was used anywhere; the scratch accounts had PINs generated for the run. *(record, note 3)*
 
-**Status:** `NOT STARTED` · Severity: HIGH · Category: security (privilege escalation)
-
-**Problem.** `POST /api/auth/approve` tests the submitted PIN against every active MANAGER/SUPER_ADMIN. On failure it **does not increment `failedAttempts` and never locks the account** — unlike `login`, `unlock` and `switch-user`. The only wall is `rateLimit(\`approve:${ip}:${caller.id}\`, …)`, and `ip` comes from `X-Real-IP` falling back to `X-Forwarded-For` — both attacker-supplied.
-
-**Evidence.** `approve/route.ts:96-118` writes an audit row and returns 403 with no `db.user.update`; compare `login/route.ts:76-96`. `http-rate-limit.ts:7-14` justifies trusting `X-Real-IP` because of "the approved serving model … behind Caddy" — the Caddyfile was deleted in commit `0aeea30` and no reverse proxy exists. The comment itself names the consequence.
-
-**Location.** `src/app/api/auth/approve/route.ts:47-118`; `src/lib/http-rate-limit.ts:16-25`
-
-**Impact.** An authenticated CASHIER — the exact threat manager approval defends against — can rotate a header per request and grind the 10⁶ PIN space with no lockout. A recovered PIN yields signed approval tokens for unauthorised discounts and refunds. This is the classic POS fraud vector.
-
-**Remediation direction.** Apply the same `failedAttempts`/`lockedUntil` escalation used by `login`, keyed on the caller. Ignore proxy headers entirely unless a trusted proxy is actually deployed.
-
-### Batch 4.1 — Validation Required
-
-- Targeted test: N consecutive wrong manager PINs lock the *calling* account (or the approval capability) as designed.
-- Targeted test: rotating `X-Real-IP`/`X-Forwarded-For` no longer resets the limit.
-- Targeted test: a correct PIN still issues a valid, amount-bound, single-use token; self-approval is still blocked.
-- Regression: `approvals.test.ts` (7 cases) still passes.
-- Manual: a legitimate manager approval flow still works at the till after the change.
-- `bun test src` — PASS. `bun run typecheck` — PASS.
-
-### Batch 4.1 — Status Record
-
-**Status:** `NOT STARTED` · **Completed:** — · **Changes:** — · **Files:** — · **Tests:** — · **Commit:** — · **Notes:** —
+**Left open:** L-28 and L-29 → *Newly Discovered Issues*; **C-09** (Batch 4.2) is untouched — the approve route still runs `scryptSync` once per manager on the event loop, and this batch only stopped a *locked* caller from reaching that loop; whether the fifteen-minute capability lock is the right operational trade-off at a busy till is an operator judgement nobody has been asked for.
 
 ---
 
@@ -1696,6 +1688,8 @@ Open rows only. A row resolved by a batch moves, unchanged, to `REMEDIATION_RECO
 
 | ID | Date | Found during | Description | Severity | Assigned to batch |
 |---|---|---|---|---|---|
+| **L-28** | 2026-09-04 | Batch 4.1 | **`test-setup.ts` clears a stale `-wal` and `-shm` beside the test database but not a stale `-journal`.** The preload deletes `test.db`, `test.db-wal` and `test.db-shm` before `prisma db push` recreates the file (`test-setup.ts:27`). The test DB runs in rollback-journal mode, so the sidecar it actually produces is `test.db-journal` — and a run killed mid-transaction leaves one behind. Observed this session: a runaway test loop was stopped and left a 21 KB `test.db-journal` next to a deleted `test.db`. SQLite treats a journal beside a database as *hot* and tries to roll it back into the new file, so the failure mode is a confusing lock or corruption error on the **next** run, attributed to whatever code that run happened to touch. One extra path in the existing delete loop. | LOW (test infrastructure; misattributed failures) | 6.1 |
+| **L-29** | 2026-09-04 | Batch 4.1 | **`limitOr429` is exported from `http-rate-limit.ts` and called from nowhere.** Every route reaches for `clientIp` + `rateLimit` directly and builds its own 429 response, so the helper meant to standardise that is dead code — and it embeds the same key shape (`<ip>:<parts>`) whose IP component was the C-08 bypass. It inherits Batch 4.1's fix because it calls `clientIp`, so there is no live risk; the hazard is a future route adopting it and reintroducing an IP-keyed limit without noticing. Either use it everywhere or delete it. | LOW (dead code in a security-relevant module) | 7.2 |
 | **L-27** | 2026-09-04 | Batch 3.6b (L-25) | **The open-caisse guard is scoped to caisses *opened inside* the period, so one opened earlier and still open does not block the close.** DD-18 defined the rule that way and Batch 3.6b implemented it as written rather than widening it. The residual path is narrow but real: sealing any period other than the first requires the previous one to be sealed, and a caisse opened in that previous period would itself have blocked it — so the only way through is the **first-ever close**, with a caisse opened before the period, still open, and carrying orders inside the period. Those orders *are* counted (the aggregation keys on `Order.createdAt`, not on the shift), so the figures are right; what is missing is the guarantee that the period's last Z report exists before the period is sealed. Widening the rule — to any caisse still open at sealing time, or to any caisse holding an order inside the period — is a decision, not a bug fix. | LOW (narrow path; figures correct, reconciliation guarantee incomplete) | needs a decision — before 8.0 |
 | **L-24** | 2026-09-04 | Batch 3.5 baseline | **`bun test src` fails 23 tests on a machine this slow, with no code defect involved.** All 23 are timeouts against Bun's 5 s default: 22 in `backup*.test.ts` and 1 in `auth.test.ts`. Measured cause — `scryptSync` at N=2^17 costs **~1519 ms** per call here (N=2^16 costs ~727 ms), and a backup→restore round trip performs several: the archive encrypt, the pre-restore safety-snapshot encrypt, and the decrypt. The cascade that follows is misleading: the test times out, `afterEach` deletes the temp directory, and the still-running `VACUUM INTO` then reports `unable to open database` (SQLITE_CANTOPEN, P2010), which reads like a filesystem or Prisma fault and is not one. `bun test src --timeout 30000` → **340 pass, 0 fail**. Whole-suite runtime is ~192 s against the 25,9 s the plan recorded for the same suite, so this is machine state, not a regression. Established on the untouched pre-batch commit `e86c5e4`. Options: raise the timeout in `bunfig.toml`, or lower the scrypt cost in test runs only — the second must not touch the production KDF parameters. | LOW (test infrastructure; hides real failures behind noise and costs a session an hour to diagnose) | 6.1 |
 | **L-22** | 2026-09-03 | Batch 3.1d | **Validation errors reach the French UI as untranslated English zod messages.** `settings/route.ts` returns `parsed.error.issues[0]?.message`, and `settingsSchema` defines custom messages for only a few fields, so the operator saw `Too big: expected number to be <=48` (L-20). That specific message is now unreachable, but any other out-of-range settings value produces the same class of output. Applies to other schemas in `validation.ts` too. | LOW (operator-facing text) | 7.1 or 3.4 |

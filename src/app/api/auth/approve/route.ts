@@ -5,8 +5,13 @@ import { verifyPin } from "@/lib/auth";
 import { z } from "zod";
 import { audit } from "@/lib/services/audit";
 import { issueApprovalToken, type ApprovalAction } from "@/lib/approvals";
-import { clientIp } from "@/lib/http-rate-limit";
 import { rateLimit } from "@/lib/rate-limit";
+import {
+  approvalLockState,
+  approvalLockedMessage,
+  approvalRateLimitKey,
+  recordApprovalFailure,
+} from "@/lib/services/approval-lockout";
 
 const approveSchema = z.object({
   pin: z.string().min(6).max(10),
@@ -25,8 +30,14 @@ const RL_PER_CALLER_LONG_WINDOW = 15 * 60_000; // 15 per 15 min
  * Validates a manager/super-admin PIN for a sensitive operation.
  * Requires the caller to be authenticated. Issues a signed, single-use
  * approval token bound to (action, amount?) — rendered invalid after use
- * or after ttlSec (default 60s). Also enforces per-IP+caller rate limits
- * to prevent online PIN brute-forcing.
+ * or after ttlSec (default 60s).
+ *
+ * Two walls stand against online PIN brute-forcing (C-08, Batch 4.1): an
+ * in-memory rate limit keyed on the caller, and a persistent lockout of the
+ * caller's approval capability after five wrong PINs. The rate-limit key no
+ * longer carries a client IP — it came from `X-Real-IP`/`X-Forwarded-For`,
+ * which the caller supplies, so rotating a header per request minted a fresh
+ * bucket and defeated the wall entirely.
  */
 export const POST = withAuth(async (req: NextRequest, { user: caller }) => {
   const body = await parseJson(req);
@@ -44,9 +55,8 @@ export const POST = withAuth(async (req: NextRequest, { user: caller }) => {
     ttlSec?: number;
   };
 
-  // Per-IP+caller rate-limit (brute-force wall).
-  const ip = clientIp(req);
-  const keyShort = `approve:${ip}:${caller.id}`;
+  // Wall 1 — per-caller rate limit, in memory. Free, so it runs first.
+  const keyShort = approvalRateLimitKey(caller.id);
   const keyLong = `${keyShort}:long`;
 
   const rlShort = rateLimit(keyShort, RL_PER_CALLER_MAX, RL_PER_CALLER_WINDOW);
@@ -70,6 +80,23 @@ export const POST = withAuth(async (req: NextRequest, { user: caller }) => {
       {
         status: 429,
         headers: { "Retry-After": String(Math.max(1, rlLong.retryAfterSec)) },
+      },
+    );
+  }
+
+  // Wall 2 — persistent lockout, checked BEFORE the scrypt loop so a locked
+  // caller cannot make the server hash their guess against every manager.
+  // Unlike wall 1 this survives a process restart.
+  const lock = await approvalLockState(caller.id);
+  if (lock.locked) {
+    return NextResponse.json(
+      {
+        error: approvalLockedMessage(lock.retryAfterSec),
+        retryAfterSec: lock.retryAfterSec,
+      },
+      {
+        status: 423,
+        headers: { "Retry-After": String(lock.retryAfterSec) },
       },
     );
   }
@@ -104,13 +131,24 @@ export const POST = withAuth(async (req: NextRequest, { user: caller }) => {
   }
 
   if (!approver) {
-    await audit(
-      "MANAGER_APPROVAL_FAILED",
-      "User",
+    // Records the MANAGER_APPROVAL_FAILED audit row this route always wrote,
+    // and reports whether that failure was the one that tripped the lock.
+    const state = await recordApprovalFailure(
       caller.id,
       { reason: "PIN invalide", action },
-      caller.id,
     );
+    if (state.locked) {
+      return NextResponse.json(
+        {
+          error: approvalLockedMessage(state.retryAfterSec),
+          retryAfterSec: state.retryAfterSec,
+        },
+        {
+          status: 423,
+          headers: { "Retry-After": String(state.retryAfterSec) },
+        },
+      );
+    }
     return NextResponse.json(
       { error: "PIN manager invalide." },
       { status: 403 },

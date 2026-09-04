@@ -2,18 +2,35 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { rateLimit } from "@/lib/rate-limit";
 
-/** Extract a best-effort client IP for rate-limit keying.
+/** Whether the proxy headers may be believed.
  *
- *  Prefer `X-Real-IP` (set by the Caddy reverse proxy in the approved
- * serving model: `bun run start` on localhost:3000 behind Caddy, which
- * overwrites XFF with the real client IP). Fall back to the first
- * `X-Forwarded-For` hop only when X-Real-IP is absent (e.g. direct
- * exposure without a proxy — not the intended deployment but kept as a
- * best-effort fallback). Blindly trusting the first XFF value would let
- * an attacker rotate IPs to bypass rate limits if the app were ever
- * exposed without Caddy.
+ * `X-Real-IP` and `X-Forwarded-For` are set by the *client* unless a reverse
+ * proxy in front of the app overwrites them on every request. The Caddy
+ * deployment this module was written for was deleted in commit `0aeea30`
+ * and no proxy exists, so believing them handed any authenticated caller a
+ * fresh rate-limit bucket per request — the brute-force bypass in C-08.
+ *
+ * Default OFF. Set `TRUST_PROXY_HEADERS=1` only when a proxy is actually
+ * deployed AND it overwrites both headers. Read per call, not at import, so
+ * the setting is testable and a restart is the only thing needed to change
+ * it.
+ */
+function trustProxyHeaders(): boolean {
+  const raw = process.env.TRUST_PROXY_HEADERS?.trim().toLowerCase();
+  return raw === "1" || raw === "true" || raw === "yes";
+}
+
+/** Extract a client IP for rate-limit keying.
+ *
+ * With no trusted proxy every request keys as `"local"`: a single shared
+ * bucket per key suffix, which nobody can escape by rotating a header. That
+ * is not a loss of precision in the real deployment — a browser sends
+ * neither header, so every legitimate request already keyed as `"unknown"`
+ * before this change. Only a caller who forged the header got its own
+ * bucket, which is precisely what had to stop (C-08, Batch 4.1).
  */
 export function clientIp(req: NextRequest): string {
+  if (!trustProxyHeaders()) return "local";
   const realIp = req.headers.get("x-real-ip");
   if (realIp) return realIp;
   const xff = req.headers.get("x-forwarded-for");

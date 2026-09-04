@@ -1188,6 +1188,77 @@ Runs **before Batch 4.1**. Both items are cheap while zero monthly and annual cl
 
 ---
 
+# STAGE 4 — SECURITY & INTEGRITY
+
+*Stage heading reproduced for navigation; the stage's status line stays in `REMEDIATION_PLAN.md`.*
+
+## Batch 4.1 — Manager-approval brute force
+
+*Moved verbatim from `REMEDIATION_PLAN.md` lines 876–907 (commit `0285ce6`, plus this batch's status record) on 2026-09-04. Nothing in this section has been rewritten; corrections, if any, are appended dated notes.*
+
+**Status:** `COMPLETED` (2026-09-04)
+
+### C-08 — Manager-approval PIN can be brute-forced
+
+**Status:** `COMPLETED` · Severity: HIGH · Category: security (privilege escalation)
+
+**Problem.** `POST /api/auth/approve` tests the submitted PIN against every active MANAGER/SUPER_ADMIN. On failure it **does not increment `failedAttempts` and never locks the account** — unlike `login`, `unlock` and `switch-user`. The only wall is `rateLimit(\`approve:${ip}:${caller.id}\`, …)`, and `ip` comes from `X-Real-IP` falling back to `X-Forwarded-For` — both attacker-supplied.
+
+**Evidence.** `approve/route.ts:96-118` writes an audit row and returns 403 with no `db.user.update`; compare `login/route.ts:76-96`. `http-rate-limit.ts:7-14` justifies trusting `X-Real-IP` because of "the approved serving model … behind Caddy" — the Caddyfile was deleted in commit `0aeea30` and no reverse proxy exists. The comment itself names the consequence.
+
+**Location.** `src/app/api/auth/approve/route.ts:47-118`; `src/lib/http-rate-limit.ts:16-25`
+
+**Impact.** An authenticated CASHIER — the exact threat manager approval defends against — can rotate a header per request and grind the 10⁶ PIN space with no lockout. A recovered PIN yields signed approval tokens for unauthorised discounts and refunds. This is the classic POS fraud vector.
+
+**Remediation direction.** Apply the same `failedAttempts`/`lockedUntil` escalation used by `login`, keyed on the caller. Ignore proxy headers entirely unless a trusted proxy is actually deployed.
+
+### Batch 4.1 — Validation Required
+
+- Targeted test: N consecutive wrong manager PINs lock the *calling* account (or the approval capability) as designed.
+- Targeted test: rotating `X-Real-IP`/`X-Forwarded-For` no longer resets the limit.
+- Targeted test: a correct PIN still issues a valid, amount-bound, single-use token; self-approval is still blocked.
+- Regression: `approvals.test.ts` (7 cases) still passes.
+- Manual: a legitimate manager approval flow still works at the till after the change.
+- `bun test src` — PASS. `bun run typecheck` — PASS.
+
+### Batch 4.1 — Status Record
+
+**Status:** `COMPLETED` · **Completed:** 2026-09-04 · **Commit:** `__SHA__` · **Findings:** C-08
+
+**Changes.**
+
+**(1) The rate-limit key stopped believing the caller.** `clientIp()` read `X-Real-IP`, falling back to the first `X-Forwarded-For` hop, on the strength of a comment describing a Caddy reverse proxy deleted in commit `0aeea30`. With no proxy in front, both headers are whatever the caller sent, so any authenticated caller could mint a fresh bucket per request. It now returns the constant `"local"` unless `TRUST_PROXY_HEADERS` declares a real proxy, in which case the old precedence is restored exactly. This costs nothing in the real deployment — a browser sends neither header, so legitimate traffic already collapsed onto the single key `"unknown"`; only a caller who forged the header got a private bucket. Five routes key on this one function (`login`, `unlock`, `switch-user`, `profiles`, `approve`), so the bypass closes for all five.
+
+**(2) The approve key dropped the IP outright.** `approve:<ip>:<caller>` became `approve:<caller>` (`approvalRateLimitKey`), so header rotation cannot reach it even if a later deployment turns `TRUST_PROXY_HEADERS` on. Both windows are unchanged: 5 per minute, 15 per fifteen minutes.
+
+**(3) A persistent lockout — `src/lib/services/approval-lockout.ts`.** Five wrong manager PINs from one caller inside fifteen minutes — login's own constants — and every further approval from that caller is refused `423` with `Retry-After`, until the oldest counted failure ages out of the window. It is checked **before** the manager loop, so a locked caller cannot make the server run scrypt against every manager. A refusal records nothing, so hammering the lock cannot extend it. The counter is the `MANAGER_APPROVAL_FAILED` audit row this route already wrote — indexed on `userId`, unchanged in shape, and durable across a restart, which the in-memory limiter is not.
+
+**(4) What is deliberately *not* locked: the caller's account.** `getSession()` treats a live `User.lockedUntil` as session revocation, so writing the lock where login writes it would eject a cashier from the till mid-service, with their caisse still open, every time a manager fumbled five PINs. The lock is on the approval *capability* instead: sales continue, only the operations needing a manager stop. Locking every manager was never available either — the PIN is tested against all of them, and any cashier could then take manager approval off the till in twenty-five keystrokes.
+
+**(5) One new audit action.** `MANAGER_APPROVAL_LOCKED`, written once at the transition, so an operator can see in the audit view why approvals stopped working. It carries its own action name, so it never inflates the failure count it describes.
+
+**Files:** `src/lib/http-rate-limit.ts`, `src/app/api/auth/approve/route.ts`, `src/lib/services/approval-lockout.ts` (new), `src/lib/services/approval-lockout.test.ts` (new), `src/lib/http-rate-limit.test.ts` (new), `.env.example`. **No migration** — nothing was added to the schema, so unlike Batches 3.5, 3.6 and 3.6b this fix is in force the moment the code runs.
+
+**Tests:** `bun test src --timeout 30000` → **400 pass, 0 fail** (384 before; 16 new across two files). `bun run typecheck` — PASS. `bun run lint` — PASS. `bun run build` — PASS. The seven `approvals.test.ts` cases still pass untouched. **Proved to fail on the pre-batch behaviour**, per the Stage 3 method: with `clientIp` reverted to its old body and the lockout replaced by the pre-batch route logic (write the audit row, return, no counter), **10 of the 16 fail** — every header-rotation assertion and every lock assertion. The one `clientIp` test that passed on old code is the one asserting the *trusted-proxy* path, which is the old behaviour by design. Files were restored from copies taken before the revert and re-checked by sha256 (`ac0d1bef…`, `f6d60c5d…`).
+
+**Notes.**
+
+**(1) The lock is derived from the audit log, and that was a choice.** The alternative was two new columns on `User`, which means a migration — and a migration means the operator must run `migrate deploy` before the fix does anything, which is exactly the inert-until-someone-acts state *Open Threads → A* exists to track. A security fix should not wait on that. The audit rows were already being written, `AuditLog.userId` is indexed, and `AUDIT_LOG_RETENTION_DAYS` prunes in whole days at best (`log-retention.ts` floors the value), so pruning can never reach inside a fifteen-minute window. The cost is that `audit()` swallows its own write failures: if the row is never written the count does not advance, and the in-memory limiter is then the only wall. That is why wall 1 was kept rather than replaced.
+
+**(2) A sliding window, not login's fixed stamp.** Login writes `lockedUntil = now + 15 min`. Here the window slides: the lock lifts as the oldest counted failure ages out, so a caller who stops trying recovers gradually instead of at a stamped instant. It also means a successful approval does **not** reset the count, which login does — the `MANAGER_APPROVAL_GRANTED` row is keyed to the *approver*, with the requester only inside the JSON `details`, so counting failures since the last grant would need an unindexed `LIKE` over an unbounded table. Five cumulative fumbles in fifteen minutes at one till costs that till its discount and refund approvals for a few minutes; it does not cost it a sale.
+
+**(3) Validated end-to-end against the production build on a scratch copy.** Server started with **both** `DATABASE_URL` and `HIBAPOS_DATA_DIR` pointed at the copy, and the copy proved before the first write by reading the marker `MARQUEUR-4.1-SCRATCH` back from the pre-auth `GET /api/auth/profiles`. Accounts were synthetic, with PINs generated for the run — no real PIN was used anywhere. With a **different forged `X-Real-IP` and `X-Forwarded-For` on every request**: attempts 1–4 → `403 « PIN manager invalide. »`, attempt 5 → `423 « Approbations bloquées après 5 PIN manager invalides. Réessayez dans 15 min. »` with `Retry-After: 895`, attempt 6 → `429` from wall 1. `GET /api/auth/me` then returned the cashier's own user, so **the session survived the lock**. A second cashier got a plain `403` (per-caller), a correct manager PIN returned `200` with an amount-bound token (`amount 12.5`), and a manager approving themselves got `403 « Auto-approbation interdite. »`. **The limit of this evidence:** the flow was exercised through the real HTTP routes, not through the `ManagerApprovalDialog` in a browser, and not at the till — the restaurant's machine has no copy of the app (*Hardware-dependent validation*) and Claude cannot type a PIN. That the `423` reaches the operator as a French toast is read from `api-client.ts` (any non-`ok` response throws with `data.error`) and `manager-approval-dialog.tsx:74-76`, not observed.
+
+**(4) The lock was then proved to survive a restart.** The server was stopped and a **fresh process** started on another port — emptying the in-memory limiter — and the locked cashier's next attempt returned `423`, not `429`, with `Retry-After: 867`, i.e. the same window counting down. On that same fresh process the untouched cashier still obtained a token. The scratch audit trail afterwards reads exactly five `MANAGER_APPROVAL_FAILED` rows, then one `MANAGER_APPROVAL_LOCKED` three milliseconds later, then the second cashier's separate failure and two `MANAGER_APPROVAL_GRANTED` rows in their unchanged shape — and no failure row for the `429`, confirming a refused attempt does not extend the lock. All four scratch `User` rows still read `failedAttempts 0`, `lockedUntil null`.
+
+**(5) Production untouched, and it had moved before this session started.** `db/custom.db` was `a66bc96c20d3f00282ea249361dd80d6303434b1a43331c0725258b637db46f9` before and after, same mtime (2026-09-04 09:43), no `-wal` / `-shm` sidecars, `db/backups/` untouched, no `db/fiscal-archives/` created. That hash is **not** the `7cc3367b…` the plan recorded: read-only inspection found `20260904091947_close_refund_totals` applied at 2026-09-04 09:43:54 UTC+1 with `refundsTotal` / `refundsCount` present on `MonthlyClose` and `AnnualClose`, both still empty, so **the operator applied the Batch 3.6b migration** and *Open Threads → A and B* were stale. Everything else in the baseline is unchanged: 78 products, counters `20/3/2/2`, zero closes, `journal_mode delete`, `integrity_check ok`, all three chains `ok` at `lastSequence 2`. Production carried **zero** `MANAGER_APPROVAL_*` audit rows, so the new counter starts from nothing.
+
+**(6) Two issues recorded, not fixed** (safety rule 10): **L-28** — `test-setup.ts` deletes a stale `test.db-wal` and `-shm` but not `test.db-journal`, and a killed run leaves one behind; **L-29** — `limitOr429` in the same module is exported and called from nowhere.
+
+**(7) Environment.** The Batch 3.1b leftover (PID 2072, port 3010) is still listening and was **not** touched. `bun run build` succeeded despite it. This batch's two scratch servers ran on ports 3022 and 3023 and were both stopped; `TaskStop` on the wrapper shell did not stop the `next start` child, which had to be stopped by PID — worth knowing for the next session that starts one.
+
+---
+
 # COMPLETED REMEDIATION HISTORY
 
 *Moved verbatim from `REMEDIATION_PLAN.md` lines 2357–2378 (commit `5f0c2b1`) on 2026-09-04. Nothing in this section has been rewritten; corrections, if any, are appended dated notes.*
@@ -1215,6 +1286,7 @@ Runs **before Batch 4.1**. Both items are cheap while zero monthly and annual cl
 | 2.1 | COMPLETED | 2026-09-03 | `723dd52` | C-05 + C-22 (restore half): images restored, atomic rename swap, 503 maintenance gate during the swap, RESTAURATION/SUPPRESSION_SAUVEGARDE journalling, counter-rewind detection, out-of-band decrypt tool. T-01 written; 214/214. Found L-15 (no schema check on restore). |
 | 1.2 | COMPLETED | 2026-09-03 | `38d19a2` | C-02: Z-close dialog now passes cents to `Money`/`formatEuro` at all three sites; variance kept in cents (`z-close.ts`). 8 new tests; 153/153. Verified by running the identical scenario pre-fix and post-fix on a scratch DB copy — display went from 2,00 €/2,09 €/-0,05 € to 200,00 €/208,90 €/-5,00 €, while every ZReport and Shift field stayed identical. Production DB untouched. |
 | 3.6b | COMPLETED | 2026-09-04 | `545b255` | L-25 + L-26, closing Stage 3 for good. **L-25**: Batch 3.6's guard enforced the ORDER of period closes but not their TIMING — sealing September on 4 September succeeded and sealed a partial month as the whole, permanently, because `period` is `@unique`. DD-18 answered *refuse, with no override*: a close is refused while its period has not ended, and while a caisse opened inside it is still open, both guards running before the aggregation so a refusal writes nothing. "Ended" reuses the half-open local-time bounds `aggregatePeriod` already used, extracted into a pure `src/lib/period.ts` the screen imports too — so the screen now proposes the last completed month and exercice instead of the current ones, which is the half no server guard can fix. **L-26**: `refundsTotal` / `refundsCount` on `MonthlyClose` and `AnnualClose`, the M-07 convention the period closes had been left out of; the sealed payload gains `refundsCount`, provable only because **zero closes exist**, and a test asserts that premise rather than assuming it. Migration rehearsed and fingerprint-diffed on a copy — both tables empty, so no sealed document is rewritten — and **not yet applied to production**. Rehearsed end-to-end through the real routes on a migrated copy: the current month, the current exercice and a month holding the real still-open caisse #3 all refused in French with nothing written; 2026-08 then sealed at `salesTotal 42400`, `refundsTotal 0/0`, all three chains `ok`. Screen driven in the browser: proposes 2026/8 and exercice 2025, refusal toast verbatim. Found the plan stale on the 3.6 migration (applied) and identified the port-3010 leftover. Recorded L-27. 384/384. |
+| 4.1 | COMPLETED | 2026-09-04 | `__SHA__` | C-08, opening Stage 4. Two walls where there had been none that held. **The bypass**: `clientIp` believed `X-Real-IP` / `X-Forwarded-For` on the strength of a comment describing a Caddy proxy deleted in commit `0aeea30`, so an authenticated cashier could rotate a header per request, mint a fresh bucket each time and grind the 10⁶ PIN space. It now returns a constant unless `TRUST_PROXY_HEADERS` declares a real proxy — which costs nothing, because a browser sends neither header — and the approve key drops the IP outright. **The missing lockout**: five wrong manager PINs from one caller inside fifteen minutes now refuse further approvals `423` until the window slides, checked before the scrypt loop, counted from the `MANAGER_APPROVAL_FAILED` audit rows the route already wrote — so it is durable across a restart and needed **no migration**. The caller's *account* is deliberately not locked: `getSession()` treats a live `lockedUntil` as session revocation, which would eject a cashier from the till mid-service with their caisse open. Validated end-to-end against the production build on a scratch copy with synthetic PINs: 403 ×4 then 423 with `Retry-After 895` under a rotating forged IP, `429` on the sixth, the cashier's session still valid, a second cashier unaffected, a correct PIN still issuing an amount-bound token, self-approval still refused — then the server was restarted and the lock held at `423`. 10 of the 16 new tests proved to fail on the pre-batch behaviour. Found the plan stale again: the operator has applied the 3.6b migration, so **nothing waits on a `migrate deploy`**; the production hash is now `a66bc96c…`. Recorded L-28, L-29. 400/400. |
 
 ---
 
