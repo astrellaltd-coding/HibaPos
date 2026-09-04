@@ -59,7 +59,6 @@ real till until an action below is taken. Do not report them as delivered.
 | Correct `printerName` in Réglages | Stored value is `"Epson TM-m30"`; the physical printer is the **Sunso WTP-801** (Ethernet). Cosmetic — nothing reads it. **This was impossible until Batch 3.1d**; the settings form now saves. | DOC-15 |
 | Choose a second volume for backups | See A. | C-06 |
 | Turn FACTICE on for any pre-go-live testing | See A. | L-18 |
-| Stop the stale `next dev` processes | Leftovers from the 3.1b run hold `.next/dev/lock`, so `bun run dev` fails. Claude is blocked from killing processes. `bunx next start` works meanwhile. | — |
 
 #### C. Waiting on hardware / deployment
 
@@ -131,7 +130,7 @@ with `sha256sum`); the compliance judgement is not a code question.
 
 #### G. Current baselines — check these before trusting anything
 
-| Thing | Value at the end of session 3 |
+| Thing | Value at the end of session 3 (updated through session 4) |
 |---|---|
 | Tests | **363 pass, 0 fail** (`bun test src --timeout 30000` — see L-24 for why the timeout flag) |
 | Production DB sha256 | `ea990b794983404ff684364c5d517cf896a169c2c4ab2b9f6dacea10ca9a48bc` — changed **only** by the operator applying the 3.5 migration. The pre-migration value `711de2f1…` is preserved in `db-snapshots/custom.db.pre-3.5.2026-09-03T23-01-34Z` |
@@ -168,28 +167,49 @@ These are **deferred, not waived.** Stage 1 cannot be declared complete, and no 
 4. **The CATALOGUE in the production database is real and irreplaceable; the TRADING data is not.** Confirmed by the operator on 2026-09-03: categories, products, options and images are real work (commit `0c5ede6`); every order, payment, receipt, shift, Z report and fiscal event was created by the developer for testing, and P-04 deletes all of it before the first genuine sale. Treat catalogue changes as destructive and irreversible. Trading-data mistakes cost test data — which lowers the risk of exercising fiscal flows, but does **not** license careless writes to the live database: work on a scratch copy, as every batch in Stage 3 did.
 5. **Do not run scripts in `scripts/`** without reading them first. `seed-users.ts` and `seed-category-options.ts` begin with unguarded `deleteMany({})` calls (finding C-17). The exception is `set-drink-vat-rates.ts` (Batch 3.1c), which is dry-run by default, idempotent, and refuses to run against an unexpected category tree.
 
-6. **`bun run dev` currently fails.** Stale `next dev` processes from Batch 3.1b hold `.next/dev/lock`; Claude is blocked from killing processes, so the operator must stop them. `bunx next start` (after `bun run build`) works meanwhile and is what Batch 3.4 validated against.
 
 7. **When running the app against a scratch copy, override `HIBAPOS_DATA_DIR` as well as `DATABASE_URL`.** Batch 3.4 overrode only the database and a generated archive landed in the real `db/fiscal-archives/`, orphaned from its row. It was deleted, but the next session should not repeat it.
 
-8. **`bun test src` fails 23 tests on this machine, and the code is fine.** All 23 are in `backup*.test.ts` / `auth.test.ts` and every one is a 5 s timeout: scrypt at N=2^17 costs ~1.5 s per call here, and a backup→restore round trip makes several. `bun test src --timeout 30000` gives **363 pass, 0 fail**. Confirmed on the untouched commit before any Batch 3.5 change was made. Recorded as **L-24**. Do not "fix" a test that fails this way.
 
 9. **Claude cannot do three things in this project** — the permission classifier refuses them, and each refusal is correct: `prisma migrate deploy` against production, writes to real menu data, and killing processes. Prepare, rehearse and verify; then hand the operator the exact command.
 
    **`git push` is a fourth case and behaves differently.** Earlier sessions recorded it alongside the three above; that was wrong. It is an *explicit-permission* action, not a prohibited one — it goes through when the user asks for it in the session, which they did on 2026-09-04 (`3f31779..8a311dc`). Do not push unprompted, and do not tell the user it is impossible.
 
+#### Environment as last seen — verify before trusting
+
+*These items describe the developer's machine at the end of session 4, not the project. Check each before acting on it, and delete it here once it no longer holds. Their numbers are kept because other sections refer to them.*
+
+6. **`bun run dev` currently fails.** Stale `next dev` processes from Batch 3.1b hold `.next/dev/lock`; Claude is blocked from killing processes, so the operator must stop them. `bunx next start` (after `bun run build`) works meanwhile and is what Batch 3.4 validated against.
+
+8. **`bun test src` fails 23 tests on this machine, and the code is fine.** All 23 are in `backup*.test.ts` / `auth.test.ts` and every one is a 5 s timeout: scrypt at N=2^17 costs ~1.5 s per call here, and a backup→restore round trip makes several. `bun test src --timeout 30000` gives **363 pass, 0 fail**. Confirmed on the untouched commit before any Batch 3.5 change was made. Recorded as **L-24**. Do not "fix" a test that fails this way.
+
+*(Row moved here from Open Threads → B.)*
+
+| Action | Why it matters | Related |
+|---|---|---|
+| Stop the stale `next dev` processes | Leftovers from the 3.1b run hold `.next/dev/lock`, so `bun run dev` fails. Claude is blocked from killing processes. `bunx next start` works meanwhile. | — |
+
 ---
 
 ## HOW TO USE THIS FILE
 
-1. Read **CURRENT PROJECT STATUS** above. It tells you exactly where to resume.
-2. Open the **current batch**. Do only what is in that batch.
-3. Work the batch's items from `NOT STARTED` → `IN PROGRESS` → `IMPLEMENTED — TESTING REQUIRED`.
+This file is the **working plan**. Its companion `REMEDIATION_RECORD.md` is the **evidence record**: every completed batch's specification, validation criteria and status record, moved there verbatim when the batch completed, plus the completion history, the resolved findings and the full rationale of answered decisions. The record is append-only and is never rewritten; a correction anywhere is an appended, dated note.
+
+1. Read **CURRENT PROJECT STATUS** and **OPEN THREADS** above, then the warnings, the rules and the *Methods*. Everything a session must know before acting sits above the first stage heading; read all of it.
+2. Open the **current batch**. Do only what is in that batch. If its work touches a subsystem an earlier batch changed, read that batch's stub here (its *Constraints this batch leaves behind*), then its section in the record.
+3. Work the batch's items from `NOT STARTED` → `IN PROGRESS` → `IMPLEMENTED — TESTING REQUIRED`, using the methods below.
 4. Run the batch's **Validation Required** section in full.
-5. If validation passes, mark items `COMPLETED`, fill in the status block (date, changes, files, tests, commit), and mark the batch `COMPLETED`.
-6. Update **CURRENT PROJECT STATUS** and the **Completed Remediation History** table.
-7. Commit. One batch, one commit (or a small reversible series).
-8. Stop. Do not roll into the next batch without the user's go-ahead.
+5. If validation passes, mark the items `COMPLETED` and, in this order:
+   1. Write the **status record** at the end of the batch's section, in the usual fields (Status, Completed, Changes, Files, Tests, Commit, Notes). Keep *Changes* near 1,500 characters and *Tests* near 1,000; write *Notes* as numbered items. Evidence (hashes, counts, "production untouched") belongs here.
+   2. **Move the whole batch section to the record**, verbatim, under its stage heading, with a provenance line (`*Moved verbatim from REMEDIATION_PLAN.md lines a–b (commit sha) on date.*`).
+   3. Leave a **stub** in its place, in the format of the existing stubs: status, date, commit, findings, the record pointer, *Constraints this batch leaves behind* and *Left open*. Constraints are sentences **copied** from the record, never paraphrased; every sentence containing "must", "never" or "do not", every deliberate non-action and every deferred-not-waived criterion goes there.
+   4. Update **CURRENT PROJECT STATUS** and the stage status line; tick the **FINDING INDEX**; touch **OPEN THREADS** only if a thread changed.
+   5. Add new findings to **NEWLY DISCOVERED ISSUES**; move any row this batch resolved to the record's *Resolved findings*, unchanged. When a design decision is answered, cut its row here to one line and move the full row to the record's *Answered design decisions*.
+   6. Add one line to the record's **COMPLETED REMEDIATION HISTORY**: batch, status, date, commit, one sentence.
+6. Commit. One batch, one commit (or a small reversible series). Do not push unprompted.
+7. Stop. Do not roll into the next batch without the user's go-ahead.
+
+Two rules keep this file small. **Every fact has one home**: a finding's story is told once, in its record section, and everything else is a status, a commit and a pointer. **Completion retires**: a finished batch leaves this file. Anything above the first stage heading must fit in one read; if it grows past about 40 KB, retire something into the record rather than adding.
 
 ### Status values (use exactly these)
 
@@ -245,6 +265,102 @@ Audit IDs are **never renamed**. `T-`, `DOC-` and `V-` items are new IDs assigne
 11. If a proposed fix changes business behaviour, stop and mark it `REQUIRES DECISION` rather than guessing.
 12. Never assume documentation is more authoritative than the actual implementation.
 13. Never claim French fiscal or legal compliance on the basis of automated testing.
+
+---
+
+## METHODS ESTABLISHED BY EARLIER BATCHES
+
+Stated once here so no session has to rediscover them. The record sections named are where each was first used and proved; read them before departing from a method.
+
+- **Scratch copy, proved before any write.** Copy `db/custom.db` to the session scratchpad, write a marker into the **copy only**, start the app with **both** `DATABASE_URL` and `HIBAPOS_DATA_DIR` pointed at the copy, and prove which database the server has open by reading the marker back from the pre-auth `GET /api/auth/profiles` **before** the first write. Afterwards confirm the production file's sha256 and mtime are unchanged and that no `-wal`/`-shm` files appeared beside it, and that `db/fiscal-archives/` and `db/backups/` are untouched. Record → Batch 1.1 (Tests), Batch 3.1b note 2, Batch 3.4 note 5 (why `HIBAPOS_DATA_DIR` too).
+- **Migration rehearsal with a fingerprint diff.** Never apply a migration to production first. Take an out-of-band snapshot (`db-snapshots/…`, outside the repo tree), apply the migration to a copy, and diff a fingerprint of every fiscal table before and after — row counts, `FiscalCounter`, `GrandTotal`, every event hash, both sealed Z rows, order lines, `integrity_check`, foreign-key errors, column order. Only the intended columns and the `_prisma_migrations` row may differ. Then hand the operator the exact `bunx prisma migrate deploy` command; Claude cannot run it against production. Record → Batch 3.1c note 3, Batch 3.5 note 1, Batch 3.6 note 3.
+- **Prove the test fails on the old code.** For any fiscal change, temporarily revert the fix, re-run the suite, confirm the new tests fail, and restore the files from a copy taken before the revert. This is Stage 3's rule and it is satisfied by demonstration, not assertion. Record → Batch 3.1 (Tests), Batch 3.5 (Tests), Batch 3.6 (Tests).
+- **Read-only inspection of live data.** Use `bun:sqlite` with `readonly: true`; do not load Prisma or the WAL startup hook against the production file. Record → Batch 3.1 note 4.
+- **Manual validation against the production build.** `bun run build` then `bunx next start` on the scratch copy; testing the built artifact is the stronger check, and `next dev` is blocked on this machine anyway (see the environment items above). Record → Batch 3.4 note 1.
+- **Browser driving.** Claude cannot type PINs; the operator enters them, everything after is driven by Claude. When synthetic clicks do not land in the browser pane, dispatch through the DOM and say so in the record. Record → Batch 1.1 note 1, Batch 3.1b note 3.
+- **Journal payload vintages.** Anything that reads `FiscalEvent.dataJson` must tolerate the pre-3.5 and post-3.5 shapes; sealed rows are never re-serialised. *Open Threads → D*; record → Batch 3.5 note 3.
+- **Out-of-scope findings.** Record them in *Newly Discovered Issues* with an ID, a severity and a suggested home; do not fix them in the batch (safety rule 10).
+
+---
+
+# FINDING INDEX
+
+Quick lookup from audit ID to batch.
+Each completed batch has a stub in its stage below and its full section in `REMEDIATION_RECORD.md`; the completion history table is in the record too.
+
+**✅ = remediated and validated.** It means the *code* is done and the batch is
+recorded — several ✅ items are **not yet in effect on the production install**
+(WAL, `BACKUP_LOCATION`, `HIBAPOS_DATA_DIR`, thermal printing); *OPEN THREADS →
+A* is the list. **◐ = one half done, one half open** — the finding was split
+across two batches. Audit IDs are never renamed, so a split keeps its ID.
+
+*Ticks audited and corrected 2026-09-04: seventeen findings were `COMPLETED` in
+their own status blocks while the index still showed them untouched.*
+
+| ID | Batch | ID | Batch | ID | Batch |
+|---|---|---|---|---|---|
+| C-01 ✅ | 1.1 | M-01 ✅ | 3.6 | M-25 | 4.4 |
+| C-02 ✅ | 1.2 | M-02 ✅ | 3.3 | M-26 | 4.4 |
+| C-03 | 1.3 | M-03 ✅ | 2.2 | M-27 | 4.3 |
+| C-04 ✅ | 3.3 | M-04 ✅ | 3.5 | M-28 | 4.3 |
+| C-05 ✅ | 2.1 | M-05 | 5.5 | M-29 ✅ | 2.4 |
+| C-06 ✅ | 2.2 | M-06 ✅ | 3.6 | M-30 ✅ | 2.4 |
+| C-07 | 1.4 | M-07 ✅ | 3.6 | M-31 ✅ | 2.4 |
+| C-08 | 4.1 | M-08 | 5.6 | L-01 | 7.2 |
+| C-09 | 4.2 | M-09 | 5.7 | L-02 | 7.2 |
+| C-10 ✅ | 3.2 | M-10 | 5.7 | L-03 | 7.2 |
+| C-11 ✅ | 3.2 | M-11 | 5.7 | L-04 ◐ | 2.4 / 7.3 |
+| C-12 ✅ | 3.1 | M-12 | 5.7 | L-05 | 2.4 (deferred) |
+| C-13 ✅ | 3.5 | M-13 ✅ | 3.2 | L-06 | 6.3 |
+| C-14 | 5.3 | M-14 ✅ | 3.2 | L-07 | 7.2 |
+| C-15 ◐ | 2.3 + 4.7 | M-15 | 5.7 | L-08 | 7.2 |
+| C-16 | 4.4 | M-16 | 5.7 | L-09 | deferred |
+| C-17 | 4.5 | M-17 | 5.7 | L-10 | deferred |
+| C-18 | 4.3 | M-18 | 5.7 | L-11 | deferred |
+| C-19 ✅ | 2.3 | M-19 | 5.7 | L-12 | 7.2 |
+| C-20 | 5.1 | M-19s | 4.4 | T-01…T-07 | 6.1 |
+| C-21 | 5.2 | M-20 | 5.7 | T-08, T-09 | 6.2 |
+| C-22 ◐ | 2.1 + 3.5 | M-21 | 5.7 | T-10…T-12 | 6.3 |
+| C-23 | 5.4 | M-22 | 5.7 | DOC-01…12 | 7.1 |
+| C-24 | 4.6 | M-23 | 4.3 | V-01…V-03, V-08…V-12 | external |
+| C-25 | 4.6 | M-24 | 4.4 | V-04…V-07 | 8.1 / 8.2 |
+| C-26, C-26b ✅ | 0.1 | C-27 ✅ | 3.4 | P-01…P-03 ✅ | 0.2 |
+
+**The three ◐ items, so nobody has to go looking:**
+
+| ID | Done | Still open |
+|---|---|---|
+| **C-15** | Transaction timeouts, Batch 2.3 | The shift-state race, Batch 4.7 |
+| **C-22** | Restore/deletion journalling, Batch 2.1 | Whether an unkeyed chain suffices — `REQUIRES EXTERNAL VERIFICATION`, V-01 |
+| **L-04** | The 297 MB `.next/standalone/` tree carrying live secrets, deleted in Batch 2.4 | Rotating the secrets it exposed, Batch 7.3 / DD-04 |
+
+---
+
+# DESIGN DECISIONS REQUIRED
+
+These cannot be resolved from the code. **Claude must not decide them.** Each blocks or reshapes the batch named.
+
+| ID | Decision | Blocks | Context |
+|---|---|---|---|
+| **DD-01** | **ANSWERED 2026-09-03 — build the ESC/POS bridge now**, in the existing Bun/Next server, primary transport raw TCP to port 9100 over the LAN, behind a transport interface leaving a Windows-RAW-spooler slot for USB. Not deferred to Tauri. | Batch 1.3 (`IMPLEMENTED — TESTING REQUIRED`); shapes 1.4 and 3.4 | Decided by the user. Full question and rationale: `REMEDIATION_RECORD.md` → *Answered design decisions*. |
+| **DD-02** | **ANSWERED 2026-09-03 — `C:\HibaPOS\data`.** Plumbing shipped in Batch 2.2 (`src/lib/paths.ts`, `HIBAPOS_DATA_DIR`), defaulting to the old layout; the physical move is a deployment step with Batch 1.4. | Batch 2.2 (`COMPLETED`); shapes 1.4 | Full question and rationale: record → *Answered design decisions*; evidence in the record's Batch 2.2 section. |
+| **DD-03** | **CLOSED 2026-09-03 as NOT APPLICABLE** — no sealed row ever carried a `"6"` key, and all trading data is developer test data that P-04 deletes. Key format decided: minimal decimal string (`"5.5"`, `"10"`). | Batch 3.1 (`COMPLETED`) | Evidence: record → Batch 3.1 status record, and *Answered design decisions*. V-01 not engaged. |
+| **DD-17** | **ANSWERED 2026-09-03 — the VAT rate lives on the category, inherited nearest-wins** (own category → parent → default), with a per-product override flag and a constrained selector. The original row lists 20 / 10 / 5,5 / 2,1 %; Batch 3.1c's record says it shipped 20 / 10 / 5,5 with 2,1 % excluded. | Batch 3.1c (`COMPLETED`) | Decided by the user. Full rationale: record → *Answered design decisions*. |
+| **DD-04** | **Backup key rotation policy.** Rotating `BACKUP_ENCRYPTION_KEY` orphans every existing backup permanently. Re-encrypt the retained set first, accept the loss, or introduce key versioning before rotating? | Batch 7.3; P-02 | Retention obligations may make discarding old backups unacceptable — see V-04. |
+| **DD-05** | **ANSWERED 2026-09-04 — refuse out-of-order closes.** A close must be the period immediately following the last sealed one; the first close is unconstrained. Decided with zero closes in existence. | Batch 3.6 (`COMPLETED`) | Evidence: record → Batch 3.6 status record, and *Answered design decisions*. |
+| **DD-06** | **Is LAN access required?** If no, bind to `127.0.0.1`. If yes, set `APP_URL` to an `http://` value so the session cookie works, and accept unencrypted traffic on the restaurant network. | Batch 4.3 | Currently binds `0.0.0.0` with a `secure` cookie, so LAN login silently fails — protective by accident. |
+| **DD-07** | **Intended cashier visibility.** Which reports and settings should a CASHIER see? The X report is currently open to cashiers via the shifts view while `POST /api/reports/x` is MANAGER+. | Batch 4.4 (M-19s) | Decide the matrix first, then make GET and POST agree and update the README role table. |
+| **DD-08** | **Operator scripts.** Guard them, or remove them from the shipped tree? | Batch 4.5 (C-17) | Precedent exists: `scripts/delete-products.js` was removed for the same hazard. |
+| **DD-09** | **Tables.** Wire table selection into the POS, or withdraw the feature from the documentation? | Batch 5.2 (C-21) | The floor plan, model and API all exist; only the POS link is missing. |
+| **DD-10** | **Cross-shift refunds.** Allow, attributed to the current open shift? Restrict to MANAGER+? Or keep the current refusal and define an approved manual procedure? | Batch 5.3 (C-14) | The current refusal pushes staff toward untraced cash refunds. |
+| **DD-11** | **Held orders.** Move server-side (visible from any terminal, surviving a device swap, accounted for at Z close), or keep them device-local? | Batch 5.4 (C-23) | The current shape is not what "held orders" usually means operationally. |
+| **DD-12** | **Cash movements.** Add an entrée/sortie de caisse feature, and if so what categories and what approval level? | Batch 5.5 (M-05) | Without it, the variance figure C-02 fixes will still be wrong in practice. |
+| **DD-13** | **Order cancellation.** Support a pre-payment order state and a void, or remove the dead `PENDING`/`CANCELLED` enum values and the zero counter? | Batch 5.6 (M-08) | Leaving them implies a feature that does not exist. |
+| **DD-14** | **Zero-total orders.** Is a 100 % discount (staff meal, comp) a legitimate transaction? Currently impossible to check out. | Batch 5.7 (M-11) | If yes, it still needs a fiscal record — decide how it is journalled. |
+| **DD-15** | **Orphaned schema surfaces.** `ProductAddon` (no writer) and `Customer.postalCode` (no consumer) — build the missing write paths or remove the surfaces? | Batch 5.7 (M-09, M-10) | Both are flagged in audit section I as possible lost functionality; compare against the historical project before removing. |
+| **DD-16** | **Should `public/uploads/` be tracked in git?** 134 files currently are, contradicting the README and complicating any git-based update. | Batch 7.1 (DOC-06) | Interacts with DD-02: if uploads move to a data directory, the question resolves itself. |
+
+*The other registers — *External / Legal / Fiscal Verification*, *Newly Discovered Issues*, *Deferred*, *Possibly overstated* — follow the stage sections below, so that everything above the first stage heading stays within one read.*
 
 ---
 
@@ -1514,32 +1630,6 @@ Revisit the compliance question with a certification body and a qualified French
 
 ---
 
-# DESIGN DECISIONS REQUIRED
-
-These cannot be resolved from the code. **Claude must not decide them.** Each blocks or reshapes the batch named.
-
-| ID | Decision | Blocks | Context |
-|---|---|---|---|
-| **DD-01** | **ANSWERED 2026-09-03 — build the ESC/POS bridge now**, in the existing Bun/Next server, primary transport raw TCP to port 9100 over the LAN, behind a transport interface leaving a Windows-RAW-spooler slot for USB. Not deferred to Tauri. | Batch 1.3 (`IMPLEMENTED — TESTING REQUIRED`); shapes 1.4 and 3.4 | Decided by the user. Full question and rationale: `REMEDIATION_RECORD.md` → *Answered design decisions*. |
-| **DD-02** | **ANSWERED 2026-09-03 — `C:\HibaPOS\data`.** Plumbing shipped in Batch 2.2 (`src/lib/paths.ts`, `HIBAPOS_DATA_DIR`), defaulting to the old layout; the physical move is a deployment step with Batch 1.4. | Batch 2.2 (`COMPLETED`); shapes 1.4 | Full question and rationale: record → *Answered design decisions*; evidence in the record's Batch 2.2 section. |
-| **DD-03** | **CLOSED 2026-09-03 as NOT APPLICABLE** — no sealed row ever carried a `"6"` key, and all trading data is developer test data that P-04 deletes. Key format decided: minimal decimal string (`"5.5"`, `"10"`). | Batch 3.1 (`COMPLETED`) | Evidence: record → Batch 3.1 status record, and *Answered design decisions*. V-01 not engaged. |
-| **DD-17** | **ANSWERED 2026-09-03 — the VAT rate lives on the category, inherited nearest-wins** (own category → parent → default), with a per-product override flag and a constrained selector. The original row lists 20 / 10 / 5,5 / 2,1 %; Batch 3.1c's record says it shipped 20 / 10 / 5,5 with 2,1 % excluded. | Batch 3.1c (`COMPLETED`) | Decided by the user. Full rationale: record → *Answered design decisions*. |
-| **DD-04** | **Backup key rotation policy.** Rotating `BACKUP_ENCRYPTION_KEY` orphans every existing backup permanently. Re-encrypt the retained set first, accept the loss, or introduce key versioning before rotating? | Batch 7.3; P-02 | Retention obligations may make discarding old backups unacceptable — see V-04. |
-| **DD-05** | **ANSWERED 2026-09-04 — refuse out-of-order closes.** A close must be the period immediately following the last sealed one; the first close is unconstrained. Decided with zero closes in existence. | Batch 3.6 (`COMPLETED`) | Evidence: record → Batch 3.6 status record, and *Answered design decisions*. |
-| **DD-06** | **Is LAN access required?** If no, bind to `127.0.0.1`. If yes, set `APP_URL` to an `http://` value so the session cookie works, and accept unencrypted traffic on the restaurant network. | Batch 4.3 | Currently binds `0.0.0.0` with a `secure` cookie, so LAN login silently fails — protective by accident. |
-| **DD-07** | **Intended cashier visibility.** Which reports and settings should a CASHIER see? The X report is currently open to cashiers via the shifts view while `POST /api/reports/x` is MANAGER+. | Batch 4.4 (M-19s) | Decide the matrix first, then make GET and POST agree and update the README role table. |
-| **DD-08** | **Operator scripts.** Guard them, or remove them from the shipped tree? | Batch 4.5 (C-17) | Precedent exists: `scripts/delete-products.js` was removed for the same hazard. |
-| **DD-09** | **Tables.** Wire table selection into the POS, or withdraw the feature from the documentation? | Batch 5.2 (C-21) | The floor plan, model and API all exist; only the POS link is missing. |
-| **DD-10** | **Cross-shift refunds.** Allow, attributed to the current open shift? Restrict to MANAGER+? Or keep the current refusal and define an approved manual procedure? | Batch 5.3 (C-14) | The current refusal pushes staff toward untraced cash refunds. |
-| **DD-11** | **Held orders.** Move server-side (visible from any terminal, surviving a device swap, accounted for at Z close), or keep them device-local? | Batch 5.4 (C-23) | The current shape is not what "held orders" usually means operationally. |
-| **DD-12** | **Cash movements.** Add an entrée/sortie de caisse feature, and if so what categories and what approval level? | Batch 5.5 (M-05) | Without it, the variance figure C-02 fixes will still be wrong in practice. |
-| **DD-13** | **Order cancellation.** Support a pre-payment order state and a void, or remove the dead `PENDING`/`CANCELLED` enum values and the zero counter? | Batch 5.6 (M-08) | Leaving them implies a feature that does not exist. |
-| **DD-14** | **Zero-total orders.** Is a 100 % discount (staff meal, comp) a legitimate transaction? Currently impossible to check out. | Batch 5.7 (M-11) | If yes, it still needs a fiscal record — decide how it is journalled. |
-| **DD-15** | **Orphaned schema surfaces.** `ProductAddon` (no writer) and `Customer.postalCode` (no consumer) — build the missing write paths or remove the surfaces? | Batch 5.7 (M-09, M-10) | Both are flagged in audit section I as possible lost functionality; compare against the historical project before removing. |
-| **DD-16** | **Should `public/uploads/` be tracked in git?** 134 files currently are, contradicting the README and complicating any git-based update. | Batch 7.1 (DOC-06) | Interacts with DD-02: if uploads move to a data directory, the question resolves itself. |
-
----
-
 # EXTERNAL / LEGAL / FISCAL VERIFICATION
 
 **Nothing in this plan, and no test result produced by it, constitutes evidence of French fiscal or legal compliance.** The audit deliberately did not offer a compliance opinion, and neither does this document.
@@ -1560,6 +1650,27 @@ The repository ships `docs/attestation-conformite.md`, a fill-in-and-sign editor
 | **V-12** | `REQUIRES EXTERNAL VERIFICATION` | Do the *operator's* processes — archive custody, retention, attestation signing — meet the requirement independently of the software? |
 
 **Rule:** `IMPLEMENTATION_PLAN.md:54` marks "Phase 1 — ISCA / NF525 compliance — ✅ COMPLETE". That marking is not supportable from the code and must not be treated as an answer to any question above.
+
+---
+
+# NEWLY DISCOVERED ISSUES
+
+Record anything found *during* remediation that is outside the current batch's scope. Do not fix it in that batch (safety rule 10).
+
+Open rows only. A row resolved by a batch moves, unchanged, to `REMEDIATION_RECORD.md` → *Resolved findings* when that batch completes (seven rows moved there on 2026-09-04: L-13, L-15, L-16, L-17, L-18, L-20, L-23).
+
+| ID | Date | Found during | Description | Severity | Assigned to batch |
+|---|---|---|---|---|---|
+| **L-25** | 2026-09-04 | Batch 3.6 (M-01) | **The close guard enforces order, but nothing stops you sealing a month that has not finished.** `closeMonth(2026, 9, …)` succeeds on 4 September and seals a partial September as if it were the whole month; the period is then `@unique`, so the rest of the month can never be sealed and never appears in any close. M-01's guard does not help — sealing September early is perfectly in sequence. Pre-existing, not introduced by Batch 3.6, and out of its scope (the batch's decision was about ordering, not about timing). Candidate fix: refuse a period whose end is still in the future, or require an explicit confirmation. Worth deciding before the first real close, because the first premature seal is unrepairable. | MEDIUM (a sealed, permanently incomplete fiscal period) | needs a decision — suggest a small batch before 8.0 |
+| **L-26** | 2026-09-04 | Batch 3.6 (M-07) | **`MonthlyClose` and `AnnualClose` hash a `totalRefunded` they have no column for.** `aggregatePeriod` returns `totalRefunded` and it is spread into `dataPayload`, so it *is* inside `dataJson` and *is* covered by the close hash — but there is no column, so no query, report or screen can read it without parsing the JSON. The Z report gained exactly these columns in M-07; the period closes did not, because the plan's M-07 names only `ZReport`. Trivial to add while zero closes exist (the same argument as DD-05); much less trivial afterwards. | LOW (data present but unreadable; consistency with M-07) | 3.6 follow-on or 8.0 |
+| **L-24** | 2026-09-04 | Batch 3.5 baseline | **`bun test src` fails 23 tests on a machine this slow, with no code defect involved.** All 23 are timeouts against Bun's 5 s default: 22 in `backup*.test.ts` and 1 in `auth.test.ts`. Measured cause — `scryptSync` at N=2^17 costs **~1519 ms** per call here (N=2^16 costs ~727 ms), and a backup→restore round trip performs several: the archive encrypt, the pre-restore safety-snapshot encrypt, and the decrypt. The cascade that follows is misleading: the test times out, `afterEach` deletes the temp directory, and the still-running `VACUUM INTO` then reports `unable to open database` (SQLITE_CANTOPEN, P2010), which reads like a filesystem or Prisma fault and is not one. `bun test src --timeout 30000` → **340 pass, 0 fail**. Whole-suite runtime is ~192 s against the 25,9 s the plan recorded for the same suite, so this is machine state, not a regression. Established on the untouched pre-batch commit `e86c5e4`. Options: raise the timeout in `bunfig.toml`, or lower the scrypt cost in test runs only — the second must not touch the production KDF parameters. | LOW (test infrastructure; hides real failures behind noise and costs a session an hour to diagnose) | 6.1 |
+| **L-22** | 2026-09-03 | Batch 3.1d | **Validation errors reach the French UI as untranslated English zod messages.** `settings/route.ts` returns `parsed.error.issues[0]?.message`, and `settingsSchema` defines custom messages for only a few fields, so the operator saw `Too big: expected number to be <=48` (L-20). That specific message is now unreachable, but any other out-of-range settings value produces the same class of output. Applies to other schemas in `validation.ts` too. | LOW (operator-facing text) | 7.1 or 3.4 |
+| **L-21** | 2026-09-03 | Batch 3.1b manual validation | **`renderReceipt()` centres but never wraps, so an over-long field overflows the paper.** A receipt rendered at the corrected 48 columns still contained a **56-character** line: the restaurant's real address, `23 Grande Rue 45210, 45210 Ferrières-en-Gâtinais, France`. On 48-column paper that wraps mid-address on every ticket. Distinct from L-14, which is about *archived* 80-column receipts — this is new output at the correct width. Affects any long `restaurantAddress`, `restaurantName` or `footerNote`. | MEDIUM (every printed ticket, once the printer is live) | 3.4 or with L-20 |
+| **L-19** | 2026-09-03 | Batch 3.1 consumer verification | **The VAT breakdown table renders rates with `toFixed(1)`, which cannot show a two-decimal rate.** `report-widgets.tsx:76` renders `Number(r).toFixed(1) + " %"`, so 10 % displays as "10.0 %" (cosmetic) and a Corsican/overseas rate such as 1,05 % would display as "1.1 %" — a wrong rate on a fiscal report. Pre-existing and **improved** by Batch 3.1 (before the fix, 1,05 % was keyed "1" and lost entirely), and unreachable while every product is at 10 %. Recorded so 3.2/3.4 does not preserve it. Note the display layer, not the key, is what needs fixing. | LOW (latent display defect; not reachable today) | 3.4 or 7.1 |
+| L-14 | 2026-09-03 | Batch 1.3 loopback validation | **Receipts archived before L-13 was fixed are 80 columns wide and cannot fit the paper.** Every existing `Receipt.content` row (checked #18, #19, #20) has a widest line of 80 characters, because `renderReceipt` was fed the millimetre value. 80 mm paper fits 48 columns at Font A and 64 at Font B, so **reprinting any pre-fix ticket will wrap**. Re-rendering them is **not** an option — an archived receipt is an immutable fiscal artifact and the reprint path must print it verbatim. Options are to accept wrapped legacy reprints, or to print pre-fix receipts in a condensed font. Affects reprints only; new receipts render at 48 once `receiptWidth` is saved. | LOW (cosmetic, legacy rows only) | 7.1 or accept |
+| DOC-15 ⚠️ **half-resolved 2026-09-03** | 2026-09-03 | Batch 1.3 decision prep | **The documented printer is not the configured printer.** `IMPLEMENTATION_PLAN.md:15` names the *Sunso WTP-801*; the live `Setting` row says `printerName = "Epson TM-m30"`. **The operator confirmed on 2026-09-03 that the physical device is the Sunso WTP-801 and that it has an Ethernet port** — so the documentation is correct and the *stored setting value is wrong*. Nothing reads `printerName`, so this is cosmetic; the operator should correct the value in Réglages. Left open until that is done. | LOW (stale data value) | operator action |
+| DOC-14 | 2026-09-03 | Batch 1.2 | `src/components/pos/product-options-dialog-v2.tsx:110` computes `lineTotal = Math.round((unitPrice + addonsTotal) * qty * 100) / 100` and passes it to `formatEuro` at `:368-369`. `productUnitPrice()` returns integer cents (`cart-store.ts:225`) and add-on prices are cents, so `Math.round(cents * qty * 100) / 100` is exactly `cents * qty` — the displayed figure is **correct**, but the `* 100 / 100` is vestigial euros-era rounding that reads like a cents/euros confusion in a money path. Remove it or replace with a comment. | LOW (code clarity, not a defect) | 7.2 |
+| DOC-13 | 2026-09-03 | Batch 1.1 | `src/lib/approvals.ts:17` documents `ApprovalPayload.amount` as `// euros`. Every caller passes and verifies **cents** (`orders-view.tsx` → `/api/auth/approve` → `refund/route.ts:72`, and `payment-dialog.tsx` for discounts). Comment only — the code is unit-consistent and correct — but it is a misleading comment in the module that binds money to an approval, i.e. exactly the class of comment that produced C-01. | LOW (documentation) | 7.1 |
 
 ---
 
@@ -1593,80 +1704,6 @@ Kept per the instruction not to drop a finding because of disagreement. None was
 | **M-27** | The replay window after a restart is documented and consciously accepted in `approvals.ts:22-28`. Only the unbounded set growth is unambiguously a defect. |
 | **DOC-04** | The README undercounts tests (105 vs 136). Stale, not inflated — the direction of the error is worth noting. |
 | **Audit section I generally** | The git history **cannot** answer whether files were accidentally deleted: the repo was re-initialised at `be9113e` and the claimed pre-v0 archive path does not exist. All "possibly missing" items are inferences from orphaned code, not from deletion evidence. Compare against the historical 3 GB project before acting on any of them. |
-
----
-
-# NEWLY DISCOVERED ISSUES
-
-Record anything found *during* remediation that is outside the current batch's scope. Do not fix it in that batch (safety rule 10).
-
-Open rows only. A row resolved by a batch moves, unchanged, to `REMEDIATION_RECORD.md` → *Resolved findings* when that batch completes (seven rows moved there on 2026-09-04: L-13, L-15, L-16, L-17, L-18, L-20, L-23).
-
-| ID | Date | Found during | Description | Severity | Assigned to batch |
-|---|---|---|---|---|---|
-| **L-25** | 2026-09-04 | Batch 3.6 (M-01) | **The close guard enforces order, but nothing stops you sealing a month that has not finished.** `closeMonth(2026, 9, …)` succeeds on 4 September and seals a partial September as if it were the whole month; the period is then `@unique`, so the rest of the month can never be sealed and never appears in any close. M-01's guard does not help — sealing September early is perfectly in sequence. Pre-existing, not introduced by Batch 3.6, and out of its scope (the batch's decision was about ordering, not about timing). Candidate fix: refuse a period whose end is still in the future, or require an explicit confirmation. Worth deciding before the first real close, because the first premature seal is unrepairable. | MEDIUM (a sealed, permanently incomplete fiscal period) | needs a decision — suggest a small batch before 8.0 |
-| **L-26** | 2026-09-04 | Batch 3.6 (M-07) | **`MonthlyClose` and `AnnualClose` hash a `totalRefunded` they have no column for.** `aggregatePeriod` returns `totalRefunded` and it is spread into `dataPayload`, so it *is* inside `dataJson` and *is* covered by the close hash — but there is no column, so no query, report or screen can read it without parsing the JSON. The Z report gained exactly these columns in M-07; the period closes did not, because the plan's M-07 names only `ZReport`. Trivial to add while zero closes exist (the same argument as DD-05); much less trivial afterwards. | LOW (data present but unreadable; consistency with M-07) | 3.6 follow-on or 8.0 |
-| **L-24** | 2026-09-04 | Batch 3.5 baseline | **`bun test src` fails 23 tests on a machine this slow, with no code defect involved.** All 23 are timeouts against Bun's 5 s default: 22 in `backup*.test.ts` and 1 in `auth.test.ts`. Measured cause — `scryptSync` at N=2^17 costs **~1519 ms** per call here (N=2^16 costs ~727 ms), and a backup→restore round trip performs several: the archive encrypt, the pre-restore safety-snapshot encrypt, and the decrypt. The cascade that follows is misleading: the test times out, `afterEach` deletes the temp directory, and the still-running `VACUUM INTO` then reports `unable to open database` (SQLITE_CANTOPEN, P2010), which reads like a filesystem or Prisma fault and is not one. `bun test src --timeout 30000` → **340 pass, 0 fail**. Whole-suite runtime is ~192 s against the 25,9 s the plan recorded for the same suite, so this is machine state, not a regression. Established on the untouched pre-batch commit `e86c5e4`. Options: raise the timeout in `bunfig.toml`, or lower the scrypt cost in test runs only — the second must not touch the production KDF parameters. | LOW (test infrastructure; hides real failures behind noise and costs a session an hour to diagnose) | 6.1 |
-| **L-22** | 2026-09-03 | Batch 3.1d | **Validation errors reach the French UI as untranslated English zod messages.** `settings/route.ts` returns `parsed.error.issues[0]?.message`, and `settingsSchema` defines custom messages for only a few fields, so the operator saw `Too big: expected number to be <=48` (L-20). That specific message is now unreachable, but any other out-of-range settings value produces the same class of output. Applies to other schemas in `validation.ts` too. | LOW (operator-facing text) | 7.1 or 3.4 |
-| **L-21** | 2026-09-03 | Batch 3.1b manual validation | **`renderReceipt()` centres but never wraps, so an over-long field overflows the paper.** A receipt rendered at the corrected 48 columns still contained a **56-character** line: the restaurant's real address, `23 Grande Rue 45210, 45210 Ferrières-en-Gâtinais, France`. On 48-column paper that wraps mid-address on every ticket. Distinct from L-14, which is about *archived* 80-column receipts — this is new output at the correct width. Affects any long `restaurantAddress`, `restaurantName` or `footerNote`. | MEDIUM (every printed ticket, once the printer is live) | 3.4 or with L-20 |
-| **L-19** | 2026-09-03 | Batch 3.1 consumer verification | **The VAT breakdown table renders rates with `toFixed(1)`, which cannot show a two-decimal rate.** `report-widgets.tsx:76` renders `Number(r).toFixed(1) + " %"`, so 10 % displays as "10.0 %" (cosmetic) and a Corsican/overseas rate such as 1,05 % would display as "1.1 %" — a wrong rate on a fiscal report. Pre-existing and **improved** by Batch 3.1 (before the fix, 1,05 % was keyed "1" and lost entirely), and unreachable while every product is at 10 %. Recorded so 3.2/3.4 does not preserve it. Note the display layer, not the key, is what needs fixing. | LOW (latent display defect; not reachable today) | 3.4 or 7.1 |
-| L-14 | 2026-09-03 | Batch 1.3 loopback validation | **Receipts archived before L-13 was fixed are 80 columns wide and cannot fit the paper.** Every existing `Receipt.content` row (checked #18, #19, #20) has a widest line of 80 characters, because `renderReceipt` was fed the millimetre value. 80 mm paper fits 48 columns at Font A and 64 at Font B, so **reprinting any pre-fix ticket will wrap**. Re-rendering them is **not** an option — an archived receipt is an immutable fiscal artifact and the reprint path must print it verbatim. Options are to accept wrapped legacy reprints, or to print pre-fix receipts in a condensed font. Affects reprints only; new receipts render at 48 once `receiptWidth` is saved. | LOW (cosmetic, legacy rows only) | 7.1 or accept |
-| DOC-15 ⚠️ **half-resolved 2026-09-03** | 2026-09-03 | Batch 1.3 decision prep | **The documented printer is not the configured printer.** `IMPLEMENTATION_PLAN.md:15` names the *Sunso WTP-801*; the live `Setting` row says `printerName = "Epson TM-m30"`. **The operator confirmed on 2026-09-03 that the physical device is the Sunso WTP-801 and that it has an Ethernet port** — so the documentation is correct and the *stored setting value is wrong*. Nothing reads `printerName`, so this is cosmetic; the operator should correct the value in Réglages. Left open until that is done. | LOW (stale data value) | operator action |
-| DOC-14 | 2026-09-03 | Batch 1.2 | `src/components/pos/product-options-dialog-v2.tsx:110` computes `lineTotal = Math.round((unitPrice + addonsTotal) * qty * 100) / 100` and passes it to `formatEuro` at `:368-369`. `productUnitPrice()` returns integer cents (`cart-store.ts:225`) and add-on prices are cents, so `Math.round(cents * qty * 100) / 100` is exactly `cents * qty` — the displayed figure is **correct**, but the `* 100 / 100` is vestigial euros-era rounding that reads like a cents/euros confusion in a money path. Remove it or replace with a comment. | LOW (code clarity, not a defect) | 7.2 |
-| DOC-13 | 2026-09-03 | Batch 1.1 | `src/lib/approvals.ts:17` documents `ApprovalPayload.amount` as `// euros`. Every caller passes and verifies **cents** (`orders-view.tsx` → `/api/auth/approve` → `refund/route.ts:72`, and `payment-dialog.tsx` for discounts). Comment only — the code is unit-consistent and correct — but it is a misleading comment in the module that binds money to an approval, i.e. exactly the class of comment that produced C-01. | LOW (documentation) | 7.1 |
-
----
-
-# FINDING INDEX
-
-Quick lookup from audit ID to batch.
-The completion history table and every completed batch's full section are in `REMEDIATION_RECORD.md`.
-
-**✅ = remediated and validated.** It means the *code* is done and the batch is
-recorded — several ✅ items are **not yet in effect on the production install**
-(WAL, `BACKUP_LOCATION`, `HIBAPOS_DATA_DIR`, thermal printing); *OPEN THREADS →
-A* is the list. **◐ = one half done, one half open** — the finding was split
-across two batches. Audit IDs are never renamed, so a split keeps its ID.
-
-*Ticks audited and corrected 2026-09-04: seventeen findings were `COMPLETED` in
-their own status blocks while the index still showed them untouched.*
-
-| ID | Batch | ID | Batch | ID | Batch |
-|---|---|---|---|---|---|
-| C-01 ✅ | 1.1 | M-01 ✅ | 3.6 | M-25 | 4.4 |
-| C-02 ✅ | 1.2 | M-02 ✅ | 3.3 | M-26 | 4.4 |
-| C-03 | 1.3 | M-03 ✅ | 2.2 | M-27 | 4.3 |
-| C-04 ✅ | 3.3 | M-04 ✅ | 3.5 | M-28 | 4.3 |
-| C-05 ✅ | 2.1 | M-05 | 5.5 | M-29 ✅ | 2.4 |
-| C-06 ✅ | 2.2 | M-06 ✅ | 3.6 | M-30 ✅ | 2.4 |
-| C-07 | 1.4 | M-07 ✅ | 3.6 | M-31 ✅ | 2.4 |
-| C-08 | 4.1 | M-08 | 5.6 | L-01 | 7.2 |
-| C-09 | 4.2 | M-09 | 5.7 | L-02 | 7.2 |
-| C-10 ✅ | 3.2 | M-10 | 5.7 | L-03 | 7.2 |
-| C-11 ✅ | 3.2 | M-11 | 5.7 | L-04 ◐ | 2.4 / 7.3 |
-| C-12 ✅ | 3.1 | M-12 | 5.7 | L-05 | 2.4 (deferred) |
-| C-13 ✅ | 3.5 | M-13 ✅ | 3.2 | L-06 | 6.3 |
-| C-14 | 5.3 | M-14 ✅ | 3.2 | L-07 | 7.2 |
-| C-15 ◐ | 2.3 + 4.7 | M-15 | 5.7 | L-08 | 7.2 |
-| C-16 | 4.4 | M-16 | 5.7 | L-09 | deferred |
-| C-17 | 4.5 | M-17 | 5.7 | L-10 | deferred |
-| C-18 | 4.3 | M-18 | 5.7 | L-11 | deferred |
-| C-19 ✅ | 2.3 | M-19 | 5.7 | L-12 | 7.2 |
-| C-20 | 5.1 | M-19s | 4.4 | T-01…T-07 | 6.1 |
-| C-21 | 5.2 | M-20 | 5.7 | T-08, T-09 | 6.2 |
-| C-22 ◐ | 2.1 + 3.5 | M-21 | 5.7 | T-10…T-12 | 6.3 |
-| C-23 | 5.4 | M-22 | 5.7 | DOC-01…12 | 7.1 |
-| C-24 | 4.6 | M-23 | 4.3 | V-01…V-03, V-08…V-12 | external |
-| C-25 | 4.6 | M-24 | 4.4 | V-04…V-07 | 8.1 / 8.2 |
-| C-26, C-26b ✅ | 0.1 | C-27 ✅ | 3.4 | P-01…P-03 ✅ | 0.2 |
-
-**The three ◐ items, so nobody has to go looking:**
-
-| ID | Done | Still open |
-|---|---|---|
-| **C-15** | Transaction timeouts, Batch 2.3 | The shift-state race, Batch 4.7 |
-| **C-22** | Restore/deletion journalling, Batch 2.1 | Whether an unkeyed chain suffices — `REQUIRES EXTERNAL VERIFICATION`, V-01 |
-| **L-04** | The 297 MB `.next/standalone/` tree carrying live secrets, deleted in Batch 2.4 | Rotating the secrets it exposed, Batch 7.3 / DD-04 |
 
 ---
 
