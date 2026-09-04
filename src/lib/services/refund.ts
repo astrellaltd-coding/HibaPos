@@ -10,7 +10,7 @@
 import { db } from "@/lib/db";
 import { appendFiscalEvent, addRefundToGrandTotal } from "@/lib/services/fiscal";
 import type { PaymentMethod } from "@prisma/client";
-import { TX_FISCAL } from "@/lib/tx-options";
+import { TX_FISCAL, isTransactionBusyError } from "@/lib/tx-options";
 
 /** In-transaction validation failure with an HTTP status. */
 export class RefundError extends Error {
@@ -53,11 +53,39 @@ type OrderForRefund = {
   refunds: { amount: number }[];
 };
 
-/** Process a refund inside a transaction. Re-reads refunds + order
- *  inside the tx (serializes concurrent refund POSTs — post-audit N8 fix).
- *  Caller MUST pre-validate: shift not CLOSED, method match, approval token. */
+/** Shown when the till was closed between the route's check and the refund
+ *  being written. Same wording as the route's own pre-check, because it is the
+ *  same refusal — only decided one step later. */
+export const SHIFT_CLOSED_DURING_REFUND_MESSAGE =
+  "La caisse attachée à cette commande est déjà clôturée. Remboursement impossible.";
+
+/** Shown when the refund could not get through — in practice a Z close
+ *  holding the database. Nothing was written; retrying is safe. */
+export const REFUND_BUSY_MESSAGE =
+  "La caisse est occupée (clôture en cours). Réessayez dans quelques secondes.";
+
+/** Process a refund inside a transaction. Re-reads the shift, the refunds and
+ *  the order inside the tx (serializes concurrent refund POSTs — post-audit N8
+ *  fix). Caller MUST pre-validate: method match, approval token. */
 export async function processRefund(input: RefundInput, order: OrderForRefund): Promise<RefundResult> {
   return db.$transaction(async (tx) => {
+    // C-15 (Batch 4.7), the same defect as the checkout's: the route reads
+    // `order.shift.status` outside any transaction, and a read outside a
+    // transaction does not wait for one. A refund that lost that race landed
+    // in a shift whose Z had already been sealed, and since a Z is immutable
+    // its `refundsTotal` was permanently short of the money handed back.
+    // Interactive transactions do not overlap, so re-reading here is decisive.
+    // The audit named only the checkout and the Z report; the operator chose
+    // on 2026-09-04 to close this third site in the same batch.
+    if (order.shift) {
+      const shift = await tx.shift.findUnique({
+        where: { id: order.shift.id },
+        select: { status: true },
+      });
+      if (!shift || shift.status !== "OPEN") {
+        throw new RefundError(SHIFT_CLOSED_DURING_REFUND_MESSAGE, 409);
+      }
+    }
     const freshRefunds = await tx.refund.findMany({ where: { orderId: order.id } });
     const freshRefunded = freshRefunds.reduce((acc, r) => acc + r.amount, 0);
     const freshOrder = await tx.order.findUnique({
@@ -159,5 +187,11 @@ export async function processRefund(input: RefundInput, order: OrderForRefund): 
       fullyRefunded,
       fiscalEventId: ev.id,
     };
-  }, TX_FISCAL);
+  }, TX_FISCAL).catch((e) => {
+    // C-15 (Batch 4.7): a close holding the database longer than this refund
+    // can wait must not reach the operator as a Prisma stack trace. The
+    // transaction is rolled back, so nothing was written.
+    if (isTransactionBusyError(e)) throw new RefundError(REFUND_BUSY_MESSAGE, 503);
+    throw e;
+  });
 }

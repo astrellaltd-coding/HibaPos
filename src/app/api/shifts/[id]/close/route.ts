@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { withAuthParams, parseJson } from "@/lib/api-handler";
 import { shiftCloseSchema } from "@/lib/validation";
-import { generateZReport } from "@/lib/services/reports";
+import { generateZReport, ZReportError } from "@/lib/services/reports";
 import { audit } from "@/lib/services/audit";
 import { createBackup } from "@/lib/services/backup";
 import { logTechnical } from "@/lib/services/technical-logger";
@@ -27,6 +27,13 @@ export const POST = withAuthParams(async (req, { user, params }) => {
     report = result.report;
     cashVariance = result.cashVariance;
   } catch (e) {
+    // C-15 (Batch 4.7): the refusals `generateZReport` decides inside its own
+    // transaction now carry their status. The pre-check above still answers
+    // the ordinary "already closed" case without opening one; this arm is what
+    // a second close racing the first, or a shift closed underneath us, meets.
+    if (e instanceof ZReportError) {
+      return NextResponse.json({ error: e.message }, { status: e.status });
+    }
     const message = e instanceof Error ? e.message : "Erreur lors de la génération du rapport Z";
     return NextResponse.json({ error: message }, { status: 400 });
   }

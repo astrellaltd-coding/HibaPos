@@ -11,19 +11,19 @@ Detailed audit record: https://claude.ai/code/artifact/329316b0-3a6b-48b0-9d27-d
 
 **Overall:** NOT READY FOR PRODUCTION
 
-**Current Stage:** Stage 4 — Security & integrity, `IN PROGRESS` (4.1 through 4.4, **4.4b**, **4.4c**, **4.5** and **4.6** COMPLETED; **4.7** `NOT STARTED` and unblocked — it is the last one). **Stage 3 is COMPLETED** (3.1 through 3.6 plus 3.6b), with C-22's chain-design half carried forward as `REQUIRES EXTERNAL VERIFICATION` and V-03 open. Stage 1 is **partly done**: 1.1 and 1.2 COMPLETED, 1.3 `IMPLEMENTED — TESTING REQUIRED` on hardware, 1.4 deferred. Stage 2 is COMPLETED.
+**Current Stage:** **Stage 4 is COMPLETED** (4.1 through 4.4, 4.4b, 4.4c, 4.5, 4.6 and **4.7**, all 2026-09-04) — **Stage 5, workflow gaps, is next**. **Stage 3 is COMPLETED** (3.1 through 3.6 plus 3.6b), with C-22's chain-design half carried forward as `REQUIRES EXTERNAL VERIFICATION` and V-03 open. Stage 1 is **partly done**: 1.1 and 1.2 COMPLETED, 1.3 `IMPLEMENTED — TESTING REQUIRED` on hardware, 1.4 deferred. Stage 2 is COMPLETED.
 
-**Current Batch:** none — **Batch 4.7** (transaction and race safety, C-15's open half: the shift-state race) is next and finishes Stage 4. No decision blocks it, but its *Validation Required* deliberately leaves **one behaviour choice** open — an order created *while* a Z report is being generated may be either included or rejected, and the criteria accept both. Put that to the operator before writing code, with the closed-shift case (specified: **409**) alongside it.
+**Current Batch:** none — **Batch 5.1** is next. Unlike Stage 4, most of Stage 5 is gated: **DD-09 through DD-16** block or reshape five of its seven batches, and they are business decisions Claude must not take. Read *Design Decisions Required*, then put the ones the next batch needs to the operator before writing any code.
 
-**Last Completed Batch:** Batch 4.6 — Catalogue data-loss paths. Two HIGH data-loss findings in the catalogue, which is the one irreplaceable thing in this database (warning 4). **C-24:** the category PUT validated each option group *after* `deleteMany` had already run and skipped a failing entry with `continue`, so one malformed entry destroyed the category's sauces, breads and toppings and answered **200**; demonstrated on the real `Sandwichs` category, where the pre-batch code deleted **4 groups and 19 choices**. Validation now happens before the transaction opens (new `catalog-payload.ts`) and any bad entry 400s having deleted nothing. Separately, `productSchema.options` was `.default([])`, so any PUT that merely **omitted** the field wiped every product-specific option group — now `.optional()`, with absent meaning *unchanged*. **C-25:** the media library's usage scan and its delete-time cleanup each covered three of the schema's **six** image columns; measured against production, **30 of 124 referenced images (24 %) — the entire condiment and topping catalogue — displayed as *unused* and were offered for deletion**. Both now derive from one `IMAGE_COLUMNS` declaration, a test pins it to the schema, and `DELETE /api/media` finally journals a `MEDIA_DELETED` audit row. **No migration; nothing waits on the operator.**
+**Last Completed Batch:** Batch 4.7 — Transaction and race safety, which **closes C-15** and **finishes Stage 4**. Shift state was read outside the transaction at **three** sites, not the two the audit named: `POST /api/orders` looked up the open shift at `:126` and opened its transaction at `:280`; `generateZReport` totalled the shift and only *then* opened the transaction that closed it; and the refund route read `order.shift.status` before calling `processRefund`. **The measurement that shaped the fix:** Prisma's interactive transactions on SQLite do not overlap — the second body does not begin until the first commits, in both journal modes — while a read *outside* a transaction does not wait at all. So the checkout re-asserts `status === "OPEN"` as the first statement inside its transaction (body moved to new `services/checkout.ts`), the Z report is now computed *inside* the transaction that seals it, and `processRefund` re-reads the shift under the lock. **Demonstrated on a copy of production, over HTTP:** six sales racing one close on the pre-batch code left **7 orders in a shift whose immutable Z counted 5** — 3,00 € gone for good; on the new code the Z counted 8 of 8, with three sales refused **409** and one **503**, both in French. **No migration; nothing waits on the operator.** *(Before it: Batch 4.6, the catalogue data-loss paths C-24 and C-25 — record → Batch 4.6.)*
 
-**Next Batch:** **4.7**, then Stage 5 (workflow gaps, 5.1 through 5.7 — several need decisions DD-09 through DD-16).
+**Next Batch:** Stage 5 (workflow gaps, 5.1 through 5.7 — several need decisions DD-09 through DD-16).
 
 **Blocked:** Batch 1.3 `[HW]` sign-off and Batch 1.4 — both need the app running on the restaurant's POS machine, which is in a different country from the developer and has no copy of the app installed (decision of 2026-09-03).
 
-**Awaiting decision:** **nothing blocks Batch 4.7 or Stage 5's start.** All of DD-01, DD-02, DD-03, DD-05, DD-06, DD-07, DD-08, DD-17, DD-18 and DD-19 are answered; DD-04 and DD-09 through DD-16 are open and named against their batches in *Design Decisions Required*. Two recorded-but-not-urgent questions stand: `/api/auth/approve` and `manager-approval-dialog.tsx` have **no caller at all** since 4.4c, so whether to delete them is a real question; and **L-27** needs a decision before Batch 8.0.
+**Awaiting decision:** **nothing blocks Stage 5's start**, but DD-09 through DD-16 block or reshape most of its batches. All of DD-01, DD-02, DD-03, DD-05, DD-06, DD-07, DD-08, DD-17, DD-18 and DD-19 are answered; DD-04 and DD-09 through DD-16 are open and named against their batches in *Design Decisions Required*. Two recorded-but-not-urgent questions stand: `/api/auth/approve` and `manager-approval-dialog.tsx` have **no caller at all** since 4.4c, so whether to delete them is a real question; and **L-27** needs a decision before Batch 8.0.
 
-**Last Updated:** 2026-09-04 (session 10 — Batches 4.5 and 4.6). Three things worth carrying forward. (1) **The front matter is inside its ~40 KB ceiling** — **40 735 bytes, about 220 to spare** after 4.5 retired six superseded items and 4.6 compressed five more. There is no room left: **retire something before adding anything**, and say in the record what moved and where the fact still lives. (2) **Revert in both directions, and keep reverting until every test has failed once.** 4.6's guards needed **eight** one-property reverts before all 33 of its new tests had been accounted for — 25 failed under one of them, and the other 8 are regression assertions that by construction cannot fail against the old code. Say which is which rather than implying full coverage. (3) **Restoring a scratch copy now has a documented procedure** — it runs in WAL mode even though production does not, and two Git-Bash gotchas cost 4.6 real time. All three are in *Methods → Scratch copy*.
+**Last Updated:** 2026-09-04 (session 11 — Batch 4.7, which finishes Stage 4). Three things worth carrying forward. (1) **The front matter is inside its ~40 KB ceiling**, and stayed there only because session 10's three-item note and the resolved environment item 6 were retired to make room — **retire something before adding anything**, and say in the record what moved and where the fact still lives. Both lessons retired from here are now in *Methods*: revert in both directions until every test has failed once, and how to restore a scratch copy. (2) **Prisma's interactive transactions on SQLite do not overlap** — proved in both journal modes in 4.7 — while reads *outside* a transaction do not wait at all. Any future "is this a race?" question in this codebase starts there; the measurement is in that batch's record, note 1. (3) **Measure the defect on a copy of production before fixing it, and again after.** 4.7's unit tests prove its guards; what proves the *finding* is the six-sales-against-one-close run that left 3,00 € out of an immutable Z report on the old code and nothing on the new.
 
 ### OPEN THREADS — read this before starting a batch
 
@@ -119,8 +119,8 @@ The session-3/4 snapshot that stood here is in the record, verbatim, under *Reti
 
 | Thing | Value at the end of session 3 (updated through session 4) |
 |---|---|
-| Tests | **531 pass, 0 fail** (`bun test src --timeout 30000` — see L-24 for why the timeout flag). 498 before Batch 4.6, which added 33; 482 before 4.5. **A run that fails 12 backup tests with `EPERM: rename … test.db.restore-staged` is not a code failure**: a leftover `bun` process from a stopped run is holding the shared test database — kill it and re-run (warning 3b). Whole-suite runtime 64–80 s |
-| Production DB sha256 | **`7839db18a7c8b132d974bd834d39d2921def66dd234b2059b022949f22ea6f2e`** (mtime 2026-09-04 16:41:52, 696 320 bytes) — last moved by the operator's **PIN change**, not by any batch. **Re-verified unchanged after Batch 4.5.** The earlier lineage (`7cc3367b…` → `a66bc96c…` → `e40735ca…`) is in the record |
+| Tests | **543 pass, 0 fail** (`bun test src --timeout 30000` — see L-24 for why the timeout flag). 531 before Batch 4.7, which added 12; 498 before 4.6. **A run that fails 12 backup tests with `EPERM: rename … test.db.restore-staged` is not a code failure**: a leftover `bun` process from a stopped run is holding the shared test database — kill it and re-run (warning 3b). Whole-suite runtime 64–80 s |
+| Production DB sha256 | **`7839db18a7c8b132d974bd834d39d2921def66dd234b2059b022949f22ea6f2e`** (mtime 2026-09-04 16:41:52, 696 320 bytes) — last moved by the operator's **PIN change**, not by any batch. **Re-verified unchanged after Batch 4.7**, whose whole validation ran on a scratch copy. The earlier lineage (`7cc3367b…` → `a66bc96c…` → `e40735ca…`) is in the record |
 | Fiscal chain | `/api/fiscal/verify` → all three chains `ok`, `lastSequence: 2`. **Zero monthly and annual closes have ever been sealed** — which is why M-01's guard, DD-18's timing rules and L-26's payload change could all be imposed with nothing to accommodate. Re-verified read-only 2026-09-04 |
 | Fiscal counters | `20/3/2/2` (receipt / shift / Z / event). Re-verified read-only after the PIN change, 2026-09-04 |
 | Migrations | **6 applied on production**, latest `20260904091947_close_refund_totals` (applied 2026-09-04 09:43:54). **None pending.** Batches 4.1 through 4.4b added none — 4.4b's enum removal was measured with `prisma migrate diff` and emits an empty migration |
@@ -155,15 +155,13 @@ These are **deferred, not waived.** Stage 1 cannot be declared complete, and no 
 
 9. **Claude cannot do two things in this project** — the permission classifier refuses them, and each refusal is correct: `prisma migrate deploy` against production, and writes to real menu data. Prepare, rehearse and verify; then hand the operator the exact command.
 
-   **Killing processes was listed here as a third and needs one distinction (Batch 4.4b, 2026-09-04).** Claude does not kill **the operator's** processes. A server **Claude started in the same session** is a different matter: 4.4b's `bunx next start -p 3026` (PID 24188) survived `TaskStop` — which killed only the `bunx` parent — and was terminated with `taskkill //PID <pid> //T //F`, after which `bunx prisma generate` succeeded. **Do this every time.** A session that leaves its own server running is how sessions 3 through 7 lost hours to a phantom `EPERM` (warning 6).
+   **Killing processes was listed here as a third and needs one distinction (Batch 4.4b, 2026-09-04).** Claude does not kill **the operator's** processes. A server **Claude started in the same session** is a different matter: 4.4b's `bunx next start -p 3026` (PID 24188) survived `TaskStop` — which killed only the `bunx` parent — and was terminated with `taskkill //PID <pid> //T //F`, after which `bunx prisma generate` succeeded. **Do this every time.** A leftover `next start` holds `node_modules/.prisma/client/query_engine-windows.dll.node` and makes `bunx prisma generate` fail `EPERM` in another session — that phantom cost sessions 3 through 7 hours, and the environment item recording it was retired to the record in Batch 4.7 once the habit above replaced it. **`bun run dev` stays untried here** (it loads the real `.env` and would open the production database); use `bunx next start` on a spare port — 3021–3026, 3033/3034, 3040–3043 and 3050–3052 are spoken for.
 
    **`git push` is another case and behaves differently.** Earlier sessions recorded it as prohibited; that was wrong. It is an *explicit-permission* action — it goes through when the user asks for it in the session, which they did on 2026-09-04 (`3f31779..8a311dc`, and again for `7449683..1856cd7`). Do not push unprompted, and do not tell the user it is impossible.
 
 #### Environment as last seen — verify before trusting
 
 *These items describe the developer's machine at the end of session 4, not the project. Check each before acting on it, and delete it here once it no longer holds. Their numbers are kept because other sections refer to them.*
-
-6. ~~**`bunx prisma generate` fails `EPERM`.**~~ **RESOLVED 2026-09-04.** **The lesson: a stale `next start` holds `node_modules/.prisma/client/query_engine-windows.dll.node`, so stop every leftover server before blaming the filesystem or OneDrive, and check the port list rather than trusting a PID from an earlier session.** **`bun run dev` stays untried here** — it loads the real `.env` and would open the production database. Use `bunx next start` on a spare port (3021–3026, 3033/3034 and 3040–3043 are spoken for) and stop it with `taskkill //PID <pid> //T //F` (warning 9).
 
 8. **`bun test src` fails 23 tests on this machine, and the code is fine.** All 23 are 5 s timeouts in `backup*.test.ts` / `auth.test.ts`: scrypt at N=2^17 costs ~1.5 s per call here and a backup→restore round trip makes several. Use `--timeout 30000`; the current count is in *G*. Recorded as **L-24** — do not "fix" a test that fails this way.
 
@@ -278,7 +276,7 @@ half open**, split across two batches. Audit IDs are never renamed.
 | C-12 ✅ | 3.1 | M-12 | 5.7 | L-05 | 2.4 (deferred) |
 | C-13 ✅ | 3.5 | M-13 ✅ | 3.2 | L-06 | 6.3 |
 | C-14 | 5.3 | M-14 ✅ | 3.2 | L-07 | 7.2 |
-| C-15 ◐ | 2.3 + 4.7 | M-15 | 5.7 | L-08 | 7.2 |
+| C-15 ✅ | 2.3 + 4.7 | M-15 | 5.7 | L-08 | 7.2 |
 | C-16 ✅ | 4.4 | M-16 | 5.7 | L-09 | deferred |
 | C-17 ✅ | 4.5 | M-17 ✅ | 4.4c | L-10 | deferred |
 | C-18 ✅ | 4.3 + operator | M-18 ✅ | 4.4c | L-11 | deferred |
@@ -291,7 +289,7 @@ half open**, split across two batches. Audit IDs are never renamed.
 | C-25 ✅ | 4.6 | M-24 ✅ | 4.4 | V-04…V-07 | 8.1 / 8.2 |
 | C-26, C-26b ✅ | 0.1 | C-27 ✅ | 3.4 | P-01…P-03 ✅ | 0.2 |
 
-**The three ◐ items**, whose open halves are: **C-15** the shift-state race (Batch 4.7; transaction timeouts done in 2.3), **C-22** whether an unkeyed chain suffices (`REQUIRES EXTERNAL VERIFICATION`, V-01; restore journalling done in 2.1), **L-04** rotating the secrets the deleted `.next/standalone/` tree exposed (Batch 7.3 / DD-04).
+**The two remaining ◐ items**, whose open halves are: **C-22** whether an unkeyed chain suffices (`REQUIRES EXTERNAL VERIFICATION`, V-01; restore journalling done in 2.1), and **L-04** rotating the secrets the deleted `.next/standalone/` tree exposed (Batch 7.3 / DD-04). **C-15 closed in Batch 4.7** — both halves are done, and its row is ticked above.
 
 ---
 
@@ -819,7 +817,7 @@ Nothing else in the catalogue changes: all 61 non-drink products stay at 10 %.
 
 # STAGE 4 — SECURITY & INTEGRITY
 
-**Stage status:** `IN PROGRESS` — 4.1 through 4.4, **4.4b**, **4.4c**, **4.5** and **4.6** `COMPLETED` (all 2026-09-04); **only 4.7 remains** and it is not blocked.
+**Stage status:** `COMPLETED` (2026-09-04) — 4.1 through 4.4, **4.4b**, **4.4c**, **4.5**, **4.6** and **4.7**, all on 2026-09-04.
 
 Audit section J, step 5: close the one real privilege-escalation path, stop blocking the event loop, rotate the default credentials, and stop the silent data-loss paths.
 
@@ -1018,34 +1016,20 @@ Category and product updates no longer delete option groups before validating th
 
 ## Batch 4.7 — Transaction and race safety
 
-**Status:** `NOT STARTED`
+**Status:** `COMPLETED` · **Completed:** 2026-09-04 · **Commit:** `<pending>` · **Findings:** C-15 (shift-race half — **closes C-15**)
+**Record:** `REMEDIATION_RECORD.md` → *Batch 4.7* — specification, validation criteria and status record, moved there verbatim on 2026-09-04.
 
-### C-15 (shift-race half) — Shift state is read outside the transaction
+**Constraints this batch leaves behind** *(sentences copied from the record, not paraphrased)*
+- Prisma's interactive transactions on SQLite **do not overlap**: the second one's body does not begin until the first has committed. *(record, note 1)*
+- A read **outside** a transaction does not wait, and returns `OPEN` while a close is mid-flight; a read **inside** one sees everything committed before its body started. *(record, note 1)*
+- An order created while a Z report is being generated: **refuse it, whichever got there first** — no `CLOSING` shift state, no migration, no deterministic pre-emption. *(record, note 2a)*
+- The order in which the two Z guards fire was chosen deliberately: the duplicate-Z check runs **before** the status check, so a second close of the same shift still meets *« Clôture déjà effectuée pour cette caisse »*. *(record, note 8)*
+- The pre-transaction shift lookup in `POST /api/orders` stays — it is a cheap early refusal that saves opening a transaction, and it is no longer the thing that decides. *(record, note 8)*
+- Both codes mean the same thing operationally — the transaction is rolled back, nothing was written, retrying is safe — so both map to the 503. *(record, note 6, on Prisma `P2028` and `P1008`)*
+- What prevents [a burnt receipt number] is the rollback, the assertion-first order is a clarity choice. *(record, note 4)*
+- Restoring the scratch copy between the two runs meant stopping the server and deleting `-wal` and `-shm` with the `.db` — the copy runs in WAL even though production does not. *(record, note 3)*
 
-**Status:** `NOT STARTED` · Severity: HIGH · Category: data integrity (race)
-
-*The transaction-timeout half of C-15 is Batch 2.3.* *(Done; record → Batch 2.3.)*
-
-**Problem.** Checkout looks up the open shift at `orders/route.ts:126`, well before `db.$transaction` begins at `:280`. Symmetrically, `generateZReport` computes the report at `reports.ts:124` and only then opens the transaction that closes the shift at `:128`. No row lock, no re-check of `shift.status` inside either transaction; SQLite has no `SELECT … FOR UPDATE`.
-
-**Location.** `src/app/api/orders/route.ts:126-135, 280`; `src/lib/services/reports.ts:115-192`
-
-**Impact.** A sale completing while the manager closes the till is attached to a shift whose immutable Z report has already been generated. The order exists, the money was taken, the `VENTE` event is chained — and the Z report for that shift does not include it. Because the Z is immutable, the discrepancy is permanent.
-
-**Remediation direction.** Re-read and assert `shift.status === "OPEN"` as the first statement inside the checkout transaction. Compute the Z report inside its own transaction, or lock the shift first.
-
-### Batch 4.7 — Validation Required
-
-- Targeted concurrency test: a checkout racing a Z close either lands in the open shift and appears in the Z, or is rejected — never lands silently in a closed shift.
-- Targeted test: a checkout against a shift closed between lookup and transaction returns 409, not a committed order.
-- Targeted test: an order created during Z generation is either included or rejected.
-- Regression: `sequence.test.ts` concurrency cases still pass.
-- **Fiscal verification:** after a concurrency run, every order in a closed shift appears in that shift's Z report totals.
-- `bun test src` — PASS. `bun run typecheck` — PASS.
-
-### Batch 4.7 — Status Record
-
-**Status:** `NOT STARTED` · **Completed:** — · **Changes:** — · **Files:** — · **Tests:** — · **Commit:** — · **Notes:** —
+**Left open:** **L-40** (a test file that cleans up only *before* each test can break an unrelated file) → Batch 6.3; **L-41** (a raced discounted sale burns the step-up token) → Batch 5.7; the X report still reads outside a transaction, deliberately, because it seals nothing.
 
 ---
 
@@ -1577,6 +1561,8 @@ Open rows only. A row resolved by a batch moves, unchanged, to `REMEDIATION_RECO
 
 | ID | Date | Found during | Description | Severity | Assigned to batch |
 |---|---|---|---|---|---|
+| **L-41** | 2026-09-04 | Batch 4.7 | **A sale refused for a closed shift burns the step-up PIN token, so the cashier must re-enter their PIN to ring it again.** `orders/route.ts` consumes the single-use token as its last check *before* `createOrderInTransaction`, and Batch 4.7's shift assertion is the first statement *inside* the transaction — so a discounted sale that loses the race to a Z close is refused with the token already spent. The client handles it correctly (it drops the token on any non-400 status and re-prompts), so the cost is one extra PIN entry in a rare case, not a lost sale or a wrong record. Moving the consumption inside the transaction would drag the whole discount decision with it. | LOW | 5.7 |
+| **L-40** | 2026-09-04 | Batch 4.7 | **Test files clean up before each test and not after, so the order in which files run is load-bearing — and a file can fail because of a file it has nothing to do with.** `shift-race.test.ts` left `ZReport` rows behind; `vat-inheritance.test.ts` deletes orders and shifts but not Z reports, and its `shift.deleteMany()` then failed on a foreign key in a run where the code was fine. Fixed locally in 4.7 by giving the new file an `afterAll`, but the shape is general: any file that writes a table another file's teardown does not clear can do this. Belongs with the per-run test-database path already assigned to 6.3 (warning 3b). | LOW | 6.3 |
 | **L-39** | 2026-09-04 | Batch 4.6 | **Thirteen catalogue names carry a leading space, which the POS picker renders as an indented label.** Measured read-only on production: **10 `CategoryOptionChoice` rows** (`" Mayonnaise"`, `" Barbecue"`, `" Algérienne"`, `" Harissa"`, `" Biggy"`, `" Potatoes"`, and duplicates of the first three in a second category's group) and **3 `CategoryAddOn` rows** (`" Pepperoni"`, `" Pomme de terre"`, `" Oeuf"`). Found while confirming that images shared across two categories' groups are legitimate rather than duplicates — they are, and no group contains the same choice twice, so this is purely cosmetic. It is **real catalogue data, not a code defect**: nothing in the app trims these on write, and `fix-duplicate-product-options.ts` matches on `name.trim().toLowerCase()` so it already tolerates them. Two ways to close it, and they are different decisions: the operator edits the thirteen names in Réglages, or the catalogue write paths start trimming (which changes what a save stores and would need the same treatment on the product side). **Claude must not edit real menu data** (warning 4), so the first is an operator action and the second is a batch. | LOW (cosmetic; every affected label is visible in the POS picker) | operator action, or 5.7 |
 | **L-36** | 2026-09-04 | Batch 4.4c | **`ApprovalPayload.amount` is documented as euros and has always carried cents.** `approvals.ts:17` declares `amount: number | null; // euros`, but every caller binds cents: `refund/route.ts` passes `parsed.data.amount` (cents, per the `refundSchema` comment), `orders-view.tsx` passes `amountCents` by that name, and `payment-dialog.tsx` passes `discountTotal`. The HMAC therefore binds a cent figure while the type says otherwise, and the `tolerance ?? 0.001` in `verifyApprovalToken` reads as a floating-point euro guard when it is in fact an exact-integer-cent comparison. Nothing is mis-computed today — both sides agree — so this is a comment and a type-doc defect, not a money defect. It matters because Batch 4.4c's step-up now binds amounts through the same field, and the next person to add a caller will read the comment. Recorded rather than fixed: `approvals.ts` is not this batch's file (safety rule 10). **Fix by correcting the comment, not the code.** | LOW (documentation contradicts the implementation in a money path) | 7.1 or 5.7 |
 | **L-33** | 2026-09-04 | Batch 4.4b | **With one operational role removed, every gate naming `["SUPER_ADMIN", "MANAGER"]` now admits the entire role model — it is no narrower than declaring no roles at all.** Measured after the removal: **29 declaration sites across 26 route files**, including `POST /api/reports/z` (closing the day) and `POST /api/orders/[id]/reprint` (a journalled REIMPRESSION). Nothing regressed — these gates were never wider than they are — but a reader now cannot tell a deliberate restriction from a decorative one, and `api-authorization.test.ts` had been asserting exactly that property via `not.toContain("CASHIER")`, which the removal made vacuous (the test was rewritten to pin each declared list instead). **Two sites are sharper than the rest:** `GET /api/users` and `GET /api/backups` both answer **200** to a MANAGER whose nav entry for those views is deliberately SUPER_ADMIN-only (DD-07), so the API contradicts the navigation. Verified on a scratch copy: `GET /api/users` returns ids, usernames, names, roles and active flags — **no PIN hashes** — and `GET /api/backups` returns the backup list. `GET /api/logs` correctly returns 403 and is the shape the other two should match. This is the same defect class as M-19s at two routes M-19s did not name. Deciding which of the 29 should narrow to `["SUPER_ADMIN"]` is a review, not a mechanical fix. | MEDIUM (authorization declarations no longer mean what they read as; two contradict the nav) | 6.1 or 7.2 |

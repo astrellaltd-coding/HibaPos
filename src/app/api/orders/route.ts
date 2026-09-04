@@ -2,16 +2,13 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { withAuth, parseJson } from "@/lib/api-handler";
 import { z } from "zod";
-import { nextReceiptNumber } from "@/lib/services/sequence";
-import { renderReceipt } from "@/lib/services/receipt";
 import { getSettings } from "@/lib/services/settings";
-import { appendFiscalEvent, incrementGrandTotal } from "@/lib/services/fiscal";
 import { computeLinePricing, resolveVatRate } from "@/lib/services/pricing";
-import { sum2, addToVatBreakdown, apportion, type VatBreakdown } from "@/lib/money";
-import { buildVentePayload, buildOrderAuditDetails } from "@/lib/services/sale-journal";
+import { sum2 } from "@/lib/money";
 import { consumeStepUpToken } from "@/lib/services/step-up";
 import { discountNeedsStepUp } from "@/lib/discount-policy";
-import { TX_CHECKOUT } from "@/lib/tx-options";
+import { createOrderInTransaction, CheckoutError } from "@/lib/services/checkout";
+import type { SettingsDto } from "@/types/api";
 
 // Server-authoritative checkout intent schema.
 // The client sends ONLY intent: product ids, option ids, addon ids, quantities.
@@ -294,164 +291,34 @@ export const POST = withAuth(async (req, { user }) => {
   }
 
   // --- Transaction: numbering + order + receipt + audit all atomic ---
-  // C-15 (Batch 2.3): an explicit budget. Prisma's default is 5 s and this
-  // body performs 8+ sequential writes — exceeding it rolls back the sale
-  // AFTER the customer has paid, which is the worst moment to fail.
-  const order = await db.$transaction(async (tx) => {
-    const number = await nextReceiptNumber(tx);
-
-    // VAT on net-of-discount amounts, with the discount distributed across the
-    // lines EXACTLY (M-13, Batch 3.2). Each line used to round on its own —
-    // `Math.round(lineTotal × (1 − discountRatio))` — so `Σ netLineTotal` need
-    // not equal `total − discount`, and the stored `vatTotal` could sit a cent
-    // or two off the order it belongs to. `apportion` gives every line its
-    // floor and hands the leftover cents to the largest remainders, so the
-    // parts always sum to the whole and the split is deterministic.
-    const vatBreakdown: VatBreakdown = {};
-    const lineNets = apportion(orderItemsData.map((i) => i.lineTotal), totalAfterDiscount);
-    orderItemsData.forEach((item, idx) => {
-      addToVatBreakdown(vatBreakdown, lineNets[idx], item.vatRate);
-    });
-    const vatTotal = sum2(Object.values(vatBreakdown).map((v) => v.vat));
-
-    const created = await tx.order.create({
-      data: {
-        number,
-        shiftId: shift.id,
-        cashierId: user.id,
-        customerId: customerId ?? null,
-        status: "COMPLETED",
-        orderType,
-        tableLabel: tableLabel ?? null,
-        subtotal,
-        vatTotal,
-        discountTotal,
-        // C-13 (Batch 3.5): the approval was verified above and then thrown
-        // away. Persisted here so a manager can be shown which discounts they
-        // authorised, and a dispute can be settled from the data.
-        discountApprovedById: discountApproverId,
-        total: totalAfterDiscount,
-        notes: notes ?? null,
-        itemCount,
-        completedAt: new Date(),
-      },
-    });
-
-    for (const item of orderItemsData) {
-      await tx.orderItem.create({
-        data: {
-          orderId: created.id,
-          productId: item.productId,
-          productName: item.productName,
-          unitPrice: item.unitPrice,
-          quantity: item.quantity,
-          lineTotal: item.lineTotal,
-          vatRate: item.vatRate,
-          optionsJson: item.optionsJson,
-          addOnsJson: item.addOnsJson,
-          notes: item.notes,
-        },
-      });
-    }
-
-    for (const p of payments) {
-      await tx.payment.create({
-        data: {
-          orderId: created.id,
-          method: p.method,
-          amount: p.amount,
-          tendered: p.tendered ?? null,
-          change: p.tendered ? p.tendered - p.amount : null,
-          cashierId: user.id,
-        },
-      });
-    }
-
-    // Auto-link table: if dine-in with a tableLabel matching a Table, set it OCCUPIED.
-    if (orderType === "DINE_IN" && tableLabel) {
-      const table = await tx.table.findUnique({ where: { label: tableLabel } });
-      if (table) {
-        await tx.table.update({
-          where: { id: table.id },
-          data: { status: "OCCUPIED", currentOrderId: created.id },
-        });
-      }
-    }
-
-    const orderWithRelations = await tx.order.findUnique({
-      where: { id: created.id },
-      include: {
-        items: true,
-        payments: true,
-        cashier: { select: { name: true, username: true } },
-        customer: { select: { name: true } },
-        shift: { select: { number: true } },
-      },
-    });
-
-    // Persist receipt snapshot for fiscal immutability (inside the same transaction)
-    const receiptText = renderReceipt(orderWithRelations as unknown as import("@/types/api").OrderDto, settings as import("@/types/api").SettingsDto);
-    await tx.receipt.create({
-      data: {
-        orderId: created.id,
-        content: receiptText,
-        receiptNumber: number,
-        printStatus: "PENDING",
-        reprintCount: 0,
-      },
-    });
-
-    // --- Fiscal journal (JFP) — ISCA sécurisation/inaltérabilité ---
-    // Append a hash-chained VENTE event + update the perpetual grand total,
-    // atomically with the order so the journal can never desync from sales.
-    const payCash = sum2(payments.filter((p) => p.method === "CASH").map((p) => p.amount));
-    const payCard = sum2(payments.filter((p) => p.method === "CARD").map((p) => p.amount));
-    const payVoucher = sum2(payments.filter((p) => p.method === "VOUCHER").map((p) => p.amount));
-    // C-13 (Batch 3.5): both payloads are built by the shared helpers in
-    // services/sale-journal.ts, so the tests exercise this code rather than a
-    // reimplementation of it.
-    const saleJournal = {
-      orderNumber: number,
-      total: totalAfterDiscount,
+  // C-15 (Batch 4.7): the body lives in services/checkout.ts so the shift-state
+  // race has something to test. It re-asserts that this shift is still OPEN as
+  // its first statement — the lookup above ran outside any transaction and can
+  // be stale by the time the sale is written.
+  let order;
+  try {
+    order = await createOrderInTransaction({
+      shiftId: shift.id,
+      cashierId: user.id,
+      customerId: customerId ?? null,
+      orderType,
+      tableLabel: tableLabel ?? null,
+      notes: notes ?? null,
       subtotal,
-      vatTotal,
       discountTotal,
+      totalAfterDiscount,
       discountApprovedById: discountApproverId,
       itemCount,
-      orderType,
-      payments: payments.map((p) => ({ method: p.method, amount: p.amount })),
-      cashierId: user.id,
-    };
-    const ev = await appendFiscalEvent(tx, {
-      type: "VENTE",
-      userId: user.id,
-      factice: settings.factice ?? false,
-      orderId: created.id,
-      shiftId: shift.id,
-      data: buildVentePayload(saleJournal),
+      items: orderItemsData,
+      payments,
+      settings: settings as unknown as SettingsDto,
     });
-    await tx.order.update({ where: { id: created.id }, data: { fiscalEventId: ev.id } });
-    await incrementGrandTotal(tx, {
-      total: totalAfterDiscount,
-      vatTotal,
-      cash: payCash,
-      card: payCard,
-      voucher: payVoucher,
-    });
-
-    // Audit inside transaction
-    await tx.auditLog.create({
-      data: {
-        userId: user.id,
-        action: "ORDER_CREATED",
-        entity: "Order",
-        entityId: created.id,
-        details: JSON.stringify(buildOrderAuditDetails(saleJournal)),
-      },
-    });
-
-    return orderWithRelations;
-  }, TX_CHECKOUT);
+  } catch (e) {
+    if (e instanceof CheckoutError) {
+      return NextResponse.json({ error: e.message }, { status: e.status });
+    }
+    throw e;
+  }
 
   return NextResponse.json(order, { status: 201 });
 });

@@ -6,7 +6,7 @@ Evidence record for the controlled remediation of HibaPOS France. Companion to `
 
 **Rules.** Append-only. Nothing here is rewritten; a correction is an appended, dated note. When a batch completes, its whole section moves here verbatim from the plan, under its stage heading, and a stub stays in the plan carrying the constraints the batch leaves behind. Sessions slice this file by heading; it is not meant to be read whole.
 
-**Contents.** Batch 0.1 · Batch 0.2 · Batch 1.1 · Batch 1.2 · Batch 2.1 · Batch 2.2 · Batch 2.3 · Batch 2.4 · Batch 3.1 · Batch 3.1b · Batch 3.1d · Batch 3.1c · Batch 3.2 · Batch 3.2b · Batch 3.3 · Batch 3.4 · Batch 3.5 · Batch 3.6 · Batch 3.6b · Batch 4.1 · Batch 4.2 · Batch 4.3 · Batch 4.4 · Batch 4.4b · Batch 4.4c · Batch 4.5 · Batch 4.6 · Completed Remediation History · Resolved findings · Answered design decisions · Retired open-thread rows · Superseded procedure
+**Contents.** Batch 0.1 · Batch 0.2 · Batch 1.1 · Batch 1.2 · Batch 2.1 · Batch 2.2 · Batch 2.3 · Batch 2.4 · Batch 3.1 · Batch 3.1b · Batch 3.1d · Batch 3.1c · Batch 3.2 · Batch 3.2b · Batch 3.3 · Batch 3.4 · Batch 3.5 · Batch 3.6 · Batch 3.6b · Batch 4.1 · Batch 4.2 · Batch 4.3 · Batch 4.4 · Batch 4.4b · Batch 4.4c · Batch 4.5 · Batch 4.6 · Batch 4.7 · Completed Remediation History · Resolved findings · Answered design decisions · Retired open-thread rows · Superseded procedure
 
 ---
 
@@ -2004,6 +2004,67 @@ validation.ts:88     options: z.array(optionGroupSchema).default([])
 
 ---
 
+*Moved verbatim from `REMEDIATION_PLAN.md` lines 1019-1049 (commit `803e760`) on 2026-09-04.*
+
+## Batch 4.7 — Transaction and race safety
+
+**Status:** `COMPLETED`
+
+### C-15 (shift-race half) — Shift state is read outside the transaction
+
+**Status:** `COMPLETED` · Severity: HIGH · Category: data integrity (race)
+
+*The transaction-timeout half of C-15 is Batch 2.3.* *(Done; record → Batch 2.3.)*
+
+**Problem.** Checkout looks up the open shift at `orders/route.ts:126`, well before `db.$transaction` begins at `:280`. Symmetrically, `generateZReport` computes the report at `reports.ts:124` and only then opens the transaction that closes the shift at `:128`. No row lock, no re-check of `shift.status` inside either transaction; SQLite has no `SELECT … FOR UPDATE`.
+
+**Location.** `src/app/api/orders/route.ts:126-135, 280`; `src/lib/services/reports.ts:115-192`
+
+**Impact.** A sale completing while the manager closes the till is attached to a shift whose immutable Z report has already been generated. The order exists, the money was taken, the `VENTE` event is chained — and the Z report for that shift does not include it. Because the Z is immutable, the discrepancy is permanent.
+
+**Remediation direction.** Re-read and assert `shift.status === "OPEN"` as the first statement inside the checkout transaction. Compute the Z report inside its own transaction, or lock the shift first.
+
+### Batch 4.7 — Validation Required
+
+- Targeted concurrency test: a checkout racing a Z close either lands in the open shift and appears in the Z, or is rejected — never lands silently in a closed shift.
+- Targeted test: a checkout against a shift closed between lookup and transaction returns 409, not a committed order.
+- Targeted test: an order created during Z generation is either included or rejected.
+- Regression: `sequence.test.ts` concurrency cases still pass.
+- **Fiscal verification:** after a concurrency run, every order in a closed shift appears in that shift's Z report totals.
+- `bun test src` — PASS. `bun run typecheck` — PASS.
+
+### Batch 4.7 — Status Record
+
+**Status:** `COMPLETED` · **Completed:** 2026-09-04 (session 11)
+
+**Changes:** C-15's shift-race half, at **three** sites — the two the audit named and one it did not. **Checkout:** `POST /api/orders` looked up the open shift at `:126` and opened its transaction at `:280`, and nothing re-checked in between. The transaction body moved to new **`src/lib/services/checkout.ts`** — the shape `processRefund` established in Phase 8b — so the race is testable without an HTTP harness, and its **first statement** re-reads the shift and throws `CheckoutError(…, 409)` if it is no longer `OPEN`. **Z close:** `generateZReport` computed the report and only *then* opened the transaction that closed the shift. The computation, the duplicate-Z guard and a new shift-status assertion now all run **inside** that transaction; `computeShiftReport` takes an optional transaction client for it. Its refusals became a typed **`ZReportError`** carrying a status, mapped by both callers: `POST /api/reports/z` caught nothing at all before and answered **500** to a duplicate close, where `POST /api/shifts/[id]/close` answered 400 — both now answer **409**. **Refunds:** the route read `order.shift.status` outside the transaction, so a refund could land in a shift whose Z was already sealed and leave that Z's `refundsTotal` permanently short; `processRefund` now re-reads it under the lock (operator's decision of 2026-09-04 to close this third site here rather than defer it to 5.3). A shared **`isTransactionBusyError`** in `tx-options.ts` maps Prisma's `P2028`/`P1008` to a French **503** on both write paths. **No migration; nothing waits on the operator.**
+
+**Files:** `src/lib/services/checkout.ts` (new) · `src/lib/services/shift-race.test.ts` (new, 12 tests) · `src/lib/services/reports.ts` · `src/lib/services/refund.ts` · `src/lib/tx-options.ts` · `src/app/api/orders/route.ts` · `src/app/api/reports/z/route.ts` · `src/app/api/shifts/[id]/close/route.ts`
+
+**Tests:** **543 pass, 0 fail** (`bun test src --timeout 30000`, 117 s); 531 before, so 12 new, all in `shift-race.test.ts`. `bun run typecheck` PASS, `bun run lint` PASS, `bun run build` PASS. **Seven one-property reverts, in both directions.** Removing the checkout re-read failed 4; computing the Z report outside its transaction failed 3 (two of them ones the first revert survived); moving the duplicate-Z guard back outside as a bare `Error` failed 1; deleting the Z's status assertion failed 1; deleting the refund re-read failed 1; dropping `P1008` from the busy check failed 1. **The seventh failed nothing and is recorded as such** — see note 4. Nine of the twelve tests failed under something; the other three are labelled in the file as regression assertions or as a control. **Fiscal verification on a copy of production**, through HTTP: six checkouts raced one Z close — 2 landed, 3 refused **409**, 1 refused **503**; the sealed Z counted **8 of 8** orders, `Σ order.total = Z.salesTotal = 12 030`, `Σ vatTotal = Z.vatTotal = 1 082`, zero orders created after their shift closed, **no receipt-number gaps**, chain `ok` at `lastSequence: 6`. The same race on the pre-batch code, same data: **7 orders in the shift and a Z that counted 5** — 300 cents and 2 sales missing from an immutable document, and 1 order created after closure.
+
+**Commit:** `<pending>`
+
+**Notes:**
+
+1. **The measurement that shaped the whole batch.** Prisma's interactive transactions on SQLite **do not overlap**: the second one's body does not begin until the first has committed. Measured on a scratch database in **both** journal modes — `delete`, which production runs, and `wal`, which a scratch copy runs — by timestamping two `$transaction` bodies. A read **outside** a transaction does not wait, and returns `OPEN` while a close is mid-flight; a read **inside** one sees everything committed before its body started. That is why re-asserting the status inside the transaction is decisive, and why moving `computeShiftReport` inside the Z's transaction closes the window rather than merely narrowing it. It also means there is no "during" left for a sale to fall into: a checkout either commits entirely before the Z transaction opens, and is counted, or begins after it and is refused.
+
+2. **The behaviour choice the plan left open, and a second one, both put to the operator before any code was written (2026-09-04).** *(a)* An order created while a Z report is being generated: **refuse it, whichever got there first** — no `CLOSING` shift state, no migration, no deterministic pre-emption. The cart is kept client-side, so the cashier opens a new till and rings the sale again into the shift it belongs to. *(b)* The refund path, which C-15's stated Location does **not** name: **close it in this batch** rather than record it against Batch 5.3. Both were the recommended options and both were accepted.
+
+3. **The pre-batch demonstration is the evidence, not the unit tests.** The unit tests prove the guards; the HTTP run on a copy of production proves the defect was real and what it cost. Restoring the scratch copy between the two runs meant stopping the server and deleting `-wal` and `-shm` with the `.db` — the copy runs in WAL even though production does not (*Methods → Scratch copy*). Production was verified untouched at the end: `7839db18…`, 696 320 bytes, mtime 2026-09-04 16:41:52, no `-wal`/`-shm` beside it, `db/backups/` unchanged (newest file 2026-08-28) — the close's automatic backup landed in the scratch `HIBAPOS_DATA_DIR`, which is what warning 7 exists to ensure.
+
+4. **One revert failed nothing, and the test was corrected rather than accepted.** Moving the shift assertion to *after* `nextReceiptNumber` changed no test result, because the rollback restores the counter either way — the two orderings are indistinguishable at the database. The comment claiming the assertion's position was what prevented a burnt receipt number was wrong and now says so: what prevents it is the rollback, the assertion-first order is a clarity choice, and the counter check is kept as a regression pin against a future change that draws the number outside the transaction. Two more tests are labelled `REGRESSION ASSERTION`, and one `CONTROL` — it must pass with and without the refund guard, because its job is to show the guard does not over-refuse. Saying which is which was more useful here than manufacturing a revert each could fail.
+
+5. **A test file that cleaned up only *before* each test broke a file it has nothing to do with.** `shift-race.test.ts` left `ZReport` rows behind, and `vat-inheritance.test.ts` — which deletes orders and shifts but not Z reports — then failed `shift.deleteMany()` on a foreign key, in a run where nothing was wrong with the code. Fixed here by giving this file an `afterAll` as well as a `beforeEach`. The general shape is recorded as **L-40** for Batch 6.3, which already owns the shared test-database path (warning 3b).
+
+6. **Prisma raises `P1008`, not `P2028`, when a transaction cannot get through.** Discovered by the ten-sales-against-one-close test failing with a raw Prisma stack trace where a French message was expected. Both codes mean the same thing operationally — the transaction is rolled back, nothing was written, retrying is safe — so both map to the 503. Without this, a cashier racing a close would have met a Prisma error page.
+
+7. **The step-up token is consumed before the transaction, so a raced *discounted* sale burns it.** The cashier must re-enter their PIN to retry. The client already handles this (it drops the token on any non-400 status and re-prompts), and the consumption cannot move inside the transaction without moving the whole discount decision with it, so it is left alone and recorded as **L-41** against Batch 5.7.
+
+8. **What this batch did NOT change.** No `CLOSING` shift state and therefore no migration (note 2a). The pre-transaction shift lookup in `POST /api/orders` stays — it is a cheap early refusal that saves opening a transaction, and it is no longer the thing that decides. `POST /api/shifts/[id]/close`'s own "already closed" 409 pre-check stays for the same reason. The order in which the two Z guards fire was chosen deliberately: the duplicate-Z check runs **before** the status check, so a second close of the same shift still meets *« Clôture déjà effectuée pour cette caisse »* — the message its existing test asserts, and the more useful of two true answers. Nothing was done about the X report reading outside a transaction: it seals nothing, so it has no race to lose.
+
+---
+
 # COMPLETED REMEDIATION HISTORY
 
 *Moved verbatim from `REMEDIATION_PLAN.md` lines 2357–2378 (commit `5f0c2b1`) on 2026-09-04. Nothing in this section has been rewritten; corrections, if any, are appended dated notes.*
@@ -2041,6 +2102,7 @@ validation.ts:88     options: z.array(optionGroupSchema).default([])
 | 4.4c | COMPLETED | 2026-09-04 | `d9b1b08` | DD-19, plus L-34, L-35 and — unplanned — the audit's own **M-17** and **M-18**. A discount above the configured threshold and **every** refund at any amount now require the signed-in operator to re-enter **their own** PIN; until this batch both were self-approved with no keystroke, so an unattended till would take a 100 % discount or refund the day's takings from anyone who walked up. Re-authentication, not second-person approval: with one operational role (DD-07) `/api/auth/approve` forbids self-approval and can never succeed, so a distinct `POST /api/auth/step-up` was built — reusing Batch 4.1's lockout (**one shared counter**, five attempts in total), Batch 4.2's bounded scrypt queue, and `approvals.ts`'s signed single-use amount-bound token, which now must **name the caller**. Four implementation choices were put to the operator and answered: replace the old manager token rather than keep both; close M-18 here rather than in 5.7; **no change to the sealed journal payloads** (a “PIN was typed” flag would be true on every record and would create a third vintage — the audit log carries the deliberate act instead); keep 5 wrong PINs / 15 minutes, accepting that five fumbles cost fifteen minutes of refunds. L-34 and the banner it sits under (L-35) both closed — the discount dialog showed a real 40 % as « 0.4% » and promised an approval that no longer happened. **No migration; nothing waits on the operator.** Five-revert negative control, with two tests strengthened when it showed they proved less than they claimed. Validated on a scratch copy through the routes and the real UI; production untouched at `7839db18…`. Recorded L-36. 482/482. |
 | 4.5 | COMPLETED | 2026-09-04 | `1a0836b` | DD-08's six parts, closing C-17, L-37, L-38 and DOC-09: deleted `port-real-data.ts` (which wiped production by a hardcoded path, defeating the scratch-copy method) and `seed-category-options.ts`; rebuilt `seed-users.ts` as a delete-free PIN reset with both published defaults refused from `src/lib/auth.ts`; guarded both counter scripts against lowering any of four counters via the tested `fiscal-counter-floor.ts`; made every script dry-run-by-default; brought `scripts/` under `tsc` and `eslint`; rewrote `scripts/README.md`. 498/498 tests. Production untouched; no migration. Retired 6 656 bytes of plan front matter, bringing it under its ~40 KB ceiling. |
 | 4.6 | COMPLETED | 2026-09-04 | `974372e` | C-24 and C-25, both HIGH catalogue data-loss. Category PUT no longer validates entries after `deleteMany` — one malformed option group used to destroy a category's sauces and breads and return 200 (proved on the real `Sandwichs`: 4 groups, 19 choices deleted); `productSchema.options` no longer defaults to `[]`, so a PUT omitting it no longer wipes a product's option groups. Media usage scan and delete-time cleanup now cover all six image columns from one declaration instead of three each — 30 of 124 referenced images (the whole condiment catalogue) displayed as unused — and `DELETE /api/media` journals `MEDIA_DELETED`. 531/531 tests, eight one-property reverts. Production untouched; no migration. |
+| 4.7 | COMPLETED | 2026-09-04 | `<pending>` | C-15's shift-race half, closing C-15 and finishing Stage 4. Shift state was read outside the transaction at **three** sites, not the audit's two: the checkout looked up the open shift 150 lines before it wrote anything, `generateZReport` totalled the shift and only then opened the transaction that closed it, and the refund route read `order.shift.status` before `processRefund`. Measured first: Prisma's interactive transactions on SQLite do not overlap, in either journal mode, while reads outside a transaction do not wait — so the checkout re-asserts `OPEN` as the first statement inside its transaction (body moved to new `services/checkout.ts`), the Z report is computed inside the transaction that seals it, and the refund re-reads under the lock. Duplicate-Z and shift-status refusals became a typed `ZReportError`; `POST /api/reports/z` answered 500 to a duplicate close and now answers 409. Six sales racing one close on a copy of production: the old code left 7 orders in a shift whose immutable Z counted 5, losing 3,00 €; the new code counted 8 of 8 and refused four sales in French. 543/543. |
 
 # RESOLVED FINDINGS
 
@@ -2242,5 +2304,14 @@ below the stage sections is the authoritative list.* Merge this into it in 7.1.
 6. Update **CURRENT PROJECT STATUS** and the **Completed Remediation History** table.
 7. Commit. One batch, one commit (or a small reversible series).
 8. Stop. Do not roll into the next batch without the user's go-ahead.
+
+
+---
+
+**Retired from `REMEDIATION_PLAN.md` front matter in Batch 4.7 (2026-09-04), to make room under the ~40 KB ceiling.**
+
+**(1) Environment item 6 — `bunx prisma generate` fails `EPERM`.** Marked `RESOLVED 2026-09-04` in session 4 and carried unchanged since. Its text: *"**The lesson: a stale `next start` holds `node_modules/.prisma/client/query_engine-windows.dll.node`, so stop every leftover server before blaming the filesystem or OneDrive, and check the port list rather than trusting a PID from an earlier session.** **`bun run dev` stays untried here** — it loads the real `.env` and would open the production database. Use `bunx next start` on a spare port (3021–3026, 3033/3034 and 3040–3043 are spoken for) and stop it with `taskkill //PID <pid> //T //F` (warning 9)."* Retired because warning 9 already carries the habit that prevents it; the `EPERM` cause, the `bun run dev` prohibition and the port list were folded into warning 9 in the same edit, and the port list extended with 3050–3052, which Batch 4.7 used.
+
+**(2) The session-10 three-item note in *Last Updated*.** *Last Updated* is rewritten each session, so this is a replacement rather than a deletion — but two of its three items were retired rather than carried, because both are now stated in *Methods established by earlier batches*: "revert in BOTH directions" is in *Prove the test fails on the old code*, and the scratch-copy restore procedure (stop the server, delete `-wal` and `-shm` with the `.db`) is in *Scratch copy*. The third item, the front-matter ceiling itself, was carried forward.
 
 *End of record as split on 2026-09-04. Append below this line.*

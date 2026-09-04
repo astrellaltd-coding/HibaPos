@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { withAuth, parseJson } from "@/lib/api-handler";
 import { z } from "zod";
-import { generateZReport } from "@/lib/services/reports";
+import { generateZReport, ZReportError } from "@/lib/services/reports";
 import { audit } from "@/lib/services/audit";
 
 const zReportPostSchema = z.object({
@@ -71,7 +71,19 @@ export const POST = withAuth(
       );
     }
     const { shiftId, closingFloat } = parsed.data;
-    const result = await generateZReport(shiftId, closingFloat, user.id);
+    // C-15 (Batch 4.7): before this batch nothing here caught the duplicate-Z
+    // guard, so closing an already-closed shift through this route answered
+    // 500 with a stack trace while the same refusal through
+    // `POST /api/shifts/[id]/close` answered 400. Both now answer 409.
+    let result;
+    try {
+      result = await generateZReport(shiftId, closingFloat, user.id);
+    } catch (e) {
+      if (e instanceof ZReportError) {
+        return NextResponse.json({ error: e.message }, { status: e.status });
+      }
+      throw e;
+    }
     await audit("REPORT_Z_GENERATED", "ZReport", result.z.id, { shiftId }, user.id);
     return NextResponse.json(result);
   },
