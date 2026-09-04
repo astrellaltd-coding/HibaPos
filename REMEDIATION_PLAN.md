@@ -1011,7 +1011,7 @@ Removed `scripts/port-real-data.ts` and `scripts/seed-category-options.ts`; rebu
 
 ## Batch 4.6 — Catalogue data-loss paths
 
-**Status:** `COMPLETED` · 2026-09-04 · commit `PENDING` · **Findings:** C-24 ✅, C-25 ✅
+**Status:** `COMPLETED` · 2026-09-04 · commit `974372e` · **Findings:** C-24 ✅, C-25 ✅
 
 Full section, validation and evidence: `REMEDIATION_RECORD.md` → *Batch 4.6*.
 
