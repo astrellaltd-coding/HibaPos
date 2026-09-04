@@ -17,11 +17,11 @@ Detailed audit record: https://claude.ai/code/artifact/329316b0-3a6b-48b0-9d27-d
 
 **Last Completed Batch:** Batch 4.2 — Asynchronous scrypt (C-09). PIN key derivation moved off the event loop to the async `crypto.scrypt`, and behind a bound of two concurrent derivations with a thirty-two-deep queue; past that the auth routes answer `503` rather than let a caller queue unbounded 128 MiB scrypt buffers. Measured on two builds of the same tree: during one wrong manager PIN the pre-batch build served **6** concurrent requests at a worst latency of **1608 ms**, the fixed build **491** at **24 ms**. **No migration.** **T-04 was written here as its prerequisite** and the legacy N=2^14 fallback is proved to still verify and to still upgrade transparently, through both `login` and `unlock`.
 
-**Next Batch:** Batch 4.3 — Credentials, sessions and network exposure (C-18, M-23, M-27, M-28). Note it carries **DD-06**, which is unanswered: whether LAN access is required decides the bind address and the cookie's `secure` flag. **Batch 1.4 is unblocked in design** (DD-02 answered) but still deferred on hardware — see *Hardware-dependent validation* below.
+**Next Batch:** Batch 4.3 — Credentials, sessions and network exposure (C-18, M-23, M-27, M-28). **DD-06 is answered** and the operator has set the credential policy, so nothing blocks it — read *Credential policy* in that batch first, because it narrows what C-18 and M-23 may do. **Batch 1.4 is unblocked in design** (DD-02 answered) but still deferred on hardware — see *Hardware-dependent validation* below.
 
 **Blocked:** Batch 1.3 `[HW]` sign-off and Batch 1.4 — both need the app running on the restaurant's POS machine, which is in a different country from the developer and has no copy of the app installed (decision of 2026-09-03).
 
-**Awaiting decision:** **the rest of Stage 4 is not decision-free** — 4.1 and 4.2 were, and the next three are not: **DD-06** shapes Batch 4.3 (LAN access → bind address and cookie `secure` flag), **DD-07** blocks Batch 4.4 (the cashier visibility matrix), **DD-08** blocks Batch 4.5 (guard the operator scripts or remove them). Then Batch 5.3 (cross-shift refunds), Batch 5.5 (cash movements), Batch 5.6 (order cancellation) — see *Design Decisions Required*. **DD-03 and DD-17 were answered on 2026-09-03, DD-05 and DD-18 on 2026-09-04.**
+**Awaiting decision:** **DD-06 was answered on 2026-09-04, so Batch 4.3 is unblocked** (no LAN access; bind `127.0.0.1`), and the credential half of 4.3 is settled too — see *Credential policy* in that batch. Still open in Stage 4: **DD-07** blocks Batch 4.4 (the cashier visibility matrix) and **DD-08** blocks Batch 4.5 (guard the operator scripts or remove them). Then Batch 5.3 (cross-shift refunds), Batch 5.5 (cash movements), Batch 5.6 (order cancellation) — see *Design Decisions Required*. **DD-03 and DD-17 were answered on 2026-09-03, DD-05 and DD-18 on 2026-09-04.**
 
 **Last Updated:** 2026-09-04 (session 7 — Batch 4.2; read *OPEN THREADS* below before starting anything. Nothing waits on a `migrate deploy`: neither 4.1 nor 4.2 added a migration. Session 7 corrected the environment item about the leftover server — port 3010 is free and `bunx prisma generate` still fails `EPERM`)
 **Restructured:** 2026-09-04 — completed batches now live verbatim in `REMEDIATION_RECORD.md`; this file keeps the resume block, the open work, the registers and a stub per completed batch. Everything a session must know before acting sits above the first stage heading. See *HOW TO USE THIS FILE*.
@@ -361,7 +361,7 @@ These cannot be resolved from the code. **Claude must not decide them.** Each bl
 | **DD-04** | **Backup key rotation policy.** Rotating `BACKUP_ENCRYPTION_KEY` orphans every existing backup permanently. Re-encrypt the retained set first, accept the loss, or introduce key versioning before rotating? | Batch 7.3; P-02 | Retention obligations may make discarding old backups unacceptable — see V-04. |
 | **DD-05** | **ANSWERED 2026-09-04 — refuse out-of-order closes.** A close must be the period immediately following the last sealed one; the first close is unconstrained. Decided with zero closes in existence. | Batch 3.6 (`COMPLETED`) | Evidence: record → Batch 3.6 status record, and *Answered design decisions*. |
 | **DD-18** | **ANSWERED 2026-09-04 — refuse a premature close, with no override.** Applied in Batch 3.6b, together with L-26's refunds columns. | Batch 3.6b (`COMPLETED`) | Full question and rationale: `REMEDIATION_RECORD.md` → *Answered design decisions*; evidence in the record's Batch 3.6b section. |
-| **DD-06** | **Is LAN access required?** If no, bind to `127.0.0.1`. If yes, set `APP_URL` to an `http://` value so the session cookie works, and accept unencrypted traffic on the restaurant network. | Batch 4.3 | Currently binds `0.0.0.0` with a `secure` cookie, so LAN login silently fails — protective by accident. |
+| **DD-06** | **ANSWERED 2026-09-04 — no LAN access; bind `127.0.0.1`.** The POS runs on the all-in-one till and nothing else. No `APP_URL` change is needed, and printing is unaffected (the ESC/POS bridge dials **out**). | Batch 4.3 | Decided by the user. The plan's old “protective by accident” line was **wrong** and is corrected in the record: the `Secure` cookie broke LAN login for staff while `profiles` and `login` still answered over the LAN unauthenticated. Full question, measurements and rationale: `REMEDIATION_RECORD.md` → *Answered design decisions*. |
 | **DD-07** | **Intended cashier visibility.** Which reports and settings should a CASHIER see? The X report is currently open to cashiers via the shifts view while `POST /api/reports/x` is MANAGER+. | Batch 4.4 (M-19s) | Decide the matrix first, then make GET and POST agree and update the README role table. |
 | **DD-08** | **Operator scripts.** Guard them, or remove them from the shipped tree? | Batch 4.5 (C-17) | Precedent exists: `scripts/delete-products.js` was removed for the same hazard. |
 | **DD-09** | **Tables.** Wire table selection into the POS, or withdraw the feature from the documentation? | Batch 5.2 (C-21) | The floor plan, model and API all exist; only the POS link is missing. |
@@ -923,6 +923,55 @@ Audit section J, step 5: close the one real privilege-escalation path, stop bloc
 ## Batch 4.3 — Credentials, sessions and network exposure
 
 **Status:** `NOT STARTED`
+
+### Credential policy (operator determination, 2026-09-04)
+
+Two decisions from the operator shape this batch. Read them before touching
+C-18 or M-23, because they narrow the work rather than describe it.
+
+**1. Network exposure — DD-06 answered: no LAN access.** The POS runs on the
+all-in-one till and nothing else. The server binds `127.0.0.1`, in
+`package.json`'s `start` script, which is tracked in git. Note that C-18's own
+evidence cites `start.ps1` for the missing `-H`; **that file does not exist**,
+so there is no launcher to put it in and no untracked file that can undo it.
+`APP_URL` stays unset — at a localhost origin the `Secure` cookie is accepted,
+which was observed, so nothing else has to change. Printing is unaffected: the
+ESC/POS bridge (DD-01) dials **out** to port 9100 and a listener bind does not
+touch outbound connections.
+
+**2. PIN handling — keep the current arrangement.** The operator's decision is
+that PINs stay as they are for now. Concretely, for this batch:
+
+- **No self-service PIN change is built.** There is none today: the only
+  PIN-changing surface is the `Utilisateurs` view, gated `roles:
+  ["SUPER_ADMIN"]` at `nav-config.ts:49`, so a cashier or manager cannot change
+  their own PIN from anywhere in the application. That stays true.
+- **The default PINs stay live.** `admin` / `123456` and `manager` / `111111`
+  remain the credentials on the production machine. **No forced PIN change on
+  first login is built**, which was C-18's suggested direction.
+- **C-18 therefore cannot be marked `COMPLETED` by this batch.** Its network
+  half closes with the bind; its credential half is an accepted residual risk,
+  and the finding carries `◐` in the index like C-15, C-22 and L-04. See
+  *C-18 — what this batch does and does not close* below.
+- **M-23 is still fixed, and its fix must need no UI.** The finding is that
+  `PUT /api/users/[id]` lets a caller edit their **own** `pin` and `active`
+  with no knowledge of the current PIN — reachable today by anyone who can
+  make a request from the till, with no screen required. The remediation
+  direction in the finding ("require the current PIN") assumes a self-service
+  flow that this batch is not building, so the shape that fits the decision is
+  to **refuse `pin` and `active` on a non-SUPER_ADMIN self-edit outright**.
+  That closes the hole, changes no screen, and leaves the `Utilisateurs` view
+  working exactly as it does now, since a SUPER_ADMIN is not self-editing under
+  that rule — they are administering. Confirm the shape before writing it.
+
+### C-18 — what this batch does and does not close
+
+| | State after this batch |
+|---|---|
+| Server reachable from the restaurant Wi-Fi | **Closed.** Binds `127.0.0.1`; verified refused at the LAN address. |
+| `GET /api/auth/profiles` leaking the staff list | **Closed** by the bind — the route itself is unchanged and still public on localhost. |
+| `POST /api/seed` bootstrapping a super-admin into an empty user table | **Closed to the network** by the bind; the local-only guard is still worth adding, because C-17's unguarded `deleteMany({})` scripts can empty that table. |
+| `admin` / `123456` and `manager` / `111111` live | **Open, by decision.** The remaining threat is physical: anyone reaching the till while it is unattended can sign in as SUPER_ADMIN with the most-guessed PIN there is. Batch 4.1's lockout does not help against a first-guess success. |
 
 ### C-18 — Default PINs are live; an empty user table lets anyone bootstrap a super-admin
 
