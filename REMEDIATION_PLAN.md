@@ -13,15 +13,15 @@ Detailed audit record: https://claude.ai/code/artifact/329316b0-3a6b-48b0-9d27-d
 
 **Current Stage:** Stage 4 — Security & integrity, `IN PROGRESS` (4.1, 4.2 and 4.3 COMPLETED — 4.3 with C-18 `◐` by operator decision; 4.4 through 4.7 `NOT STARTED`). (**Stage 3 is COMPLETED** — every batch 3.1 through 3.6, plus 3.6b, which reopened it for one small batch on 2026-09-04 — with C-22's chain-design half carried forward as `REQUIRES EXTERNAL VERIFICATION` and V-03 open for professional confirmation. Stage 1 is **partly done**: 1.1 and 1.2 COMPLETED, 1.3 `IMPLEMENTED — TESTING REQUIRED` on hardware, 1.4 deferred. Stage 2 is COMPLETED.)
 
-**Current Batch:** Batch 4.4 — Authorization gating parity · `NOT STARTED` — **blocked on DD-07**
+**Current Batch:** Batch 4.4 — Authorization gating parity · `NOT STARTED` — **unblocked: DD-07 answered 2026-09-04**
 
 **Last Completed Batch:** Batch 4.3 — Credentials, sessions and network exposure (C-18 `◐`, M-23, M-27, M-28). The server binds `127.0.0.1`, so the staff list and the login route no longer answer on the restaurant Wi-Fi; a caller can no longer rewrite their own PIN or switch their own account off; the seed bootstrap refuses any database that has ever traded, which is the C-17 wipe path; the consumed-token map is bounded; `Session.device` is populated for the first time. **No migration.** **C-18 is `◐`**: the default PINs stay live by operator decision, so the remaining threat is physical rather than networked.
 
-**Next Batch:** Batch 4.4 — Authorization gating parity (C-16, M-19s, M-24, M-25, M-26). **It is blocked on DD-07**, which is unanswered: the cashier visibility matrix has to be decided before GET and POST can be made to agree.
+**Next Batch:** Batch 4.4 — Authorization gating parity (C-16, M-19s, M-24, M-25, M-26). **DD-07 is answered**, so it is unblocked — read *Operating model* in that batch first: there are no cashiers, and M-19s now means hiding the developer's SUPER_ADMIN account from the restaurant rather than deciding what a cashier may read.
 
 **Blocked:** Batch 1.3 `[HW]` sign-off and Batch 1.4 — both need the app running on the restaurant's POS machine, which is in a different country from the developer and has no copy of the app installed (decision of 2026-09-03).
 
-**Awaiting decision:** **DD-07 blocks the next batch.** Batch 4.4 cannot start until the cashier visibility matrix is decided; **DD-08** then blocks Batch 4.5 (guard the operator scripts or remove them). DD-06 was answered on 2026-09-04 and is spent. Then Batch 5.3 (cross-shift refunds), Batch 5.5 (cash movements), Batch 5.6 (order cancellation) — see *Design Decisions Required*. **DD-03 and DD-17 were answered on 2026-09-03, DD-05 and DD-18 on 2026-09-04.**
+**Awaiting decision:** **nothing blocks Batch 4.4** — DD-06 and DD-07 were both answered on 2026-09-04. **DD-08** blocks Batch 4.5 (guard the operator scripts or remove them). A new question is recorded but not yet urgent: whether the now-dormant discount/refund approval machinery should eventually be removed — see DD-07's rationale in the record. Then Batch 5.3 (cross-shift refunds), Batch 5.5 (cash movements), Batch 5.6 (order cancellation) — see *Design Decisions Required*. **DD-03 and DD-17 were answered on 2026-09-03, DD-05 and DD-18 on 2026-09-04.**
 
 **Last Updated:** 2026-09-04 (session 7 — Batches 4.2 and 4.3; read *OPEN THREADS* below before starting anything. Nothing waits on a `migrate deploy`: none of 4.1, 4.2 or 4.3 added a migration. The Prisma `EPERM` is resolved — stale `next start` servers were holding the engine DLL)
 **Restructured:** 2026-09-04 — completed batches now live verbatim in `REMEDIATION_RECORD.md`; this file keeps the resume block, the open work, the registers and a stub per completed batch. Everything a session must know before acting sits above the first stage heading. See *HOW TO USE THIS FILE*.
@@ -363,7 +363,7 @@ These cannot be resolved from the code. **Claude must not decide them.** Each bl
 | **DD-05** | **ANSWERED 2026-09-04 — refuse out-of-order closes.** A close must be the period immediately following the last sealed one; the first close is unconstrained. Decided with zero closes in existence. | Batch 3.6 (`COMPLETED`) | Evidence: record → Batch 3.6 status record, and *Answered design decisions*. |
 | **DD-18** | **ANSWERED 2026-09-04 — refuse a premature close, with no override.** Applied in Batch 3.6b, together with L-26's refunds columns. | Batch 3.6b (`COMPLETED`) | Full question and rationale: `REMEDIATION_RECORD.md` → *Answered design decisions*; evidence in the record's Batch 3.6b section. |
 | **DD-06** | **ANSWERED 2026-09-04 — no LAN access; bind `127.0.0.1`.** The POS runs on the all-in-one till and nothing else. No `APP_URL` change is needed, and printing is unaffected (the ESC/POS bridge dials **out**). | Batch 4.3 | Decided by the user. The plan's old “protective by accident” line was **wrong** and is corrected in the record: the `Secure` cookie broke LAN login for staff while `profiles` and `login` still answered over the LAN unauthenticated. Full question, measurements and rationale: `REMEDIATION_RECORD.md` → *Answered design decisions*. |
-| **DD-07** | **Intended cashier visibility.** Which reports and settings should a CASHIER see? The X report is currently open to cashiers via the shifts view while `POST /api/reports/x` is MANAGER+. | Batch 4.4 (M-19s) | Decide the matrix first, then make GET and POST agree and update the README role table. |
+| **DD-07** | **ANSWERED 2026-09-04 — there are no cashiers.** Only **MANAGER** operates the till; **SUPER_ADMIN is the developer's account** and must not be visible to restaurant staff; `CASHIER` stays in the code, unused; no approval control is required in operation. | Batch 4.4 (M-19s) | Decided by the user. The original question had no subject. Today the login screen renders a SUPER_ADMIN button and `/api/auth/profiles` lists it — hiding it is Batch 4.4's work. Full rationale and the two recorded consequences: `REMEDIATION_RECORD.md` → *Answered design decisions*. |
 | **DD-08** | **Operator scripts.** Guard them, or remove them from the shipped tree? | Batch 4.5 (C-17) | Precedent exists: `scripts/delete-products.js` was removed for the same hazard. |
 | **DD-09** | **Tables.** Wire table selection into the POS, or withdraw the feature from the documentation? | Batch 5.2 (C-21) | The floor plan, model and API all exist; only the POS link is missing. |
 | **DD-10** | **Cross-shift refunds.** Allow, attributed to the current open shift? Restrict to MANAGER+? Or keep the current refusal and define an approved manual procedure? | Batch 5.3 (C-14) | The current refusal pushes staff toward untraced cash refunds. |
@@ -872,7 +872,7 @@ Nothing else in the catalogue changes: all 61 non-drink products stay at 10 %.
 
 # STAGE 4 — SECURITY & INTEGRITY
 
-**Stage status:** `IN PROGRESS` — 4.1, 4.2 and 4.3 `COMPLETED` (all 2026-09-04); 4.4 through 4.7 `NOT STARTED`. **4.4 is blocked on DD-07.**
+**Stage status:** `IN PROGRESS` — 4.1, 4.2 and 4.3 `COMPLETED` (all 2026-09-04); 4.4 through 4.7 `NOT STARTED`. **4.4 is unblocked** (DD-07 answered 2026-09-04).
 
 Audit section J, step 5: close the one real privilege-escalation path, stop blocking the event loop, rotate the default credentials, and stop the silent data-loss paths.
 
@@ -949,6 +949,53 @@ Audit section J, step 5: close the one real privilege-escalation path, stop bloc
 ## Batch 4.4 — Authorization gating parity
 
 **Status:** `NOT STARTED`
+
+### Operating model (operator determination, 2026-09-04)
+
+DD-07 was asked as "which reports and settings should a CASHIER see". **It has
+no subject.** Production has carried exactly two accounts throughout —
+`manager` (MANAGER) and `admin` (SUPER_ADMIN) — and the user has confirmed the
+deployment:
+
+- **Only the MANAGER account operates the till.**
+- **The SUPER_ADMIN account is the developer's**, not the restaurant's. Staff
+  are not to have access to it *or to see it*.
+- **`CASHIER` stays in the code but no cashier account will exist.** The role
+  is implemented and working; it is simply unused.
+- **No discount or refund approval control is required in operation.**
+
+**What this changes about M-19s.** It stops being "decide what a cashier may
+read" and becomes "hide the developer's account from the restaurant". That is
+**not satisfied today**: `login-screen.tsx:486-489` renders a dedicated button
+for the SUPER_ADMIN profile, and `GET /api/auth/profiles` is public and returns
+every active user's id, username, name and role — so the restaurant both sees
+that account and can select it. C-18 already recorded the endpoint as an
+enumeration surface; this batch is where the visibility decision lands on it.
+
+**What this does NOT change.** C-16, M-24, M-25 and M-26 are untouched by the
+absence of cashiers. C-16 in particular is fully live between MANAGER and
+SUPER_ADMIN: `users`, `settings`, `audit`, `backups` and `logs` are all
+SUPER_ADMIN-only in `nav-config.ts`, but the render branch has no role
+condition, so **a manager typing `#/backups` still gets the restore button
+mounted**. The remediation direction's "default an unknown role to CASHIER"
+still stands — the role is retained precisely so it can serve as the
+least-privileged default.
+
+**Two consequences recorded, not acted on** (safety rule 10 and rule 11):
+
+1. **The approval gates never fire.** `orders/route.ts:223` requires an
+   approval token only when `user.role === "CASHIER"`; `refund/route.ts:87`
+   lets MANAGER and SUPER_ADMIN self-approve. So a manager may apply a discount
+   of any size with **no approver recorded**, and refund any amount by
+   self-approval. Batch 4.1's brute-force lockout and Batch 3.5's C-13 approver
+   trail are therefore guarding a path this deployment does not use. This is
+   the operator's decision and is not a defect to fix here.
+2. **The approval machinery is kept, not deleted.** The user retained the
+   `CASHIER` role, and that role is meaningless without the approval mechanism
+   that gives it a discount ceiling. Deleting `/api/auth/approve`,
+   `approvals.ts` and the dialog would also undo audited work from Batches 3.5
+   and 4.1. Removal stays available as a later decision; nothing in this batch
+   depends on it.
 
 ### C-16 — Role gating is client-side only; every admin view renders for every user
 
