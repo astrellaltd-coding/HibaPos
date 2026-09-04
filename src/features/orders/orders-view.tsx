@@ -58,7 +58,7 @@ import { useAppStore } from "@/store/app-store";
 import { downloadReceipt } from "@/lib/receipt";
 import { PAYMENT_LABELS, ORDER_TYPE_LABELS } from "@/lib/order-labels";
 import { safeParseOptions, safeParseAddOns } from "@/lib/order-parsers";
-import { ManagerApprovalDialog, type ApprovedManager } from "@/components/pos/manager-approval-dialog";
+import { StepUpPinDialog, type StepUpConfirmation } from "@/components/pos/step-up-pin-dialog";
 import type { SettingsDto } from "@/types/api";
 // uuid replaced with built-in crypto.randomUUID()
 import { formatEuro, formatDateTime, formatRelativeDateTime } from "@/lib/format";
@@ -144,7 +144,7 @@ export function OrdersView() {
   const [refundAmount, setRefundAmount] = useState("");
   const [refundReason, setRefundReason] = useState("");
   const [refundMethod, setRefundMethod] = useState<"CASH" | "CARD" | "VOUCHER">("CASH");
-  const [approvalOpen, setApprovalOpen] = useState(false);
+  const [stepUpOpen, setStepUpOpen] = useState(false);
   const [pendingRefund, setPendingRefund] = useState<{ amount: number; reason: string; method: "CASH" | "CARD" | "VOUCHER" } | null>(null);
   const [searchInput, setSearchInput] = useState("");
   // Debounced search → server-side filtering (Phase 11b — replaces the old
@@ -177,15 +177,15 @@ export function OrdersView() {
   });
 
   const refundMutation = useMutation({
-    mutationFn: (vars: { id: string; amount: number; reason: string; method: "CASH" | "CARD" | "VOUCHER"; approvalToken?: string }) =>
+    mutationFn: (vars: { id: string; amount: number; reason: string; method: "CASH" | "CARD" | "VOUCHER"; stepUpToken: string }) =>
       api.post<RefundDto>(`/api/orders/${vars.id}/refund`, {
         amount: vars.amount,
         reason: vars.reason,
         method: vars.method,
-        // Cashier MUST present a signed approval token (Batch A/B server-side
-        // requirement). For MANAGER+ self-approval the server trusts the
-        // session, but forwarding the token is harmless.
-        ...(vars.approvalToken ? { approvalToken: vars.approvalToken } : {}),
+        // DD-19, Batch 4.4c: the caller's own step-up confirmation, bound to
+        // this exact cent amount. The server refuses every refund without one,
+        // at any amount — so this is required, not optional.
+        stepUpToken: vars.stepUpToken,
       }),
     onSuccess: () => {
       toast.success("Remboursement enregistré.");
@@ -235,24 +235,28 @@ export function OrdersView() {
       toast.error("Veuillez indiquer un motif de remboursement.");
       return;
     }
-    // Require manager approval for refunds — open the PIN dialog. The signed
-    // approvalToken returned by it is forwarded to the server-side refund POST;
-    // the server REJECTS refunds from cashiers without a valid token.
+    // Every refund is confirmed by the signed-in operator's OWN PIN (DD-19,
+    // Batch 4.4c) — no threshold, no second person. This replaces the manager
+    // approval that used to open here: with one operational role (DD-07)
+    // `/api/auth/approve` forbids self-approval, so a lone manager could not
+    // refund through this screen at all. That was M-18, and the operator's
+    // decision of 2026-09-04 closes it here rather than in Batch 5.7.
+    //
     // amount is in CENTS from here on: it is both POSTed to the refund route
-    // and HMAC-bound into the manager approval token, which the server
-    // verifies against the same cent value (lib/approvals.ts).
+    // and HMAC-bound into the step-up token, which the server verifies against
+    // the same cent value (lib/approvals.ts, lib/services/step-up.ts).
     setPendingRefund({ amount: amountCents, reason: refundReason.trim(), method: refundMethod });
-    setApprovalOpen(true);
+    setStepUpOpen(true);
   }
 
-  function executeRefund(approver: ApprovedManager) {
+  function executeRefund(confirmation: StepUpConfirmation) {
     if (!selectedId || !pendingRefund) return;
     refundMutation.mutate({
       id: selectedId,
       amount: pendingRefund.amount,
       reason: pendingRefund.reason,
       method: pendingRefund.method,
-      approvalToken: approver.approvalToken,
+      stepUpToken: confirmation.stepUpToken,
     });
     setPendingRefund(null);
   }
@@ -769,15 +773,15 @@ export function OrdersView() {
         </DialogContent>
       </Dialog>
 
-      {/* Manager approval for sensitive operations */}
-      <ManagerApprovalDialog
-        open={approvalOpen}
-        onOpenChange={setApprovalOpen}
+      {/* Step-up PIN — every refund, at any amount (DD-19) */}
+      <StepUpPinDialog
+        open={stepUpOpen}
+        onOpenChange={setStepUpOpen}
         action="REFUND"
         amount={pendingRefund?.amount}
-        onApproved={executeRefund}
-        title="Validation remboursement"
-        description="Un remboursement nécessite l'approbation d'un manager. Veuillez saisir le PIN manager."
+        onConfirmed={executeRefund}
+        title="Confirmation du remboursement"
+        description="Tout remboursement doit être confirmé par votre code PIN."
       />
     </div>
   );

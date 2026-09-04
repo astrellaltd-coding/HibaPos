@@ -9,6 +9,8 @@ import { appendFiscalEvent, incrementGrandTotal } from "@/lib/services/fiscal";
 import { computeLinePricing, resolveVatRate } from "@/lib/services/pricing";
 import { sum2, addToVatBreakdown, apportion, type VatBreakdown } from "@/lib/money";
 import { buildVentePayload, buildOrderAuditDetails } from "@/lib/services/sale-journal";
+import { consumeStepUpToken } from "@/lib/services/step-up";
+import { discountNeedsStepUp } from "@/lib/discount-policy";
 import { TX_CHECKOUT } from "@/lib/tx-options";
 
 // Server-authoritative checkout intent schema.
@@ -36,10 +38,16 @@ const checkoutIntentSchema = z.object({
       type: z.enum(["PERCENT", "AMOUNT"]),
       value: z.number().int().min(0), // cents (AMOUNT) or percent×100 (PERCENT) — see server calc
       approvedById: z.string().optional(), // legacy — only honored for MANAGER+/SUPER_ADMIN callers
-      // Accepted and ignored since Batch 4.4b: the only gate that read it was
-      // the CASHIER arm removed below. Kept on the wire so an in-flight client
-      // is not rejected, and because Batch 4.4c decides what replaces it.
-      approvalToken: z.string().optional(),
+      // DD-19, Batch 4.4c: the caller's own step-up confirmation, issued by
+      // `POST /api/auth/step-up` and bound to (this caller, DISCOUNT, this
+      // amount in cents). Required above `discountApprovalThreshold`.
+      //
+      // It REPLACES the manager `approvalToken` this schema accepted and
+      // ignored between Batches 4.4b and 4.4c (operator decision,
+      // 2026-09-04). A checkout that still sends the old field is now
+      // refused above the threshold rather than silently self-approved,
+      // which is the point of the batch.
+      stepUpToken: z.string().optional(),
     })
     .optional(),
   notes: z.string().max(500).optional().nullable(),
@@ -218,25 +226,27 @@ export const POST = withAuth(async (req, { user }) => {
   }
 
   // Record the discount approver above the configured threshold.
-  const discountPercent = subtotal > 0 ? (discountTotal / subtotal) * 100 : 0;
   const settings = await getSettings();
   const threshold = settings.discountApprovalThreshold ?? 20;
   let discountApproverId: string | null = null;
-  // Batch 4.4b removed the CASHIER arm of this gate along with the role
-  // (DD-07). It required a fresh signed manager approval token above the
-  // threshold; with no cashier account it could never fire, and every caller
-  // now takes the branch below. `discount.approvalToken` is consequently
-  // ignored here — it already was for MANAGER and SUPER_ADMIN, so no caller's
-  // behaviour changes. The token machinery itself is kept, not deleted: the
-  // refund route still verifies one, and Batch 4.4c reuses Batch 4.1's
-  // lockout for the step-up PIN that replaces this (DD-19).
+  // DD-19, Batch 4.4c. Above the threshold the caller must have re-entered
+  // their OWN PIN at `/api/auth/step-up` and must present the token it
+  // issued, bound to this exact discount in cents. Until this batch the
+  // caller was silently recorded as their own approver with no keystroke —
+  // which is what let a passer-by at an unattended till apply a 100 %
+  // discount.
   //
-  // What this leaves is self-approval with no keystroke: above the threshold
-  // the caller is recorded as their own approver. That is the gap DD-19 was
-  // answered to close, and Batch 4.4c is where it closes.
-  if (discountPercent > threshold) {
-    discountApproverId = user.id;
-  }
+  // The trigger is `discountNeedsStepUp`, the same function the client
+  // consults, so the rule that PROMPTS and the rule that RECORDS an approver
+  // cannot drift apart. The amount bound is the SERVER's `discountTotal`
+  // (clamped to the subtotal), not the value the request asked for: the
+  // token must cover the discount that actually lands in the journal.
+  //
+  // Decided here, CONSUMED further down. The token is single-use, so burning
+  // it before the payment and livraison checks would make a mistyped payment
+  // cost the operator a second PIN entry for a sale that was never refused
+  // on its own merits.
+  const needsStepUp = discountNeedsStepUp(discountTotal, subtotal, threshold);
 
   // Validate payments cover the total exactly (cents).
   const totalAfterDiscount = subtotal - discountTotal;
@@ -265,6 +275,22 @@ export const POST = withAuth(async (req, { user }) => {
         { status: 400 }
       );
     }
+  }
+
+  // Consume the step-up confirmation (DD-19). Last check before the sale is
+  // written, and the last one that can refuse it: everything above is cheap
+  // validation of the request, and the token is single-use.
+  if (needsStepUp) {
+    const stepUp = await consumeStepUpToken({
+      token: discount?.stepUpToken,
+      callerId: user.id,
+      action: "DISCOUNT",
+      amount: discountTotal,
+    });
+    if (!stepUp.ok) {
+      return NextResponse.json({ error: stepUp.message }, { status: stepUp.status });
+    }
+    discountApproverId = stepUp.approverId;
   }
 
   // --- Transaction: numbering + order + receipt + audit all atomic ---

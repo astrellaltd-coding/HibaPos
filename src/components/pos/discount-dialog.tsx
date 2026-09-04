@@ -10,6 +10,7 @@ import type { SettingsDto } from "@/types/api";
 import { Tag, AlertCircle } from "lucide-react";
 import { formatEuro } from "@/lib/format";
 import { toCents } from "@/lib/money";
+import { discountNeedsStepUp } from "@/lib/discount-policy";
 
 export function DiscountDialog({
   open,
@@ -29,14 +30,25 @@ export function DiscountDialog({
   // `apply()` converts to cents via `toCents()` before pushing to the cart store.
   const discountEuros = discountTotal > 0 ? discountTotal / 100 : 0;
   const [value, setValue] = useState<number>(discountEuros);
-  const [needsApproval, setNeedsApproval] = useState(false);
 
   const threshold = settings?.discountApprovalThreshold ?? 20;
-  const percent = subtotal > 0 ? Math.round((value / subtotal) * 1000) / 10 : 0;
+  // L-34 (Batch 4.4c): this divided EUROS by CENTS — `value` is euros (see the
+  // comment above), `subtotal` is cents — so a genuine 40 % discount displayed
+  // as « 0.4% du sous-total », a hundredfold understatement on the very figure
+  // the operator reads to predict the PIN prompt below. The arithmetic in
+  // `handleChange` was already right; `discountNeedsStepUp` is now that same
+  // rule, shared with the payment dialog and with the checkout route, and it
+  // takes cents on both sides.
+  const discountCents = toCents(value);
+  const percent = subtotal > 0 ? Math.round((discountCents / subtotal) * 1000) / 10 : 0;
+  // Derived, not held in state. As state it was seeded `false` and only ever
+  // written by `handleChange`, so re-opening the dialog on an already-applied
+  // above-threshold discount showed no banner until the operator retyped the
+  // amount — the one case where the warning matters most.
+  const needsApproval = discountNeedsStepUp(discountCents, subtotal, threshold);
 
   const handleChange = (v: number) => {
     setValue(Math.max(0, Math.min(subtotal / 100, v)));
-    setNeedsApproval(subtotal > 0 && (v / (subtotal / 100)) * 100 > threshold);
   };
 
   const apply = () => {
@@ -75,7 +87,7 @@ export function DiscountDialog({
             <div className="flex items-center gap-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-700">
               <AlertCircle className="h-4 w-4 shrink-0" />
               <span>
-                Remise supérieure à {threshold}%. Un manager doit approuver lors de l'encaissement.
+                Remise supérieure à {threshold}%. Vous devrez saisir votre code PIN lors de l'encaissement.
               </span>
             </div>
           )}

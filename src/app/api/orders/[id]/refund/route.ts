@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { withAuthParams, parseJson } from "@/lib/api-handler";
 import { refundSchema } from "@/lib/validation";
-import { verifyApprovalToken, ApprovalError } from "@/lib/approvals";
+import { consumeStepUpToken } from "@/lib/services/step-up";
 import { processRefund, RefundError } from "@/lib/services/refund";
 import { getSettings } from "@/lib/services/settings";
 import type { PaymentMethod } from "@prisma/client";
@@ -58,43 +58,32 @@ export const POST = withAuthParams(async (req, { user, params }) => {
     }
   }
 
-  // Manager approval verification.
-  // - approvalToken (preferred): signed single-use token from /api/auth/approve,
-  //   verified against (action=REFUND, amount=refundAmount). Still live — the
-  //   Commandes view sends one for every refund (M-18), and the token is what
-  //   binds the approver to this exact cent amount.
-  // - otherwise the caller self-approves: their session IS the auth.
+  // Step-up PIN — DD-19, Batch 4.4c. EVERY refund, at any amount, with no
+  // threshold (operator decision, 2026-09-04). The caller must have re-entered
+  // their own PIN at `/api/auth/step-up` and must present the single-use token
+  // it issued, bound to (this caller, REFUND, this exact cent amount).
   //
-  // Batch 4.4b removed the third arm, which refused a CASHIER that presented no
-  // token (legacy `approvedById` was no longer trusted alone — forged-approval
-  // vulnerability S2). DD-07 removed the role, so that arm was unreachable.
-  // Self-approval at any amount with no keystroke is what remains, and it is
-  // the gap DD-19 was answered to close: Batch 4.4c requires the caller's own
-  // PIN on every refund, at any amount.
-  let refundApproverId: string | null = null;
-  if (parsed.data.approvalToken) {
-    try {
-      const result = verifyApprovalToken(parsed.data.approvalToken, {
-        action: "REFUND",
-        amount: parsed.data.amount,
-      });
-      const approver = await db.user.findUnique({
-        where: { id: result.approverId, active: true },
-        select: { role: true },
-      });
-      if (!approver || (approver.role !== "MANAGER" && approver.role !== "SUPER_ADMIN")) {
-        return NextResponse.json({ error: "Approbateur invalide ou non autorisé." }, { status: 403 });
-      }
-      refundApproverId = result.approverId;
-    } catch (e) {
-      const status = e instanceof ApprovalError ? e.status : 500;
-      const message = e instanceof Error ? e.message : "Token d'approbation invalide.";
-      return NextResponse.json({ error: message }, { status });
-    }
-  } else {
-    // Self-approve; the signed-in caller authorizes their own refund.
-    refundApproverId = user.id;
+  // This REPLACES two arms that stood here. The `approvalToken` arm verified a
+  // *manager's* approval from `/api/auth/approve`; with one operational role
+  // (DD-07) that route forbids self-approval and can never succeed, which is
+  // exactly why a lone manager could not refund through the UI at all (M-18 —
+  // closed here by the operator's decision, rather than in Batch 5.7). The
+  // else-branch self-approved at any amount with no keystroke, which is the
+  // gap DD-19 was answered to close.
+  //
+  // The role check the old arm performed is not reproduced: the token names
+  // the caller, `withAuthParams` already established their session, and the
+  // product has no role below MANAGER to exclude.
+  const stepUp = await consumeStepUpToken({
+    token: parsed.data.stepUpToken,
+    callerId: user.id,
+    action: "REFUND",
+    amount: parsed.data.amount,
+  });
+  if (!stepUp.ok) {
+    return NextResponse.json({ error: stepUp.message }, { status: stepUp.status });
   }
+  const refundApproverId: string | null = stepUp.approverId;
 
   let refund;
   const settings = await getSettings();

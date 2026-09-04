@@ -31,6 +31,16 @@ type ManagerApprovalDialogProps = {
 };
 
 /**
+ * DORMANT SINCE BATCH 4.4c — no component imports this any more.
+ *
+ * DD-19 replaced both of its call sites with `StepUpPinDialog`, which asks the
+ * signed-in operator for their OWN PIN. This dialog asks for *a manager's*,
+ * via `/api/auth/approve`, and that route forbids self-approval: with one
+ * operational role (DD-07) it can only ever be satisfied by the developer's
+ * SUPER_ADMIN account. It is kept rather than deleted, exactly as Batch 4.4b
+ * kept the machinery behind it — deleting audited work to tidy up is not this
+ * plan's habit, and a second operational role would want this back.
+ *
  * PIN pad for manager/super-admin approval of a sensitive action.
  * Backed by POST /api/auth/approve which now returns a signed single-use
  * approvalToken bound to (action, amount, expSec). The onApproved callback

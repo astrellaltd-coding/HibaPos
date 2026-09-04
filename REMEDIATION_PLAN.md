@@ -11,19 +11,19 @@ Detailed audit record: https://claude.ai/code/artifact/329316b0-3a6b-48b0-9d27-d
 
 **Overall:** NOT READY FOR PRODUCTION
 
-**Current Stage:** Stage 4 — Security & integrity, `IN PROGRESS` (4.1 through 4.4 and **4.4b** COMPLETED; **4.4c `NOT STARTED`**; 4.5 through 4.7 `NOT STARTED`). **C-18 is now closed** — the operator changed both PINs on 2026-09-04. **M-19s is closed** in Batch 4.4b, which also removed `CASHIER` from the product per DD-07's final answer. (**Stage 3 is COMPLETED** — every batch 3.1 through 3.6, plus 3.6b, which reopened it for one small batch on 2026-09-04 — with C-22's chain-design half carried forward as `REQUIRES EXTERNAL VERIFICATION` and V-03 open for professional confirmation. Stage 1 is **partly done**: 1.1 and 1.2 COMPLETED, 1.3 `IMPLEMENTED — TESTING REQUIRED` on hardware, 1.4 deferred. Stage 2 is COMPLETED.)
+**Current Stage:** Stage 4 — Security & integrity, `IN PROGRESS` (4.1 through 4.4, **4.4b** and **4.4c** COMPLETED; 4.5 through 4.7 `NOT STARTED`). **C-18 is now closed** — the operator changed both PINs on 2026-09-04. **M-19s is closed** in Batch 4.4b, which also removed `CASHIER` from the product per DD-07's final answer. (**Stage 3 is COMPLETED** — every batch 3.1 through 3.6, plus 3.6b, which reopened it for one small batch on 2026-09-04 — with C-22's chain-design half carried forward as `REQUIRES EXTERNAL VERIFICATION` and V-03 open for professional confirmation. Stage 1 is **partly done**: 1.1 and 1.2 COMPLETED, 1.3 `IMPLEMENTED — TESTING REQUIRED` on hardware, 1.4 deferred. Stage 2 is COMPLETED.)
 
-**Current Batch:** Batch 4.4c — Step-up PIN for large discounts and every refund · `NOT STARTED` — **nothing blocks it; start here**
+**Current Batch:** Batch 4.5 — Dangerous operator scripts · `NOT STARTED` — **BLOCKED on DD-08.** Nothing else in Stage 4 is blocked: 4.6 (catalogue data-loss paths, C-24/C-25) and 4.7 (transaction and race safety, C-15's open half) are both unblocked and either may be taken first.
 
-**Last Completed Batch:** Batch 4.4b — Remove the CASHIER role, close M-19s. The role is gone from the enum, the `Role` union, both zod schemas, the nav table, the login screen, two server gates and one client mirror; `GET /api/settings` and `GET /api/reports/x` now agree with their writes. **No migration was needed** and nothing waits on the operator. Two consequences were carried deliberately and are written down rather than hidden: `LEAST_PRIVILEGED_ROLE` is one rung weaker (now `MANAGER`), and the approval machinery is **dormant, not deleted** — which is precisely what 4.4c picks up.
+**Last Completed Batch:** Batch 4.4c — Step-up PIN for large discounts and every refund. A discount above the configured threshold, and **every refund at any amount**, now require the signed-in operator to re-enter **their own** PIN (DD-19); until this batch both were self-approved with no keystroke. New `POST /api/auth/step-up` and `lib/services/step-up.ts`, reusing Batch 4.1's lockout on **one shared counter**, Batch 4.2's bounded scrypt queue and `approvals.ts`'s signed single-use token — which must now **name the caller**. **No migration; nothing waits on the operator.** It also closed L-34, L-35 and, unplanned, the audit's own **M-17** (the same defect as L-34) and **M-18** (a lone manager can refund again). `/api/auth/approve` and `manager-approval-dialog.tsx` are now **fully dormant — reachable code with no caller**.
 
-**Next Batch:** **Batch 4.4c — step-up PIN** for large discounts and every refund (DD-19). It is specified below, its decision is made, and nothing blocks it. Read Batch 4.4b's stub first: it left the dialog, the re-entry mechanism and the lockout in place on purpose, and it left one user-visible statement false until 4.4c lands (**L-35**). Batch 4.5 follows and **is** blocked on DD-08.
+**Next Batch:** **Batch 4.6 — catalogue data-loss paths** (C-24, C-25) or **Batch 4.7 — transaction and race safety** (C-15's open half); neither is blocked, and **Batch 4.5 is blocked on DD-08**, so it cannot be next without an answer. Read Batch 4.4c's stub first if the work touches discounts, refunds or PIN entry — in particular where the step-up token is consumed (after the payment and livraison checks, deliberately) and that a wrong PIN feeds the *same* five-attempt counter as the manager approval.
 
 **Blocked:** Batch 1.3 `[HW]` sign-off and Batch 1.4 — both need the app running on the restaurant's POS machine, which is in a different country from the developer and has no copy of the app installed (decision of 2026-09-03).
 
-**Awaiting decision:** **nothing blocks 4.4c.** **DD-08** blocks Batch 4.5 (guard the operator scripts, or remove them from the shipped tree) — note that C-17 also reintroduces default PINs if `scripts/seed-users.ts` is ever run, which now matters more than it did. DD-06, DD-07 and DD-19 were answered on 2026-09-04. A new question is recorded but not yet urgent: whether the now-dormant discount/refund approval machinery should eventually be removed — see DD-07's rationale in the record. Then Batch 5.3 (cross-shift refunds), Batch 5.5 (cash movements), Batch 5.6 (order cancellation) — see *Design Decisions Required*. **DD-03 and DD-17 were answered on 2026-09-03, DD-05 and DD-18 on 2026-09-04.**
+**Awaiting decision:** **DD-08 now blocks the batch that would otherwise be next** (Batch 4.5 — guard the operator scripts, or remove them from the shipped tree); note that C-17 also reintroduces default PINs if `scripts/seed-users.ts` is ever run, which now matters more than it did. Batches 4.6 and 4.7 are unblocked and can proceed without it. DD-06, DD-07 and DD-19 were answered on 2026-09-04, DD-19's four implementation choices with it. The recorded-but-not-urgent question is now sharper: `/api/auth/approve` and `manager-approval-dialog.tsx` have **no caller at all** since 4.4c, so whether to delete them is a real question rather than a hypothetical one — see DD-07's rationale in the record. Then Batch 5.3 (cross-shift refunds), Batch 5.5 (cash movements), Batch 5.6 (order cancellation) — see *Design Decisions Required*. **DD-03 and DD-17 were answered on 2026-09-03, DD-05 and DD-18 on 2026-09-04.**
 
-**Last Updated:** 2026-09-04 (session 8 — Batch 4.4b, then a pass over the resume block for the next session: warnings 1, 6 and 9 corrected, Batch 4.4c prepared with L-34 and L-35 as closing criteria, and the operator's *finish the software before installing it* order recorded under the hardware policy; read *OPEN THREADS* below before starting anything. Nothing waits on a `migrate deploy`: none of 4.1 through 4.4b added a migration, and 4.4b's was measured with `prisma migrate diff` rather than assumed — it emits an empty migration. The Prisma `EPERM` is resolved — stale `next start` servers were holding the engine DLL, and this session stopped its own scratch server by PID and re-verified `prisma generate` afterwards)
+**Last Updated:** 2026-09-04 (session 9 — Batch 4.4c. Four implementation choices were put to the operator as one set before any code was written and all four answered; they are recorded in the record's *Answered design decisions* under DD-19. **Nothing waits on a `migrate deploy`**: no batch from 4.1 through 4.4c has added a migration, and production still stands at 6 applied. Two things worth carrying forward. (1) **A stray `bun test` process from a stopped run caused 12 spurious `EPERM` failures** in the backup suite; the suite was green again the moment it was killed — `TaskStop` kills the parent only, so check the process list before believing a filesystem failure, and check the port before believing a server is stopped (warning 9, confirmed twice more this session). (2) **A `DATABASE_URL` built from a Git-Bash path** (`/c/Users/…`) makes Prisma answer *Unable to open the database file*; the scratch server needs a Windows path with forward slashes.) **One thing this batch could not finish and did not attempt:** the front matter is **43 957 bytes** against the ~40 KB ceiling *HOW TO USE THIS FILE* sets. Retiring *Open Threads → F* here offset what this batch added and no more — it has been over the ceiling since before session 9 (43 544 bytes at the start of it). Getting under needs a deliberate retirement pass of about 4 KB, which is a documentation task rather than a batch's business (safety rule 10).
 **Restructured:** 2026-09-04 — completed batches now live verbatim in `REMEDIATION_RECORD.md`; this file keeps the resume block, the open work, the registers and a stub per completed batch. Everything a session must know before acting sits above the first stage heading. See *HOW TO USE THIS FILE*.
 
 ### OPEN THREADS — read this before starting a batch
@@ -115,6 +115,7 @@ Batch 1.4, and Batch 8.2.
   across the boundary (proved on a copy of production). Anything that later
   reads a payload — an archive reader, an inspection export, Batch 3.6's
   document work — has to tolerate both.
+- **Batch 4.4c added NO third vintage, deliberately.** The step-up PIN records nothing new in `VENTE` or `REMBOURSEMENT`: both already carried the authoriser's id, and a “PIN was entered” flag would be true on every record the batch can produce. The deliberate act is evidenced in the audit log (`STEP_UP_PIN_GRANTED`) instead. So the two vintages above are still the only two, and a reader that tolerates both is still complete.
 - **L-14** is unresolved by choice: receipts archived before Batch 2.2 are 80
   columns wide and will wrap when reprinted on 48-column paper. They must
   **not** be re-rendered — an archived receipt is immutable.
@@ -131,33 +132,21 @@ obligation. Batch 3.3 established the narrower, checkable part (the checksum
 covers every byte including every date, and a third party can reproduce it
 with `sha256sum`); the compliance judgement is not a code question.
 
-#### F. Findings still open — a sessions 3-and-4 snapshot, NOT the register
+#### F. Findings still open — **retired 2026-09-04 (Batch 4.4c)**
 
-*Read this as annotation, not inventory.* It carries re-measurements that exist
-nowhere else (L-19's and L-21's especially), but it has not been extended since
-session 4 and therefore **omits L-28 through L-35**. **`NEWLY DISCOVERED ISSUES`
-below the stage sections is the authoritative list.* Merge this into it in 7.1.
-
-| ID | What | Suggested home |
-|---|---|---|
-| **L-19** | `report-widgets.tsx:76` renders rates with `toFixed(1)`, so a two-decimal rate (1,05 %) would display as "1.1 %". Not reachable while only 10 % and 5,5 % are in use. **Batch 3.6 deliberately did not reproduce it**: the receipt's new per-rate block labels rates from the breakdown *key*, not `toFixed`. So the defect is now confined to that one display site. | 7.1 |
-| **L-21** | `renderReceipt()` centres but never wraps, so the restaurant's real 56-character address overflows 48-column paper on every ticket. **Re-measured in Batch 3.6 and still live** — 56 columns against a 48-column width, on a ticket rendered from the real settings. The four lines M-06 adds are at most 48, so the overflow is the address alone. | with the printer work |
-| **L-22** | Validation errors surface as untranslated English zod messages in a French UI. | 7.1 |
-| **L-24** | `bun test src` fails 23 tests on a slow machine — the backup/restore suite exceeds Bun's default 5 s timeout because scrypt at N=2^17 costs ~1.5 s per call here. Nothing to do with the code; it cost most of an hour to establish that in session 4. Run `bun test src --timeout 30000` if the failures are all in `backup*.test.ts`. | 6.1 |
-| **L-27** | The open-caisse half of the 3.6b guard is scoped, as DD-18 wrote it, to caisses *opened inside* the period, so a caisse opened earlier and still open does not block the close. Reachable only through the first-ever close. | needs a decision — before 8.0 |
-| **L-12**, **L-10**, **L-11** | Pre-existing, unchanged in sessions 3 and 4. | as recorded |
+The session-3/4 snapshot that stood here is now in `REMEDIATION_RECORD.md` → *Retired open-thread rows and superseded front-matter lines*, verbatim. It was retired because the front matter is over the ~40 KB ceiling *HOW TO USE THIS FILE* sets, and this was its stalest occupant: it had not been extended since session 4, said so itself, and named `NEWLY DISCOVERED ISSUES` as the authoritative list. **The instruction it carried still stands: merge it into that register in Batch 7.1** — it holds re-measurements of **L-19** and **L-21** that exist nowhere else. Two of its rows have since closed (L-22 remains; **L-34 and L-35** were not in it and were closed in 4.4c).
 
 #### G. Current baselines — check these before trusting anything
 
 | Thing | Value at the end of session 3 (updated through session 4) |
 |---|---|
-| Tests | **461 pass, 0 fail** (`bun test src --timeout 30000` — see L-24 for why the timeout flag). 453 before Batch 4.4b. Whole-suite runtime measured 64–80 s this session, against the ~192 s L-24 records |
+| Tests | **482 pass, 0 fail** (`bun test src --timeout 30000` — see L-24 for why the timeout flag). 461 before Batch 4.4c, 453 before 4.4b. **A run that fails 12 backup tests with `EPERM: rename … test.db.restore-staged` is not a code failure**: a leftover `bun` process from a stopped run is holding the shared test database. Kill it and re-run — this cost part of session 9. Whole-suite runtime measured 64–80 s this session, against the ~192 s L-24 records |
 | Production DB sha256 | **`7839db18a7c8b132d974bd834d39d2921def66dd234b2059b022949f22ea6f2e`** (mtime 2026-09-04 16:41:52) — moved by the operator's **PIN change**, not by any batch: Batches 4.1 through 4.4 left it at `a66bc96c…` and added no migration. The intermediate value after the first PIN change was `e40735ca…`. Before that, `a66bc96c…` was reached by the operator applying the 3.5, 3.6 and 3.6b migrations. The pre-3.6b value `7cc3367b…` is preserved in `db-snapshots/custom.db.pre-3.6b.2026-09-04T08-27-38Z` |
 | Fiscal chain | `/api/fiscal/verify` → all three chains `ok`, `lastSequence: 2`. **Zero monthly and annual closes have ever been sealed** — which is why M-01's guard, DD-18's timing rules and L-26's payload change could all be imposed with nothing to accommodate. Re-verified read-only 2026-09-04 |
 | Fiscal counters | `20/3/2/2` (receipt / shift / Z / event). Re-verified read-only after the PIN change, 2026-09-04 |
 | Migrations | **6 applied on production**, latest `20260904091947_close_refund_totals` (applied 2026-09-04 09:43:54). **None pending.** Batches 4.1 through 4.4b added none — 4.4b's enum removal was measured with `prisma migrate diff` and emits an empty migration |
 | Catalogue | 78 products — 17 drinks at **5,5 %**, 61 at 10 % |
-| Accounts | **two, and that is now the product's whole role model**: `manager` (MANAGER) and `admin` (SUPER_ADMIN, the developer's). Both PINs changed 2026-09-04. `CASHIER` was **removed in Batch 4.4b** — zero rows carried it, confirmed read-only first. `LEAST_PRIVILEGED_ROLE` is therefore `MANAGER`, one rung weaker than before |
+| Accounts | **two, and that is now the product's whole role model**: `manager` (MANAGER) and `admin` (SUPER_ADMIN, the developer's). Both PINs changed 2026-09-04. `CASHIER` was **removed in Batch 4.4b** — zero rows carried it, confirmed read-only first. `LEAST_PRIVILEGED_ROLE` is therefore `MANAGER`, one rung weaker than before | **Since Batch 4.4c both accounts must re-enter their own PIN** for a discount above 20 % and for every refund; five wrong PINs lock both operations for 15 minutes, on the same counter as the (now callerless) manager approval
 | Out-of-band snapshots | `db-snapshots/custom.db.pre-3.1c.2026-09-03T20-54-10Z` and `…pre-3.5.2026-09-03T23-01-34Z` (both hash `711de2f1…`), and `…pre-3.6b.2026-09-04T08-27-38Z` (`7cc3367b…`). All outside the repo |
 
 **When running the app against a scratch copy**, override **both**
@@ -171,7 +160,7 @@ The developer is in a different country from the restaurant, and the restaurant'
 
 **Reaffirmed by the operator 2026-09-04:** *“we're not going to install it now, we are working on having a complete fixed app first.”* So the order is settled — **the software is finished before it is deployed**, not in parallel.
 
-**One consequence a session should use when triaging, and stop using the day deployment is scheduled.** Nothing in this application currently has a live audience: no operator reads its screens, no sale is real, and every defect found is found by us. That is what makes it defensible to carry a user-visible defect across a batch boundary rather than guess at a fix — Batch 4.4b did exactly that with **L-35**, leaving a French banner that promises an approval which no longer happens, because Batch 4.4c changes the words anyway. **The moment an install date exists, that reasoning expires**: re-triage every open finding whose severity was discounted for want of an audience, L-35 and L-34 first.
+**One consequence a session should use when triaging, and stop using the day deployment is scheduled.** Nothing in this application currently has a live audience: no operator reads its screens, no sale is real, and every defect found is found by us. That is what makes it defensible to carry a user-visible defect across a batch boundary rather than guess at a fix — Batch 4.4b did exactly that with **L-35**, leaving a French banner that promises an approval which no longer happens, because Batch 4.4c changes the words anyway. **The moment an install date exists, that reasoning expires**: re-triage every open finding whose severity was discounted for want of an audience. *(Updated 2026-09-04: the two examples named here, **L-35 and L-34, were both closed in Batch 4.4c**, so the instruction now has no specific target — it stands as a rule for the next finding carried this way, not as a list.)*
 
 **Decision:** proceed with software-only work; defer every item that requires the app to be running on the POS all-in-one device. Affected items, none of which may be marked `COMPLETED` on automated evidence alone:
 
@@ -261,7 +250,7 @@ Audit IDs are **never renamed**. `T-`, `DOC-` and `V-` items are new IDs assigne
 
 | Command | What it does | Safe? |
 |---|---|---|
-| `bun test src` | Unit + integration tests, Bun runner, redirected to a temp DB. **461 as of Batch 4.4b** — *G* carries the current count, not this row. On a slow machine add `--timeout 30000` — see **L-24**, and warning 8 below | ✅ Safe |
+| `bun test src` | Unit + integration tests, Bun runner, redirected to a temp DB. **482 as of Batch 4.4c** — *G* carries the current count, not this row. On a slow machine add `--timeout 30000` — see **L-24**, and warning 8 below | ✅ Safe |
 | `bun run typecheck` | `tsc --noEmit` (note: `scripts/` is excluded by `tsconfig.json:41`) | ✅ Safe |
 | `bun run lint` | `eslint .` (note: `scripts/` is excluded by `eslint.config.mjs:49`) | ✅ Safe |
 | `bun run build` | `next build` — requires `SESSION_SECRET` in env or it throws at import time | ✅ Safe |
@@ -336,8 +325,8 @@ their own status blocks while the index still showed them untouched.*
 | C-14 | 5.3 | M-14 ✅ | 3.2 | L-07 | 7.2 |
 | C-15 ◐ | 2.3 + 4.7 | M-15 | 5.7 | L-08 | 7.2 |
 | C-16 ✅ | 4.4 | M-16 | 5.7 | L-09 | deferred |
-| C-17 | 4.5 | M-17 | 5.7 | L-10 | deferred |
-| C-18 ✅ | 4.3 + operator | M-18 | 5.7 | L-11 | deferred |
+| C-17 | 4.5 | M-17 ✅ | 4.4c | L-10 | deferred |
+| C-18 ✅ | 4.3 + operator | M-18 ✅ | 4.4c | L-11 | deferred |
 | C-19 ✅ | 2.3 | M-19 | 5.7 | L-12 | 7.2 |
 | C-20 | 5.1 | M-19s ✅ | 4.4b | T-01…T-07 | 6.1 |
 | C-21 | 5.2 | M-20 | 5.7 | T-08, T-09 | 6.2 |
@@ -367,7 +356,7 @@ These cannot be resolved from the code. **Claude must not decide them.** Each bl
 | **DD-02** | **ANSWERED 2026-09-03 — `C:\HibaPOS\data`.** Plumbing shipped in Batch 2.2 (`src/lib/paths.ts`, `HIBAPOS_DATA_DIR`), defaulting to the old layout; the physical move is a deployment step with Batch 1.4. | Batch 2.2 (`COMPLETED`); shapes 1.4 | Full question and rationale: record → *Answered design decisions*; evidence in the record's Batch 2.2 section. |
 | **DD-03** | **CLOSED 2026-09-03 as NOT APPLICABLE** — no sealed row ever carried a `"6"` key, and all trading data is developer test data that P-04 deletes. Key format decided: minimal decimal string (`"5.5"`, `"10"`). | Batch 3.1 (`COMPLETED`) | Evidence: record → Batch 3.1 status record, and *Answered design decisions*. V-01 not engaged. |
 | **DD-17** | **ANSWERED 2026-09-03 — the VAT rate lives on the category, inherited nearest-wins** (own category → parent → default), with a per-product override flag and a constrained selector. The original row lists 20 / 10 / 5,5 / 2,1 %; Batch 3.1c's record says it shipped 20 / 10 / 5,5 with 2,1 % excluded. | Batch 3.1c (`COMPLETED`) | Decided by the user. Full rationale: record → *Answered design decisions*. |
-| **DD-19** | **ANSWERED 2026-09-04 — step up with the operator's OWN PIN.** A discount above the configured threshold, and **every refund with no threshold at all**, must be confirmed by the signed-in user re-entering their own PIN. This is re-authentication, not second-person approval: with one operational role there is no second person, and the existing `/api/auth/approve` forbids self-approval by design, so it cannot serve. | Batch 4.4c | Decided by the user: *“the manager doesn't need to approve a discount because it's the manager … but simply the manager needs to put his PIN”.* The control being bought is **not** distrust of the manager — it is the unattended till: today a passer-by can apply a 100 % discount or refund any amount with no challenge at all. Consequence to design for: this makes the discount dialog a PIN-guessing surface, so it takes Batch 4.1's lockout and Batch 4.2's bounded queue. |
+| **DD-19** | **ANSWERED 2026-09-04 — step up with the operator's OWN PIN**, above the discount threshold and on **every** refund. Applied in Batch 4.4c, together with the four implementation choices the operator settled the same day (replace the manager token; close M-18 here; no journal payload change; one shared 5-in-15-minutes lockout). | Batch 4.4c (`COMPLETED`) | Full question, the four sub-decisions and rationale: `REMEDIATION_RECORD.md` → *Answered design decisions*; evidence in the record's Batch 4.4c section. |
 | **DD-04** | **Backup key rotation policy.** Rotating `BACKUP_ENCRYPTION_KEY` orphans every existing backup permanently. Re-encrypt the retained set first, accept the loss, or introduce key versioning before rotating? | Batch 7.3; P-02 | Retention obligations may make discarding old backups unacceptable — see V-04. |
 | **DD-05** | **ANSWERED 2026-09-04 — refuse out-of-order closes.** A close must be the period immediately following the last sealed one; the first close is unconstrained. Decided with zero closes in existence. | Batch 3.6 (`COMPLETED`) | Evidence: record → Batch 3.6 status record, and *Answered design decisions*. |
 | **DD-18** | **ANSWERED 2026-09-04 — refuse a premature close, with no override.** Applied in Batch 3.6b, together with L-26's refunds columns. | Batch 3.6b (`COMPLETED`) | Full question and rationale: `REMEDIATION_RECORD.md` → *Answered design decisions*; evidence in the record's Batch 3.6b section. |
@@ -881,7 +870,7 @@ Nothing else in the catalogue changes: all 61 non-drink products stay at 10 %.
 
 # STAGE 4 — SECURITY & INTEGRITY
 
-**Stage status:** `IN PROGRESS` — 4.1 through 4.4 and **4.4b** `COMPLETED` (all 2026-09-04); **4.4c `NOT STARTED`, not blocked**; 4.5 through 4.7 `NOT STARTED`. **4.5 is blocked on DD-08.**
+**Stage status:** `IN PROGRESS` — 4.1 through 4.4, **4.4b** and **4.4c** `COMPLETED` (all 2026-09-04); 4.5 through 4.7 `NOT STARTED`. **4.5 is blocked on DD-08.**
 
 Audit section J, step 5: close the one real privilege-escalation path, stop blocking the event loop, rotate the default credentials, and stop the silent data-loss paths.
 
@@ -1006,79 +995,28 @@ Audit section J, step 5: close the one real privilege-escalation path, stop bloc
 
 ## Batch 4.4c — Step-up PIN for large discounts and every refund
 
-**Status:** `NOT STARTED` · **Decisions:** DD-19 · **Findings:** **L-34** and **L-35**, both in `discount-dialog.tsx` and both required by *Validation Required* below. The step-up itself is a behaviour change the operator asked for, not a finding.
+**Status:** `COMPLETED` · **Completed:** 2026-09-04 · **Commit:** `PENDING` · **Findings:** L-34, L-35, **M-18** (closed here rather than in 5.7, by operator decision); DD-19 applied
+**Record:** `REMEDIATION_RECORD.md` → *Batch 4.4c* — specification, the four operator decisions, validation criteria and status record, moved there verbatim on 2026-09-04.
 
-**What exists today.** Above the configured threshold a MANAGER or SUPER_ADMIN
-is **silently self-approved**: `orders/route.ts:238` sets
-`discountApproverId = user.id` with no prompt and no keystroke, and
-`refund/route.ts:96` does the same for a refund of any amount. The record is
-therefore not empty — it names the manager as their own approver — but
-nothing about the act is deliberate. *(Line numbers re-measured after Batch
-4.4b, which removed the CASHIER arms that used to sit above both. Re-grep
-before trusting them.)*
+**Constraints this batch leaves behind** *(sentences copied from the record, not paraphrased)*
+- The token must name the caller. *(record, Changes (1))*
+- `discountNeedsStepUp`, extracted verbatim from `orders/route.ts`, on its own with no imports because a `"use client"` component cannot import the service. *(record, Changes (2))*
+- Sharing `/api/auth/approve`'s **rate-limit key** so the two surfaces cannot be played off against each other. *(record, Changes (3))*
+- **Decided where the old gate stood and consumed after the payment and livraison checks**, so a mistyped payment does not burn a single-use token. *(record, Changes (4))*
+- One mandatory step-up, **every refund, no threshold**. *(record, Changes (5))*
+- Left optional so the refusal is the route's French sentence rather than an English zod message (L-22). *(record, Changes (6))*
+- **No migration** — nothing was added to the schema, so the fix is in force the moment the code runs; production still stands at 6 applied migrations and **nothing waits on the operator**. *(record, Files)*
+- A "PIN was entered" flag would be **true on every record the batch can produce** — the sale is refused without it — so it would add no information while creating a **third payload vintage** for every future reader to tolerate. *(record, note 1)*
+- A step-up failure writes `MANAGER_APPROVAL_FAILED` — Batch 4.1's own action — so five wrong PINs are five **in total** across the step-up and the manager approval, not five each. *(record, note 2)*
+- Because every refund needs a PIN, five fumbles mean **no refunds and no large discounts for fifteen minutes**. *(record, note 2)*
+- A 400 from those checks therefore leaves the token unused, and `payment-dialog.tsx` mirrors that exactly: it keeps the token on a 400 and discards it on anything else. *(record, note 5)*
+- `verifyApprovalToken` marks a token consumed before `consumeStepUpToken` can compare the approver to the caller, so the rightful owner's next attempt gets a 409 and re-confirms. *(record, note 6)*
+- Both are kept, as Batch 4.4b kept them, and a second operational role would want them back. *(record, note 7)*
+- **No real PIN was used anywhere.** The live values were never seen and are recorded nowhere. *(record, note 8)*
+- `TaskStop` kills the parent only; always check the port and the process list. *(record, note 9)*
+- This batch binds and compares cents throughout and says so at the top of `step-up.ts`, but does not edit `approvals.ts` — that file is not this batch's (safety rule 10). *(record, note 10)*
 
-**What Batch 4.4b left standing for this batch, deliberately.** Read its stub
-above before starting; the short version is that the wiring is already there.
-
-- `payment-dialog.tsx:121` holds `const MANAGER_APPROVAL_TOKEN_REQUIRED = false`
-  and the gate it feeds at `:124`. The `ManagerApprovalDialog`, its
-  `handleApproved`, and the **`finalize(tokenArg)` re-entry mechanism** are all
-  still mounted and working — that mechanism was a post-audit bug fix (N1: a
-  state-based re-entry captured a stale closure and re-opened the dialog
-  forever), so **reuse it rather than rebuilding it**.
-- `/api/auth/approve`, `approvals.ts`, `manager-approval-dialog.tsx` and Batch
-  4.1's `approval-lockout.ts` are untouched and dormant.
-- `discount.approvalToken` is still accepted on the wire at
-  `orders/route.ts:40` and ignored. Decide whether the step-up replaces it or
-  sits beside it.
-- `orders-view.tsx` still opens the manager dialog on **every** refund and
-  sends a token — that is **M-18**, assigned to Batch 5.7, and this batch will
-  collide with it. Decide explicitly whether 4.4c supersedes M-18 or leaves it;
-  do not let it be decided by accident.
-
-**What DD-19 asks for.** The signed-in user re-enters **their own PIN** to
-confirm. The control is not distrust of the manager; it is the unattended
-till, where today a passer-by can apply a 100 % discount or refund any amount
-with no challenge whatsoever.
-
-**Shape.**
-
-- **Discounts:** required above `Setting.discountApprovalThreshold` — the
-  existing, configurable value, in Réglages, which the manager can now reach
-  after Batch 4.4.
-- **Refunds:** required on **every refund, with no threshold** (operator
-  decision, 2026-09-04).
-- **Both roles.** The same rule applies to SUPER_ADMIN: identical argument,
-  and one code path instead of two.
-- **It re-authenticates the caller, and must not reuse `/api/auth/approve`.**
-  That route tests the PIN against every manager *and forbids self-approval* —
-  it was built for a cashier asking a manager, and with one operational role
-  it can never succeed. A distinct path is required.
-- **It is a new brute-force surface, so it inherits the existing walls.**
-  Guessing your own PIN is pointless; guessing the *manager's* PIN through the
-  discount dialog at an unattended till is exactly the threat. Reuse
-  `approval-lockout.ts` (Batch 4.1) rather than inventing a second lockout,
-  and route every derivation through `pin-hash-queue.ts` (Batch 4.2).
-- **Journalling.** Decide explicitly whether the confirmed authorisation adds
-  anything to the `VENTE` / `REMBOURSEMENT` payloads. If it does, that is a
-  **payload vintage change** — *Open Threads → D* applies, and sealed rows are
-  never re-serialised.
-
-### Batch 4.4c — Validation Required
-
-- Targeted test: a discount above the threshold without a valid PIN is refused; with one, it proceeds and records the authorisation.
-- Targeted test: a refund without a valid PIN is refused **at any amount**, including the smallest.
-- Targeted test: a wrong PIN counts toward the existing lockout and does not extend it once locked (Batch 4.1's property).
-- Targeted test: the derivation goes through the bounded queue — the event loop is not blocked (Batch 4.2's property).
-- Each new test **fails against the pre-batch code**.
-- Manual, on a scratch copy through the real routes: discount below threshold unchanged; above threshold prompts; refund prompts; both appear correctly in the journal and the audit log.
-- **L-35 must be closed by this batch.** `discount-dialog.tsx:74-80` still promises « Un manager doit approuver lors de l'encaissement », which Batch 4.4b made false and deliberately did not reword because DD-19 changes the words (the caller's **own** PIN, not a manager's). This batch may not close while that banner is wrong.
-- **L-34 must be closed by this batch.** `discount-dialog.tsx:35` computes `percent` as euros ÷ cents, so a real 40 % discount displays as « 0.4% du sous-total ». This batch makes that very threshold the trigger for a PIN prompt, so an operator reading the wrong figure will be surprised by the challenge. `handleChange` at `:38` already has the arithmetic right — copy it, do not invent a third form.
-- `bun test src` — PASS. `bun run typecheck` — PASS. `bun run lint` — PASS. `bun run build` — PASS.
-
-### Batch 4.4c — Status Record
-
-**Status:** `NOT STARTED` · **Completed:** — · **Changes:** — · **Files:** — · **Tests:** — · **Commit:** — · **Notes:** —
+**Left open:** **L-36** → *Newly Discovered Issues* (`ApprovalPayload.amount` is commented "euros" and has carried cents since the routes were written). **T-03** is unaffected and still belongs to Batch 6.1: `POST /api/auth/step-up` declares no role list, which the declarative matrix expects of a route open to any authenticated caller, and the matrix asserts declarations rather than driving requests. **L-33** is unchanged — this batch added one gate to the 29 it counts, and narrowing them is still a review. Whether the now-fully-dormant `/api/auth/approve` and `manager-approval-dialog.tsx` should eventually be deleted is the question DD-07's rationale recorded and nobody has yet been asked.
 
 ---
 
@@ -1430,8 +1368,8 @@ Audit section J, step 6: none of these are subtle; all of them generate support 
 | ID | Status | Problem | Location | Direction |
 |---|---|---|---|---|
 | **M-19** | `NOT STARTED` | Order-type-specific option modifiers are stored in the generic `priceModifier` slot, so switching order type after adding an item computes the wrong client total — and the server then rejects the checkout with "Paiement incorrect". | `product-options-dialog-v2.tsx:86-98` vs `cart-store.ts:197-202` | Keep the dine-in modifier alongside the resolved one in `CartOption`. Existing tests miss this because they build `CartItem` by hand. |
-| **M-17** | `NOT STARTED` | The discount dialog's "% du sous-total" caption divides euros by cents — a 25 % discount displays as "0,3 %", directly above a correctly-computed approval banner. | `discount-dialog.tsx:35` vs `:39` | Use one unit. Same class as C-01/C-02. |
-| **M-18** | `NOT STARTED` | A lone manager cannot refund through the UI: the client always opens the PIN dialog, and the server blocks self-approval — while the refund route would have accepted the manager's own session with no token. | `orders-view.tsx:233-238`; `approve/route.ts:121-126`; `refund/route.ts:87-89` | Skip the dialog when `user.role !== "CASHIER"`. |
+| **M-17** ✅ **RESOLVED in Batch 4.4c** (2026-09-04) | ~~`NOT STARTED`~~ | The discount dialog's "% du sous-total" caption divides euros by cents — a 25 % discount displays as "0,3 %", directly above a correctly-computed approval banner. | `discount-dialog.tsx:35` vs `:39` | Use one unit. Same class as C-01/C-02. **This is the same defect Batch 4.4b re-recorded as L-34** without noticing the audit had already numbered it; 4.4c closed both, and the audit ID is kept because audit IDs are never renamed. |
+| **M-18** ✅ **RESOLVED in Batch 4.4c** (2026-09-04) | ~~`NOT STARTED`~~ | A lone manager cannot refund through the UI: the client always opens the PIN dialog, and the server blocks self-approval — while the refund route would have accepted the manager's own session with no token. | `orders-view.tsx:233-238`; `approve/route.ts:121-126`; `refund/route.ts:87-89` | ~~Skip the dialog when `user.role !== "CASHIER"`.~~ **Closed by a different mechanism, by operator decision (2026-09-04):** the refund dialog now asks for the caller's *own* PIN rather than skipping the prompt, so the refund stays a deliberate act instead of becoming a silent one. Verified in the UI — the lone manager completed a full refund. |
 | **M-20** | `NOT STARTED` | The POS product grid has no error state; an API failure renders "Aucun produit dans cette catégorie". | `pos-view.tsx:43-51, 235-240` | Distinguish empty from failed. The worst false empty state in the app. |
 | **M-21** | `NOT STARTED` | Any transient failure of `/api/auth/me` is caught and treated as logged-out, ejecting the cashier mid-service. | `app-store.ts:81-83` | Distinguish a network error from a 401. |
 | **M-22** | `NOT STARTED` | A single global error boundary wraps the whole shell; a crash in any view blanks the till. No App Router `error.tsx`. | `app-shell.tsx:115,161`; `src/app/` | Per-view boundaries plus an `error.tsx` fallback. |
@@ -1446,8 +1384,8 @@ Audit section J, step 6: none of these are subtle; all of them generate support 
 
 - Targeted test for M-19 built through the options dialog's own mapping, not a hand-built `CartItem` — the existing tests miss the bug precisely because they bypass it.
 - Targeted test: switching order type after adding an item produces a client total the server accepts.
-- Manual: the discount dialog's percentage caption matches the approval banner (M-17).
-- Manual: a manager alone can complete a refund (M-18).
+- ~~Manual: the discount dialog's percentage caption matches the approval banner (M-17).~~ — **done in Batch 4.4c**, which also had to make the banner true.
+- ~~Manual: a manager alone can complete a refund (M-18).~~ — **done in Batch 4.4c**, with the caller's own PIN.
 - Manual: a failed catalogue fetch shows an error, not an empty category (M-20).
 - Manual: a transient `/api/auth/me` failure does not log the cashier out (M-21).
 - Manual: a crash in one view does not blank the topbar or the POS (M-22).
@@ -1749,8 +1687,7 @@ Open rows only. A row resolved by a batch moves, unchanged, to `REMEDIATION_RECO
 
 | ID | Date | Found during | Description | Severity | Assigned to batch |
 |---|---|---|---|---|---|
-| **L-35** | 2026-09-04 | Batch 4.4b | **The discount dialog still promises a manager approval that no longer happens.** `discount-dialog.tsx:74-80` renders an amber banner above the threshold — « Remise supérieure à {threshold}%. Un manager doit approuver lors de l'encaissement. » — and after Batch 4.4b removed the CASHIER arm of the server gate, nobody is asked for anything: the caller is silently recorded as their own approver. The statement is false for the interval between 4.4b and 4.4c. It was **recorded rather than reworded on purpose**: DD-19 makes it true again with different words (the caller re-enters *their own* PIN, not a manager's), so choosing the replacement wording is 4.4c's decision, not a guess made while removing a role (safety rules 10 and 11). Note the banner's own trigger, `needsApproval`, computes the percentage **correctly** — it is three lines from L-34's defect and does not share it. | LOW (operator-facing text; wrong for one batch's duration) | 4.4c |
-| **L-34** | 2026-09-04 | Batch 4.4b manual validation | **The discount dialog displays the discount percentage 100× too small, dividing euros by cents.** `discount-dialog.tsx:35` computes `percent = Math.round((value / subtotal) * 1000) / 10`, where `value` is in **euros** (the file's own comment at :28-29 says so — `apply()` calls `toCents(value)`) and `subtotal` comes from `computeCartTotals` in **cents**. Observed in this batch's browser walkthrough: a 1,20 € discount on a 3,00 € subtotal — a genuine **40 %** — displayed as « **0.4**% du sous-total ». Three lines below, `handleChange` gets the same arithmetic right (`(v / (subtotal / 100)) * 100`), so the amber threshold banner fires correctly while the number beside it does not. Pre-existing and unrelated to the role removal; it matters more after Batch 4.4c, because that batch makes this threshold the trigger for a PIN prompt and the operator will be reading this figure to predict it. Same class as C-01: a unit confusion in a money path. | MEDIUM (misleading figure on the control the operator uses to judge a discount) | 4.4c or 5.7 |
+| **L-36** | 2026-09-04 | Batch 4.4c | **`ApprovalPayload.amount` is documented as euros and has always carried cents.** `approvals.ts:17` declares `amount: number | null; // euros`, but every caller binds cents: `refund/route.ts` passes `parsed.data.amount` (cents, per the `refundSchema` comment), `orders-view.tsx` passes `amountCents` by that name, and `payment-dialog.tsx` passes `discountTotal`. The HMAC therefore binds a cent figure while the type says otherwise, and the `tolerance ?? 0.001` in `verifyApprovalToken` reads as a floating-point euro guard when it is in fact an exact-integer-cent comparison. Nothing is mis-computed today — both sides agree — so this is a comment and a type-doc defect, not a money defect. It matters because Batch 4.4c's step-up now binds amounts through the same field, and the next person to add a caller will read the comment. Recorded rather than fixed: `approvals.ts` is not this batch's file (safety rule 10). **Fix by correcting the comment, not the code.** | LOW (documentation contradicts the implementation in a money path) | 7.1 or 5.7 |
 | **L-33** | 2026-09-04 | Batch 4.4b | **With one operational role removed, every gate naming `["SUPER_ADMIN", "MANAGER"]` now admits the entire role model — it is no narrower than declaring no roles at all.** Measured after the removal: **29 declaration sites across 26 route files**, including `POST /api/reports/z` (closing the day) and `POST /api/orders/[id]/reprint` (a journalled REIMPRESSION). Nothing regressed — these gates were never wider than they are — but a reader now cannot tell a deliberate restriction from a decorative one, and `api-authorization.test.ts` had been asserting exactly that property via `not.toContain("CASHIER")`, which the removal made vacuous (the test was rewritten to pin each declared list instead). **Two sites are sharper than the rest:** `GET /api/users` and `GET /api/backups` both answer **200** to a MANAGER whose nav entry for those views is deliberately SUPER_ADMIN-only (DD-07), so the API contradicts the navigation. Verified on a scratch copy: `GET /api/users` returns ids, usernames, names, roles and active flags — **no PIN hashes** — and `GET /api/backups` returns the backup list. `GET /api/logs` correctly returns 403 and is the shape the other two should match. This is the same defect class as M-19s at two routes M-19s did not name. Deciding which of the 29 should narrow to `["SUPER_ADMIN"]` is a review, not a mechanical fix. | MEDIUM (authorization declarations no longer mean what they read as; two contradict the nav) | 6.1 or 7.2 |
 | **L-32** | 2026-09-04 | Batch 4.4 | **Role gating uses two idioms, and only one is visible to the T-03 matrix.** About twenty routes declare their gate as `withAuth(handler, { roles })`; about twenty others admit any authenticated caller at the wrapper and then refuse inside the handler with `if (user.role !== "SUPER_ADMIN") return 403` — `POST /api/backups`, `DELETE /api/backups/[id]`, `POST /api/users` and `PUT /api/settings` among them. **Neither group is insecure**: the inline checks work. The cost is that `api-authorization.test.ts` cannot see the second group, so the declaration-level matrix is complete only for the first, and a future route copying the inline pattern inherits that blind spot. Converting them is mechanical but **user-visible**: the inline guards answer « Réservé au super administrateur » while `withAuth` answers « Accès refusé », so a conversion changes the message an operator reads on every one of those routes. Do it as one deliberate change with the message decided, not incidentally. The test pins which idiom each destructive route uses in the meantime. | LOW (test coverage blind spot; no live exposure) | 6.1 or 7.2 |
 | **L-31** | 2026-09-04 | Batch 4.3 | **`POST /api/seed` reports any catalogue-seeding failure as a won race.** The catalogue step is wrapped in `catch { return … "Base initialisée (requête concurrente)." }`, so every error — not just a genuine concurrent request — is reported to the operator as success. Observed during this batch's validation: on a copy whose users were empty but whose catalogue was intact, `seedCatalogAndSettings` threw on duplicate category names and the route answered `200` with that message. The two bootstrap users *were* created, so the C-18 behaviour under test was unaffected, but an operator seeing that message cannot tell a real race from a catalogue that failed to seed. Narrower after this batch — the new freshness guard refuses most databases that could reach it — but the swallow-everything catch is still there. Distinguish the P2002 unique-constraint case from the rest, as the users branch above it already does. | LOW (misleading operator message on a bootstrap path) | 5.7 or 7.1 |

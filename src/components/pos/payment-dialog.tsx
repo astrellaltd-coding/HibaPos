@@ -14,7 +14,8 @@ import { api, ApiError } from "@/lib/api-client";
 import type { OrderDto, PaymentMethod, SettingsDto } from "@/types/api";
 import { Banknote, CreditCard, Ticket, Plus, Trash2, Loader2, CheckCircle2, Coins } from "lucide-react";
 import { toast } from "sonner";
-import { ManagerApprovalDialog, type ApprovedManager } from "@/components/pos/manager-approval-dialog";
+import { StepUpPinDialog, type StepUpConfirmation } from "@/components/pos/step-up-pin-dialog";
+import { discountNeedsStepUp } from "@/lib/discount-policy";
 
 type PayLine = { method: PaymentMethod; amount: number; tendered?: number }; // cents
 
@@ -39,17 +40,17 @@ export function PaymentDialog({
   const [activeMethod, setActiveMethod] = useState<PaymentMethod>("CASH");
   const [customAmount, setCustomAmount] = useState("");
   const [loading, setLoading] = useState(false);
-  const [approvalOpen, setApprovalOpen] = useState(false);
-  // Signed approval token captured from ManagerApprovalDialog. Kept in state
-  // ONLY for display/badge purposes — the authoritative copy used by
-  // `finalize` is passed as an argument on re-entry, because a `setTimeout`
-  // or state-based re-entry would capture a stale closure where
-  // `approvalToken` is still null (post-audit N1 — the approval dialog
-  // looped forever).
-  const [approvalToken, setApprovalToken] = useState<string | null>(null);
+  const [stepUpOpen, setStepUpOpen] = useState(false);
+  // Signed step-up token captured from StepUpPinDialog. Kept in state ONLY
+  // for display/badge purposes — the authoritative copy used by `finalize` is
+  // passed as an argument on re-entry, because a `setTimeout` or state-based
+  // re-entry would capture a stale closure where `stepUpToken` is still null
+  // (post-audit N1 — the approval dialog looped forever). Batch 4.4c kept
+  // this mechanism and changed only which dialog fills it.
+  const [stepUpToken, setStepUpToken] = useState<string | null>(null);
 
-  // Settings hold the discount approval threshold. This read is also what
-  // Batch 4.4c needs for the step-up PIN, which prompts on the same threshold.
+  // Settings hold the discount approval threshold — the same value that
+  // decides whether the step-up PIN is demanded (DD-19, Batch 4.4c).
   const { data: settings } = useQuery({
     queryKey: ["settings"],
     queryFn: () => api.get<SettingsDto>("/api/settings"),
@@ -75,7 +76,7 @@ export function PaymentDialog({
     setLines([]);
     setCustomAmount("");
     setActiveMethod("CASH");
-    setApprovalToken(null);
+    setStepUpToken(null);
   };
 
   const close = (v: boolean) => {
@@ -110,36 +111,36 @@ export function PaymentDialog({
 
   const removeLine = (idx: number) => setLines((l) => l.filter((_, i) => i !== idx));
 
-  // The client mirror of the server's discount gate. Batch 4.4b removed the
-  // CASHIER role (DD-07), and with it the only role the server ever asked for
-  // a manager approval token — `/api/orders` now records the caller as their
-  // own approver at any magnitude. So no caller needs one, and this is
-  // DORMANT, not deleted: the dialog, the re-entry mechanism below and
-  // `/api/auth/approve` are kept because Batch 4.4c hooks its step-up PIN
-  // (DD-19) into exactly this path, on exactly this threshold. Deleting
-  // audited work to tidy up is not this plan's habit.
-  const MANAGER_APPROVAL_TOKEN_REQUIRED = false; // no surviving role requires one
+  // The client mirror of the server's discount gate, live again since Batch
+  // 4.4c (DD-19). Between Batches 4.4b and 4.4c it was pinned false: the
+  // CASHIER role was gone and no surviving role was ever asked for a manager
+  // approval token, so `/api/orders` recorded the caller as their own approver
+  // at any magnitude, with no keystroke.
+  //
+  // `discountNeedsStepUp` is the server's own function — imported rather than
+  // re-implemented, so this mirror cannot drift from the gate it mirrors. If
+  // it ever did, the server refuses and the till reports it; the mirror only
+  // decides whether to ask first.
   const discountPercent = subtotal > 0 ? (discountTotal / subtotal) * 100 : 0;
   const discountThreshold = settings?.discountApprovalThreshold ?? 20;
-  const needsDiscountApproval =
-    MANAGER_APPROVAL_TOKEN_REQUIRED && discountTotal > 0 && discountPercent > discountThreshold + 0.01;
+  const needsStepUp = discountNeedsStepUp(discountTotal, subtotal, discountThreshold);
 
-  // `tokenArg` is passed by handleApproved on re-entry after the manager
-  // approves. State (`approvalToken`) is intentionally NOT read here for the
-  // gate: when this closure was created, state was still null.
+  // `tokenArg` is passed by handleConfirmed on re-entry after the operator
+  // enters their PIN. State (`stepUpToken`) is intentionally NOT read here for
+  // the gate: when this closure was created, state was still null.
   const finalize = async (tokenArg?: string) => {
     if (paid < total - 1) { // within 1 cent
       toast.error("Paiement insuffisant");
       return;
     }
 
-    // If a discount is in play and the cashier is below the role gate, open
-    // the manager approval dialog. handleApproved re-enters finalize with
-    // the signed approvalToken as an argument (NOT via state — the stale
-    // closure would otherwise re-open the dialog forever).
-    const effectiveToken = tokenArg ?? approvalToken;
-    if (needsDiscountApproval && !effectiveToken) {
-      setApprovalOpen(true);
+    // Above the threshold the operator confirms with their own PIN (DD-19).
+    // handleConfirmed re-enters finalize with the signed token as an argument
+    // (NOT via state — the stale closure would otherwise re-open the dialog
+    // forever, post-audit N1).
+    const effectiveToken = tokenArg ?? stepUpToken;
+    if (needsStepUp && !effectiveToken) {
+      setStepUpOpen(true);
       return;
     }
 
@@ -150,7 +151,7 @@ export function PaymentDialog({
           ? {
               type: "AMOUNT" as const,
               value: discountTotal,
-              approvalToken: effectiveToken ?? undefined,
+              stepUpToken: effectiveToken ?? undefined,
             }
           : undefined;
 
@@ -205,24 +206,31 @@ export function PaymentDialog({
       qc.invalidateQueries({ queryKey: ["shift", "current"] });
 
       clear();
-      setApprovalToken(null);
+      setStepUpToken(null);
       close(false);
       onCompleted(order);
     } catch (e) {
       const msg = e instanceof ApiError ? e.message : "Erreur lors de l'encaissement";
       toast.error(msg);
+      // The token is single-use, and `/api/orders` consumes it as its LAST
+      // check before writing the sale. A 400 is therefore one of the cheap
+      // validations above that point — the token is untouched and the
+      // operator can fix the payment lines and retry without a second PIN.
+      // Anything else may have burned it, so drop it and prompt again rather
+      // than let the retry fail with "Token déjà utilisé".
+      if (!(e instanceof ApiError) || e.status !== 400) setStepUpToken(null);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleApproved = (approver: ApprovedManager) => {
+  const handleConfirmed = (confirmation: StepUpConfirmation) => {
     // Store for badge/display state, then immediately re-run finalize with
     // the token as an ARGUMENT — a setTimeout(() => finalize(), 0) here
-    // would capture the stale closure where approvalToken === null and
-    // re-open the approval dialog forever (post-audit N1).
-    setApprovalToken(approver.approvalToken);
-    void finalize(approver.approvalToken);
+    // would capture the stale closure where stepUpToken === null and
+    // re-open the dialog forever (post-audit N1).
+    setStepUpToken(confirmation.stepUpToken);
+    void finalize(confirmation.stepUpToken);
   };
 
   return (
@@ -248,9 +256,9 @@ export function PaymentDialog({
               )}
             </div>
 
-            {needsDiscountApproval && (
+            {needsStepUp && (
               <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                Remise {discountPercent.toFixed(1)}% &gt; seuil {discountThreshold}% — validation manager requise à l'encaissement.
+                Remise {discountPercent.toFixed(1)}% &gt; seuil {discountThreshold}% — confirmation par votre code PIN requise.
               </p>
             )}
 
@@ -400,14 +408,14 @@ export function PaymentDialog({
         </DialogFooter>
       </DialogContent>
 
-      <ManagerApprovalDialog
-        open={approvalOpen}
-        onOpenChange={setApprovalOpen}
+      <StepUpPinDialog
+        open={stepUpOpen}
+        onOpenChange={setStepUpOpen}
         action="DISCOUNT"
         amount={discountTotal > 0 ? discountTotal : undefined}
-        onApproved={handleApproved}
-        title="Validation remise"
-        description={`La remise (${discountPercent.toFixed(1)}%) dépasse le seuil (${discountThreshold}%). Saisissez le PIN d'un manager pour valider.`}
+        onConfirmed={handleConfirmed}
+        title="Confirmation de la remise"
+        description={`La remise (${discountPercent.toFixed(1)}%) dépasse le seuil (${discountThreshold}%). Saisissez votre code PIN pour la confirmer.`}
       />
     </Dialog>
   );
