@@ -363,7 +363,7 @@ These cannot be resolved from the code. **Claude must not decide them.** Each bl
 | **DD-05** | **ANSWERED 2026-09-04 — refuse out-of-order closes.** A close must be the period immediately following the last sealed one; the first close is unconstrained. Decided with zero closes in existence. | Batch 3.6 (`COMPLETED`) | Evidence: record → Batch 3.6 status record, and *Answered design decisions*. |
 | **DD-18** | **ANSWERED 2026-09-04 — refuse a premature close, with no override.** Applied in Batch 3.6b, together with L-26's refunds columns. | Batch 3.6b (`COMPLETED`) | Full question and rationale: `REMEDIATION_RECORD.md` → *Answered design decisions*; evidence in the record's Batch 3.6b section. |
 | **DD-06** | **ANSWERED 2026-09-04 — no LAN access; bind `127.0.0.1`.** The POS runs on the all-in-one till and nothing else. No `APP_URL` change is needed, and printing is unaffected (the ESC/POS bridge dials **out**). | Batch 4.3 | Decided by the user. The plan's old “protective by accident” line was **wrong** and is corrected in the record: the `Secure` cookie broke LAN login for staff while `profiles` and `login` still answered over the LAN unauthenticated. Full question, measurements and rationale: `REMEDIATION_RECORD.md` → *Answered design decisions*. |
-| **DD-07** | **ANSWERED 2026-09-04 — there are no cashiers.** Only **MANAGER** operates the till; **SUPER_ADMIN is the developer's account** and must not be visible to restaurant staff; `CASHIER` stays in the code, unused; no approval control is required in operation. | Batch 4.4 (M-19s) | Decided by the user. The original question had no subject. Today the login screen renders a SUPER_ADMIN button and `/api/auth/profiles` lists it — hiding it is Batch 4.4's work. Full rationale and the two recorded consequences: `REMEDIATION_RECORD.md` → *Answered design decisions*. |
+| **DD-07** | **ANSWERED 2026-09-04 — there are no cashiers.** Only **MANAGER** operates the till; **SUPER_ADMIN is the developer's account**; `CASHIER` stays in the code, unused; no approval control is required in operation. **The manager seeing that a super-admin account exists is accepted** — the login screen keeps its SUPER_ADMIN button. | Batch 4.4 — **M-19s has no subject under this model** | Decided by the user, amended the same day to accept the account's visibility. Full rationale and the recorded consequences: `REMEDIATION_RECORD.md` → *Answered design decisions*. |
 | **DD-08** | **Operator scripts.** Guard them, or remove them from the shipped tree? | Batch 4.5 (C-17) | Precedent exists: `scripts/delete-products.js` was removed for the same hazard. |
 | **DD-09** | **Tables.** Wire table selection into the POS, or withdraw the feature from the documentation? | Batch 5.2 (C-21) | The floor plan, model and API all exist; only the POS link is missing. |
 | **DD-10** | **Cross-shift refunds.** Allow, attributed to the current open shift? Restrict to MANAGER+? Or keep the current refusal and define an approved manual procedure? | Batch 5.3 (C-14) | The current refusal pushes staff toward untraced cash refunds. |
@@ -959,18 +959,28 @@ deployment:
 
 - **Only the MANAGER account operates the till.**
 - **The SUPER_ADMIN account is the developer's**, not the restaurant's. Staff
-  are not to have access to it *or to see it*.
+  do not use it. **Its visibility is accepted**: the manager may see that such
+  an account exists, and the login screen keeps its SUPER_ADMIN button.
 - **`CASHIER` stays in the code but no cashier account will exist.** The role
   is implemented and working; it is simply unused.
 - **No discount or refund approval control is required in operation.**
 
-**What this changes about M-19s.** It stops being "decide what a cashier may
-read" and becomes "hide the developer's account from the restaurant". That is
-**not satisfied today**: `login-screen.tsx:486-489` renders a dedicated button
-for the SUPER_ADMIN profile, and `GET /api/auth/profiles` is public and returns
-every active user's id, username, name and role — so the restaurant both sees
-that account and can select it. C-18 already recorded the endpoint as an
-enumeration surface; this batch is where the visibility decision lands on it.
+**M-19s has no subject under this model — mark it `DEFERRED`, not
+`COMPLETED`.** It described reads left ungated *for a CASHIER*: `GET
+/api/settings` (SIRET, TVA number, discount threshold), `GET /api/reports/x`,
+and the shift endpoints. There are no cashiers, and the only two roles that
+exist are both entitled to all of it — a MANAGER running the restaurant may
+read its own SIRET. The `GET`/`POST` disagreement on `/api/reports/x` is real
+but unobservable here, because every account that can call the `GET` can also
+call the `POST`.
+
+Two things must therefore be written down rather than fixed, so neither is
+lost if a cashier account is ever created: the ungated reads above, and the
+fact that **`GET /api/auth/profiles` is public and returns every active user's
+id, username, name and role**, with `login-screen.tsx:486-489` rendering a
+dedicated button for the SUPER_ADMIN profile. The user has **accepted** that
+the manager sees the developer's account, so this batch does not hide it. C-18
+already carries the endpoint as an enumeration surface.
 
 **What this does NOT change.** C-16, M-24, M-25 and M-26 are untouched by the
 absence of cashiers. C-16 in particular is fully live between MANAGER and
