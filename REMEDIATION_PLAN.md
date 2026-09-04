@@ -13,17 +13,17 @@ Detailed audit record: https://claude.ai/code/artifact/329316b0-3a6b-48b0-9d27-d
 
 **Current Stage:** **Stage 5 is IN PROGRESS** — **5.1 COMPLETED 2026-09-05**, and it was the only one of its seven batches that needed no design decision. **Stage 4 is COMPLETED** (4.1 through 4.4, 4.4b, 4.4c, 4.5, 4.6 and 4.7, all 2026-09-04). **Stage 3 is COMPLETED** (3.1 through 3.6 plus 3.6b), with C-22's chain-design half carried forward as `REQUIRES EXTERNAL VERIFICATION` and V-03 open. Stage 1 is **partly done**: 1.1 and 1.2 COMPLETED, 1.3 `IMPLEMENTED — TESTING REQUIRED` on hardware, 1.4 deferred. Stage 2 is COMPLETED.
 
-**Current Batch:** none — **every remaining Stage 5 batch is gated**: **DD-09 → 5.2, DD-10 → 5.3, DD-11 → 5.4, DD-12 → 5.5, DD-13 → 5.6, DD-14 and DD-15 → 5.7**. They are business decisions Claude must not take, and they are all the same *kind* of question (does this feature exist in this restaurant's workflow or not?), so put **DD-09 through DD-15 to the operator as one brief** rather than one per batch.
+**Current Batch:** none — **Stage 5 is fully unblocked.** DD-09 through DD-15 were all answered 2026-09-05 in one brief, so 5.2 through 5.7 can each be worked in turn; their one-line answers are in *Design Decisions Required* and the rationale, with the measurements that shaped it, in the record. **5.2's Validation Required assumes the answer it did not get and must be re-derived first.**
 
 **Last Completed Batch:** Batch 5.1 — Keyboard shortcuts, which **closes C-20** and opens Stage 5. Not one of the nine POS shortcuts had ever fired since the initial commit: the matcher compared an optional `boolean | undefined` against the event's real boolean without coercion, so `undefined !== false` was true on the *ctrl* line for every shortcut on every keystroke — `Shift+?` died there before reaching its own shift check. `!!s.ctrl !== e.ctrlKey`, and the same for shift and alt, is the plan's own fix. **The measurement that reshaped it:** Windows reports `/` on the French AZERTY layout as vk `0xBF` **with SHIFT**, so the strict matcher would have refused the documented `/` search key at the very till it was written for. The operator answered **register it both ways** — QWERTY `Shift+/` emits `?` and AZERTY `Shift+:` emits `/`, so the two entries cannot collide. Running the walkthrough then found **a second dead thing behind C-20**: `pos-view.tsx` declared a `searchInputRef` it never attached, the real search box being the topbar's, so F1 and `/` fired into a no-op. The operator answered **fix it in this batch**. Both choices went up as one question each, before any code. **No migration; nothing waits on the operator.** *(Before it: Batch 4.7, C-15's shift-race half, which finished Stage 4 — record → Batch 4.7.)*
 
-**Next Batch:** Stage 5's remaining six (5.2 through 5.7), **all six gated** by DD-09 through DD-15. DD-16 shapes 7.1.
+**Next Batch:** Batch 5.2 — withdraw the table feature (DD-09). Then 5.3, 5.4, 5.5, 5.6, 5.7. **5.5, 5.6 and 5.7 each need a migration measured and handed over.**
 
 **Blocked:** Batch 1.3 `[HW]` sign-off and Batch 1.4 — both need the app running on the restaurant's POS machine, which is in a different country from the developer and has no copy of the app installed (decision of 2026-09-03).
 
-**Awaiting decision:** **DD-09 through DD-15 now block every remaining Stage 5 batch** — 5.1, the only ungated one, is done. All of DD-01, DD-02, DD-03, DD-05, DD-06, DD-07, DD-08, DD-17, DD-18 and DD-19 are answered; DD-04 and DD-09 through DD-16 are open and named against their batches in *Design Decisions Required*. Two recorded-but-not-urgent questions stand: `/api/auth/approve` and `manager-approval-dialog.tsx` have **no caller at all** since 4.4c, so whether to delete them is a real question; and **L-27** needs a decision before Batch 8.0.
+**Awaiting decision:** **only DD-04 and DD-16 remain open** — DD-04 (backup key rotation) blocks 7.3, DD-16 (tracking `public/uploads/` in git) shapes 7.1. Every other design decision is answered. Two recorded-but-not-urgent questions stand: `/api/auth/approve` and `manager-approval-dialog.tsx` have **no caller at all** since 4.4c, so whether to delete them is a real question; and **L-27** needs a decision before Batch 8.0.
 
-**Last Updated:** 2026-09-05 (session 12 — Batch 5.1, which opens Stage 5). Two things worth carrying forward. (1) **"No design decision against it" is a claim to test, not to trust.** 5.1 was handed over as pure coercion with nothing to adjudicate. Measuring the keyboard found one behaviour choice, and *running the app* found a second — a handler that had been dead behind the dead matcher all along. Read what the batch names, measure it, then run it: the walkthrough is not a formality at the end, it is where the second finding came from. (2) **The front matter has about 750 bytes of headroom** — 5.1 retired the *Environment as last seen* subsection, whose last item duplicated L-24 in three other places. **Still retire something before adding anything**, and say in the record what moved and where the fact lives.
+**Last Updated:** 2026-09-05 (session 12 — Batch 5.1, then the DD-09…DD-15 brief). Three things worth carrying forward. (1) **"No design decision against it" is a claim to test.** 5.1 was handed over as pure coercion; measuring the keyboard found one behaviour choice and *running the app* found a second. (2) **Measure the premise before writing the brief.** Three of the seven decisions had a premise that did not survive contact with the data — the floor plan holds one stale table, `PENDING` is dead alongside `CANCELLED`, and `ProductAddon` is superseded rather than lost, the category-level design having 21 live rows. All three are corrected in the record. (3) **The front matter has about 820 bytes of headroom.** Retire something before adding, and say in the record what moved and where the fact lives.
 
 ### OPEN THREADS — read this before starting a batch
 
@@ -305,13 +305,13 @@ These cannot be resolved from the code. **Claude must not decide them.** Each bl
 | **DD-06** | **ANSWERED 2026-09-04 — no LAN access; bind `127.0.0.1`.** No `APP_URL` change needed; printing is unaffected (the bridge dials **out**). The plan's old “protective by accident” line was wrong — corrected in the record. | Batch 4.3 (`COMPLETED`) | Full question and rationale: `REMEDIATION_RECORD.md` → *Answered design decisions*. |
 | **DD-07** | **ANSWERED 2026-09-04, amended twice the same day. Final: one operational role.** Only **MANAGER** operates the till; **SUPER_ADMIN is the developer's account**; **`CASHIER` is REMOVED from the product**, which is what let M-19s close. | Batches 4.4 and **4.4b** (both `COMPLETED`) | Full question and rationale: `REMEDIATION_RECORD.md` → *Answered design decisions*. |
 | **DD-08** | **ANSWERED 2026-09-04 — split, in six parts: remove the two scripts whose job is finished, rebuild `seed-users.ts` delete-free, guard the counter scripts, bring `scripts/` under static checking, correct the README.** The premise as written undercounted — C-17 named two dangerous scripts and there were three. | Batch 4.5 (`COMPLETED`) | Full question and rationale: `REMEDIATION_RECORD.md` → *Answered design decisions*. |
-| **DD-09** | **Tables.** Wire table selection into the POS, or withdraw the feature from the documentation? | Batch 5.2 (C-21) | The floor plan, model and API all exist; only the POS link is missing. |
-| **DD-10** | **Cross-shift refunds.** Allow, attributed to the current open shift? Restrict to MANAGER+? Or keep the current refusal and define an approved manual procedure? | Batch 5.3 (C-14) | The current refusal pushes staff toward untraced cash refunds. |
-| **DD-11** | **Held orders.** Move server-side (visible from any terminal, surviving a device swap, accounted for at Z close), or keep them device-local? | Batch 5.4 (C-23) | The current shape is not what "held orders" usually means operationally. |
-| **DD-12** | **Cash movements.** Add an entrée/sortie de caisse feature, and if so what categories and what approval level? | Batch 5.5 (M-05) | Without it, the variance figure C-02 fixes will still be wrong in practice. |
-| **DD-13** | **Order cancellation.** Support a pre-payment order state and a void, or remove the dead `d9b1b08`/`CANCELLED` enum values and the zero counter? | Batch 5.6 (M-08) | Leaving them implies a feature that does not exist. |
-| **DD-14** | **Zero-total orders.** Is a 100 % discount (staff meal, comp) a legitimate transaction? Currently impossible to check out. | Batch 5.7 (M-11) | If yes, it still needs a fiscal record — decide how it is journalled. |
-| **DD-15** | **Orphaned schema surfaces.** `ProductAddon` (no writer) and `Customer.postalCode` (no consumer) — build the missing write paths or remove the surfaces? | Batch 5.7 (M-09, M-10) | Both are flagged in audit section I as possible lost functionality; compare against the historical project before removing. |
+| **DD-09** | **ANSWERED 2026-09-05 — no table service; withdraw the feature.** The floor-plan screen leaves the navigation and the README; the model and the server-side auto-link stay, unused. | Batch 5.2 (C-21) | Full question and rationale: `REMEDIATION_RECORD.md` → *Answered design decisions*. |
+| **DD-10** | **ANSWERED 2026-09-05 — allow, attributed to the CURRENT open till.** The original sealed Z is never touched. | Batch 5.3 (C-14) | Full question and rationale: `REMEDIATION_RECORD.md` → *Answered design decisions*. |
+| **DD-11** | **ANSWERED 2026-09-05 — one till, so held orders stay device-local.** 5.4 does the lifecycle fixes and the persist version guard only. | Batch 5.4 (C-23) | Full question and rationale: `REMEDIATION_RECORD.md` → *Answered design decisions*. |
+| **DD-12** | **ANSWERED 2026-09-05 — add entrée/sortie de caisse with a fixed category list**: *approvisionnement*, *prélèvement*, *dépense*, *erreur de caisse*. Needs a migration. | Batch 5.5 (M-05) | Full question and rationale: `REMEDIATION_RECORD.md` → *Answered design decisions*. |
+| **DD-13** | **ANSWERED 2026-09-05 — no pre-payment state; remove the dead values** — **both** `PENDING` and `CANCELLED` — and the zero counter. | Batch 5.6 (M-08) | Full question and rationale: `REMEDIATION_RECORD.md` → *Answered design decisions*. |
+| **DD-14** | **ANSWERED 2026-09-05 — yes, under its own tender** « Offert / repas personnel », journalled with VAT at zero. | Batch 5.7 (M-11) | Full question and rationale: `REMEDIATION_RECORD.md` → *Answered design decisions*. |
+| **DD-15** | **ANSWERED 2026-09-05 — remove both.** The product-level add-on design is superseded, not lost. | Batch 5.7 (M-09, M-10) | Full question and rationale: `REMEDIATION_RECORD.md` → *Answered design decisions*. |
 | **DD-16** | **Should `public/uploads/` be tracked in git?** 134 files currently are, contradicting the README and complicating any git-based update. | Batch 7.1 (DOC-06) | Interacts with DD-02: if uploads move to a data directory, the question resolves itself. |
 
 *The other registers — *External / Legal / Fiscal Verification*, *Newly Discovered Issues*, *Deferred*, *Possibly overstated* — follow the stage sections below, so that everything above the first stage heading stays within one read.*
@@ -1072,6 +1072,8 @@ Audit section J, step 6: none of these are subtle; all of them generate support 
 
 **Remediation direction.** Wire a table picker into the POS order bar, or drop the feature from the documentation until it is wired. See DD-09.
 
+**DD-09 answered 2026-09-05 — withdraw it.** There is no table service here, so 5.2 removes the floor-plan screen from the navigation and corrects the README, and leaves the `Table` model, its API and the server-side auto-link in place, unused. **Two things to carry:** held tickets keep their `Commande N` labels, which is now intended rather than a symptom; and production holds one stale `Table` row (`T1 / Salle`, `OCCUPIED`, never linked to any order) — that is live data, so removing it is the operator's action (warning 4). **The Validation Required below assumes the opposite answer and must be re-derived before the batch starts.**
+
 ### Batch 5.2 — Validation Required
 
 - Manual: selecting a table in the POS carries the label through checkout to the order and the receipt.
@@ -1089,11 +1091,11 @@ Audit section J, step 6: none of these are subtle; all of them generate support 
 
 ## Batch 5.3 — Cross-shift refunds
 
-**Status:** `REQUIRES DECISION`
+**Status:** `NOT STARTED` — unblocked by DD-10, answered 2026-09-05
 
 ### C-14 — Yesterday's order can never be refunded
 
-**Status:** `REQUIRES DECISION` · Severity: HIGH · Category: workflow / business rule
+**Status:** `NOT STARTED` · Severity: HIGH · Category: workflow / business rule
 
 **Problem.** The refund route rejects any order whose shift is `CLOSED`, with no override for any role.
 
@@ -1107,11 +1109,11 @@ Audit section J, step 6: none of these are subtle; all of them generate support 
 
 **Remediation direction (audit).** Allow a cross-shift refund attributed to the *current* open shift, so the cash impact lands in the drawer that actually paid it out.
 
-**Decision required.** See *Design Decisions Required → DD-10*.
+**Decision required.** See *Design Decisions Required → DD-10*. **Answered 2026-09-05 — allow, attributed to the current open till.** Two corrections for whoever runs the batch: the refusal lives at `refund/route.ts:28` **and**, since Batch 4.7, inside the transaction at `refund.ts:86` — the second is the decisive one; and “restrict to MANAGER+” was already true since 4.4c, so it was never a live option.
 
 ### Batch 5.3 — Validation Required
 
-*(Finalise after DD-10.)*
+*(DD-10 answered 2026-09-05; these are now finalisable.)*
 - Targeted test: refunding an order from a previous, closed shift succeeds and is attributed to the current open shift.
 - Targeted test: the refund's cash impact appears in the *current* shift's expected cash, not the original shift's.
 - Targeted test: the original shift's sealed Z report is **not** modified.
@@ -1120,7 +1122,7 @@ Audit section J, step 6: none of these are subtle; all of them generate support 
 
 ### Batch 5.3 — Status Record
 
-**Status:** `REQUIRES DECISION` · **Completed:** — · **Changes:** — · **Files:** — · **Tests:** — · **Commit:** — · **Notes:** —
+**Status:** `NOT STARTED` · **Completed:** — · **Changes:** — · **Files:** — · **Tests:** — · **Commit:** — · **Notes:** —
 
 ---
 
@@ -1142,7 +1144,7 @@ Audit section J, step 6: none of these are subtle; all of them generate support 
 
 **Remediation direction (audit).** Move held orders server-side (they are orders); clear the cart on logout/lock/switch; add a persist `version` with a migration that discards incompatible state.
 
-**Scope note.** The server-side move is a design change — see DD-11. The cart-clearing and persist-versioning parts are unambiguous and can proceed regardless.
+**Scope note.** The server-side move is a design change — see DD-11. The cart-clearing and persist-versioning parts are unambiguous and can proceed regardless. **DD-11 answered 2026-09-05 — one till, so held orders stay device-local**: the cart-clearing and persist-versioning parts are now the batch's whole content, and the server-side move is not built.
 
 ### Batch 5.4 — Validation Required
 
@@ -1161,11 +1163,11 @@ Audit section J, step 6: none of these are subtle; all of them generate support 
 
 ## Batch 5.5 — Cash movements
 
-**Status:** `REQUIRES DECISION`
+**Status:** `NOT STARTED` — unblocked by DD-12, answered 2026-09-05
 
 ### M-05 — No cash-movement model
 
-**Status:** `REQUIRES DECISION` · Severity: MEDIUM · Category: missing functionality (fiscal-adjacent)
+**Status:** `NOT STARTED` · Severity: MEDIUM · Category: missing functionality (fiscal-adjacent)
 
 **Problem.** There is no way to record a cash drop, a payout, or petty cash, so `expectedCash = openingFloat + cash − cashRefunds` will disagree with the drawer whenever real money moves.
 
@@ -1173,7 +1175,7 @@ Audit section J, step 6: none of these are subtle; all of them generate support 
 
 **Impact.** Every real cash movement produces a phantom variance, which trains staff to ignore the variance figure — defeating the purpose of C-02's fix.
 
-**Remediation direction.** Add an entrée/sortie de caisse model, journalled, feeding `expectedCash`. Requires a migration and a schema decision — DD-12.
+**Remediation direction.** Add an entrée/sortie de caisse model, journalled, feeding `expectedCash`. Requires a migration and a schema decision — DD-12. **Answered 2026-09-05:** build it, with a fixed category list — *approvisionnement*, *prélèvement*, *dépense*, *erreur de caisse*. The approval level was not separately specified; with one operational role since DD-07, 5.5 should say plainly whether a step-up PIN is wanted here as it is for refunds.
 
 ### Batch 5.5 — Validation Required
 
@@ -1186,17 +1188,17 @@ Audit section J, step 6: none of these are subtle; all of them generate support 
 
 ### Batch 5.5 — Status Record
 
-**Status:** `REQUIRES DECISION` · **Completed:** — · **Changes:** — · **Files:** — · **Tests:** — · **Commit:** — · **Notes:** —
+**Status:** `NOT STARTED` · **Completed:** — · **Changes:** — · **Files:** — · **Tests:** — · **Commit:** — · **Notes:** —
 
 ---
 
 ## Batch 5.6 — Order cancellation and pre-payment void
 
-**Status:** `REQUIRES DECISION`
+**Status:** `NOT STARTED` — unblocked by DD-13, answered 2026-09-05
 
 ### M-08 — Order cancellation is not implemented
 
-**Status:** `REQUIRES DECISION` · Severity: MEDIUM · Category: incomplete functionality
+**Status:** `NOT STARTED` · Severity: MEDIUM · Category: incomplete functionality
 
 **Problem.** `OrderStatus.CANCELLED` and `d9b1b08` are read and filtered but **never written by any code path**. Orders are created directly as `COMPLETED`. `shifts/summary` exposes a permanently-zero `cancelledOrders` counter.
 
@@ -1204,7 +1206,7 @@ Audit section J, step 6: none of these are subtle; all of them generate support 
 
 **Impact.** There is no pre-payment void. A mistaken order can only be corrected by taking payment and then refunding it — which produces a sale and a correction in the fiscal record where the truth is that no sale occurred.
 
-**Remediation direction.** Decide whether HibaPOS should support a pre-payment order state and a void. If not, remove the dead enum values and the zero counter rather than leaving them to imply a feature. See DD-13.
+**Remediation direction.** Decide whether HibaPOS should support a pre-payment order state and a void. If not, remove the dead enum values and the zero counter rather than leaving them to imply a feature. See DD-13. **Answered 2026-09-05 — remove them.** Note the count: **`PENDING` and `CANCELLED` are both dead**, and this finding's Problem line above carries a corrupted paste (a commit sha where an enum value belongs). Measure whether the removal needs a migration with `prisma migrate diff`, as Batch 4.4b did for `CASHIER`, rather than assuming.
 
 ### Batch 5.6 — Validation Required
 
@@ -1215,7 +1217,7 @@ Audit section J, step 6: none of these are subtle; all of them generate support 
 
 ### Batch 5.6 — Status Record
 
-**Status:** `REQUIRES DECISION` · **Completed:** — · **Changes:** — · **Files:** — · **Tests:** — · **Commit:** — · **Notes:** —
+**Status:** `NOT STARTED` · **Completed:** — · **Changes:** — · **Files:** — · **Tests:** — · **Commit:** — · **Notes:** —
 
 ---
 
@@ -1231,12 +1233,12 @@ Audit section J, step 6: none of these are subtle; all of them generate support 
 | **M-20** | `NOT STARTED` | The POS product grid has no error state; an API failure renders "Aucun produit dans cette catégorie". | `pos-view.tsx:43-51, 235-240` | Distinguish empty from failed. The worst false empty state in the app. |
 | **M-21** | `NOT STARTED` | Any transient failure of `/api/auth/me` is caught and treated as logged-out, ejecting the cashier mid-service. | `app-store.ts:81-83` | Distinguish a network error from a 401. |
 | **M-22** | `NOT STARTED` | A single global error boundary wraps the whole shell; a crash in any view blanks the till. No App Router `error.tsx`. | `app-shell.tsx:115,161`; `src/app/` | Per-view boundaries plus an `error.tsx` fallback. |
-| **M-11** | `NOT STARTED` | A 100 % discount cannot be checked out: the total becomes 0, but `payments` requires ≥1 entry with `amount ≥ 1`, and the server demands exact equality. | `orders/route.ts:42-50, 253` | Decide whether a zero-total order is legitimate — DD-14. |
+| **M-11** | `NOT STARTED` | A 100 % discount cannot be checked out: the total becomes 0, but `payments` requires ≥1 entry with `amount ≥ 1`, and the server demands exact equality. | `orders/route.ts:42-50, 253` | Decide whether a zero-total order is legitimate — DD-14. **Answered 2026-09-05 — yes, under its own tender « Offert / repas personnel ».** Both walls (`payments.min(1)` with `amount.min(1)`, and the exact-equality check at `:251`) must come down together, and an « offert » line must not inflate revenue in the Batch 3.2 aggregation or the sealed period totals. |
 | **M-12** | `NOT STARTED` | The `PERCENT` discount branch's comment says the value is *percent×100*; the code treats it as a plain percent and clamps at 100. Latent — the UI only sends `AMOUNT`. | `orders/route.ts:36, 203-205` | Correct the comment or the code. A client following the comment would apply a 100 % discount. |
 | **M-15** | `NOT STARTED` | Options with negative modifiers (or an absolute category price below the base) can drive a line total negative; nothing clamps `unitPrice` at zero. | `pricing.ts:104-124, 164-165` | Clamp or reject. |
 | **M-16** | `NOT STARTED` | Item quantity has a lower bound of 1 and no upper bound. | `orders/route.ts:24` | Add a sane maximum. |
-| **M-09** | `NOT STARTED` | `ProductAddon` has **zero writers anywhere**. Product-specific add-ons can never be created; `computeLinePricing`'s handling of them is unreachable. | `schema.prisma:119-127`; `pricing.ts:25,134-146` | Either build the write path or remove the dead surface — DD-15. Flagged in section I as possible lost functionality. |
-| **M-10** | `NOT STARTED` | `Customer.postalCode` exists in the schema and migration with **zero references in `src/`**, despite the schema comment calling it a French delivery requirement. | `schema.prisma:214` | Either wire it into `customerSchema` and the delivery form, or remove it — DD-15. |
+| **M-09** | `NOT STARTED` | `ProductAddon` has **zero writers anywhere**. Product-specific add-ons can never be created; `computeLinePricing`'s handling of them is unreachable. | `schema.prisma:119-127`; `pricing.ts:25,134-146` | Either build the write path or remove the dead surface — DD-15. ~~Flagged in section I as possible lost functionality.~~ **Answered 2026-09-05 — remove it, and the section-I framing is wrong**: nothing is lost. `CategoryAddOn` (21 rows, full editor) superseded this design; `AddOn` has 0 rows and the `ProductAddon` join has no writer anywhere. Removing `AddOn` also touches `media-usage.ts`, which reads `AddOn.image` in two places. |
+| **M-10** | `NOT STARTED` | `Customer.postalCode` exists in the schema and migration with **zero references in `src/`**, despite the schema comment calling it a French delivery requirement. | `schema.prisma:214` | Either wire it into `customerSchema` and the delivery form, or remove it — DD-15. **Answered 2026-09-05 — remove it.** 0 of 2 customers have one, and the delivery rule at `orders/route.ts:261-274` requires name + phone + address and never asks for a postcode. |
 
 ### Batch 5.7 — Validation Required
 
