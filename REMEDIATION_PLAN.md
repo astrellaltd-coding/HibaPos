@@ -11,19 +11,19 @@ Detailed audit record: https://claude.ai/code/artifact/329316b0-3a6b-48b0-9d27-d
 
 **Overall:** NOT READY FOR PRODUCTION
 
-**Current Stage:** **Stage 4 is COMPLETED** (4.1 through 4.4, 4.4b, 4.4c, 4.5, 4.6 and **4.7**, all 2026-09-04) — **Stage 5, workflow gaps, is next**. **Stage 3 is COMPLETED** (3.1 through 3.6 plus 3.6b), with C-22's chain-design half carried forward as `REQUIRES EXTERNAL VERIFICATION` and V-03 open. Stage 1 is **partly done**: 1.1 and 1.2 COMPLETED, 1.3 `IMPLEMENTED — TESTING REQUIRED` on hardware, 1.4 deferred. Stage 2 is COMPLETED.
+**Current Stage:** **Stage 5 is IN PROGRESS** — **5.1 COMPLETED 2026-09-05**, and it was the only one of its seven batches that needed no design decision. **Stage 4 is COMPLETED** (4.1 through 4.4, 4.4b, 4.4c, 4.5, 4.6 and 4.7, all 2026-09-04). **Stage 3 is COMPLETED** (3.1 through 3.6 plus 3.6b), with C-22's chain-design half carried forward as `REQUIRES EXTERNAL VERIFICATION` and V-03 open. Stage 1 is **partly done**: 1.1 and 1.2 COMPLETED, 1.3 `IMPLEMENTED — TESTING REQUIRED` on hardware, 1.4 deferred. Stage 2 is COMPLETED.
 
-**Current Batch:** none — **Batch 5.1 (C-20) is next and is the one Stage 5 batch that needs no decision.** Every other one is gated: **DD-09 → 5.2, DD-10 → 5.3, DD-11 → 5.4, DD-12 → 5.5, DD-13 → 5.6, DD-14 and DD-15 → 5.7** — six of the seven — and they are business decisions Claude must not take. They are all the same *kind* of question (does this feature exist in this restaurant's workflow or not?), so put **DD-09 through DD-15 to the operator as one brief** rather than one per batch.
+**Current Batch:** none — **every remaining Stage 5 batch is gated**: **DD-09 → 5.2, DD-10 → 5.3, DD-11 → 5.4, DD-12 → 5.5, DD-13 → 5.6, DD-14 and DD-15 → 5.7**. They are business decisions Claude must not take, and they are all the same *kind* of question (does this feature exist in this restaurant's workflow or not?), so put **DD-09 through DD-15 to the operator as one brief** rather than one per batch.
 
-**Last Completed Batch:** Batch 4.7 — Transaction and race safety, which **closes C-15** and **finishes Stage 4**. Shift state was read outside the transaction at **three** sites, not the two the audit named: `POST /api/orders` looked up the open shift at `:126` and opened its transaction at `:280`; `generateZReport` totalled the shift and only *then* opened the transaction that closed it; and the refund route read `order.shift.status` before calling `processRefund`. **The measurement that shaped the fix:** Prisma's interactive transactions on SQLite do not overlap — the second body does not begin until the first commits, in both journal modes — while a read *outside* a transaction does not wait at all. So the checkout re-asserts `status === "OPEN"` as the first statement inside its transaction (body moved to new `services/checkout.ts`), the Z report is now computed *inside* the transaction that seals it, and `processRefund` re-reads the shift under the lock. **Demonstrated on a copy of production, over HTTP:** six sales racing one close on the pre-batch code left **7 orders in a shift whose immutable Z counted 5** — 3,00 € gone for good; on the new code the Z counted 8 of 8, with three sales refused **409** and one **503**, both in French. **No migration; nothing waits on the operator.** *(Before it: Batch 4.6, the catalogue data-loss paths C-24 and C-25 — record → Batch 4.6.)*
+**Last Completed Batch:** Batch 5.1 — Keyboard shortcuts, which **closes C-20** and opens Stage 5. Not one of the nine POS shortcuts had ever fired since the initial commit: the matcher compared an optional `boolean | undefined` against the event's real boolean without coercion, so `undefined !== false` was true on the *ctrl* line for every shortcut on every keystroke — `Shift+?` died there before reaching its own shift check. `!!s.ctrl !== e.ctrlKey`, and the same for shift and alt, is the plan's own fix. **The measurement that reshaped it:** Windows reports `/` on the French AZERTY layout as vk `0xBF` **with SHIFT**, so the strict matcher would have refused the documented `/` search key at the very till it was written for. The operator answered **register it both ways** — QWERTY `Shift+/` emits `?` and AZERTY `Shift+:` emits `/`, so the two entries cannot collide. Running the walkthrough then found **a second dead thing behind C-20**: `pos-view.tsx` declared a `searchInputRef` it never attached, the real search box being the topbar's, so F1 and `/` fired into a no-op. The operator answered **fix it in this batch**. Both choices went up as one question each, before any code. **No migration; nothing waits on the operator.** *(Before it: Batch 4.7, C-15's shift-race half, which finished Stage 4 — record → Batch 4.7.)*
 
-**Next Batch:** Stage 5 (workflow gaps, 5.1 through 5.7 — several need decisions DD-09 through DD-16).
+**Next Batch:** Stage 5's remaining six (5.2 through 5.7), **all six gated** by DD-09 through DD-15. DD-16 shapes 7.1.
 
 **Blocked:** Batch 1.3 `[HW]` sign-off and Batch 1.4 — both need the app running on the restaurant's POS machine, which is in a different country from the developer and has no copy of the app installed (decision of 2026-09-03).
 
-**Awaiting decision:** **nothing blocks Stage 5's start**, but DD-09 through DD-16 block or reshape most of its batches. All of DD-01, DD-02, DD-03, DD-05, DD-06, DD-07, DD-08, DD-17, DD-18 and DD-19 are answered; DD-04 and DD-09 through DD-16 are open and named against their batches in *Design Decisions Required*. Two recorded-but-not-urgent questions stand: `/api/auth/approve` and `manager-approval-dialog.tsx` have **no caller at all** since 4.4c, so whether to delete them is a real question; and **L-27** needs a decision before Batch 8.0.
+**Awaiting decision:** **DD-09 through DD-15 now block every remaining Stage 5 batch** — 5.1, the only ungated one, is done. All of DD-01, DD-02, DD-03, DD-05, DD-06, DD-07, DD-08, DD-17, DD-18 and DD-19 are answered; DD-04 and DD-09 through DD-16 are open and named against their batches in *Design Decisions Required*. Two recorded-but-not-urgent questions stand: `/api/auth/approve` and `manager-approval-dialog.tsx` have **no caller at all** since 4.4c, so whether to delete them is a real question; and **L-27** needs a decision before Batch 8.0.
 
-**Last Updated:** 2026-09-04 (session 11 — Batch 4.7, which finishes Stage 4). Two things worth carrying forward. (1) **The front matter is at its ~40 KB ceiling and has almost nothing left** — 4.7 retired session 10's three-item note, the resolved environment item 6 and a superseded payload-vintage bullet, and still only just fitted what it added. **Retire something before adding anything**, and say in the record what moved and where the fact still lives; the two lessons retired from here are both in *Methods* now. (2) **Measure the defect on a copy of production before fixing it, and again after.** 4.7's unit tests prove its guards; what proves the *finding* is the six-sales-against-one-close run that left 3,00 € out of an immutable Z report on the old code and nothing on the new. The platform fact that shaped the fix is in *Methods → Is it a race?*
+**Last Updated:** 2026-09-05 (session 12 — Batch 5.1, which opens Stage 5). Two things worth carrying forward. (1) **"No design decision against it" is a claim to test, not to trust.** 5.1 was handed over as pure coercion with nothing to adjudicate. Measuring the keyboard found one behaviour choice, and *running the app* found a second — a handler that had been dead behind the dead matcher all along. Read what the batch names, measure it, then run it: the walkthrough is not a formality at the end, it is where the second finding came from. (2) **The front matter has about 750 bytes of headroom** — 5.1 retired the *Environment as last seen* subsection, whose last item duplicated L-24 in three other places. **Still retire something before adding anything**, and say in the record what moved and where the fact lives.
 
 ### OPEN THREADS — read this before starting a batch
 
@@ -119,8 +119,8 @@ The session-3/4 snapshot that stood here is in the record, verbatim, under *Reti
 
 | Thing | Value at the end of session 3 (updated through session 4) |
 |---|---|
-| Tests | **543 pass, 0 fail** (`bun test src --timeout 30000` — see L-24 for why the timeout flag). 531 before Batch 4.7, which added 12; 498 before 4.6. **A run that fails 12 backup tests with `EPERM: rename … test.db.restore-staged` is not a code failure**: a leftover `bun` process from a stopped run is holding the shared test database — kill it and re-run (warning 3b). Whole-suite runtime 64–80 s |
-| Production DB sha256 | **`7839db18a7c8b132d974bd834d39d2921def66dd234b2059b022949f22ea6f2e`** (mtime 2026-09-04 16:41:52, 696 320 bytes) — last moved by the operator's **PIN change**, not by any batch. **Re-verified unchanged after Batch 4.7**, whose whole validation ran on a scratch copy. The earlier lineage (`7cc3367b…` → `a66bc96c…` → `e40735ca…`) is in the record |
+| Tests | **568 pass, 0 fail** (`bun test src --timeout 30000` — see L-24 for why the timeout flag). 543 before Batch 5.1, which added 25; 531 before 4.7. **A run that fails 12 backup tests with `EPERM: rename … test.db.restore-staged` is not a code failure**: a leftover `bun` process from a stopped run is holding the shared test database — kill it and re-run (warning 3b). Whole-suite runtime 64–80 s, but a slow run took **422 s** on 2026-09-05 with the same 0 failures — L-24 |
+| Production DB sha256 | **`7839db18a7c8b132d974bd834d39d2921def66dd234b2059b022949f22ea6f2e`** (mtime 2026-09-04 16:41:52, 696 320 bytes) — last moved by the operator's **PIN change**, not by any batch. **Re-verified unchanged after Batch 5.1**, whose whole validation ran on a scratch copy. The earlier lineage (`7cc3367b…` → `a66bc96c…` → `e40735ca…`) is in the record |
 | Fiscal chain | `/api/fiscal/verify` → all three chains `ok`, `lastSequence: 2`. **Zero monthly and annual closes have ever been sealed** — which is why M-01's guard, DD-18's timing rules and L-26's payload change could all be imposed with nothing to accommodate. Re-verified read-only 2026-09-04 |
 | Fiscal counters | `20/3/2/2` (receipt / shift / Z / event). Re-verified read-only after the PIN change, 2026-09-04 |
 | Migrations | **6 applied on production**, latest `20260904091947_close_refund_totals` (applied 2026-09-04 09:43:54). **None pending.** Batches 4.1 through 4.4b added none — 4.4b's enum removal was measured with `prisma migrate diff` and emits an empty migration |
@@ -158,12 +158,6 @@ These are **deferred, not waived.** Stage 1 cannot be declared complete, and no 
    **Killing processes was listed here as a third and needs one distinction (Batch 4.4b, 2026-09-04).** Claude does not kill **the operator's** processes. A server **Claude started in the same session** is a different matter: 4.4b's `bunx next start -p 3026` (PID 24188) survived `TaskStop` — which killed only the `bunx` parent — and was terminated with `taskkill //PID <pid> //T //F`, after which `bunx prisma generate` succeeded. **Do this every time.** A leftover `next start` holds `node_modules/.prisma/client/query_engine-windows.dll.node` and makes `bunx prisma generate` fail `EPERM` in another session — that phantom cost sessions 3 through 7 hours, and the environment item recording it was retired to the record in Batch 4.7 once the habit above replaced it. **`bun run dev` stays untried here** (it loads the real `.env` and would open the production database); use `bunx next start` on a spare port — 3021–3026, 3033/3034, 3040–3043 and 3050–3052 are spoken for.
 
    **`git push` is another case and behaves differently.** Earlier sessions recorded it as prohibited; that was wrong. It is an *explicit-permission* action — it goes through when the user asks for it in the session, which they did on 2026-09-04 (`3f31779..8a311dc`, and again for `7449683..1856cd7`). Do not push unprompted, and do not tell the user it is impossible.
-
-#### Environment as last seen — verify before trusting
-
-*These items describe the developer's machine at the end of session 4, not the project. Check each before acting on it, and delete it here once it no longer holds. Their numbers are kept because other sections refer to them.*
-
-8. **`bun test src` fails 23 tests on this machine, and the code is fine.** All 23 are 5 s timeouts in `backup*.test.ts` / `auth.test.ts`: scrypt at N=2^17 costs ~1.5 s per call here and a backup→restore round trip makes several. Use `--timeout 30000`; the current count is in *G*. Recorded as **L-24** — do not "fix" a test that fails this way.
 
 ---
 
@@ -244,7 +238,7 @@ Stated once here so no session has to rediscover them. The record sections named
 - **Prove the test fails on the old code.** For any fiscal change, temporarily revert the fix, re-run the suite, confirm the new tests fail, and restore the files from a copy taken before the revert. This is Stage 3's rule and it is satisfied by demonstration, not assertion. Record → Batch 3.1 (Tests), Batch 3.5 (Tests), Batch 3.6 (Tests). **Refined in Batch 4.4c: revert ONE property at a time, and treat a revert that changes nothing as a defect in the test, not a pass. Refined again in Batch 4.5: revert in BOTH directions. One revert rarely reaches every test — 4.5's guard needed three (no floor, refuse-everything, and an off-by-one at the boundary) before all thirteen tests had failed under something, and one test passed vacuously until the code was changed to make its empty case impossible.** Applying several reverts together can mask one another — 4.4c's bypassed `verifyPin` never touched the bounded queue, which hid the fact that the lockout had been moved after the derivation, so that revert had to be re-run alone. And two of its tests survived their reverts because they asserted an outcome both the right and the wrong ordering produce; both were strengthened rather than accepted. A revert that everything survives has told you something. Record → Batch 4.4c (Tests, notes 3 and 4).
 - **Is it a race? Measure, do not assume.** Prisma's interactive transactions on SQLite **do not overlap** — the second body does not begin until the first has committed, in both journal modes — while a read *outside* a transaction does not wait at all. So the question is only ever whether the read sits inside the transaction that depends on it. Measure it with two timestamped concurrent `$transaction` bodies on a scratch copy. Record → Batch 4.7 note 1.
 - **Read-only inspection of live data.** Use `bun:sqlite` with `readonly: true`; do not load Prisma or the WAL startup hook against the production file. Record → Batch 3.1 note 4.
-- **Manual validation against the production build.** `bun run build` then `bunx next start` on the scratch copy; testing the built artifact is the stronger check, and `next dev` is blocked on this machine anyway (see the environment items above). Record → Batch 3.4 note 1.
+- **Manual validation against the production build.** `bun run build` then `bunx next start` on the scratch copy; testing the built artifact is the stronger check, and `next dev` is blocked on this machine anyway (warning 9). Record → Batch 3.4 note 1.
 - **A scratch copy can carry a PIN Claude knows, which makes the walkthrough unattended.** Claude cannot type a *production* PIN — the live values were never seen and are recorded nowhere. On a **copy**, write a known PIN with the app's own `hashPin` before starting the server and the whole manual validation runs without the operator. Guard the script on the target path (refuse anything outside the scratchpad) so it can never address the live file. Record → Batch 4.4b (Tests).
 - **Browser driving.** Claude cannot type PINs on production; the operator enters them, everything after is driven by Claude. When synthetic clicks do not land in the browser pane, dispatch through the DOM and say so in the record. Record → Batch 1.1 note 1, Batch 3.1b note 3.
 - **Journal payload vintages.** Anything that reads `FiscalEvent.dataJson` must tolerate the pre-3.5 and post-3.5 shapes; sealed rows are never re-serialised. *Open Threads → D*; record → Batch 3.5 note 3.
@@ -282,7 +276,7 @@ half open**, split across two batches. Audit IDs are never renamed.
 | C-17 ✅ | 4.5 | M-17 ✅ | 4.4c | L-10 | deferred |
 | C-18 ✅ | 4.3 + operator | M-18 ✅ | 4.4c | L-11 | deferred |
 | C-19 ✅ | 2.3 | M-19 | 5.7 | L-12 | 7.2 |
-| C-20 | 5.1 | M-19s ✅ | 4.4b | T-01…T-07 | 6.1 |
+| C-20 ✅ | 5.1 | M-19s ✅ | 4.4b | T-01…T-07 | 6.1 |
 | C-21 | 5.2 | M-20 | 5.7 | T-08, T-09 | 6.2 |
 | C-22 ◐ | 2.1 + 3.5 | M-21 | 5.7 | T-10…T-12 | 6.3 |
 | C-23 | 5.4 | M-22 | 5.7 | DOC-01…12 (**09 ✅** 4.5) | 7.1 |
@@ -1036,38 +1030,27 @@ Category and product updates no longer delete option groups before validating th
 
 # STAGE 5 — WORKFLOW GAPS
 
-**Stage status:** `NOT STARTED`
+**Stage status:** `IN PROGRESS` — 5.1 `COMPLETED` 2026-09-05; **5.2 through 5.7 are each gated by DD-09 through DD-15**
 
 Audit section J, step 6: none of these are subtle; all of them generate support calls in week one.
 
 ## Batch 5.1 — Keyboard shortcuts
 
-**Status:** `NOT STARTED`
+**Status:** `COMPLETED` · **Completed:** 2026-09-05 · **Commit:** `8a4429a` · **Findings:** C-20 (**closes C-20**)
+**Record:** `REMEDIATION_RECORD.md` → *Batch 5.1* — specification, validation criteria and status record, moved there verbatim on 2026-09-05.
 
-### C-20 — Every POS keyboard shortcut is dead
+**Constraints this batch leaves behind** *(sentences copied from the record, not paraphrased)*
+- The contract is strict in both directions: an unset modifier means the key must be pressed *without* it, so Shift+F9 does not check out and Ctrl+F9 does not either. *(hook docstring; record, Tests)*
+- Windows reports `/` on layout `0000040C` as vk `0xBF` **with SHIFT**, so this restaurant's own keyboard delivers `key: "/"` *and* `shiftKey: true`. *(record, Changes and note 1)*
+- The two cannot collide: QWERTY `Shift+/` emits `?` and AZERTY `Shift+:` emits `/`. *(record, Changes)*
+- Both files now import `POS_SEARCH_INPUT_ID` from `app-store.ts` — the wiring cannot drift without a type error, and a source-level test covers the one thing that can still break silently: the `id` attribute on the input. *(record, note 3)*
+- Nine of the 25 tests **cannot fail against the old code**, because a matcher that refuses every keystroke satisfies any test asserting a shortcut is refused; they are named in the file as regression assertions. *(record, Tests and note 4)*
+- Échap is Radix Dialog's own behaviour — no dialog in the POS overrides `onEscapeKeyDown`. *(record, note 2)*
+- No shortcut gained `allowInInput`, so every one of them still stands down while focus is in a text field. *(record, note 8)*
+- Not one row of the help dialog was edited: every row now does what it says. *(record, note 8)*
+- A `keydown` probe installed on `window` to read `e.defaultPrevented` reports **false for a shortcut that did fire**, if the hook re-registered its listener after the probe went on. *(record, note 7)*
 
-**Status:** `NOT STARTED` · Severity: HIGH · Category: confirmed bug (usability)
-
-**Problem.** The matcher compares an optional boolean against an actual boolean without coercion.
-
-**Evidence.** `use-keyboard-shortcuts.ts:32` — `if (s.ctrl !== e.ctrlKey) continue;`. `s.ctrl` is `undefined` for every shortcut registered at `pos-view.tsx:121-141`; `e.ctrlKey` is `false`; `undefined !== false` → `continue`, always. Dead: F1 search, F2/F3/F5 order type, F4 hold, F8 discount, F9 checkout, `/` search, `Shift+?` help. Present since the initial commit `be9113e`; the help dialog at `pos-view.tsx:311-320` lists all of them.
-
-**Location.** `src/hooks/use-keyboard-shortcuts.ts:32-34`; `src/features/catalog/pos-view.tsx:121-141, 311-320`
-
-**Impact.** Speed is the point of a fast-food till. The documented keyboard workflow has never worked, and the in-app help teaches staff keys that do nothing.
-
-**Remediation direction.** `!!s.ctrl !== e.ctrlKey` (and the same for shift/alt).
-
-### Batch 5.1 — Validation Required
-
-- Targeted unit test of the matcher: modifier-less shortcuts fire; `Shift+?` fires only with shift; a shortcut requiring ctrl does not fire without it.
-- Targeted test: shortcuts do not fire while focus is in an input, unless `allowInInput`.
-- Manual: every key listed in the help dialog performs its documented action at the till.
-- `bun test src` — PASS. `bun run typecheck` — PASS.
-
-### Batch 5.1 — Status Record
-
-**Status:** `NOT STARTED` · **Completed:** — · **Changes:** — · **Files:** — · **Tests:** — · **Commit:** — · **Notes:** —
+**Left open:** **L-42** (every POS shortcut still fires while a modal dialog is open — F5 during payment flips the sale to Livraison and the checkout is then refused 400) → Batch 5.7. F5 no longer reloads the POS screen, deliberately; `Ctrl+F5` and `Ctrl+R` still do, and F5 still reloads on every other view.
 
 ---
 
@@ -1562,6 +1545,7 @@ Open rows only. A row resolved by a batch moves, unchanged, to `REMEDIATION_RECO
 
 | ID | Date | Found during | Description | Severity | Assigned to batch |
 |---|---|---|---|---|---|
+| **L-42** | 2026-09-05 | Batch 5.1 | **Every POS shortcut still fires while a modal dialog is open, so a stray F5 during payment changes the sale being paid.** Measured at the till on a scratch copy: with « Encaissement » open and focus on a button, F5 set the order type to LIVRAISON underneath it. `setOrderType` reprices every cart line (`cart-store.ts:116-123`) and `PaymentDialog` reads `orderType` from the store at submit time, so the total on screen changes and the checkout is then refused **400** — *« Un client est obligatoire pour une livraison. »* — unless a customer with an address is attached. F2 and F3 do the same thing more quietly, switching between dine-in and takeaway prices; F8 stacks the discount dialog on top of the payment dialog. **Nothing is mis-journalled**: the server recomputes from the `orderType` it is sent, so the sale is *blocked*, not booked wrong. This is inherent to the current shape rather than a regression — Radix does not stop keydown propagation and the hook listens on `window` — and it was simply unreachable while every shortcut was dead. Fixing it is feature design, not a coercion: which dialogs suppress which shortcuts, and whether Escape should join the hook rather than staying Radix's alone. | MEDIUM (one keystroke changes the sale being paid; refused rather than mis-recorded) | 5.7 |
 | **L-41** | 2026-09-04 | Batch 4.7 | **A sale refused for a closed shift burns the step-up PIN token, so the cashier must re-enter their PIN to ring it again.** `orders/route.ts` consumes the single-use token as its last check *before* `createOrderInTransaction`, and Batch 4.7's shift assertion is the first statement *inside* the transaction — so a discounted sale that loses the race to a Z close is refused with the token already spent. The client handles it correctly (it drops the token on any non-400 status and re-prompts), so the cost is one extra PIN entry in a rare case, not a lost sale or a wrong record. Moving the consumption inside the transaction would drag the whole discount decision with it. | LOW | 5.7 |
 | **L-40** | 2026-09-04 | Batch 4.7 | **Test files clean up before each test and not after, so the order in which files run is load-bearing — and a file can fail because of a file it has nothing to do with.** `shift-race.test.ts` left `ZReport` rows behind; `vat-inheritance.test.ts` deletes orders and shifts but not Z reports, and its `shift.deleteMany()` then failed on a foreign key in a run where the code was fine. Fixed locally in 4.7 by giving the new file an `afterAll`, but the shape is general: any file that writes a table another file's teardown does not clear can do this. Belongs with the per-run test-database path already assigned to 6.3 (warning 3b). | LOW | 6.3 |
 | **L-39** | 2026-09-04 | Batch 4.6 | **Thirteen catalogue names carry a leading space, which the POS picker renders as an indented label.** Measured read-only on production: **10 `CategoryOptionChoice` rows** (`" Mayonnaise"`, `" Barbecue"`, `" Algérienne"`, `" Harissa"`, `" Biggy"`, `" Potatoes"`, and duplicates of the first three in a second category's group) and **3 `CategoryAddOn` rows** (`" Pepperoni"`, `" Pomme de terre"`, `" Oeuf"`). Found while confirming that images shared across two categories' groups are legitimate rather than duplicates — they are, and no group contains the same choice twice, so this is purely cosmetic. It is **real catalogue data, not a code defect**: nothing in the app trims these on write, and `fix-duplicate-product-options.ts` matches on `name.trim().toLowerCase()` so it already tolerates them. Two ways to close it, and they are different decisions: the operator edits the thirteen names in Réglages, or the catalogue write paths start trimming (which changes what a save stores and would need the same treatment on the product side). **Claude must not edit real menu data** (warning 4), so the first is an operator action and the second is a batch. | LOW (cosmetic; every affected label is visible in the POS picker) | operator action, or 5.7 |

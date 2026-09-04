@@ -2065,6 +2065,71 @@ validation.ts:88     options: z.array(optionGroupSchema).default([])
 
 ---
 
+# STAGE 5 — WORKFLOW GAPS
+
+---
+
+*Moved verbatim from `REMEDIATION_PLAN.md` lines 1043-1072 (commit `04a76c9`) on 2026-09-05.*
+
+## Batch 5.1 — Keyboard shortcuts
+
+**Status:** `COMPLETED`
+
+### C-20 — Every POS keyboard shortcut is dead
+
+**Status:** `COMPLETED` · Severity: HIGH · Category: confirmed bug (usability)
+
+**Problem.** The matcher compares an optional boolean against an actual boolean without coercion.
+
+**Evidence.** `use-keyboard-shortcuts.ts:32` — `if (s.ctrl !== e.ctrlKey) continue;`. `s.ctrl` is `undefined` for every shortcut registered at `pos-view.tsx:121-141`; `e.ctrlKey` is `false`; `undefined !== false` → `continue`, always. Dead: F1 search, F2/F3/F5 order type, F4 hold, F8 discount, F9 checkout, `/` search, `Shift+?` help. Present since the initial commit `be9113e`; the help dialog at `pos-view.tsx:311-320` lists all of them.
+
+**Location.** `src/hooks/use-keyboard-shortcuts.ts:32-34`; `src/features/catalog/pos-view.tsx:121-141, 311-320`
+
+**Impact.** Speed is the point of a fast-food till. The documented keyboard workflow has never worked, and the in-app help teaches staff keys that do nothing.
+
+**Remediation direction.** `!!s.ctrl !== e.ctrlKey` (and the same for shift/alt).
+
+### Batch 5.1 — Validation Required
+
+- Targeted unit test of the matcher: modifier-less shortcuts fire; `Shift+?` fires only with shift; a shortcut requiring ctrl does not fire without it.
+- Targeted test: shortcuts do not fire while focus is in an input, unless `allowInInput`.
+- Manual: every key listed in the help dialog performs its documented action at the till.
+- `bun test src` — PASS. `bun run typecheck` — PASS.
+
+### Batch 5.1 — Status Record
+
+**Status:** `COMPLETED` · **Completed:** 2026-09-05 (session 12)
+
+**Changes:** C-20 in three parts. **The matcher:** `use-keyboard-shortcuts.ts:32-34` compared an optional `boolean | undefined` against the event's real boolean with no coercion, so `undefined !== false` was true on the *ctrl* line for every shortcut on every keystroke and the loop `continue`d before it ever read the key — `Shift+?` included, which died on the ctrl line before reaching its own. `!!s.ctrl !== e.ctrlKey`, and the same for shift and alt, is the fix the plan named. The predicate moved into three exported pure functions — `matchesShortcut`, `findShortcut`, `isEditableTarget` — so it can be tested without a DOM, which `bun test` does not provide and for which this repo has no component tests. **The AZERTY slash:** Windows reports `/` on layout `0000040C` as vk `0xBF` **with SHIFT** (`VkKeyScanEx`), so this restaurant's own keyboard delivers `key: "/"` *and* `shiftKey: true`, and the strict matcher would have refused it — the plan's fix alone revived nine presses of ten and left the documented `/` search key dead at this till. A second registration `{ key: "/", shift: true }` now sits beside the plain one. The two cannot collide: QWERTY `Shift+/` emits `?` and AZERTY `Shift+:` emits `/`. **The dead search handler**, found only by running the app: `pos-view.tsx:41` declared its own `searchInputRef` and never attached it to an element, while the real input is the topbar's — so F1 and `/` fired into a no-op. Both files now import `POS_SEARCH_INPUT_ID` from `app-store.ts`, and `focusSearch` reaches the input by id. **No migration; nothing waits on the operator.**
+
+**Files:** `src/hooks/use-keyboard-shortcuts.ts` · `src/hooks/use-keyboard-shortcuts.test.ts` (new, 25 tests) · `src/features/catalog/pos-view.tsx` · `src/components/shared/topbar.tsx` · `src/store/app-store.ts`
+
+**Tests:** **568 pass, 0 fail** (`bun test src --timeout 30000`; 66 s on a fast run, 422 s on a slow one — L-24); 543 before, so 25 new, all in `use-keyboard-shortcuts.test.ts`. `bun run typecheck` PASS, `bun run lint` PASS, `bun run build` PASS. **Seventeen one-property reverts, in three directions** — uncoerced (the original bug), lenient (`if (s.x && !e.xKey)`) and unchecked (the line deleted) for each of ctrl, shift and alt; the field guard dropped and then made absolute; `isEditableTarget` forced to `false` and to `true`; the AZERTY registration removed; and the search `id` and the `getElementById` lookup each reverted. **Every one of the 25 tests fails under at least one.** Against the true pre-batch state of both files, **15 fail and 9 pass** — and those 9 are named in the file as regression assertions that **cannot fail against the old code**, because a matcher that refuses every keystroke satisfies any test asserting a shortcut is refused. **Manual walkthrough at the till**, production build on a scratch copy, over HTTP in a real browser: every row of the help dialog performs its documented action — F1, plain `/` and AZERTY `Shift+/` focus *and select* the search box (catalogue filtered to « Buffalo »); F2 / F3 / F5 move the order-type pill; F4 took held orders 1 → 2 and cleared the cart; F8 « Remise »; F9 « Encaissement »; `Shift+?` « Raccourcis clavier »; Échap closed each one (`data-state="closed"`). **F5 no longer reloads the page**, proved by a page-lifetime marker surviving the press. Production untouched: `7839db18…`, 696 320 bytes, mtime 2026-09-04 16:41:52, no `-wal`/`-shm` beside it, `db/backups/` unchanged, no `db/fiscal-archives/` created.
+
+**Commit:** `8a4429a`
+
+**Notes:**
+
+1. **The one behaviour choice this batch held, and it is not the one flagged at handoff.** The session opened with the belief that 5.1 leaves nothing to adjudicate. `Shift+?` is indeed correct on both layouts — measured, not assumed: `VkKeyScanEx` against Windows layout `0000040C` puts `?` at vk `0xBC` with SHIFT on French AZERTY and at vk `0xBF` with SHIFT on US QWERTY, so `shift: true` is right for both. The same call puts `/` at vk `0xBF` **with SHIFT** on AZERTY and unshifted on QWERTY. The plan's named fix would therefore have left the restaurant's own `/` dead while the help dialog kept teaching it — the exact complaint in C-20's own *Impact*. Put to the operator as one question before any code was written; answered **register it both ways**, which also keeps a numeric keypad's `/` working, that key being unshifted on every layout.
+
+2. **The help dialog is not a list of the nine registrations, and that is fine.** Its nine rows cover eight registrations plus one key the hook never had: `F1 / /` is a single row for two shortcuts, and **Échap** is Radix Dialog's own behaviour — no dialog in the POS overrides `onEscapeKeyDown`. That row was true throughout the years the hook was dead. It was exercised anyway, because the batch's criterion says *every key listed in the help dialog*, and it passed.
+
+3. **A second dead thing behind C-20, found only by running the app.** With the matcher fixed, F1 and both `/` presses matched and called `preventDefault` — and focused nothing. `pos-view.tsx:41` held a `searchInputRef` that was never attached to an element; the search box is rendered by the topbar, which keeps its own ref, and the two components share no channel. Two of the nine documented shortcuts would have shipped still dead. Put to the operator with its cost; answered **fix it in this batch**. The shared constant lives in `app-store.ts` beside `posSearch` — the one module both files already imported, so neither gains a dependency — and the wiring now cannot drift without a type error. A source-level test covers the one thing that can still break silently: the `id` attribute on the input.
+
+4. **What the regression assertions can and cannot prove, stated rather than implied.** Nine of the 25 tests pass against the pre-batch code. They hold the *other* edge of the contract — an unset modifier is a requirement, not a wildcard — and their value is against a future matcher gone lenient, not as evidence for C-20. Five of them survived the first eight reverts; rather than accept that as a pass, five further reverts were added (each modifier check deleted outright, then `isEditableTarget` forced both ways) until all 25 had failed under something. *Methods → Prove the test fails on the old code:* a revert that everything survives has told you something.
+
+5. **F5 is not a behaviour choice, and this is why.** It stops reloading the POS screen and starts setting LIVRAISON. That is what the help dialog documents, what the registration says, and `LIVRAISON` is a first-class order type with its own pill in the cart panel and its own pricing column. The hook mounts only on the POS view, so F5 still reloads on every other screen, and `Ctrl+F5` and `Ctrl+R` still reload on this one — the modifier check refuses them, so nothing calls `preventDefault`. Recorded rather than asked.
+
+6. **Shortcuts reach the till through an open dialog — measured, not fixed.** With « Encaissement » open and focus on a button, F5 flipped the sale to Livraison underneath it; `setOrderType` reprices every cart line, and `PaymentDialog` reads `orderType` from the store at submit time, so the checkout would then be refused **400** for want of a customer and address. Nothing is mis-journalled — the sale is blocked, not booked wrong. Suppressing shortcuts under a modal is feature design with its own questions (which dialogs, and whether Escape should join the hook rather than staying Radix's alone), so it is recorded as **L-42** under safety rule 10.
+
+7. **A browser-driving trap, for the next session that needs one.** A `keydown` probe installed on `window` to read `e.defaultPrevented` reports **false for a shortcut that did fire**, if the hook re-registered its listener after the probe went on — and it does: the shortcuts array is memoized on cart-derived values, so adding an item tears the listener down and adds it back, behind the probe. It cost one wrong conclusion here. Install the probe after the last cart change, or observe the effect instead of the flag. *Methods → Browser driving.*
+
+8. **What this batch did NOT change.** The `useMemo` and its dependency list stay as they are. No shortcut gained `allowInInput`, so every one of them still stands down while focus is in a text field — that is the documented contract, the batch tests it, and it is why nothing fires while the cashier is typing a search. Not one row of the help dialog was edited: every row now does what it says. `use-auto-lock.ts` (which counts keydowns as activity) and `receipt-dialog.tsx`'s `Ctrl+Enter` print listener were left alone; neither collides with a registered shortcut.
+
+9. **Front matter: what was retired to make room, and where the fact lives now.** The subsection *Environment as last seen — verify before trusting* went, heading and intro and all, because item 8 was its last surviving occupant (item 6 went in Batch 4.7). Item 8 said `bun test src` fails 23 tests on this machine and the code is fine. **That fact has three other homes**, all of them fuller: **L-24**'s row in *Newly Discovered Issues* carries the measurement (~1519 ms per scrypt call at N=2^17, the misleading `SQLITE_CANTOPEN`/P2010 cascade, and the two options for fixing it), the *Validation commands* table says to add `--timeout 30000` and points at L-24, and *G* repeats it beside the current test count. The one pointer that named the retired subsection — *Methods → Manual validation against the production build*, on `next dev` being blocked here — now points at warning 9, which carries that fact. The subsection itself was **635 bytes**; after this batch's own additions to *G* and the status block, the front matter fell from **40 819 to 40 210 bytes**, leaving about **750** of its ~40 960-byte ceiling.
+
+---
+
 # COMPLETED REMEDIATION HISTORY
 
 *Moved verbatim from `REMEDIATION_PLAN.md` lines 2357–2378 (commit `5f0c2b1`) on 2026-09-04. Nothing in this section has been rewritten; corrections, if any, are appended dated notes.*
@@ -2103,6 +2168,7 @@ validation.ts:88     options: z.array(optionGroupSchema).default([])
 | 4.5 | COMPLETED | 2026-09-04 | `1a0836b` | DD-08's six parts, closing C-17, L-37, L-38 and DOC-09: deleted `port-real-data.ts` (which wiped production by a hardcoded path, defeating the scratch-copy method) and `seed-category-options.ts`; rebuilt `seed-users.ts` as a delete-free PIN reset with both published defaults refused from `src/lib/auth.ts`; guarded both counter scripts against lowering any of four counters via the tested `fiscal-counter-floor.ts`; made every script dry-run-by-default; brought `scripts/` under `tsc` and `eslint`; rewrote `scripts/README.md`. 498/498 tests. Production untouched; no migration. Retired 6 656 bytes of plan front matter, bringing it under its ~40 KB ceiling. |
 | 4.6 | COMPLETED | 2026-09-04 | `974372e` | C-24 and C-25, both HIGH catalogue data-loss. Category PUT no longer validates entries after `deleteMany` — one malformed option group used to destroy a category's sauces and breads and return 200 (proved on the real `Sandwichs`: 4 groups, 19 choices deleted); `productSchema.options` no longer defaults to `[]`, so a PUT omitting it no longer wipes a product's option groups. Media usage scan and delete-time cleanup now cover all six image columns from one declaration instead of three each — 30 of 124 referenced images (the whole condiment catalogue) displayed as unused — and `DELETE /api/media` journals `MEDIA_DELETED`. 531/531 tests, eight one-property reverts. Production untouched; no migration. |
 | 4.7 | COMPLETED | 2026-09-04 | `951e14c` | C-15's shift-race half, closing C-15 and finishing Stage 4. Shift state was read outside the transaction at **three** sites, not the audit's two: the checkout looked up the open shift 150 lines before it wrote anything, `generateZReport` totalled the shift and only then opened the transaction that closed it, and the refund route read `order.shift.status` before `processRefund`. Measured first: Prisma's interactive transactions on SQLite do not overlap, in either journal mode, while reads outside a transaction do not wait — so the checkout re-asserts `OPEN` as the first statement inside its transaction (body moved to new `services/checkout.ts`), the Z report is computed inside the transaction that seals it, and the refund re-reads under the lock. Duplicate-Z and shift-status refusals became a typed `ZReportError`; `POST /api/reports/z` answered 500 to a duplicate close and now answers 409. Six sales racing one close on a copy of production: the old code left 7 orders in a shift whose immutable Z counted 5, losing 3,00 €; the new code counted 8 of 8 and refused four sales in French. 543/543. |
+| 5.1 | COMPLETED | 2026-09-05 | `8a4429a` | C-20, the one Stage 5 batch needing no design decision — and it held one anyway. The matcher compared an optional `boolean | undefined` against the event's real boolean with no coercion, so `undefined !== false` was true on the ctrl line for every shortcut on every keystroke: not one of the nine had ever fired since the initial commit, `Shift+?` included. `!!s.ctrl !== e.ctrlKey` and the same for shift and alt is the plan's own fix, and it revived nine presses of ten. The tenth is this restaurant's: Windows reports `/` on the French AZERTY layout as vk `0xBF` **with SHIFT**, so the strict matcher would have refused the documented `/` search key at the till it was written for. Operator answered **register it both ways**, and a second `{ key: "/", shift: true }` sits beside the plain one — the two cannot collide, because QWERTY `Shift+/` emits `?` and AZERTY `Shift+:` emits `/`. Running the app then found a second dead thing behind C-20: `pos-view.tsx` declared a `searchInputRef` it never attached, the real input being the topbar's, so F1 and `/` fired into a no-op; operator answered **fix it in this batch**, and both files now reach the input through a shared `POS_SEARCH_INPUT_ID`. Seventeen one-property reverts in three directions, until all 25 new tests had failed under something; 9 of them are named in the file as regression assertions that cannot fail against the old code. Manual walkthrough on a scratch copy in a real browser: every row of the help dialog does what it says, Échap included, and F5 no longer reloads the page. Production untouched; no migration. Recorded L-42. 568/568. |
 
 # RESOLVED FINDINGS
 
@@ -2157,6 +2223,16 @@ validation.ts:88     options: z.array(optionGroupSchema).default([])
 ---
 
 # RETIRED OPEN-THREAD ROWS AND SUPERSEDED FRONT-MATTER LINES
+
+**Front matter subsection *Environment as last seen — verify before trusting*, retired whole on 2026-09-05 (Batch 5.1), from `REMEDIATION_PLAN.md` lines 162–167 at commit `04a76c9`.** Retired for size: the section stood at 40 819 bytes of its ~40 KB ceiling, leaving about 141 bytes, and this subsection was 635 of them — and item 8 was the subsection's last surviving occupant after Batch 4.7 retired item 6. **The fact is not lost and was never only here** — `L-24`'s row in *Newly Discovered Issues* carries the full measurement, the *Validation commands* table carries the `--timeout 30000` instruction, and *G* carries it beside the test count. The single pointer that named this subsection, in *Methods → Manual validation against the production build*, was repointed at warning 9 in the same commit.
+
+#### Environment as last seen — verify before trusting
+
+*These items describe the developer's machine at the end of session 4, not the project. Check each before acting on it, and delete it here once it no longer holds. Their numbers are kept because other sections refer to them.*
+
+8. **`bun test src` fails 23 tests on this machine, and the code is fine.** All 23 are 5 s timeouts in `backup*.test.ts` / `auth.test.ts`: scrypt at N=2^17 costs ~1.5 s per call here and a backup→restore round trip makes several. Use `--timeout 30000`; the current count is in *G*. Recorded as **L-24** — do not "fix" a test that fails this way.
+
+---
 
 **Open Threads → F, retired whole on 2026-09-04 (Batch 4.4c), from `REMEDIATION_PLAN.md` lines 135–150 at commit `a2b34a7`.** Retired for size, not because it was wrong: the front matter stood at 45 233 bytes against the ~40 KB ceiling, and this was its stalest occupant — unextended since session 4, self-described as annotation rather than inventory, and pointing at `NEWLY DISCOVERED ISSUES` as the authoritative register. **Batch 7.1 still owes the merge it asks for**; the L-19 and L-21 re-measurements below exist nowhere else.
 
