@@ -11,19 +11,19 @@ Detailed audit record: https://claude.ai/code/artifact/329316b0-3a6b-48b0-9d27-d
 
 **Overall:** NOT READY FOR PRODUCTION
 
-**Current Stage:** Stage 4 — Security & integrity, `IN PROGRESS` (4.1 and 4.2 COMPLETED; 4.3 through 4.7 `NOT STARTED`). (**Stage 3 is COMPLETED** — every batch 3.1 through 3.6, plus 3.6b, which reopened it for one small batch on 2026-09-04 — with C-22's chain-design half carried forward as `REQUIRES EXTERNAL VERIFICATION` and V-03 open for professional confirmation. Stage 1 is **partly done**: 1.1 and 1.2 COMPLETED, 1.3 `IMPLEMENTED — TESTING REQUIRED` on hardware, 1.4 deferred. Stage 2 is COMPLETED.)
+**Current Stage:** Stage 4 — Security & integrity, `IN PROGRESS` (4.1, 4.2 and 4.3 COMPLETED — 4.3 with C-18 `◐` by operator decision; 4.4 through 4.7 `NOT STARTED`). (**Stage 3 is COMPLETED** — every batch 3.1 through 3.6, plus 3.6b, which reopened it for one small batch on 2026-09-04 — with C-22's chain-design half carried forward as `REQUIRES EXTERNAL VERIFICATION` and V-03 open for professional confirmation. Stage 1 is **partly done**: 1.1 and 1.2 COMPLETED, 1.3 `IMPLEMENTED — TESTING REQUIRED` on hardware, 1.4 deferred. Stage 2 is COMPLETED.)
 
-**Current Batch:** Batch 4.3 — Credentials, sessions and network exposure · `NOT STARTED`
+**Current Batch:** Batch 4.4 — Authorization gating parity · `NOT STARTED` — **blocked on DD-07**
 
-**Last Completed Batch:** Batch 4.2 — Asynchronous scrypt (C-09). PIN key derivation moved off the event loop to the async `crypto.scrypt`, and behind a bound of two concurrent derivations with a thirty-two-deep queue; past that the auth routes answer `503` rather than let a caller queue unbounded 128 MiB scrypt buffers. Measured on two builds of the same tree: during one wrong manager PIN the pre-batch build served **6** concurrent requests at a worst latency of **1608 ms**, the fixed build **491** at **24 ms**. **No migration.** **T-04 was written here as its prerequisite** and the legacy N=2^14 fallback is proved to still verify and to still upgrade transparently, through both `login` and `unlock`.
+**Last Completed Batch:** Batch 4.3 — Credentials, sessions and network exposure (C-18 `◐`, M-23, M-27, M-28). The server binds `127.0.0.1`, so the staff list and the login route no longer answer on the restaurant Wi-Fi; a caller can no longer rewrite their own PIN or switch their own account off; the seed bootstrap refuses any database that has ever traded, which is the C-17 wipe path; the consumed-token map is bounded; `Session.device` is populated for the first time. **No migration.** **C-18 is `◐`**: the default PINs stay live by operator decision, so the remaining threat is physical rather than networked.
 
-**Next Batch:** Batch 4.3 — Credentials, sessions and network exposure (C-18, M-23, M-27, M-28). **DD-06 is answered** and the operator has set the credential policy, so nothing blocks it — read *Credential policy* in that batch first, because it narrows what C-18 and M-23 may do. **Batch 1.4 is unblocked in design** (DD-02 answered) but still deferred on hardware — see *Hardware-dependent validation* below.
+**Next Batch:** Batch 4.4 — Authorization gating parity (C-16, M-19s, M-24, M-25, M-26). **It is blocked on DD-07**, which is unanswered: the cashier visibility matrix has to be decided before GET and POST can be made to agree.
 
 **Blocked:** Batch 1.3 `[HW]` sign-off and Batch 1.4 — both need the app running on the restaurant's POS machine, which is in a different country from the developer and has no copy of the app installed (decision of 2026-09-03).
 
-**Awaiting decision:** **DD-06 was answered on 2026-09-04, so Batch 4.3 is unblocked** (no LAN access; bind `127.0.0.1`), and the credential half of 4.3 is settled too — see *Credential policy* in that batch. Still open in Stage 4: **DD-07** blocks Batch 4.4 (the cashier visibility matrix) and **DD-08** blocks Batch 4.5 (guard the operator scripts or remove them). Then Batch 5.3 (cross-shift refunds), Batch 5.5 (cash movements), Batch 5.6 (order cancellation) — see *Design Decisions Required*. **DD-03 and DD-17 were answered on 2026-09-03, DD-05 and DD-18 on 2026-09-04.**
+**Awaiting decision:** **DD-07 blocks the next batch.** Batch 4.4 cannot start until the cashier visibility matrix is decided; **DD-08** then blocks Batch 4.5 (guard the operator scripts or remove them). DD-06 was answered on 2026-09-04 and is spent. Then Batch 5.3 (cross-shift refunds), Batch 5.5 (cash movements), Batch 5.6 (order cancellation) — see *Design Decisions Required*. **DD-03 and DD-17 were answered on 2026-09-03, DD-05 and DD-18 on 2026-09-04.**
 
-**Last Updated:** 2026-09-04 (session 7 — Batch 4.2; read *OPEN THREADS* below before starting anything. Nothing waits on a `migrate deploy`: neither 4.1 nor 4.2 added a migration. Session 7 corrected the environment item about the leftover server — port 3010 is free and `bunx prisma generate` still fails `EPERM`)
+**Last Updated:** 2026-09-04 (session 7 — Batches 4.2 and 4.3; read *OPEN THREADS* below before starting anything. Nothing waits on a `migrate deploy`: none of 4.1, 4.2 or 4.3 added a migration. The Prisma `EPERM` is resolved — stale `next start` servers were holding the engine DLL)
 **Restructured:** 2026-09-04 — completed batches now live verbatim in `REMEDIATION_RECORD.md`; this file keeps the resume block, the open work, the registers and a stub per completed batch. Everything a session must know before acting sits above the first stage heading. See *HOW TO USE THIS FILE*.
 
 ### OPEN THREADS — read this before starting a batch
@@ -144,11 +144,11 @@ with `sha256sum`); the compliance judgement is not a code question.
 
 | Thing | Value at the end of session 3 (updated through session 4) |
 |---|---|
-| Tests | **413 pass, 0 fail** (`bun test src --timeout 30000` — see L-24 for why the timeout flag). 400 before Batch 4.2. Whole-suite runtime measured 80–100 s this session, against the ~192 s L-24 records |
-| Production DB sha256 | `a66bc96c20d3f00282ea249361dd80d6303434b1a43331c0725258b637db46f9` — changed **only** by the operator applying the 3.5, 3.6 and (2026-09-04 09:43) 3.6b migrations. Re-verified read-only in Batch 4.2, unchanged across that batch and 4.1. The pre-3.6b value `7cc3367b…` is preserved in `db-snapshots/custom.db.pre-3.6b.2026-09-04T08-27-38Z` |
+| Tests | **430 pass, 0 fail** (`bun test src --timeout 30000` — see L-24 for why the timeout flag). 413 before Batch 4.3. Whole-suite runtime measured 80–100 s this session, against the ~192 s L-24 records |
+| Production DB sha256 | `a66bc96c20d3f00282ea249361dd80d6303434b1a43331c0725258b637db46f9` — changed **only** by the operator applying the 3.5, 3.6 and (2026-09-04 09:43) 3.6b migrations. Re-verified read-only in Batch 4.3, unchanged across 4.1, 4.2 and 4.3. The pre-3.6b value `7cc3367b…` is preserved in `db-snapshots/custom.db.pre-3.6b.2026-09-04T08-27-38Z` |
 | Fiscal chain | `/api/fiscal/verify` → all three chains `ok`, `lastSequence: 2`. **Zero monthly and annual closes have ever been sealed** — which is why M-01's guard, DD-18's timing rules and L-26's payload change could all be imposed with nothing to accommodate. Re-verified read-only 2026-09-04 |
-| Fiscal counters | `20/3/2/2` (receipt / shift / Z / event). Re-verified read-only in Batch 4.2 |
-| Migrations | **6 applied on production**, latest `20260904091947_close_refund_totals` (applied 2026-09-04 09:43:54). **None pending.** Batches 4.1 and 4.2 added none |
+| Fiscal counters | `20/3/2/2` (receipt / shift / Z / event). Re-verified read-only in Batch 4.3 |
+| Migrations | **6 applied on production**, latest `20260904091947_close_refund_totals` (applied 2026-09-04 09:43:54). **None pending.** Batches 4.1, 4.2 and 4.3 added none |
 | Catalogue | 78 products — 17 drinks at **5,5 %**, 61 at 10 % |
 | Out-of-band snapshots | `db-snapshots/custom.db.pre-3.1c.2026-09-03T20-54-10Z` and `…pre-3.5.2026-09-03T23-01-34Z` (both hash `711de2f1…`), and `…pre-3.6b.2026-09-04T08-27-38Z` (`7cc3367b…`). All outside the repo |
 
@@ -313,8 +313,8 @@ their own status blocks while the index still showed them untouched.*
 |---|---|---|---|---|---|
 | C-01 ✅ | 1.1 | M-01 ✅ | 3.6 | M-25 | 4.4 |
 | C-02 ✅ | 1.2 | M-02 ✅ | 3.3 | M-26 | 4.4 |
-| C-03 | 1.3 | M-03 ✅ | 2.2 | M-27 | 4.3 |
-| C-04 ✅ | 3.3 | M-04 ✅ | 3.5 | M-28 | 4.3 |
+| C-03 | 1.3 | M-03 ✅ | 2.2 | M-27 ✅ | 4.3 |
+| C-04 ✅ | 3.3 | M-04 ✅ | 3.5 | M-28 ✅ | 4.3 |
 | C-05 ✅ | 2.1 | M-05 | 5.5 | M-29 ✅ | 2.4 |
 | C-06 ✅ | 2.2 | M-06 ✅ | 3.6 | M-30 ✅ | 2.4 |
 | C-07 | 1.4 | M-07 ✅ | 3.6 | M-31 ✅ | 2.4 |
@@ -328,21 +328,22 @@ their own status blocks while the index still showed them untouched.*
 | C-15 ◐ | 2.3 + 4.7 | M-15 | 5.7 | L-08 | 7.2 |
 | C-16 | 4.4 | M-16 | 5.7 | L-09 | deferred |
 | C-17 | 4.5 | M-17 | 5.7 | L-10 | deferred |
-| C-18 | 4.3 | M-18 | 5.7 | L-11 | deferred |
+| C-18 ◐ | 4.3 | M-18 | 5.7 | L-11 | deferred |
 | C-19 ✅ | 2.3 | M-19 | 5.7 | L-12 | 7.2 |
 | C-20 | 5.1 | M-19s | 4.4 | T-01…T-07 | 6.1 |
 | C-21 | 5.2 | M-20 | 5.7 | T-08, T-09 | 6.2 |
 | C-22 ◐ | 2.1 + 3.5 | M-21 | 5.7 | T-10…T-12 | 6.3 |
 | C-23 | 5.4 | M-22 | 5.7 | DOC-01…12 | 7.1 |
-| C-24 | 4.6 | M-23 | 4.3 | V-01…V-03, V-08…V-12 | external |
+| C-24 | 4.6 | M-23 ✅ | 4.3 | V-01…V-03, V-08…V-12 | external |
 | C-25 | 4.6 | M-24 | 4.4 | V-04…V-07 | 8.1 / 8.2 |
 | C-26, C-26b ✅ | 0.1 | C-27 ✅ | 3.4 | P-01…P-03 ✅ | 0.2 |
 
-**The three ◐ items, so nobody has to go looking:**
+**The four ◐ items, so nobody has to go looking:**
 
 | ID | Done | Still open |
 |---|---|---|
 | **C-15** | Transaction timeouts, Batch 2.3 | The shift-state race, Batch 4.7 |
+| **C-18** | Network exposure and the seed bootstrap, Batch 4.3 | The live default PINs — an accepted residual risk, by operator decision of 2026-09-04 |
 | **C-22** | Restore/deletion journalling, Batch 2.1 | Whether an unkeyed chain suffices — `REQUIRES EXTERNAL VERIFICATION`, V-01 |
 | **L-04** | The 297 MB `.next/standalone/` tree carrying live secrets, deleted in Batch 2.4 | Rotating the secrets it exposed, Batch 7.3 / DD-04 |
 
@@ -871,7 +872,7 @@ Nothing else in the catalogue changes: all 61 non-drink products stay at 10 %.
 
 # STAGE 4 — SECURITY & INTEGRITY
 
-**Stage status:** `IN PROGRESS` — 4.1 and 4.2 `COMPLETED` (both 2026-09-04); 4.3 through 4.7 `NOT STARTED`.
+**Stage status:** `IN PROGRESS` — 4.1, 4.2 and 4.3 `COMPLETED` (all 2026-09-04); 4.4 through 4.7 `NOT STARTED`. **4.4 is blocked on DD-07.**
 
 Audit section J, step 5: close the one real privilege-escalation path, stop blocking the event loop, rotate the default credentials, and stop the silent data-loss paths.
 
@@ -922,94 +923,26 @@ Audit section J, step 5: close the one real privilege-escalation path, stop bloc
 
 ## Batch 4.3 — Credentials, sessions and network exposure
 
-**Status:** `NOT STARTED`
+**Status:** `COMPLETED` · **Completed:** 2026-09-04 · **Commit:** `PENDING_SHA` · **Findings:** C-18 `◐`, M-23, M-27, M-28
+**Record:** `REMEDIATION_RECORD.md` → *Batch 4.3* — specification, the operator's credential policy, validation criteria and status record, moved there verbatim on 2026-09-04.
 
-### Credential policy (operator determination, 2026-09-04)
+**Constraints this batch leaves behind** *(sentences copied from the record, not paraphrased)*
+- C-18's evidence blames a missing `-H` in `start.ps1`; **that file does not exist**, so `package.json` — tracked in git — is where the decision can live and where nothing untracked can undo it. *(record, Changes (1))*
+- The broken cookie blocked the restaurant's own staff and blocked no attacker. *(record, Changes (2))*
+- A non-SUPER_ADMIN self-edit carrying `pin` or `active` is refused in French, and **self-deactivation is refused for everyone**, super administrator included. *(record, Changes (3))*
+- Name self-edit still works, and administering *another* account is untouched — which is what the `Utilisateurs` view does. *(record, Changes (3))*
+- The counter check is the one that matters, because a script that wipes users and orders cannot rewind `FiscalCounter`. *(record, Changes (4))*
+- **The default PINs are untouched by operator decision** — see *Credential policy* — so C-18 is `◐`, not `COMPLETED`. *(record, Changes (4))*
+- Swept unconditionally rather than past a size threshold the way `rate-limit.ts` does, because the two are not the same shape: a rate-limit key is minted by anyone who sends a request, an entry here costs a manager's correct PIN. *(record, Changes (5))*
+- It now reads the request header, in a `try`/`catch` because `headers()` throws outside a request scope and a missing device hint must never stop a login. *(record, Changes (6))*
+- **No migration** — the schema is untouched; `Session.device` already existed and was simply never filled. *(record, Files)*
+- Changing them is an operator action, out-of-band, and **the values must never be written into these documents**. *(record, note 2)*
+- Building the check without the screen would add an unreachable branch and a false suggestion in the code that self-service exists. *(record, note 3)*
+- A SUPER_ADMIN may still reset their own PIN, deliberately — blocking it would break the only PIN-management surface the product has. *(record, note 4)*
+- No real PIN was used anywhere. *(record, note 5)*
+- `createSession` calls `cookies()` and `headers()`, which throw outside a request scope, so a unit test could only assert a mock of the very call that was wrong. *(record, note 7)*
 
-Two decisions from the operator shape this batch. Read them before touching
-C-18 or M-23, because they narrow the work rather than describe it.
-
-**1. Network exposure — DD-06 answered: no LAN access.** The POS runs on the
-all-in-one till and nothing else. The server binds `127.0.0.1`, in
-`package.json`'s `start` script, which is tracked in git. Note that C-18's own
-evidence cites `start.ps1` for the missing `-H`; **that file does not exist**,
-so there is no launcher to put it in and no untracked file that can undo it.
-`APP_URL` stays unset — at a localhost origin the `Secure` cookie is accepted,
-which was observed, so nothing else has to change. Printing is unaffected: the
-ESC/POS bridge (DD-01) dials **out** to port 9100 and a listener bind does not
-touch outbound connections.
-
-**2. PIN handling — keep the current arrangement.** The operator's decision is
-that PINs stay as they are for now. Concretely, for this batch:
-
-- **No self-service PIN change is built.** There is none today: the only
-  PIN-changing surface is the `Utilisateurs` view, gated `roles:
-  ["SUPER_ADMIN"]` at `nav-config.ts:49`, so a cashier or manager cannot change
-  their own PIN from anywhere in the application. That stays true.
-- **The default PINs stay live.** `admin` / `123456` and `manager` / `111111`
-  remain the credentials on the production machine. **No forced PIN change on
-  first login is built**, which was C-18's suggested direction.
-- **C-18 therefore cannot be marked `COMPLETED` by this batch.** Its network
-  half closes with the bind; its credential half is an accepted residual risk,
-  and the finding carries `◐` in the index like C-15, C-22 and L-04. See
-  *C-18 — what this batch does and does not close* below.
-- **M-23 is still fixed, and its fix must need no UI.** The finding is that
-  `PUT /api/users/[id]` lets a caller edit their **own** `pin` and `active`
-  with no knowledge of the current PIN — reachable today by anyone who can
-  make a request from the till, with no screen required. The remediation
-  direction in the finding ("require the current PIN") assumes a self-service
-  flow that this batch is not building, so the shape that fits the decision is
-  to **refuse `pin` and `active` on a non-SUPER_ADMIN self-edit outright**.
-  That closes the hole, changes no screen, and leaves the `Utilisateurs` view
-  working exactly as it does now, since a SUPER_ADMIN is not self-editing under
-  that rule — they are administering. Confirm the shape before writing it.
-
-### C-18 — what this batch does and does not close
-
-| | State after this batch |
-|---|---|
-| Server reachable from the restaurant Wi-Fi | **Closed.** Binds `127.0.0.1`; verified refused at the LAN address. |
-| `GET /api/auth/profiles` leaking the staff list | **Closed** by the bind — the route itself is unchanged and still public on localhost. |
-| `POST /api/seed` bootstrapping a super-admin into an empty user table | **Closed to the network** by the bind; the local-only guard is still worth adding, because C-17's unguarded `deleteMany({})` scripts can empty that table. |
-| `admin` / `123456` and `manager` / `111111` live | **Open, by decision.** The remaining threat is physical: anyone reaching the till while it is unattended can sign in as SUPER_ADMIN with the most-guessed PIN there is. Batch 4.1's lockout does not help against a first-guess success. |
-
-### C-18 — Default PINs are live; an empty user table lets anyone bootstrap a super-admin
-
-**Status:** `NOT STARTED` · Severity: HIGH · Category: security
-
-**Problem.** `POST /api/seed` is unauthenticated when `user.count() === 0` and creates `admin` (SUPER_ADMIN) with `SEED_ADMIN_PIN ?? "123456"`. The production database uses exactly those defaults.
-
-**Evidence.** `seed/route.ts:22-40`. Commit `5ef7dc4` states: "User credentials: admin=123456, manager=111111". `GET /api/seed` is unauthenticated and reports initialisation state. `GET /api/auth/profiles` is public and lists every active user's id, username, name and role.
-
-**Location.** `src/app/api/seed/route.ts:22-40, 113-116`; `src/app/api/auth/profiles/route.ts`
-
-**Impact.** The server binds `0.0.0.0` (no `-H` in `start.ps1`), so anyone on the restaurant Wi-Fi can enumerate users and try the two best-known PINs in the world. If the user table is ever emptied (see C-17), the seed endpoint hands a fresh super-admin to whoever asks first.
-
-**Remediation direction.** Force a PIN change on first login; bind to `127.0.0.1` unless LAN access is required; gate the seed bootstrap behind a one-time token or a local-only check.
-
-**Note.** If LAN access *is* required, `APP_URL` must be set to an `http://` value or the session cookie's `secure` flag silently rejects login over plain HTTP with no error. See DD-06.
-
-| ID | Status | Problem | Location | Direction |
-|---|---|---|---|---|
-| **M-23** | `NOT STARTED` | Changing a PIN requires no knowledge of the current PIN; `PUT /api/users/[id]` allows self-edit of `pin` and `active`. Anyone at an unlocked till can permanently change the signed-in user's PIN. | `users/[id]/route.ts:15-29` | Require the current PIN for a self-service PIN change; forbid self-deactivation. |
-| **M-27** | `NOT STARTED` | The approval-token `consumed` Set grows without bound and is lost on restart, permitting one replay inside the 60 s TTL. | `approvals.ts:22-28, 118-121` | Prune expired entries. The replay window is documented and accepted for single-tenant use; the unbounded growth is not. |
-| **M-28** | `NOT STARTED` | `Session.device` reads `store.get("user-agent")` from the *cookie* jar, not the header, so the column is always null. | `auth.ts:162` | Read the header. |
-
-### Batch 4.3 — Validation Required
-
-- Manual: default PINs are changed on the production machine and the change is recorded (out-of-band; **do not record the values here**).
-- Targeted test: first login forces a PIN change (if that is the chosen mechanism).
-- Targeted test: the seed bootstrap is refused from a non-local origin / without the token.
-- Verify the bind address: the server no longer answers on the LAN address (or, if LAN access is chosen, `APP_URL` is set and login over HTTP works).
-- Targeted test: a self-service PIN change without the current PIN is refused (M-23).
-- Targeted test: the `consumed` set does not grow unboundedly (M-27).
-- Targeted test: `Session.device` is populated (M-28).
-- Regression: login, unlock, switch-user, lock all still work.
-- `bun test src` — PASS. `bun run typecheck` — PASS.
-
-### Batch 4.3 — Status Record
-
-**Status:** `NOT STARTED` · **Completed:** — · **Changes:** — · **Files:** — · **Tests:** — · **Commit:** — · **Notes:** —
+**Left open:** **C-18's credential half** — `admin` / `123456` and `manager` / `111111` remain valid on the production machine; after this batch the threat is physical rather than networked, and Batch 4.1's lockout does not help because it counts *wrong* guesses. **L-31** → *Newly Discovered Issues*. The plan's *Credential policy* block moved to the record with this section; the decision it carries still governs.
 
 ---
 
@@ -1724,6 +1657,7 @@ Open rows only. A row resolved by a batch moves, unchanged, to `REMEDIATION_RECO
 
 | ID | Date | Found during | Description | Severity | Assigned to batch |
 |---|---|---|---|---|---|
+| **L-31** | 2026-09-04 | Batch 4.3 | **`POST /api/seed` reports any catalogue-seeding failure as a won race.** The catalogue step is wrapped in `catch { return … "Base initialisée (requête concurrente)." }`, so every error — not just a genuine concurrent request — is reported to the operator as success. Observed during this batch's validation: on a copy whose users were empty but whose catalogue was intact, `seedCatalogAndSettings` threw on duplicate category names and the route answered `200` with that message. The two bootstrap users *were* created, so the C-18 behaviour under test was unaffected, but an operator seeing that message cannot tell a real race from a catalogue that failed to seed. Narrower after this batch — the new freshness guard refuses most databases that could reach it — but the swallow-everything catch is still there. Distinguish the P2002 unique-constraint case from the rest, as the users branch above it already does. | LOW (misleading operator message on a bootstrap path) | 5.7 or 7.1 |
 | **L-30** | 2026-09-04 | Batch 4.2 | **The unknown-username burn at login competes for the bounded PIN queue, so username enumeration can push honest cashiers to `503`.** `login/route.ts:52` runs a full `hashPin("dummy")` for an unknown user, on purpose, to flatten the timing signal that would otherwise enumerate accounts. Batch 4.2 put that derivation inside the concurrency bound, which is where it belongs — unbounded it is the memory-exhaustion path C-09 names. The residue is that the login rate limit is keyed `login:<ip>:<username>` and, since Batch 4.1 correctly stopped believing the proxy headers, `<ip>` is the constant `"local"`: each distinct username is its own bucket and nothing caps how many buckets a caller can mint. Measured on a scratch copy: **60 simultaneous logins with 60 unknown usernames → 34 served, 26 refused `503`**, and a legitimate login arriving inside that window would have been among the refused. Candidate fixes: a global (not per-username) budget for the unknown-user path, a cheaper constant-time burn, or binding the login limiter to something the caller cannot vary. Interacts with **DD-06** — if the app binds `127.0.0.1` the reachable surface shrinks to the till itself. | MEDIUM (availability of the login screen under a LAN-side flood) | 4.3 |
 | **L-28** | 2026-09-04 | Batch 4.1 | **`test-setup.ts` clears a stale `-wal` and `-shm` beside the test database but not a stale `-journal`.** The preload deletes `test.db`, `test.db-wal` and `test.db-shm` before `prisma db push` recreates the file (`test-setup.ts:27`). The test DB runs in rollback-journal mode, so the sidecar it actually produces is `test.db-journal` — and a run killed mid-transaction leaves one behind. Observed this session: a runaway test loop was stopped and left a 21 KB `test.db-journal` next to a deleted `test.db`. SQLite treats a journal beside a database as *hot* and tries to roll it back into the new file, so the failure mode is a confusing lock or corruption error on the **next** run, attributed to whatever code that run happened to touch. One extra path in the existing delete loop. | LOW (test infrastructure; misattributed failures) | 6.1 |
 | **L-29** | 2026-09-04 | Batch 4.1 | **`limitOr429` is exported from `http-rate-limit.ts` and called from nowhere.** Every route reaches for `clientIp` + `rateLimit` directly and builds its own 429 response, so the helper meant to standardise that is dead code — and it embeds the same key shape (`<ip>:<parts>`) whose IP component was the C-08 bypass. It inherits Batch 4.1's fix because it calls `clientIp`, so there is no live risk; the hazard is a future route adopting it and reintroducing an IP-keyed limit without noticing. Either use it everywhere or delete it. | LOW (dead code in a security-relevant module) | 7.2 |

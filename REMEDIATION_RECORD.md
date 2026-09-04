@@ -1332,6 +1332,137 @@ Runs **before Batch 4.1**. Both items are cheap while zero monthly and annual cl
 
 **(9) The suite is faster than L-24 recorded**, at 80–100 s against the ~192 s in that finding, on the same `--timeout 30000`. Nothing in this batch explains it — only `auth.test.ts` and the three new files derive PINs. Recorded as an observation, not a claim; L-24's advice to pass the timeout stands.
 
+## Batch 4.3 — Credentials, sessions and network exposure
+
+*Moved verbatim from `REMEDIATION_PLAN.md` lines 923–1012 (commit `5664fd8`, plus this batch's status record) on 2026-09-04. Nothing in this section has been rewritten; corrections, if any, are appended dated notes.*
+
+**Status:** `COMPLETED` (2026-09-04)
+
+### Credential policy (operator determination, 2026-09-04)
+
+Two decisions from the operator shape this batch. Read them before touching
+C-18 or M-23, because they narrow the work rather than describe it.
+
+**1. Network exposure — DD-06 answered: no LAN access.** The POS runs on the
+all-in-one till and nothing else. The server binds `127.0.0.1`, in
+`package.json`'s `start` script, which is tracked in git. Note that C-18's own
+evidence cites `start.ps1` for the missing `-H`; **that file does not exist**,
+so there is no launcher to put it in and no untracked file that can undo it.
+`APP_URL` stays unset — at a localhost origin the `Secure` cookie is accepted,
+which was observed, so nothing else has to change. Printing is unaffected: the
+ESC/POS bridge (DD-01) dials **out** to port 9100 and a listener bind does not
+touch outbound connections.
+
+**2. PIN handling — keep the current arrangement.** The operator's decision is
+that PINs stay as they are for now. Concretely, for this batch:
+
+- **No self-service PIN change is built.** There is none today: the only
+  PIN-changing surface is the `Utilisateurs` view, gated `roles:
+  ["SUPER_ADMIN"]` at `nav-config.ts:49`, so a cashier or manager cannot change
+  their own PIN from anywhere in the application. That stays true.
+- **The default PINs stay live.** `admin` / `123456` and `manager` / `111111`
+  remain the credentials on the production machine. **No forced PIN change on
+  first login is built**, which was C-18's suggested direction.
+- **C-18 therefore cannot be marked `COMPLETED` by this batch.** Its network
+  half closes with the bind; its credential half is an accepted residual risk,
+  and the finding carries `◐` in the index like C-15, C-22 and L-04. See
+  *C-18 — what this batch does and does not close* below.
+- **M-23 is still fixed, and its fix must need no UI.** The finding is that
+  `PUT /api/users/[id]` lets a caller edit their **own** `pin` and `active`
+  with no knowledge of the current PIN — reachable today by anyone who can
+  make a request from the till, with no screen required. The remediation
+  direction in the finding ("require the current PIN") assumes a self-service
+  flow that this batch is not building, so the shape that fits the decision is
+  to **refuse `pin` and `active` on a non-SUPER_ADMIN self-edit outright**.
+  That closes the hole, changes no screen, and leaves the `Utilisateurs` view
+  working exactly as it does now, since a SUPER_ADMIN is not self-editing under
+  that rule — they are administering. Confirm the shape before writing it.
+
+### C-18 — what this batch does and does not close
+
+| | State after this batch |
+|---|---|
+| Server reachable from the restaurant Wi-Fi | **Closed.** Binds `127.0.0.1`; verified refused at the LAN address. |
+| `GET /api/auth/profiles` leaking the staff list | **Closed** by the bind — the route itself is unchanged and still public on localhost. |
+| `POST /api/seed` bootstrapping a super-admin into an empty user table | **Closed to the network** by the bind; the local-only guard is still worth adding, because C-17's unguarded `deleteMany({})` scripts can empty that table. |
+| `admin` / `123456` and `manager` / `111111` live | **Open, by decision.** The remaining threat is physical: anyone reaching the till while it is unattended can sign in as SUPER_ADMIN with the most-guessed PIN there is. Batch 4.1's lockout does not help against a first-guess success. |
+
+### C-18 — Default PINs are live; an empty user table lets anyone bootstrap a super-admin
+
+**Status:** `◐ PARTLY COMPLETED` — network half closed, credential half an accepted residual risk · Severity: HIGH · Category: security
+
+**Problem.** `POST /api/seed` is unauthenticated when `user.count() === 0` and creates `admin` (SUPER_ADMIN) with `SEED_ADMIN_PIN ?? "123456"`. The production database uses exactly those defaults.
+
+**Evidence.** `seed/route.ts:22-40`. Commit `5ef7dc4` states: "User credentials: admin=123456, manager=111111". `GET /api/seed` is unauthenticated and reports initialisation state. `GET /api/auth/profiles` is public and lists every active user's id, username, name and role.
+
+**Location.** `src/app/api/seed/route.ts:22-40, 113-116`; `src/app/api/auth/profiles/route.ts`
+
+**Impact.** The server binds `0.0.0.0` (no `-H` in `start.ps1`), so anyone on the restaurant Wi-Fi can enumerate users and try the two best-known PINs in the world. If the user table is ever emptied (see C-17), the seed endpoint hands a fresh super-admin to whoever asks first.
+
+**Remediation direction.** Force a PIN change on first login; bind to `127.0.0.1` unless LAN access is required; gate the seed bootstrap behind a one-time token or a local-only check.
+
+**Note.** If LAN access *is* required, `APP_URL` must be set to an `http://` value or the session cookie's `secure` flag silently rejects login over plain HTTP with no error. See DD-06.
+
+| ID | Status | Problem | Location | Direction |
+|---|---|---|---|---|
+| **M-23** | `COMPLETED` | Changing a PIN requires no knowledge of the current PIN; `PUT /api/users/[id]` allows self-edit of `pin` and `active`. Anyone at an unlocked till can permanently change the signed-in user's PIN. | `users/[id]/route.ts:15-29` | Require the current PIN for a self-service PIN change; forbid self-deactivation. |
+| **M-27** | `COMPLETED` | The approval-token `consumed` Set grows without bound and is lost on restart, permitting one replay inside the 60 s TTL. | `approvals.ts:22-28, 118-121` | Prune expired entries. The replay window is documented and accepted for single-tenant use; the unbounded growth is not. |
+| **M-28** | `COMPLETED` | `Session.device` reads `store.get("user-agent")` from the *cookie* jar, not the header, so the column is always null. | `auth.ts:162` | Read the header. |
+
+### Batch 4.3 — Validation Required
+
+- Manual: default PINs are changed on the production machine and the change is recorded (out-of-band; **do not record the values here**).
+- Targeted test: first login forces a PIN change (if that is the chosen mechanism).
+- Targeted test: the seed bootstrap is refused from a non-local origin / without the token.
+- Verify the bind address: the server no longer answers on the LAN address (or, if LAN access is chosen, `APP_URL` is set and login over HTTP works).
+- Targeted test: a self-service PIN change without the current PIN is refused (M-23).
+- Targeted test: the `consumed` set does not grow unboundedly (M-27).
+- Targeted test: `Session.device` is populated (M-28).
+- Regression: login, unlock, switch-user, lock all still work.
+- `bun test src` — PASS. `bun run typecheck` — PASS.
+
+### Batch 4.3 — Status Record
+
+**Status:** `COMPLETED` · **Completed:** 2026-09-04 · **Commit:** `PENDING_SHA` · **Findings:** C-18 `◐`, M-23, M-27, M-28
+
+**Changes.**
+
+**(1) The server stopped listening on the restaurant Wi-Fi — DD-06.** `package.json`'s `start` script became `next start -p 3000 -H 127.0.0.1`. Without `-H`, `next start` binds `0.0.0.0`: verified before the change on a production build, which announced `Network: http://192.168.1.12:3026` and answered there. C-18's evidence blames a missing `-H` in `start.ps1`; **that file does not exist**, so `package.json` — tracked in git — is where the decision can live and where nothing untracked can undo it. A test pins the flag.
+
+**(2) The measurement that corrected the plan's framing.** The plan called the pre-batch state "protective by accident", on the grounds that the `Secure` cookie made LAN login fail. It was not protective. In a real browser at the LAN address, login returned **200 with a valid user** and the next `GET /api/auth/me` returned **`{user: null}`** — the session never sticks — while the same login at `http://localhost` worked, localhost being a secure context. But the endpoints that matter never read that cookie: unauthenticated from the LAN, `GET /api/auth/profiles` returned the full staff list and `POST /api/auth/login` returned 200 and a valid session token. The broken cookie blocked the restaurant's own staff and blocked no attacker. Full rationale: record → *Answered design decisions*, DD-06.
+
+**(3) M-23 — a caller can no longer rewrite their own credentials.** `PUT /api/users/[id]` admitted any caller editing their own row and then applied `pin` and `active` from the body with no further check, so anyone at an unlocked till could permanently re-PIN the signed-in cashier or switch their account off — no screen needed, the route answers a plain request. The finding's direction ("require the current PIN") presumes a self-service flow that does not exist and that the operator has decided not to build, so the shape is a flat refusal: a non-SUPER_ADMIN self-edit carrying `pin` or `active` is refused in French, and **self-deactivation is refused for everyone**, super administrator included. Name self-edit still works, and administering *another* account is untouched — which is what the `Utilisateurs` view does.
+
+**(4) C-18 — the bootstrap now belongs to a fresh install only, and only that half is closed.** `POST /api/seed` was guarded by `user.count() === 0` alone, so emptying `User` — one unguarded `deleteMany({})` away in the C-17 scripts — handed a new SUPER_ADMIN with the published default PIN to whoever asked first. It now also refuses when the database has ever traded: any order, any journal entry, or any advanced fiscal counter. The counter check is the one that matters, because a script that wipes users and orders cannot rewind `FiscalCounter`. **The default PINs are untouched by operator decision** — see *Credential policy* — so C-18 is `◐`, not `COMPLETED`.
+
+**(5) M-27 — the consumed-token map is bounded.** `verifyApprovalToken` remembered every accepted token in a `Set<string>` nothing removed from. It is now a `Map<token, exp>` swept on every insert. Swept unconditionally rather than past a size threshold the way `rate-limit.ts` does, because the two are not the same shape: a rate-limit key is minted by anyone who sends a request, an entry here costs a manager's correct PIN. The map therefore holds only tokens inside the 300 s maximum TTL — tens of entries at a busy till — so the sweep walks a handful of keys and there is no tuning constant to get wrong.
+
+**(6) M-28 — `Session.device` is populated for the first time.** It read `store.get("user-agent")` — the *cookie* jar, which has no such cookie — so the column was null on every row ever written. It now reads the request header, in a `try`/`catch` because `headers()` throws outside a request scope and a missing device hint must never stop a login.
+
+**Files:** `package.json`, `src/lib/services/account-policy.ts` (new), `src/lib/services/account-policy.test.ts` (new), `src/lib/approvals-consumed.test.ts` (new), `src/lib/approvals.ts`, `src/lib/auth.ts`, `src/app/api/users/[id]/route.ts`, `src/app/api/seed/route.ts`. **No migration** — the schema is untouched; `Session.device` already existed and was simply never filled.
+
+**Tests:** `bun test src --timeout 30000` → **430 pass, 0 fail** (413 before; 17 new across two files). `bun run typecheck` — PASS. `bun run lint` — PASS. `bun run build` — PASS. **Every fix proved against the pre-batch code**, per the Stage 3 method, on the same build and the same scratch data. **M-23**: on `HEAD`'s route a cashier logged in, `PUT`ed their own row and got `200` — the stored `pinHash` changed, and a second call set `active` to `0`, switching their own account off. Fixed: `403` on both, hash unchanged, `active` still `1`. **C-18**: on `HEAD`'s route the wiped database (users `0`, counters `20/3/2/2`) answered `POST /api/seed` with `200` and created `admin` (SUPER_ADMIN) and `manager`. Fixed: `409 « Base non vierge… »`, users still `0`. **M-28**: identical `user-agent` header, old code stored `device: null`, fixed code stored `"HibaPOS-Validation/4.3 (scratch)"`. **M-27**: the sweep call alone was removed, leaving the map and the counter export in place, so the failure isolates the fix rather than a missing export — 2 of the 4 cases fail, holding 7 entries where 2 are expected and 27 where at most 17 are. All four files were restored from copies and re-checked by sha256 (`35e497f9…`, `3ed14a9b…`, `a2c81b55…`, `f1b99f68…`).
+
+**Notes.**
+
+**(1) What this batch did NOT do, and why.** The operator's decision of 2026-09-04 is that PINs stay as they are: no self-service PIN change, no forced change on first login, default PINs live. C-18's own remediation direction named the forced change first, so this batch deliberately implements the other two thirds of it and leaves that one alone. *Credential policy* in the plan carries the decision; the finding keeps `◐`.
+
+**(2) The residual risk, stated so nobody has to infer it.** `admin` / `123456` and `manager` / `111111` remain valid on the production machine. After this batch the threat is physical rather than networked: anyone who reaches the till while it is unattended can sign in as SUPER_ADMIN with the most-guessed PIN there is. Batch 4.1's lockout does not help — it counts wrong guesses, and this one is right. Changing them is an operator action, out-of-band, and **the values must never be written into these documents**.
+
+**(3) Why M-23's refusal is flat rather than a current-PIN check.** A current-PIN check is the better rule *when there is a screen to type the current PIN into*. There is none: `nav-config.ts:49` gates `Utilisateurs` to `SUPER_ADMIN`, so no cashier or manager can reach any PIN field. Building the check without the screen would add an unreachable branch and a false suggestion in the code that self-service exists. The flat refusal closes the same hole with nothing unreachable behind it.
+
+**(4) A SUPER_ADMIN may still reset their own PIN, deliberately.** They reach the route through `Utilisateurs`, which lists their own row, and they are administering rather than self-servicing. Blocking it would break the only PIN-management surface the product has. Self-*deactivation* is refused for them too, because that is a lockout rather than an administration.
+
+**(5) Validated end-to-end through the real routes on the production build, against three scratch copies.** The main copy was proved before the first write by reading the marker profile `MARQUEUR-4.3-SCRATCH` from the pre-auth `GET /api/auth/profiles`. All accounts were synthetic with PINs generated for the run — **no real PIN was used anywhere**. The bind was verified on the running server: `TCP 127.0.0.1:3028 LISTENING`, localhost `200`, the LAN address refused. Two further copies covered C-18's branches: one with users wiped and only the fiscal counters left (the C-17 scenario) → `409`, zero users created; one genuinely fresh, counters at zero → `200`, two users created, so **first boot still works**.
+
+**(6) One limit on the C-18 evidence.** On the "genuinely fresh" copy the response read *« Base initialisée (requête concurrente). »* rather than the plain success message, because that copy still carried the real catalogue and `seedCatalogAndSettings` therefore threw on duplicate category names, landing in the route's catch-all. The users were created, which is what C-18 is about. Recorded as **L-31**.
+
+**(7) `Session.device` is verified end-to-end, not by unit test.** `createSession` calls `cookies()` and `headers()`, which throw outside a request scope, so a unit test could only assert a mock of the very call that was wrong. The header→database path was exercised for real instead, on both the old and the new build, with the same header.
+
+**(8) Production untouched.** `db/custom.db` is `a66bc96c20d3f00282ea249361dd80d6303434b1a43331c0725258b637db46f9` before and after, mtime unchanged at 2026-09-04 09:43:54, no `-wal` / `-shm` / `-journal` sidecars, `db/backups/` untouched, no `db/fiscal-archives/` created.
+
+**(9) Environment.** This batch's scratch servers ran on ports 3026 and 3028–3032 and were all stopped by PID. The `next start` child still survives `TaskStop` on the wrapper, as Batch 4.1 note 7 recorded. The Prisma `EPERM` is gone since the session-5 leftovers were stopped — see the correction appended to Batch 4.2.
+
 ---
 
 # COMPLETED REMEDIATION HISTORY
@@ -1363,6 +1494,7 @@ Runs **before Batch 4.1**. Both items are cheap while zero monthly and annual cl
 | 3.6b | COMPLETED | 2026-09-04 | `545b255` | L-25 + L-26, closing Stage 3 for good. **L-25**: Batch 3.6's guard enforced the ORDER of period closes but not their TIMING — sealing September on 4 September succeeded and sealed a partial month as the whole, permanently, because `period` is `@unique`. DD-18 answered *refuse, with no override*: a close is refused while its period has not ended, and while a caisse opened inside it is still open, both guards running before the aggregation so a refusal writes nothing. "Ended" reuses the half-open local-time bounds `aggregatePeriod` already used, extracted into a pure `src/lib/period.ts` the screen imports too — so the screen now proposes the last completed month and exercice instead of the current ones, which is the half no server guard can fix. **L-26**: `refundsTotal` / `refundsCount` on `MonthlyClose` and `AnnualClose`, the M-07 convention the period closes had been left out of; the sealed payload gains `refundsCount`, provable only because **zero closes exist**, and a test asserts that premise rather than assuming it. Migration rehearsed and fingerprint-diffed on a copy — both tables empty, so no sealed document is rewritten — and **not yet applied to production**. Rehearsed end-to-end through the real routes on a migrated copy: the current month, the current exercice and a month holding the real still-open caisse #3 all refused in French with nothing written; 2026-08 then sealed at `salesTotal 42400`, `refundsTotal 0/0`, all three chains `ok`. Screen driven in the browser: proposes 2026/8 and exercice 2025, refusal toast verbatim. Found the plan stale on the 3.6 migration (applied) and identified the port-3010 leftover. Recorded L-27. 384/384. |
 | 4.1 | COMPLETED | 2026-09-04 | `f14a50c` | C-08, opening Stage 4. Two walls where there had been none that held. **The bypass**: `clientIp` believed `X-Real-IP` / `X-Forwarded-For` on the strength of a comment describing a Caddy proxy deleted in commit `0aeea30`, so an authenticated cashier could rotate a header per request, mint a fresh bucket each time and grind the 10⁶ PIN space. It now returns a constant unless `TRUST_PROXY_HEADERS` declares a real proxy — which costs nothing, because a browser sends neither header — and the approve key drops the IP outright. **The missing lockout**: five wrong manager PINs from one caller inside fifteen minutes now refuse further approvals `423` until the window slides, checked before the scrypt loop, counted from the `MANAGER_APPROVAL_FAILED` audit rows the route already wrote — so it is durable across a restart and needed **no migration**. The caller's *account* is deliberately not locked: `getSession()` treats a live `lockedUntil` as session revocation, which would eject a cashier from the till mid-service with their caisse open. Validated end-to-end against the production build on a scratch copy with synthetic PINs: 403 ×4 then 423 with `Retry-After 895` under a rotating forged IP, `429` on the sixth, the cashier's session still valid, a second cashier unaffected, a correct PIN still issuing an amount-bound token, self-approval still refused — then the server was restarted and the lock held at `423`. 10 of the 16 new tests proved to fail on the pre-batch behaviour. Found the plan stale again: the operator has applied the 3.6b migration, so **nothing waits on a `migrate deploy`**; the production hash is now `a66bc96c…`. Recorded L-28, L-29. 400/400. |
 | 4.2 | COMPLETED | 2026-09-04 | `4022c9c` | C-09 (and T-04, its prerequisite). PIN key derivation was `scryptSync` at N=2^17 on the request thread — ~390 ms of frozen event loop per call, twice for a wrong PIN and once per manager on `/api/auth/approve`, so five managers and one fumbled PIN stopped the whole till. It now uses the async `crypto.scrypt`, the form `backup.ts` already used, behind a bound of **two concurrent derivations and a thirty-two-deep queue** in a new `pin-hash-queue.ts`; past that the auth routes answer `503` rather than let a caller queue unbounded 128 MiB buffers, which is the memory-exhaustion half of the finding. Measured on two production builds of the same tree differing only in `auth.ts`: during one wrong manager PIN the old build served **6** concurrent requests at a worst latency of **1608 ms**, the new one **491** at **24 ms**; 60 simultaneous unknown-user logins took **29.3 s** and were all accepted before, and are now 34 served + 26 refused. **T-04 was written first**, as the plan required, and the legacy N=2^14 fallback survives: a pre-hardening hash verifies, is flagged legacy, and is transparently re-hashed on success — proved end-to-end through both `login` and `unlock` on a scratch copy with synthetic PINs. Both halves proved against the pre-batch code: zero timer ticks during a 476 ms derivation on old `auth.ts`, and 2 of T-04's 6 cases fail when the fallback is deleted. **No migration.** Corrected the environment note blaming port 3010 for the Prisma `EPERM` — that process is gone and the `EPERM` remains. Recorded L-30. 413/413. |
+| 4.3 | COMPLETED (C-18 `◐`) | 2026-09-04 | `PENDING_SHA` | C-18 + M-23 + M-27 + M-28, on two operator decisions. **DD-06 answered — no LAN access**: the server binds `127.0.0.1`, and the measurement corrected the plan's own framing, which called the previous state "protective by accident". It was not: in a browser at the LAN address login returned 200 and the session silently never stuck, while unauthenticated `profiles` and `login` answered over the LAN perfectly well — the broken `Secure` cookie blocked the staff and no attacker. **M-23**: `PUT /api/users/[id]` let any caller rewrite their own `pin` and `active` with no current PIN, so anyone at an unlocked till could re-PIN the signed-in cashier or switch their account off; proved on the old build (200, hash changed, `active` 0) and now a flat refusal, with self-deactivation refused for everyone including the super administrator. The finding's own "require the current PIN" was **not** built: no self-service screen exists, and the operator decided PINs stay as they are. **C-18**: the seed bootstrap now refuses any database that has ever traded — the counter check catches the C-17 wipe that leaves counts at zero; proved on the old build, where a wiped copy with counters at 20/3/2/2 handed out a fresh SUPER_ADMIN with the published default PIN. **Its credential half stays open by decision**, so the finding is `◐` and the residual threat is physical rather than networked. **M-27**: the consumed-token set became a swept map (7 entries where 2 are expected, without the sweep). **M-28**: `Session.device` read the cookie jar, so it was null on every row ever written; now the header, verified end to end on both builds. **No migration.** Recorded L-31. 430/430. |
 
 ---
 

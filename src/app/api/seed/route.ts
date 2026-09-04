@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { hashPin } from "@/lib/auth";
 import { seedCatalogAndSettings, isEmojiImage } from "@/lib/services/seed";
 import { isScryptBusyError } from "@/lib/pin-hash-queue";
+import { hasTraded, NOT_FRESH_REFUSAL } from "@/lib/services/account-policy";
 import { scryptBusyResponse } from "@/lib/api-handler";
 
 // Re-export helper so any consumer (none currently, but defensive) keeps it.
@@ -46,6 +47,18 @@ async function seed() {
       );
     }
     return NextResponse.json({ ok: true, message: "Déjà initialisé", skipped: true });
+  }
+
+  // C-18 (Batch 4.3) — the bootstrap is for a FRESH install, not for one
+  // whose users happen to have been deleted. Rule and rationale in
+  // `account-policy.ts`.
+  const [counter, orderCount, eventCount] = await Promise.all([
+    db.fiscalCounter.findUnique({ where: { id: "singleton" } }),
+    db.order.count(),
+    db.fiscalEvent.count(),
+  ]);
+  if (hasTraded({ counter, orderCount, eventCount })) {
+    return NextResponse.json({ error: NOT_FRESH_REFUSAL }, { status: 409 });
   }
 
   // Bootstrap path. Default PINs end up as defaults in env if unset.

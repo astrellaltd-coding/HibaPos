@@ -3,7 +3,7 @@
 
 import { randomBytes, randomUUID, scrypt, timingSafeEqual } from "crypto";
 import { createHmac } from "crypto";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { db } from "@/lib/db";
 import { runPinDerivation } from "@/lib/pin-hash-queue";
 
@@ -172,6 +172,19 @@ export async function createSession(payload: Omit<SessionPayload, "exp" | "sessi
   const exp = Date.now() + SESSION_TTL_MS;
   const token = encodeSession({ ...payload, sessionId, exp });
   const store = await cookies();
+  // M-28 (Batch 4.3): this read `store.get("user-agent")` — the COOKIE jar,
+  // which has no such cookie — so `Session.device` was null on every row ever
+  // written and the column told an operator nothing about where a session came
+  // from. The user agent is a request HEADER. Best-effort: outside a request
+  // scope `headers()` throws, and a missing device hint must never stop a
+  // login.
+  let deviceHint: string | null = null;
+  try {
+    const requestHeaders = await headers();
+    deviceHint = requestHeaders.get("user-agent")?.slice(0, 120) ?? null;
+  } catch {
+    deviceHint = null;
+  }
   // Cookie `secure` flag: default SECURE (safe for production HTTPS). Only
   // when APP_URL explicitly declares plain http:// (Tauri webview, Caddy :81
   // without TLS, dev localhost) do we drop the flag — otherwise the cookie
@@ -194,7 +207,7 @@ export async function createSession(payload: Omit<SessionPayload, "exp" | "sessi
       id: sessionId,
       userId: payload.userId,
       expiresAt: new Date(exp),
-      device: store.get("user-agent")?.value?.slice(0, 120) ?? null,
+      device: deviceHint,
     },
   });
 }

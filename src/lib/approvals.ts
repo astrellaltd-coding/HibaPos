@@ -19,13 +19,40 @@ export type ApprovalPayload = {
   nonce: string;
 };
 
-// Single-use enforcement. NOTE: the `consumed` Set is in-memory, so a
+// Single-use enforcement. NOTE: the `consumed` map is in-memory, so a
 // process restart loses the consumed-state — a token can be replayed
 // once within its 60s TTL after a restart. This is an accepted
 // trade-off for the intended single-tenant local-POS deployment
 // (restarts are rare and operator-initiated). If this app is ever
 // multi-instance / resold, persist `consumed` to a DB table.
-const consumed = new Set<string>();
+//
+// M-27 (Batch 4.3): it was a `Set<string>` of whole tokens that nothing ever
+// removed from, so every approval a till granted stayed in memory for the
+// life of the process. The replay window above is documented and accepted;
+// the unbounded growth was not. Each entry now carries the token's own
+// expiry, and expired entries are swept on every insert — a consumed token
+// that has expired is refused by the `exp` check before the replay check is
+// ever reached, so remembering it past that point buys nothing.
+//
+// Sweeping on every insert, rather than past a size threshold the way
+// `rate-limit.ts` does, because the two are not the same shape: a rate-limit
+// key is minted by anyone who sends a request, while an entry here costs a
+// manager's correct PIN. The map therefore holds only tokens issued inside
+// the maximum 300 s TTL — tens of entries at a busy till — so the sweep is
+// walking a handful of keys, and the bound holds with no tuning constant to
+// get wrong.
+const consumed = new Map<string, number>();
+
+function sweepConsumed(now: number): void {
+  for (const [token, exp] of consumed) {
+    if (exp <= now) consumed.delete(token);
+  }
+}
+
+/** Live entry count. Exported for tests and diagnostics. */
+export function consumedTokenCount(): number {
+  return consumed.size;
+}
 
 export class ApprovalError extends Error {
   status: number;
@@ -118,6 +145,8 @@ export function verifyApprovalToken(
   if (consumed.has(token)) {
     throw new ApprovalError("Token déjà utilisé", 409);
   }
-  consumed.add(token);
+  const now = Date.now();
+  sweepConsumed(now);
+  consumed.set(token, payload.exp);
   return { approverId: payload.approverId };
 }

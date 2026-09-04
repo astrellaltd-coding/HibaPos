@@ -4,6 +4,7 @@ import { withAuthParams, parseJson } from "@/lib/api-handler";
 import { hashPin, revokeAllUserSessions } from "@/lib/auth";
 import { z } from "zod";
 import { audit } from "@/lib/services/audit";
+import { refuseUserSelfEdit } from "@/lib/services/account-policy";
 
 const updateSchema = z.object({
   name: z.string().min(1).max(80).optional(),
@@ -21,6 +22,20 @@ export const PUT = withAuthParams(async (req, { user, params }) => {
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalide" }, { status: 400 });
   }
+  // M-23 (Batch 4.3) — a caller may not rewrite their own credentials.
+  // Rule and rationale in `account-policy.ts`; kept out of the handler so it
+  // can be tested without standing up a request.
+  const refusal = refuseUserSelfEdit({
+    callerId: user.id,
+    callerRole: user.role,
+    targetId: params.id,
+    pin: parsed.data.pin,
+    active: parsed.data.active,
+  });
+  if (refusal) {
+    return NextResponse.json({ error: refusal.error }, { status: refusal.status });
+  }
+
   // Only super admin can change roles.
   const data: Record<string, unknown> = {};
   if (parsed.data.name !== undefined) data.name = parsed.data.name;
