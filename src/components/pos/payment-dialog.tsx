@@ -9,7 +9,6 @@ import { cn } from "@/lib/utils";
 import { formatEuro } from "@/lib/format";
 import { toCents } from "@/lib/money";
 import { useCartStore, computeCartTotals } from "@/store/cart-store";
-import { useAppStore } from "@/store/app-store";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "@/lib/api-client";
 import type { OrderDto, PaymentMethod, SettingsDto } from "@/types/api";
@@ -35,7 +34,6 @@ export function PaymentDialog({
   onCompleted: (order: OrderDto) => void;
 }) {
   const { items, orderType, tableLabel, customerId, discountTotal, notes, clear } = useCartStore();
-  const { user } = useAppStore();
   const { subtotal, total } = computeCartTotals(items, discountTotal);
   const [lines, setLines] = useState<PayLine[]>([]);
   const [activeMethod, setActiveMethod] = useState<PaymentMethod>("CASH");
@@ -50,9 +48,8 @@ export function PaymentDialog({
   // looped forever).
   const [approvalToken, setApprovalToken] = useState<string | null>(null);
 
-  // Settings hold the discount approval threshold; pulled here to mirror the
-  // server-side gate exactly (a CASHIER with a discount above threshold must
-  // present a fresh signed manager approval token, see /api/orders route).
+  // Settings hold the discount approval threshold. This read is also what
+  // Batch 4.4c needs for the step-up PIN, which prompts on the same threshold.
   const { data: settings } = useQuery({
     queryKey: ["settings"],
     queryFn: () => api.get<SettingsDto>("/api/settings"),
@@ -113,13 +110,19 @@ export function PaymentDialog({
 
   const removeLine = (idx: number) => setLines((l) => l.filter((_, i) => i !== idx));
 
-  // Determine if the cashier (non-MANAGER+/SUPER_ADMIN) needs an approval
-  // token because of the discount magnitude. MANAGER+ self-approve at the
-  // server-side, no token required from the client.
+  // The client mirror of the server's discount gate. Batch 4.4b removed the
+  // CASHIER role (DD-07), and with it the only role the server ever asked for
+  // a manager approval token — `/api/orders` now records the caller as their
+  // own approver at any magnitude. So no caller needs one, and this is
+  // DORMANT, not deleted: the dialog, the re-entry mechanism below and
+  // `/api/auth/approve` are kept because Batch 4.4c hooks its step-up PIN
+  // (DD-19) into exactly this path, on exactly this threshold. Deleting
+  // audited work to tidy up is not this plan's habit.
+  const MANAGER_APPROVAL_TOKEN_REQUIRED = false; // no surviving role requires one
   const discountPercent = subtotal > 0 ? (discountTotal / subtotal) * 100 : 0;
   const discountThreshold = settings?.discountApprovalThreshold ?? 20;
   const needsDiscountApproval =
-    user?.role === "CASHIER" && discountTotal > 0 && discountPercent > discountThreshold + 0.01;
+    MANAGER_APPROVAL_TOKEN_REQUIRED && discountTotal > 0 && discountPercent > discountThreshold + 0.01;
 
   // `tokenArg` is passed by handleApproved on re-entry after the manager
   // approves. State (`approvalToken`) is intentionally NOT read here for the

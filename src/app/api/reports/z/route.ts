@@ -13,8 +13,11 @@ const zReportPostSchema = z.object({
 // Z reports are immutable fiscal close-out records with full financial
 // history (cash variance, VAT breakdowns) — manager-level data. The UI
 // restricts them to MANAGER+ (nav-config); this gate enforces it server-side.
-// (Note: closing a shift is allowed for CASHIER per business rules, but
-// listing historical Z reports is not.)
+// (Note: closing a shift is deliberately open to any authenticated role —
+// POST /api/shifts/[id]/close declares no roles — while listing historical Z
+// reports is not. That asymmetry was a cashier-era business rule; Batch 4.4b
+// removed the role and left the asymmetry alone, because widening or
+// narrowing it is a business decision, not a consequence of DD-07.)
 export const GET = withAuth(
   async () => {
   const reports = await db.zReport.findMany({

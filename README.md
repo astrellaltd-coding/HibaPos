@@ -83,10 +83,14 @@ bun run test:e2e     # Playwright (caissier flow)
 
 ## Rôles utilisateur
 
+Un seul rôle opérationnel : le `MANAGER` tient la caisse. Le `SUPER_ADMIN` est
+le compte du développeur. Le rôle `CASHIER` a été retiré du produit le
+2026-09-04 (décision de l'exploitant, lot 4.4b) ; aucun compte caissier n'a
+jamais existé.
+
 | Rôle | Permissions |
 |------|-------------|
-| `CASHIER` | Encaissement, consultation des commandes, tables, caisses |
-| `MANAGER` | Remboursements, rapports, ouverture/fermeture de caisse, gestion du catalogue, clôtures mensuelles, disponibilité produits |
+| `MANAGER` | Encaissement, commandes, tables, caisses, remboursements, rapports, gestion du catalogue, clôtures mensuelles, disponibilité produits, réglages, journal d'audit |
 | `SUPER_ADMIN` | Paramètres, utilisateurs, backups, logs techniques, clôtures annuelles, archives fiscales, suppression définitive |
 
 ## Structure du projet

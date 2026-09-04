@@ -8,7 +8,6 @@ import { getSettings } from "@/lib/services/settings";
 import { appendFiscalEvent, incrementGrandTotal } from "@/lib/services/fiscal";
 import { computeLinePricing, resolveVatRate } from "@/lib/services/pricing";
 import { sum2, addToVatBreakdown, apportion, type VatBreakdown } from "@/lib/money";
-import { verifyApprovalToken, ApprovalError } from "@/lib/approvals";
 import { buildVentePayload, buildOrderAuditDetails } from "@/lib/services/sale-journal";
 import { TX_CHECKOUT } from "@/lib/tx-options";
 
@@ -37,7 +36,10 @@ const checkoutIntentSchema = z.object({
       type: z.enum(["PERCENT", "AMOUNT"]),
       value: z.number().int().min(0), // cents (AMOUNT) or percent×100 (PERCENT) — see server calc
       approvedById: z.string().optional(), // legacy — only honored for MANAGER+/SUPER_ADMIN callers
-      approvalToken: z.string().optional(), // recommended: signed single-use token from /api/auth/approve
+      // Accepted and ignored since Batch 4.4b: the only gate that read it was
+      // the CASHIER arm removed below. Kept on the wire so an in-flight client
+      // is not rejected, and because Batch 4.4c decides what replaces it.
+      approvalToken: z.string().optional(),
     })
     .optional(),
   notes: z.string().max(500).optional().nullable(),
@@ -215,41 +217,24 @@ export const POST = withAuth(async (req, { user }) => {
     }
   }
 
-  // Enforce discount approval threshold.
+  // Record the discount approver above the configured threshold.
   const discountPercent = subtotal > 0 ? (discountTotal / subtotal) * 100 : 0;
   const settings = await getSettings();
   const threshold = settings.discountApprovalThreshold ?? 20;
   let discountApproverId: string | null = null;
-  if (discountPercent > threshold + 0.01 && user.role === "CASHIER") {
-    // Cashier exceeded threshold — require a fresh signed manager approval token.
-    const approvalToken = discount?.approvalToken;
-    if (!approvalToken) {
-      return NextResponse.json(
-        { error: `Remise supérieure au seuil (${threshold}%) — token d'approbation manager requis.` },
-        { status: 400 },
-      );
-    }
-    try {
-      const result = verifyApprovalToken(approvalToken, {
-        action: "DISCOUNT",
-        amount: discountTotal,
-      });
-      discountApproverId = result.approverId;
-    } catch (e) {
-      const status = e instanceof ApprovalError ? e.status : 500;
-      const message = e instanceof Error ? e.message : "Token d'approbation invalide.";
-      return NextResponse.json({ error: message }, { status });
-    }
-    // Sanity-check the approver is still active and a MANAGER+.
-    const approver = await db.user.findUnique({
-      where: { id: discountApproverId, active: true },
-      select: { role: true },
-    });
-    if (!approver || (approver.role !== "MANAGER" && approver.role !== "SUPER_ADMIN")) {
-      return NextResponse.json({ error: "Approbateur invalide ou non autorisé." }, { status: 403 });
-    }
-  } else if (discountPercent > threshold && (user.role === "MANAGER" || user.role === "SUPER_ADMIN")) {
-    // A manager/super-admin approver can self-approve their own discount.
+  // Batch 4.4b removed the CASHIER arm of this gate along with the role
+  // (DD-07). It required a fresh signed manager approval token above the
+  // threshold; with no cashier account it could never fire, and every caller
+  // now takes the branch below. `discount.approvalToken` is consequently
+  // ignored here — it already was for MANAGER and SUPER_ADMIN, so no caller's
+  // behaviour changes. The token machinery itself is kept, not deleted: the
+  // refund route still verifies one, and Batch 4.4c reuses Batch 4.1's
+  // lockout for the step-up PIN that replaces this (DD-19).
+  //
+  // What this leaves is self-approval with no keystroke: above the threshold
+  // the caller is recorded as their own approver. That is the gap DD-19 was
+  // answered to close, and Batch 4.4c is where it closes.
+  if (discountPercent > threshold) {
     discountApproverId = user.id;
   }
 

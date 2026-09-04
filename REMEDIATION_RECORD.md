@@ -1610,6 +1610,106 @@ least-privileged default.
 
 ---
 
+## Batch 4.4b — Remove the CASHIER role, close M-19s
+
+*Moved verbatim from `REMEDIATION_PLAN.md` lines 983–1077 (commit `7449683`, plus this batch's status record) on 2026-09-04. Nothing in this section has been rewritten; corrections, if any, are appended dated notes.*
+
+**Status:** `COMPLETED` · **Decisions:** DD-07 (final answer) · **Findings:** M-19s
+
+**Why this exists.** DD-07 was answered three times in one day, and the final
+answer changed the work. The restaurant's owner asked for a **single
+operational role**. `CASHIER` is therefore not part of this product, and the
+half-supported state it is in today is the worst of the options: implemented
+and navigable, its discount ceiling never fires, and M-19s cannot be closed
+while it exists.
+
+**Why M-19s could not be closed before.** It describes two reads left open to
+any authenticated caller — `GET /api/settings` (SIRET, TVA number, address,
+printer configuration, discount threshold) and `GET /api/reports/x` — while
+`PUT /api/settings` is SUPER_ADMIN and `POST /api/reports/x` is MANAGER+. The
+obvious fix is to raise the reads. Measured on 2026-09-04, that fix would
+**break a cashier**: `discount-dialog.tsx:25`, `payment-dialog.tsx:58`,
+`receipt-dialog.tsx:29` and `orders-view.tsx:176` all read `/api/settings`,
+and `shifts-view.tsx:106` reads the X report — all in views that were
+CASHIER-visible. Remove the role and the same fix becomes a no-op.
+
+### M-19s — ungated reads, and GET disagreeing with POST
+
+**Status:** `COMPLETED` · Severity: MEDIUM · Category: security (authorization)
+
+**Scope after DD-07.** Raise `GET /api/settings` and `GET /api/reports/x` to
+`{ roles: ["SUPER_ADMIN", "MANAGER"] }` so read and write agree. With one
+operational role this changes no observable behaviour — which is the point:
+it removes a latent inconsistency rather than fixing a live leak.
+
+### The removal itself
+
+Every site is listed so the next session does not have to rediscover them
+(measured 2026-09-04; re-grep before trusting):
+
+| Where | What |
+|---|---|
+| `prisma/schema.prisma:26` | the `CASHIER` enum value. **The enum is app-level only** — no migration in this project ever emitted a `CHECK` constraint, so Prisma stores it as TEXT. Expect **no SQL**; if `migrate dev` emits any, rehearse it the usual way and hand the operator the command. |
+| `src/types/api.ts:2` | the `Role` union |
+| `src/lib/validation.ts:142`, `src/app/api/users/[id]/route.ts:11` | the two role enums in schemas |
+| `src/app/api/auth/profiles/route.ts:10`, `src/features/auth/login-screen.tsx:17,29,37` | role types and the role icon map |
+| `src/components/shared/nav-config.ts` | five rows list `CASHIER`; `LEAST_PRIVILEGED_ROLE` becomes `MANAGER` |
+| `src/app/api/auth/switch-user/route.ts:55-72` | the privilege-escalation guard is a CASHIER-only rule and becomes dead |
+| `src/app/api/orders/route.ts:223`, `src/app/api/orders/[id]/refund/route.ts:91` | the CASHIER arms of the discount and refund gates |
+| `src/components/pos/payment-dialog.tsx:122` | the client mirror of the discount gate |
+| ~10 `*.test.ts` files | fixtures and assertions naming the role |
+
+**⚠ Two consequences to carry deliberately, not by accident.**
+
+1. **`LEAST_PRIVILEGED_ROLE` degrades from `CASHIER` to `MANAGER`.** C-16's
+   fail-closed default gets weaker by exactly one rung. It stays meaningfully
+   closed — a MANAGER cannot reach `users`, `backups` or `logs` — but say so
+   in the record rather than letting it pass silently. `nav-access.test.ts`
+   asserts the default can open strictly fewer views than a manager; that
+   assertion must be revisited, not deleted (safety rule 2).
+2. **The approval-token path becomes unreachable.** Nothing will require a
+   token once no CASHIER exists. **Keep the machinery** — `/api/auth/approve`,
+   `approvals.ts`, `manager-approval-dialog.tsx`, and Batch 4.1's lockout —
+   because Batch 4.4c reuses the lockout, and deleting audited work to tidy up
+   is not this plan's habit. Record it as dormant.
+
+### Batch 4.4b — Validation Required
+
+- Targeted test: no source file outside a comment references the `CASHIER` role — assert it, do not eyeball it.
+- Targeted test: `canAccessView` still fails closed, with `MANAGER` as the floor, and still refuses `users` / `backups` / `logs` to a manager.
+- Targeted test: `GET /api/settings` and `GET /api/reports/x` declare `["SUPER_ADMIN", "MANAGER"]`, and the T-03 matrix still passes over all 61 routes.
+- Confirm read-only that **no `User` row carries `role = 'CASHIER'`** *before* changing the schema; record the count.
+- Whether `prisma migrate dev` emits SQL at all — record the answer either way. If it does: snapshot, rehearse on a copy, fingerprint-diff, hand over the command.
+- Manual: the manager can still take payment, discount, refund, reprint and open every view they are entitled to.
+- `bun test src` — PASS. `bun run typecheck` — PASS. `bun run lint` — PASS. `bun run build` — PASS.
+
+### Batch 4.4b — Status Record
+
+**Status:** `COMPLETED`
+**Completed:** 2026-09-04
+
+**Changes.** (1) `prisma/schema.prisma` — `CASHIER` removed from `enum UserRole`, with DD-07 recorded above the enum. (2) The type surfaces: `Role` in `types/api.ts`, `userSchema` in `validation.ts`, the update schema in `users/[id]/route.ts`, `LoginProfile` in both `auth/profiles/route.ts` and `login-screen.tsx` (whose `ROLE_STYLE` entry, `ChefHat` icon and now-unused import went with it). (3) `nav-config.ts` — five rows lose the role, and **`LEAST_PRIVILEGED_ROLE` degrades from `CASHIER` to `MANAGER`**, commented as the deliberate one-rung weakening it is. (4) `auth/switch-user/route.ts` — the privilege-escalation guard was a CASHIER-only rule and is removed; the target account's own PIN is what makes that route safe, not the rank comparison, and its `USER_SWITCH_BLOCKED` audit action is retired (older rows keep it). (5) `orders/route.ts` — the CASHIER arm of the discount gate is gone with its `verifyApprovalToken` import; every caller now self-approves above the threshold, which is exactly the gap DD-19 answers in 4.4c. `discount.approvalToken` stays on the wire, accepted and ignored. (6) `orders/[id]/refund/route.ts` — the arm that refused a token-less CASHIER is gone; the token path stays live because the Commandes view still sends one (M-18). (7) `payment-dialog.tsx` — the client mirror is **dormant, not deleted**: `MANAGER_APPROVAL_TOKEN_REQUIRED = false` keeps the dialog, the re-entry mechanism and `/api/auth/approve` in place for 4.4c to hook into. (8) **M-19s:** `GET /api/settings` and `GET /api/reports/x` raised to `["SUPER_ADMIN", "MANAGER"]`, so read and write agree. (9) `README.md`'s role table.
+
+**Files.** `prisma/schema.prisma`; `src/types/api.ts`; `src/lib/validation.ts`; `src/app/api/users/[id]/route.ts`; `src/app/api/auth/profiles/route.ts`; `src/app/api/auth/switch-user/route.ts`; `src/app/api/orders/route.ts`; `src/app/api/orders/[id]/refund/route.ts`; `src/app/api/settings/route.ts`; `src/app/api/reports/x/route.ts`; `src/app/api/reports/z/route.ts` (comment only); `src/features/auth/login-screen.tsx`; `src/components/shared/nav-config.ts`; `src/components/pos/payment-dialog.tsx`; `README.md`; **new** `src/lib/role-model.test.ts`; revised tests `nav-access.test.ts`, `api-authorization.test.ts`, `fiscal-surface.test.ts`, `account-policy.test.ts`, and eight fixture files. **No migration** — see note 1.
+
+**Tests.** `bun test src --timeout 30000` → **461 pass, 0 fail** (453 before). `bun run typecheck`, `bun run lint`, `bun run build` — all PASS. New `role-model.test.ts` (7 tests) walks all 245 source files and asserts no `CASHIER` outside a comment, checks the enum block, the nav table and the fail-closed floor. **Negative control:** the role was reintroduced in `types/api.ts`, `nav-config.ts` and `schema.prisma`, and **4 of the 7 failed**; the three files were restored from copies taken first and the suite returned to green. Manual, against the production build on a scratch copy (port 3026, both `DATABASE_URL` and `HIBAPOS_DATA_DIR` overridden, marker `SCRATCH-4.4b-Gerant` read back from pre-auth `GET /api/auth/profiles` **before** the first write): the manager logs in; `GET /api/settings` and `GET /api/reports/x` answer 200; `/api/logs` still 403; a control sale, a 30 % discounted sale, a full refund with no token and a reprint all succeed; the journal shows `VENTE #21` (no approver), `VENTE #22` with `discountApprovedById` = the manager's own id, `ANNULATION`, `REIMPRESSION`; chain `ok`. Through the real UI: the login screen renders two profiles and no ChefHat icon, all 14 entitled views open, `users` / `backups` / `logs` render `AccessDenied`, and a 40 % discounted checkout (order #23) completed **with no approval prompt**. Production `db/custom.db` unchanged throughout at `7839db18…`, mtime 2026-09-04 16:41:52, no `-wal`/`-shm` beside it, `db/backups` still 9 entries, no archive written into the real tree.
+
+**Commit:** `<pending>`
+
+**Notes.**
+
+1. **No migration, and the answer was measured rather than assumed.** The batch asked whether `prisma migrate dev` emits SQL for an enum-value removal. `prisma migrate diff --from-url <scratch copy> --to-schema-datamodel prisma/schema.prisma --script` printed `-- This is an empty migration.` both before the schema edit (the control) and after it. The enum is app-level only, stored as TEXT with no `CHECK` constraint, exactly as the batch predicted. **Nothing is waiting on the operator**, and production still stands at 6 applied migrations.
+2. **Zero `User` rows carried the role, confirmed read-only before the schema changed.** `SELECT role, COUNT(*) FROM User GROUP BY role` → `MANAGER 1, SUPER_ADMIN 1`; `role = 'CASHIER'` → **0**. The removal could not orphan a row because there was none.
+3. **`LEAST_PRIVILEGED_ROLE` is one rung weaker, and it is said out loud in three places** — the constant's own comment, `role-model.test.ts`, and here. It stays meaningfully closed: a caller that falls to it cannot reach `users`, `backups` or `logs`, verified in the browser. Adding a role below MANAGER means changing this constant, not just the enum.
+4. **Two assertions were revisited rather than deleted (safety rule 2).** `nav-access.test.ts` asserted the default opens "strictly fewer views than a manager", which the degradation makes impossible; it now asserts the floor property directly — every role opens at least what the default opens, and SUPER_ADMIN opens strictly more. `api-authorization.test.ts` asserted destructive routes `not.toContain("CASHIER")`, which the removal made vacuous; the `DESTRUCTIVE` table now **pins each declared role list**, which is a stronger check than the one it replaces.
+5. **The removal exposed something the vacuous assertion had been hiding, and it is recorded as L-33, not fixed here.** With two roles left, a gate of `["SUPER_ADMIN", "MANAGER"]` admits every role in the product — it is no narrower than declaring none. **29 declaration sites across 26 route files are now in that position**, `POST /api/reports/z` and `POST /api/orders/[id]/reprint` among them. Two of them contradict the nav outright: `GET /api/users` and `GET /api/backups` answer 200 to a manager whose nav entry for those views is deliberately SUPER_ADMIN-only (measured; `GET /api/users` returns no PIN hashes). Outside this batch's scope, which DD-07 fixed at exactly two reads.
+6. **The approval machinery is dormant, not deleted, and the batch instruction to keep it was followed literally.** `/api/auth/approve`, `approvals.ts`, `manager-approval-dialog.tsx` and Batch 4.1's lockout are untouched; `payment-dialog.tsx` keeps its wiring behind a `false` constant so 4.4c hooks into a path that already works, including the post-audit N1 re-entry mechanism. The dialog is still live in `orders-view.tsx`, which sends a token on every refund (M-18).
+7. **One user-visible statement is now false until 4.4c lands, and it is recorded rather than reworded.** `discount-dialog.tsx` still tells the operator « Un manager doit approuver lors de l'encaissement » above the threshold, and after this batch nobody is asked. Rewording it is 4.4c's decision — DD-19 makes it true again with the caller's own PIN — so it is **L-35** rather than a guess made here (safety rules 10 and 11). **L-34**, found in the same file during the manual walkthrough, is a separate and older defect: the percentage under the amount field divides euros by cents, so the 40 % discount taken in that walkthrough displayed as « 0.4% du sous-total ».
+8. **`reports/z/route.ts`'s business-rule comment was corrected, not its gate.** Closing a caisse stays open to any authenticated role. The asymmetry it describes was written for a cashier; widening or narrowing it is a business decision, and this batch deliberately left it alone.
+9. **The scratch server was stopped and the port freed.** `bunx next start -p 3026`, PID 24188, terminated; `bunx prisma generate` succeeds afterwards, so no engine DLL is held. This is the leftover-server hazard that cost earlier sessions an `EPERM` diagnosis.
+
+---
+
 # COMPLETED REMEDIATION HISTORY
 
 *Moved verbatim from `REMEDIATION_PLAN.md` lines 2357–2378 (commit `5f0c2b1`) on 2026-09-04. Nothing in this section has been rewritten; corrections, if any, are appended dated notes.*
@@ -1643,6 +1743,7 @@ least-privileged default.
 | 4.4 | COMPLETED (M-19s `DEFERRED`) | 2026-09-04 | `36a9cd9` | C-16 + M-24 + M-25 + M-26, on DD-07's operating model. **C-16**: role gating was client-side only and lived in one place — the shell rendered on `view ===` with no role condition, so any account could type `#/backups` and mount the view with its live controls, and the home dashboard's `?? "MANAGER"` meant a user that failed to load failed **open**. `canAccessView` is now the single gate, defaulting to the least privilege (which is why DD-07 kept `CASHIER` in the product). Proved in a real browser on the same build and data: pre-batch, a MANAGER at `#/backups` got the full *Sauvegardes* view — « Export et restauration des données », live create button — and pressing it returned `403`, which is exactly the audit's "exposure and confusion rather than direct compromise"; post-batch the same navigation renders « Accès refusé » and nothing mounts. Per DD-07 the manager **gained** `settings` and `audit` and **did not gain** `backups`, which holds the restore button. **M-24**: upload had no role gate, believed the client's MIME type and had no ceiling — now MANAGER+, signature-checked against the declared type, 250 MB quota against a ~49 MB live catalogue. **M-25**: customer `PUT`/`DELETE` had no role check at all — now MANAGER+, `GET` left open. **M-26**: CSP, frame, nosniff, referrer and permissions headers, verified on the wire *and* in the browser (85 images, 0 broken, no violations); **no HSTS**, because DD-06 serves plain HTTP on loopback and HSTS would break the till. **T-03 delivered at declaration level**: wrappers now stamp their declared gate, and a test walks all 61 route modules asserting every method is wrapped bar eight named exceptions — status-level coverage stays with 6.1. **M-19s `DEFERRED`**: DD-07 removed its subject. **No migration.** Recorded L-32. 453/453. |
 
 ---
+| 4.4b | COMPLETED | 2026-09-04 | `<pending>` | M-19s, on DD-07's final answer. The owner asked for a **single operational role**, so `CASHIER` left the enum, the `Role` union, both zod schemas, five nav rows, the login screen, the CASHIER-only privilege-escalation guard on `switch-user`, and the CASHIER arms of the discount and refund gates. **Zero `User` rows carried it**, confirmed read-only before the schema changed. **M-19s closes as a no-op by construction**: `GET /api/settings` (SIRET, TVA number, discount threshold) and `GET /api/reports/x` were open to any authenticated caller while their writes were SUPER_ADMIN and MANAGER+; raising both to `["SUPER_ADMIN", "MANAGER"]` makes read and write agree without changing what anyone can do — which is the point, and is only possible because the role that made the fix breaking is gone. **Whether a migration was needed was measured, not assumed**: `prisma migrate diff` printed an empty migration both before and after the schema edit, so the enum really is app-level TEXT and **nothing waits on the operator**. Two consequences were carried deliberately and written down rather than hidden — `LEAST_PRIVILEGED_ROLE` degrades `CASHIER` → `MANAGER`, one rung weaker but still refusing `users` / `backups` / `logs`; and the approval machinery is **dormant, not deleted**, because 4.4c reuses it. Two test assertions were **revisited, not deleted**: the floor property in `nav-access.test.ts`, and the destructive-route table in `api-authorization.test.ts`, which now pins each declared role list — stronger than the vacuous `not.toContain("CASHIER")` it replaced, and the rewrite is what surfaced L-33. A new `role-model.test.ts` walks all 245 source files and fails if the role returns; 4 of its 7 tests were proved to fail against a deliberately reintroduced role, then the files were restored from copies. Manual walkthrough on a scratch copy and in a real browser: the manager takes payment, discounts 40 %, refunds with no token, reprints, opens all 14 entitled views and is refused the other three; production `db/custom.db` byte-identical throughout. Recorded L-33, L-34, L-35. 461/461. |
 
 # RESOLVED FINDINGS
 
@@ -1706,6 +1807,32 @@ least-privileged default.
 **Open Threads → G table header, line 136** (the plan now labels the column "updated through session 4"):
 
 | Thing | Value at the end of session 3 |
+
+---
+
+**Retired 2026-09-04 (Batch 4.4b).** The front matter stood at 42 700 bytes before this batch, already past the ~40 KB ceiling *HOW TO USE THIS FILE* sets, so four fully-superseded items were retired here verbatim rather than carried. (1) The leftover-server action row, which the resolved environment note directly above it already contradicted — those exact PIDs were stopped in session 7 and `bunx prisma generate` succeeded afterwards. (2) Session 5's migration correction, superseded in full by session 6's, three paragraphs below it. (3) and (4) The two ticked *Apply the migration* rows in *Waiting on the operator*, both restated in the *G* baselines table.
+
+```
+*(Row moved here from Open Threads → B.)*
+
+| Action | Why it matters | Related |
+|---|---|---|
+| Stop the two leftover servers (PIDs 4016 on port 3011 and 24116 on port 3012, with their `bunx` parents 10540 and 22844) | *Corrected 2026-09-04 (session 7): the port-3010 process named here before is gone and the `EPERM` remains.* `bunx prisma generate` still fails renaming the Prisma engine DLL. Claude does not kill the operator's processes. `bunx next start -p <spare port>` works meanwhile. | — |
+
+---
+```
+
+```
+**Correction, 2026-09-04 (session 5).** The row above said the Batch 3.6 migration was unapplied. It is applied: `20260903233731_zreport_refund_totals` is in `_prisma_migrations` with `finished_at` 2026-09-04 00:54:37, matching `db/custom.db`'s mtime to the millisecond, and both sealed Z rows read `0/0`. **The production hash is now `7cc3367b8ff8518338bc5d00354cce4fde761d71d3b6a14336ed22c6209cc152`**, not the `ea990b79…` in *G*; everything else in the baseline is unchanged. Verified read-only.
+```
+
+```
+| ~~**Apply the Batch 3.6b migration**~~ ✅ **DONE 2026-09-04 09:43** | Applied by the operator; verified read-only in Batch 4.1. See the correction in *A*. **No migration is pending** — Batch 4.1 added none. | L-26 |
+```
+
+```
+| ~~**Apply the Batch 3.6 migration**~~ ✅ **DONE 2026-09-04** | Applied by the operator; verified read-only in Batch 3.6b. See the correction in *A*. | M-07 |
+```
 
 ---
 

@@ -31,7 +31,7 @@ async function seedMinimal() {
 
   // Seed a user + category + product + shift for order creation.
   const user = await db.user.create({
-    data: { username: "test", name: "Test", role: "CASHIER", pinHash: "x:y" },
+    data: { username: "test", name: "Test", role: "MANAGER", pinHash: "x:y" },
   });
   const cat = await db.category.create({ data: { name: "Test" } });
   const prod = await db.product.create({

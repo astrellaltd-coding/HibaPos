@@ -30,17 +30,17 @@ export type NavItem = {
 };
 
 export const NAV_ITEMS: NavItem[] = [
-  { view: "pos", label: "Caisse", icon: ScanLine, roles: ["SUPER_ADMIN", "MANAGER", "CASHIER"], group: "caisse" },
+  { view: "pos", label: "Caisse", icon: ScanLine, roles: ["SUPER_ADMIN", "MANAGER"], group: "caisse" },
   { view: "dashboard", label: "Tableau de bord", icon: LayoutDashboard, roles: ["SUPER_ADMIN", "MANAGER"], group: "caisse" },
-  { view: "orders", label: "Commandes", icon: ReceiptText, roles: ["SUPER_ADMIN", "MANAGER", "CASHIER"], group: "caisse" },
-  { view: "tables", label: "Tables", icon: Grid3x3, roles: ["SUPER_ADMIN", "MANAGER", "CASHIER"], group: "caisse" },
-  { view: "shifts", label: "Caisses (shifts)", icon: Clock, roles: ["SUPER_ADMIN", "MANAGER", "CASHIER"], group: "caisse" },
+  { view: "orders", label: "Commandes", icon: ReceiptText, roles: ["SUPER_ADMIN", "MANAGER"], group: "caisse" },
+  { view: "tables", label: "Tables", icon: Grid3x3, roles: ["SUPER_ADMIN", "MANAGER"], group: "caisse" },
+  { view: "shifts", label: "Caisses (shifts)", icon: Clock, roles: ["SUPER_ADMIN", "MANAGER"], group: "caisse" },
 
   { view: "categories", label: "Catégories", icon: FolderTree, roles: ["SUPER_ADMIN", "MANAGER"], group: "catalogue" },
   { view: "products", label: "Produits", icon: Package, roles: ["SUPER_ADMIN", "MANAGER"], group: "catalogue" },
   { view: "addons", label: "Suppléments", icon: PlusCircle, roles: ["SUPER_ADMIN", "MANAGER"], group: "catalogue" },
   { view: "media", label: "Médiathèque", icon: Images, roles: ["SUPER_ADMIN", "MANAGER"], group: "catalogue" },
-  { view: "customers", label: "Clients", icon: Users, roles: ["SUPER_ADMIN", "MANAGER", "CASHIER"], group: "catalogue" },
+  { view: "customers", label: "Clients", icon: Users, roles: ["SUPER_ADMIN", "MANAGER"], group: "catalogue" },
 
   { view: "reports", label: "Rapports", icon: BarChart3, roles: ["SUPER_ADMIN", "MANAGER"], group: "gestion" },
   // C-27 (Batch 3.4): the fiscal surface had no nav entry at all, so every
@@ -71,9 +71,15 @@ export const NAV_ITEMS: NavItem[] = [
  *
  *  C-16 (Batch 4.4): `home-dashboard.tsx` defaulted an unknown role to
  *  `MANAGER`, so a failure to load the user failed **open**. Every such
- *  default now resolves here instead. `CASHIER` is retained in the product for
- *  exactly this reason even though no cashier account exists (DD-07). */
-export const LEAST_PRIVILEGED_ROLE: Role = "CASHIER";
+ *  default now resolves here instead.
+ *
+ *  Batch 4.4b degraded this floor by exactly one rung. DD-07's final answer
+ *  removed `CASHIER` from the product, so `MANAGER` is the least-privileged
+ *  role that exists. The default is therefore weaker than it was and is
+ *  still meaningfully closed: a caller that falls to it cannot reach `users`,
+ *  `backups` or `logs`. Adding a role below MANAGER means changing this
+ *  constant, not just the enum. */
+export const LEAST_PRIVILEGED_ROLE: Role = "MANAGER";
 
 /** May this role open this view?
  *

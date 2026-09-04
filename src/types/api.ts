@@ -1,5 +1,7 @@
 // Shared API response types (mirror of Prisma models, JSON-serializable).
-export type Role = "SUPER_ADMIN" | "MANAGER" | "CASHIER";
+// DD-07 / Batch 4.4b: one operational role. MANAGER runs the till; SUPER_ADMIN
+// is the developer's account. Mirrors `UserRole` in prisma/schema.prisma.
+export type Role = "SUPER_ADMIN" | "MANAGER";
 
 export type UserDto = {
   id: string;

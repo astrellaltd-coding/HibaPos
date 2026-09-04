@@ -37,10 +37,10 @@ async function wipe() {
 /** One shift, two cashiers, a partial refund and a full refund. */
 async function seed() {
   const alice = await db.user.create({
-    data: { username: "alice", name: "Alice", role: "CASHIER", pinHash: "x:y" },
+    data: { username: "alice", name: "Alice", role: "MANAGER", pinHash: "x:y" },
   });
   const bob = await db.user.create({
-    data: { username: "bob", name: "Bob", role: "CASHIER", pinHash: "x:y" },
+    data: { username: "bob", name: "Bob", role: "MANAGER", pinHash: "x:y" },
   });
   const shift = await db.shift.create({
     data: { number: 400, openedById: alice.id, openingFloat: 0, status: "OPEN" },

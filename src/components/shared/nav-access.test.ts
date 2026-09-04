@@ -5,6 +5,7 @@ import {
   canAccessView,
 } from "@/components/shared/nav-config";
 import type { AppView } from "@/store/app-store";
+import type { Role } from "@/types/api";
 
 // C-16, Batch 4.4 — role gating was client-side only, and only in one place.
 //
@@ -21,11 +22,17 @@ import type { AppView } from "@/store/app-store";
 
 const ALL_VIEWS = NAV_ITEMS.map((n) => n.view);
 
+// DD-07 / Batch 4.4b: the product's whole role model. `CASHIER` was removed
+// here — the owner asked for a single operational role — which is why
+// LEAST_PRIVILEGED_ROLE is now MANAGER. Adding a role means adding it here,
+// and both loops below will hold it to the nav table.
+const ROLES: Role[] = ["SUPER_ADMIN", "MANAGER"];
+
 describe("C-16 — canAccessView is the single gate", () => {
   it("lets the home screen through for anyone", () => {
     // The landing page filters its own cards; blocking it would strand a user
     // with nowhere to go.
-    expect(canAccessView("CASHIER", "home")).toBe(true);
+    expect(canAccessView("MANAGER", "home")).toBe(true);
     expect(canAccessView(undefined, "home")).toBe(true);
   });
 
@@ -44,11 +51,25 @@ describe("C-16 — canAccessView is the single gate", () => {
         canAccessView(LEAST_PRIVILEGED_ROLE, view),
       );
     }
-    // And that default is genuinely the least privileged: it can open strictly
-    // fewer views than a manager.
+    // And that default is genuinely the least privileged.
+    //
+    // Batch 4.4b degraded the floor by exactly one rung: DD-07 removed
+    // `CASHIER`, so `LEAST_PRIVILEGED_ROLE` is now `MANAGER` and the old form
+    // of this assertion — "strictly fewer views than a manager" — cannot hold
+    // by construction. It is revisited, not deleted: what it was protecting is
+    // that the fail-closed default is a FLOOR, so assert the floor property
+    // directly. Every role must open at least what the default opens, and at
+    // least one role must open more. Both halves matter: the first is the
+    // floor, the second stops the floor quietly becoming the ceiling.
     const asDefault = ALL_VIEWS.filter((v) => canAccessView(undefined, v));
-    const asManager = ALL_VIEWS.filter((v) => canAccessView("MANAGER", v));
-    expect(asDefault.length).toBeLessThan(asManager.length);
+    for (const role of ROLES) {
+      const asRole = ALL_VIEWS.filter((v) => canAccessView(role, v));
+      for (const view of asDefault) {
+        expect(asRole, `${role} must open at least the default's views`).toContain(view);
+      }
+    }
+    const asSuperAdmin = ALL_VIEWS.filter((v) => canAccessView("SUPER_ADMIN", v));
+    expect(asDefault.length).toBeLessThan(asSuperAdmin.length);
   });
 
   it("keeps the restore button away from the manager account", () => {
@@ -56,8 +77,11 @@ describe("C-16 — canAccessView is the single gate", () => {
     // view holds the restore button and the manager account is whoever is
     // standing at the till.
     expect(canAccessView("MANAGER", "backups")).toBe(false);
-    expect(canAccessView("CASHIER", "backups")).toBe(false);
     expect(canAccessView("SUPER_ADMIN", "backups")).toBe(true);
+    // …and the fail-closed default cannot reach it either. After Batch 4.4b
+    // that default IS the manager, so this is the same fact twice — pinned
+    // anyway, because it is the one that must survive a change to the floor.
+    expect(canAccessView(LEAST_PRIVILEGED_ROLE, "backups")).toBe(false);
   });
 
   it("keeps users and technical logs to the super administrator", () => {
@@ -72,7 +96,7 @@ describe("C-16 — canAccessView is the single gate", () => {
     // the audit journal is read-only. Both were opened deliberately.
     for (const view of ["settings", "audit"] as AppView[]) {
       expect(canAccessView("MANAGER", view)).toBe(true);
-      expect(canAccessView("CASHIER", view)).toBe(false);
+      expect(canAccessView("SUPER_ADMIN", view)).toBe(true);
     }
   });
 
@@ -86,7 +110,7 @@ describe("C-16 — canAccessView is the single gate", () => {
   it("agrees with the nav table for every role and view", () => {
     // The gate must be the table, not a second opinion about it.
     for (const item of NAV_ITEMS) {
-      for (const role of ["SUPER_ADMIN", "MANAGER", "CASHIER"] as const) {
+      for (const role of ROLES) {
         expect(canAccessView(role, item.view)).toBe(item.roles.includes(role));
       }
     }

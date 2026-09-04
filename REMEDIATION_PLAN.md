@@ -11,19 +11,19 @@ Detailed audit record: https://claude.ai/code/artifact/329316b0-3a6b-48b0-9d27-d
 
 **Overall:** NOT READY FOR PRODUCTION
 
-**Current Stage:** Stage 4 — Security & integrity, `IN PROGRESS` (4.1 through 4.4 COMPLETED; **4.4b and 4.4c opened 2026-09-04 and `NOT STARTED`**; 4.5 through 4.7 `NOT STARTED`). **C-18 is now closed** — the operator changed both PINs on 2026-09-04. M-19s is no longer deferred: DD-07 was answered again and it closes inside 4.4b. (**Stage 3 is COMPLETED** — every batch 3.1 through 3.6, plus 3.6b, which reopened it for one small batch on 2026-09-04 — with C-22's chain-design half carried forward as `REQUIRES EXTERNAL VERIFICATION` and V-03 open for professional confirmation. Stage 1 is **partly done**: 1.1 and 1.2 COMPLETED, 1.3 `IMPLEMENTED — TESTING REQUIRED` on hardware, 1.4 deferred. Stage 2 is COMPLETED.)
+**Current Stage:** Stage 4 — Security & integrity, `IN PROGRESS` (4.1 through 4.4 and **4.4b** COMPLETED; **4.4c `NOT STARTED`**; 4.5 through 4.7 `NOT STARTED`). **C-18 is now closed** — the operator changed both PINs on 2026-09-04. **M-19s is closed** in Batch 4.4b, which also removed `CASHIER` from the product per DD-07's final answer. (**Stage 3 is COMPLETED** — every batch 3.1 through 3.6, plus 3.6b, which reopened it for one small batch on 2026-09-04 — with C-22's chain-design half carried forward as `REQUIRES EXTERNAL VERIFICATION` and V-03 open for professional confirmation. Stage 1 is **partly done**: 1.1 and 1.2 COMPLETED, 1.3 `IMPLEMENTED — TESTING REQUIRED` on hardware, 1.4 deferred. Stage 2 is COMPLETED.)
 
-**Current Batch:** Batch 4.4b — Remove the CASHIER role, close M-19s · `NOT STARTED` — **nothing blocks it; start here**
+**Current Batch:** Batch 4.4c — Step-up PIN for large discounts and every refund · `NOT STARTED` — **nothing blocks it; start here**
 
-**Last Completed Batch:** Batch 4.4 — Authorization gating parity (C-16, M-24, M-25, M-26). Role gating was client-side only and lived in one place; `canAccessView` is now the single gate and fails closed. Since then, and **outside any batch**, the operator changed both live PINs (2026-09-04), which closes C-18's credential half — see *Operator actions completed*.
+**Last Completed Batch:** Batch 4.4b — Remove the CASHIER role, close M-19s. The role is gone from the enum, the `Role` union, both zod schemas, the nav table, the login screen, two server gates and one client mirror; `GET /api/settings` and `GET /api/reports/x` now agree with their writes. **No migration was needed** and nothing waits on the operator. Two consequences were carried deliberately and are written down rather than hidden: `LEAST_PRIVILEGED_ROLE` is one rung weaker (now `MANAGER`), and the approval machinery is **dormant, not deleted** — which is precisely what 4.4c picks up.
 
-**Next Batch:** **Batch 4.4b — Remove the CASHIER role, close M-19s.** Then **Batch 4.4c — step-up PIN** for large discounts and every refund. Both are specified below with their decisions already made; neither is blocked. Batch 4.5 follows and **is** blocked on DD-08.
+**Next Batch:** **Batch 4.4c — step-up PIN** for large discounts and every refund (DD-19). It is specified below, its decision is made, and nothing blocks it. Read Batch 4.4b's stub first: it left the dialog, the re-entry mechanism and the lockout in place on purpose, and it left one user-visible statement false until 4.4c lands (**L-35**). Batch 4.5 follows and **is** blocked on DD-08.
 
 **Blocked:** Batch 1.3 `[HW]` sign-off and Batch 1.4 — both need the app running on the restaurant's POS machine, which is in a different country from the developer and has no copy of the app installed (decision of 2026-09-03).
 
-**Awaiting decision:** **nothing blocks 4.4b or 4.4c.** **DD-08** blocks Batch 4.5 (guard the operator scripts, or remove them from the shipped tree) — note that C-17 also reintroduces default PINs if `scripts/seed-users.ts` is ever run, which now matters more than it did. DD-06, DD-07 and DD-19 were answered on 2026-09-04. A new question is recorded but not yet urgent: whether the now-dormant discount/refund approval machinery should eventually be removed — see DD-07's rationale in the record. Then Batch 5.3 (cross-shift refunds), Batch 5.5 (cash movements), Batch 5.6 (order cancellation) — see *Design Decisions Required*. **DD-03 and DD-17 were answered on 2026-09-03, DD-05 and DD-18 on 2026-09-04.**
+**Awaiting decision:** **nothing blocks 4.4c.** **DD-08** blocks Batch 4.5 (guard the operator scripts, or remove them from the shipped tree) — note that C-17 also reintroduces default PINs if `scripts/seed-users.ts` is ever run, which now matters more than it did. DD-06, DD-07 and DD-19 were answered on 2026-09-04. A new question is recorded but not yet urgent: whether the now-dormant discount/refund approval machinery should eventually be removed — see DD-07's rationale in the record. Then Batch 5.3 (cross-shift refunds), Batch 5.5 (cash movements), Batch 5.6 (order cancellation) — see *Design Decisions Required*. **DD-03 and DD-17 were answered on 2026-09-03, DD-05 and DD-18 on 2026-09-04.**
 
-**Last Updated:** 2026-09-04 (session 7 — Batches 4.2, 4.3 and 4.4, then four operator decisions and the handoff below; read *OPEN THREADS* below before starting anything. Nothing waits on a `migrate deploy`: none of 4.1 through 4.4 added a migration, and 4.4b is not expected to — verify that rather than assume it. The Prisma `EPERM` is resolved — stale `next start` servers were holding the engine DLL)
+**Last Updated:** 2026-09-04 (session 8 — Batch 4.4b only; read *OPEN THREADS* below before starting anything. Nothing waits on a `migrate deploy`: none of 4.1 through 4.4b added a migration, and 4.4b's was measured with `prisma migrate diff` rather than assumed — it emits an empty migration. The Prisma `EPERM` is resolved — stale `next start` servers were holding the engine DLL, and this session stopped its own scratch server by PID and re-verified `prisma generate` afterwards)
 **Restructured:** 2026-09-04 — completed batches now live verbatim in `REMEDIATION_RECORD.md`; this file keeps the resume block, the open work, the registers and a stub per completed batch. Everything a session must know before acting sits above the first stage heading. See *HOW TO USE THIS FILE*.
 
 ### OPEN THREADS — read this before starting a batch
@@ -49,12 +49,10 @@ real till until an action below is taken. Do not report them as delivered.
 | **Thermal printing + drawer** (1.3) | `printerEnabled` is `false` and no printer IP is set. Confirmed this session: a reprint journals its `REIMPRESSION` event and then reports *"Impression désactivée dans les réglages."* | Commissioning on the real Sunso WTP-801 |
 | **FACTICE simulation mode** (3.1b) | The switch now exists in Réglages but is **off**. Any testing before go-live is still journalled as genuine trading. | The operator turning it on for test sessions |
 | **Audit-log retention** (2.4) | Deliberately `0` = keep forever. That table is still unbounded. | An operator decision, if a retention obligation appears |
-| ~~**`MonthlyClose` / `AnnualClose` refunds columns** (3.6b)~~ ✅ **APPLIED** — see the second correction below | — | — |
-| ~~**`ZReport.refundsTotal` / `refundsCount`** (3.6)~~ ✅ **APPLIED** — see the correction below | — | — |
+| ~~**`MonthlyClose` / `AnnualClose` refunds columns** (3.6b)~~ ✅ **APPLIED** — see the correction below | — | — |
+| ~~**`ZReport.refundsTotal` / `refundsCount`** (3.6)~~ ✅ **APPLIED** — applied 2026-09-04 00:54:37; its own correction was retired to the record in Batch 4.4b, and *G* carries the state | — | — |
 
 **Correction, 2026-09-04 (session 6).** The 3.6b row above said its migration was unapplied. It is applied: `20260904091947_close_refund_totals` is in `_prisma_migrations` with `finished_at` **2026-09-04 09:43:54 (UTC+1)**, matching `db/custom.db`'s mtime, and `refundsTotal` / `refundsCount` are present on both `MonthlyClose` and `AnnualClose`, both tables still **empty** — so no sealed document was rewritten, exactly as the rehearsal predicted. **The production hash is now `a66bc96c20d3f00282ea249361dd80d6303434b1a43331c0725258b637db46f9`**, not the `7cc3367b…` recorded in *G*. Nothing is waiting on a `migrate deploy` any more. Everything else in the baseline is unchanged. Verified read-only.
-
-**Correction, 2026-09-04 (session 5).** The row above said the Batch 3.6 migration was unapplied. It is applied: `20260903233731_zreport_refund_totals` is in `_prisma_migrations` with `finished_at` 2026-09-04 00:54:37, matching `db/custom.db`'s mtime to the millisecond, and both sealed Z rows read `0/0`. **The production hash is now `7cc3367b8ff8518338bc5d00354cce4fde761d71d3b6a14336ed22c6209cc152`**, not the `ea990b79…` in *G*; everything else in the baseline is unchanged. Verified read-only.
 
 #### B. Waiting on the operator
 
@@ -69,9 +67,7 @@ real till until an action below is taken. Do not report them as delivered.
 
 | Action | Why it matters | Related |
 |---|---|---|
-| ~~**Apply the Batch 3.6b migration**~~ ✅ **DONE 2026-09-04 09:43** | Applied by the operator; verified read-only in Batch 4.1. See the correction in *A*. **No migration is pending** — Batch 4.1 added none. | L-26 |
 | ~~**Stop the leftover servers**~~ ✅ **DONE 2026-09-04 (session 7)** | Stopped at the user's explicit request: PIDs 4016 (`-p 3011`) and 24116 (`-p 3012`) with their `bunx` parents 10540 and 22844, all Batch 3.1b leftovers serving the session-3 scratch copy (marker `SCRATCH-3.1b-Administrateur`), none holding the production database. **`bunx prisma generate` then succeeded**, so the leftover `next start` really was the `EPERM` cause — the port number recorded against it was simply wrong. Ports 3010, 3011 and 3012 are now free. | — |
-| ~~**Apply the Batch 3.6 migration**~~ ✅ **DONE 2026-09-04** | Applied by the operator; verified read-only in Batch 3.6b. See the correction in *A*. | M-07 |
 | Correct `printerName` in Réglages | Stored value is `"Epson TM-m30"`; the physical printer is the **Sunso WTP-801** (Ethernet). Cosmetic — nothing reads it. **This was impossible until Batch 3.1d**; the settings form now saves. | DOC-15 |
 | Choose a second volume for backups | See A. | C-06 |
 | Turn FACTICE on for any pre-go-live testing | See A. | L-18 |
@@ -153,13 +149,13 @@ with `sha256sum`); the compliance judgement is not a code question.
 
 | Thing | Value at the end of session 3 (updated through session 4) |
 |---|---|
-| Tests | **453 pass, 0 fail** (`bun test src --timeout 30000` — see L-24 for why the timeout flag). 430 before Batch 4.4. Whole-suite runtime measured 80–100 s this session, against the ~192 s L-24 records |
+| Tests | **461 pass, 0 fail** (`bun test src --timeout 30000` — see L-24 for why the timeout flag). 453 before Batch 4.4b. Whole-suite runtime measured 64–80 s this session, against the ~192 s L-24 records |
 | Production DB sha256 | **`7839db18a7c8b132d974bd834d39d2921def66dd234b2059b022949f22ea6f2e`** (mtime 2026-09-04 16:41:52) — moved by the operator's **PIN change**, not by any batch: Batches 4.1 through 4.4 left it at `a66bc96c…` and added no migration. The intermediate value after the first PIN change was `e40735ca…`. Before that, `a66bc96c…` was reached by the operator applying the 3.5, 3.6 and 3.6b migrations. The pre-3.6b value `7cc3367b…` is preserved in `db-snapshots/custom.db.pre-3.6b.2026-09-04T08-27-38Z` |
 | Fiscal chain | `/api/fiscal/verify` → all three chains `ok`, `lastSequence: 2`. **Zero monthly and annual closes have ever been sealed** — which is why M-01's guard, DD-18's timing rules and L-26's payload change could all be imposed with nothing to accommodate. Re-verified read-only 2026-09-04 |
 | Fiscal counters | `20/3/2/2` (receipt / shift / Z / event). Re-verified read-only after the PIN change, 2026-09-04 |
-| Migrations | **6 applied on production**, latest `20260904091947_close_refund_totals` (applied 2026-09-04 09:43:54). **None pending.** Batches 4.1 through 4.4 added none |
+| Migrations | **6 applied on production**, latest `20260904091947_close_refund_totals` (applied 2026-09-04 09:43:54). **None pending.** Batches 4.1 through 4.4b added none — 4.4b's enum removal was measured with `prisma migrate diff` and emits an empty migration |
 | Catalogue | 78 products — 17 drinks at **5,5 %**, 61 at 10 % |
-| Accounts | **two, and that is now the product's whole role model**: `manager` (MANAGER) and `admin` (SUPER_ADMIN, the developer's). Both PINs changed 2026-09-04. `CASHIER` is removed in Batch 4.4b |
+| Accounts | **two, and that is now the product's whole role model**: `manager` (MANAGER) and `admin` (SUPER_ADMIN, the developer's). Both PINs changed 2026-09-04. `CASHIER` was **removed in Batch 4.4b** — zero rows carried it, confirmed read-only first. `LEAST_PRIVILEGED_ROLE` is therefore `MANAGER`, one rung weaker than before |
 | Out-of-band snapshots | `db-snapshots/custom.db.pre-3.1c.2026-09-03T20-54-10Z` and `…pre-3.5.2026-09-03T23-01-34Z` (both hash `711de2f1…`), and `…pre-3.6b.2026-09-04T08-27-38Z` (`7cc3367b…`). All outside the repo |
 
 **When running the app against a scratch copy**, override **both**
@@ -204,12 +200,6 @@ These are **deferred, not waived.** Stage 1 cannot be declared complete, and no 
 6. ~~**`bunx prisma generate` fails `EPERM`.**~~ **RESOLVED 2026-09-04 (session 7)** — and the diagnosis was right in kind, wrong in detail. Batch 3.6b named a `next start` on **port 3010** (PID 2072); that process was already gone while the `EPERM` persisted. The actual holders were two *other* Batch 3.1b leftovers, PIDs 4016 (`-p 3011`) and 24116 (`-p 3012`), started 2026-09-03 23:05 and 23:12 and both serving the session-3 scratch copy. The user asked for them to be stopped; with all three ports free, `bunx prisma generate` **succeeded**, regenerating the client to v6.19.2, and `bun test src --timeout 30000` still gives 413 pass / 0 fail against it. **The lesson worth keeping: a stale `next start` holds `node_modules/.prisma/client/query_engine-windows.dll.node`, so kill every leftover server before blaming the filesystem or OneDrive — and check the port list rather than trusting a PID recorded in an earlier session.** The `bun run dev` half of the original claim was never re-tested here: `dev` loads the real `.env` and would open the production database, so it stays untried on this machine. Sessions that need a server should keep using `bunx next start` on a **spare port** — 3.6b used 3021, 4.1 used 3022/3023, 4.2 used 3024/3025 — and stop it by PID afterwards.
 
 8. **`bun test src` fails 23 tests on this machine, and the code is fine.** All 23 are in `backup*.test.ts` / `auth.test.ts` and every one is a 5 s timeout: scrypt at N=2^17 costs ~1.5 s per call here, and a backup→restore round trip makes several. `bun test src --timeout 30000` gives **384 pass, 0 fail**. Confirmed on the untouched commit before any Batch 3.5 change was made. Recorded as **L-24**. Do not "fix" a test that fails this way.
-
-*(Row moved here from Open Threads → B.)*
-
-| Action | Why it matters | Related |
-|---|---|---|
-| Stop the two leftover servers (PIDs 4016 on port 3011 and 24116 on port 3012, with their `bunx` parents 10540 and 22844) | *Corrected 2026-09-04 (session 7): the port-3010 process named here before is gone and the `EPERM` remains.* `bunx prisma generate` still fails renaming the Prisma engine DLL. Claude does not kill the operator's processes. `bunx next start -p <spare port>` works meanwhile. | — |
 
 ---
 
@@ -340,7 +330,7 @@ their own status blocks while the index still showed them untouched.*
 | C-17 | 4.5 | M-17 | 5.7 | L-10 | deferred |
 | C-18 ✅ | 4.3 + operator | M-18 | 5.7 | L-11 | deferred |
 | C-19 ✅ | 2.3 | M-19 | 5.7 | L-12 | 7.2 |
-| C-20 | 5.1 | M-19s | 4.4b | T-01…T-07 | 6.1 |
+| C-20 | 5.1 | M-19s ✅ | 4.4b | T-01…T-07 | 6.1 |
 | C-21 | 5.2 | M-20 | 5.7 | T-08, T-09 | 6.2 |
 | C-22 ◐ | 2.1 + 3.5 | M-21 | 5.7 | T-10…T-12 | 6.3 |
 | C-23 | 5.4 | M-22 | 5.7 | DOC-01…12 | 7.1 |
@@ -373,7 +363,7 @@ These cannot be resolved from the code. **Claude must not decide them.** Each bl
 | **DD-05** | **ANSWERED 2026-09-04 — refuse out-of-order closes.** A close must be the period immediately following the last sealed one; the first close is unconstrained. Decided with zero closes in existence. | Batch 3.6 (`COMPLETED`) | Evidence: record → Batch 3.6 status record, and *Answered design decisions*. |
 | **DD-18** | **ANSWERED 2026-09-04 — refuse a premature close, with no override.** Applied in Batch 3.6b, together with L-26's refunds columns. | Batch 3.6b (`COMPLETED`) | Full question and rationale: `REMEDIATION_RECORD.md` → *Answered design decisions*; evidence in the record's Batch 3.6b section. |
 | **DD-06** | **ANSWERED 2026-09-04 — no LAN access; bind `127.0.0.1`.** The POS runs on the all-in-one till and nothing else. No `APP_URL` change is needed, and printing is unaffected (the ESC/POS bridge dials **out**). | Batch 4.3 | Decided by the user. The plan's old “protective by accident” line was **wrong** and is corrected in the record: the `Secure` cookie broke LAN login for staff while `profiles` and `login` still answered over the LAN unauthenticated. Full question, measurements and rationale: `REMEDIATION_RECORD.md` → *Answered design decisions*. |
-| **DD-07** | **ANSWERED 2026-09-04, then amended twice the same day. Final answer: one operational role.** Only **MANAGER** operates the till; **SUPER_ADMIN is the developer's account** and its visibility to the manager is accepted; **`CASHIER` is REMOVED from the product** (the owner asked for a single role) — which is what lets M-19s close. | Batches 4.4 and **4.4b** | Decided by the user. The role was first retained, then removed once the owner's requirement was known. Full rationale and both amendments: `REMEDIATION_RECORD.md` → *Answered design decisions*. |
+| **DD-07** | **ANSWERED 2026-09-04, then amended twice the same day. Final answer: one operational role.** Only **MANAGER** operates the till; **SUPER_ADMIN is the developer's account** and its visibility to the manager is accepted; **`CASHIER` is REMOVED from the product** (the owner asked for a single role) — which is what lets M-19s close. | Batches 4.4 and **4.4b — both `COMPLETED`** | Decided by the user. The role was first retained, then removed once the owner's requirement was known; the removal shipped in Batch 4.4b on 2026-09-04. Full rationale and both amendments: `REMEDIATION_RECORD.md` → *Answered design decisions*. |
 | **DD-08** | **Operator scripts.** Guard them, or remove them from the shipped tree? | Batch 4.5 (C-17) | Precedent exists: `scripts/delete-products.js` was removed for the same hazard. |
 | **DD-09** | **Tables.** Wire table selection into the POS, or withdraw the feature from the documentation? | Batch 5.2 (C-21) | The floor plan, model and API all exist; only the POS link is missing. |
 | **DD-10** | **Cross-shift refunds.** Allow, attributed to the current open shift? Restrict to MANAGER+? Or keep the current refusal and define an approved manual procedure? | Batch 5.3 (C-14) | The current refusal pushes staff toward untraced cash refunds. |
@@ -882,7 +872,7 @@ Nothing else in the catalogue changes: all 61 non-drink products stay at 10 %.
 
 # STAGE 4 — SECURITY & INTEGRITY
 
-**Stage status:** `IN PROGRESS` — 4.1 through 4.4 `COMPLETED` (all 2026-09-04); **4.4b and 4.4c opened 2026-09-04, `NOT STARTED`, neither blocked**; 4.5 through 4.7 `NOT STARTED`. **4.5 is blocked on DD-08.**
+**Stage status:** `IN PROGRESS` — 4.1 through 4.4 and **4.4b** `COMPLETED` (all 2026-09-04); **4.4c `NOT STARTED`, not blocked**; 4.5 through 4.7 `NOT STARTED`. **4.5 is blocked on DD-08.**
 
 Audit section J, step 5: close the one real privilege-escalation path, stop blocking the event loop, rotate the default credentials, and stop the silent data-loss paths.
 
@@ -976,84 +966,32 @@ Audit section J, step 5: close the one real privilege-escalation path, stop bloc
 - Closing a caisse is deliberately open to any role, per the business rule stated at `reports/z/route.ts:16`. *(record, note 6)*
 - Drive the UI at `localhost`: a session cookie set at `http://127.0.0.1:<port>` did **not** persist in the browser, while the same cookie at `http://localhost:<port>` did. *(record, note 9)*
 
-**Left open:** **M-19s** `DEFERRED` — no subject under DD-07's operating model; the ungated reads it described are written into the DD-07 amendment in the record so none is lost if a cashier account is ever created. **T-03** stays open for Batch 6.1 to close at status level; this batch delivered the declaration-level matrix. **L-32** → *Newly Discovered Issues*.
+**Left open:** ~~**M-19s** `DEFERRED`~~ ✅ **CLOSED 2026-09-04 in Batch 4.4b** — DD-07's final answer removed `CASHIER`, which gave the fix a no-op cost: `GET /api/settings` and `GET /api/reports/x` were raised to `["SUPER_ADMIN", "MANAGER"]` so read and write agree. **T-03** stays open for Batch 6.1 to close at status level; this batch delivered the declaration-level matrix, and 4.4b strengthened its destructive-route arm from a role exclusion to a pinned role list. **L-32** → *Newly Discovered Issues*.
+
+**Correction, 2026-09-04 (Batch 4.4b).** Two constraints above were true when written and are now superseded; they are struck rather than rewritten, because a constraint is copied from the record and the record is append-only.
+1. *"Every such default now resolves to `LEAST_PRIVILEGED_ROLE`, which is `CASHIER`. That is the reason DD-07 kept the role in the product: it is the floor the gate falls to."* — DD-07 was amended again the same day and the role was **removed**. `LEAST_PRIVILEGED_ROLE` is now **`MANAGER`**, one rung weaker. The fail-closed mechanism is unchanged and still refuses `users`, `backups` and `logs` to that floor.
+2. *"`GET` stays open to any authenticated role"* still governs `customers`, but note **L-33**: with two roles left, the `["SUPER_ADMIN", "MANAGER"]` gates this batch and its predecessors declared now admit the entire role model, so several read as restrictions they no longer are.
 
 ---
 
 ## Batch 4.4b — Remove the CASHIER role, close M-19s
 
-**Status:** `NOT STARTED` · **Decisions:** DD-07 (final answer) · **Findings:** M-19s
+**Status:** `COMPLETED` · **Completed:** 2026-09-04 · **Commit:** `<pending>` · **Findings:** M-19s; DD-07 applied
+**Record:** `REMEDIATION_RECORD.md` → *Batch 4.4b* — specification, the removal inventory, validation criteria and status record, moved there verbatim on 2026-09-04.
 
-**Why this exists.** DD-07 was answered three times in one day, and the final
-answer changed the work. The restaurant's owner asked for a **single
-operational role**. `CASHIER` is therefore not part of this product, and the
-half-supported state it is in today is the worst of the options: implemented
-and navigable, its discount ceiling never fires, and M-19s cannot be closed
-while it exists.
+**Constraints this batch leaves behind** *(sentences copied from the record, not paraphrased)*
+- **`LEAST_PRIVILEGED_ROLE` degrades from `CASHIER` to `MANAGER`.** C-16's fail-closed default gets weaker by exactly one rung. *(record, the removal itself)*
+- Adding a role below MANAGER means changing this constant, not just the enum. *(record, note 3)*
+- **Keep the machinery** — `/api/auth/approve`, `approvals.ts`, `manager-approval-dialog.tsx`, and Batch 4.1's lockout — because Batch 4.4c reuses the lockout, and deleting audited work to tidy up is not this plan's habit. Record it as dormant. *(record, the removal itself)*
+- `payment-dialog.tsx` keeps its wiring behind a `false` constant so 4.4c hooks into a path that already works, including the post-audit N1 re-entry mechanism. *(record, note 6)*
+- The `USER_SWITCH_BLOCKED` audit action it wrote is retired with it; older rows in the journal keep it and must still render. *(record, Changes (4))*
+- `nav-access.test.ts` asserts the default can open strictly fewer views than a manager; that assertion must be revisited, not deleted (safety rule 2). *(record, the removal itself — done in note 4)*
+- **No migration** — the enum is app-level only, stored as TEXT with no `CHECK` constraint. **Nothing is waiting on the operator**, and production still stands at 6 applied migrations. *(record, note 1)*
+- Closing a caisse stays open to any authenticated role. The asymmetry it describes was written for a cashier; widening or narrowing it is a business decision, and this batch deliberately left it alone. *(record, note 8)*
+- Rewording it is 4.4c's decision — DD-19 makes it true again with the caller's own PIN — so it is **L-35** rather than a guess made here. *(record, note 7)*
+- With one operational role this changes no observable behaviour — which is the point: it removes a latent inconsistency rather than fixing a live leak. *(record, M-19s scope)*
 
-**Why M-19s could not be closed before.** It describes two reads left open to
-any authenticated caller — `GET /api/settings` (SIRET, TVA number, address,
-printer configuration, discount threshold) and `GET /api/reports/x` — while
-`PUT /api/settings` is SUPER_ADMIN and `POST /api/reports/x` is MANAGER+. The
-obvious fix is to raise the reads. Measured on 2026-09-04, that fix would
-**break a cashier**: `discount-dialog.tsx:25`, `payment-dialog.tsx:58`,
-`receipt-dialog.tsx:29` and `orders-view.tsx:176` all read `/api/settings`,
-and `shifts-view.tsx:106` reads the X report — all in views that were
-CASHIER-visible. Remove the role and the same fix becomes a no-op.
-
-### M-19s — ungated reads, and GET disagreeing with POST
-
-**Status:** `NOT STARTED` · Severity: MEDIUM · Category: security (authorization)
-
-**Scope after DD-07.** Raise `GET /api/settings` and `GET /api/reports/x` to
-`{ roles: ["SUPER_ADMIN", "MANAGER"] }` so read and write agree. With one
-operational role this changes no observable behaviour — which is the point:
-it removes a latent inconsistency rather than fixing a live leak.
-
-### The removal itself
-
-Every site is listed so the next session does not have to rediscover them
-(measured 2026-09-04; re-grep before trusting):
-
-| Where | What |
-|---|---|
-| `prisma/schema.prisma:26` | the `CASHIER` enum value. **The enum is app-level only** — no migration in this project ever emitted a `CHECK` constraint, so Prisma stores it as TEXT. Expect **no SQL**; if `migrate dev` emits any, rehearse it the usual way and hand the operator the command. |
-| `src/types/api.ts:2` | the `Role` union |
-| `src/lib/validation.ts:142`, `src/app/api/users/[id]/route.ts:11` | the two role enums in schemas |
-| `src/app/api/auth/profiles/route.ts:10`, `src/features/auth/login-screen.tsx:17,29,37` | role types and the role icon map |
-| `src/components/shared/nav-config.ts` | five rows list `CASHIER`; `LEAST_PRIVILEGED_ROLE` becomes `MANAGER` |
-| `src/app/api/auth/switch-user/route.ts:55-72` | the privilege-escalation guard is a CASHIER-only rule and becomes dead |
-| `src/app/api/orders/route.ts:223`, `src/app/api/orders/[id]/refund/route.ts:91` | the CASHIER arms of the discount and refund gates |
-| `src/components/pos/payment-dialog.tsx:122` | the client mirror of the discount gate |
-| ~10 `*.test.ts` files | fixtures and assertions naming the role |
-
-**⚠ Two consequences to carry deliberately, not by accident.**
-
-1. **`LEAST_PRIVILEGED_ROLE` degrades from `CASHIER` to `MANAGER`.** C-16's
-   fail-closed default gets weaker by exactly one rung. It stays meaningfully
-   closed — a MANAGER cannot reach `users`, `backups` or `logs` — but say so
-   in the record rather than letting it pass silently. `nav-access.test.ts`
-   asserts the default can open strictly fewer views than a manager; that
-   assertion must be revisited, not deleted (safety rule 2).
-2. **The approval-token path becomes unreachable.** Nothing will require a
-   token once no CASHIER exists. **Keep the machinery** — `/api/auth/approve`,
-   `approvals.ts`, `manager-approval-dialog.tsx`, and Batch 4.1's lockout —
-   because Batch 4.4c reuses the lockout, and deleting audited work to tidy up
-   is not this plan's habit. Record it as dormant.
-
-### Batch 4.4b — Validation Required
-
-- Targeted test: no source file outside a comment references the `CASHIER` role — assert it, do not eyeball it.
-- Targeted test: `canAccessView` still fails closed, with `MANAGER` as the floor, and still refuses `users` / `backups` / `logs` to a manager.
-- Targeted test: `GET /api/settings` and `GET /api/reports/x` declare `["SUPER_ADMIN", "MANAGER"]`, and the T-03 matrix still passes over all 61 routes.
-- Confirm read-only that **no `User` row carries `role = 'CASHIER'`** *before* changing the schema; record the count.
-- Whether `prisma migrate dev` emits SQL at all — record the answer either way. If it does: snapshot, rehearse on a copy, fingerprint-diff, hand over the command.
-- Manual: the manager can still take payment, discount, refund, reprint and open every view they are entitled to.
-- `bun test src` — PASS. `bun run typecheck` — PASS. `bun run lint` — PASS. `bun run build` — PASS.
-
-### Batch 4.4b — Status Record
-
-**Status:** `NOT STARTED` · **Completed:** — · **Changes:** — · **Files:** — · **Tests:** — · **Commit:** — · **Notes:** —
+**Left open:** **L-33** (29 declaration sites now name the entire role model, so those gates are no narrower than declaring none — `GET /api/users` and `GET /api/backups` contradict the nav outright), **L-34** (the discount dialog's percentage divides euros by cents) and **L-35** (the discount dialog still promises a manager approval that no longer happens) → *Newly Discovered Issues*. **M-18** is unchanged and still belongs to 5.7. The self-approval gap this batch leaves — a discount of any size and a refund of any amount recorded against the caller with no keystroke — is **Batch 4.4c**'s subject, not a regression.
 
 ---
 
@@ -1779,6 +1717,9 @@ Open rows only. A row resolved by a batch moves, unchanged, to `REMEDIATION_RECO
 
 | ID | Date | Found during | Description | Severity | Assigned to batch |
 |---|---|---|---|---|---|
+| **L-35** | 2026-09-04 | Batch 4.4b | **The discount dialog still promises a manager approval that no longer happens.** `discount-dialog.tsx:74-80` renders an amber banner above the threshold — « Remise supérieure à {threshold}%. Un manager doit approuver lors de l'encaissement. » — and after Batch 4.4b removed the CASHIER arm of the server gate, nobody is asked for anything: the caller is silently recorded as their own approver. The statement is false for the interval between 4.4b and 4.4c. It was **recorded rather than reworded on purpose**: DD-19 makes it true again with different words (the caller re-enters *their own* PIN, not a manager's), so choosing the replacement wording is 4.4c's decision, not a guess made while removing a role (safety rules 10 and 11). Note the banner's own trigger, `needsApproval`, computes the percentage **correctly** — it is three lines from L-34's defect and does not share it. | LOW (operator-facing text; wrong for one batch's duration) | 4.4c |
+| **L-34** | 2026-09-04 | Batch 4.4b manual validation | **The discount dialog displays the discount percentage 100× too small, dividing euros by cents.** `discount-dialog.tsx:35` computes `percent = Math.round((value / subtotal) * 1000) / 10`, where `value` is in **euros** (the file's own comment at :28-29 says so — `apply()` calls `toCents(value)`) and `subtotal` comes from `computeCartTotals` in **cents**. Observed in this batch's browser walkthrough: a 1,20 € discount on a 3,00 € subtotal — a genuine **40 %** — displayed as « **0.4**% du sous-total ». Three lines below, `handleChange` gets the same arithmetic right (`(v / (subtotal / 100)) * 100`), so the amber threshold banner fires correctly while the number beside it does not. Pre-existing and unrelated to the role removal; it matters more after Batch 4.4c, because that batch makes this threshold the trigger for a PIN prompt and the operator will be reading this figure to predict it. Same class as C-01: a unit confusion in a money path. | MEDIUM (misleading figure on the control the operator uses to judge a discount) | 4.4c or 5.7 |
+| **L-33** | 2026-09-04 | Batch 4.4b | **With one operational role removed, every gate naming `["SUPER_ADMIN", "MANAGER"]` now admits the entire role model — it is no narrower than declaring no roles at all.** Measured after the removal: **29 declaration sites across 26 route files**, including `POST /api/reports/z` (closing the day) and `POST /api/orders/[id]/reprint` (a journalled REIMPRESSION). Nothing regressed — these gates were never wider than they are — but a reader now cannot tell a deliberate restriction from a decorative one, and `api-authorization.test.ts` had been asserting exactly that property via `not.toContain("CASHIER")`, which the removal made vacuous (the test was rewritten to pin each declared list instead). **Two sites are sharper than the rest:** `GET /api/users` and `GET /api/backups` both answer **200** to a MANAGER whose nav entry for those views is deliberately SUPER_ADMIN-only (DD-07), so the API contradicts the navigation. Verified on a scratch copy: `GET /api/users` returns ids, usernames, names, roles and active flags — **no PIN hashes** — and `GET /api/backups` returns the backup list. `GET /api/logs` correctly returns 403 and is the shape the other two should match. This is the same defect class as M-19s at two routes M-19s did not name. Deciding which of the 29 should narrow to `["SUPER_ADMIN"]` is a review, not a mechanical fix. | MEDIUM (authorization declarations no longer mean what they read as; two contradict the nav) | 6.1 or 7.2 |
 | **L-32** | 2026-09-04 | Batch 4.4 | **Role gating uses two idioms, and only one is visible to the T-03 matrix.** About twenty routes declare their gate as `withAuth(handler, { roles })`; about twenty others admit any authenticated caller at the wrapper and then refuse inside the handler with `if (user.role !== "SUPER_ADMIN") return 403` — `POST /api/backups`, `DELETE /api/backups/[id]`, `POST /api/users` and `PUT /api/settings` among them. **Neither group is insecure**: the inline checks work. The cost is that `api-authorization.test.ts` cannot see the second group, so the declaration-level matrix is complete only for the first, and a future route copying the inline pattern inherits that blind spot. Converting them is mechanical but **user-visible**: the inline guards answer « Réservé au super administrateur » while `withAuth` answers « Accès refusé », so a conversion changes the message an operator reads on every one of those routes. Do it as one deliberate change with the message decided, not incidentally. The test pins which idiom each destructive route uses in the meantime. | LOW (test coverage blind spot; no live exposure) | 6.1 or 7.2 |
 | **L-31** | 2026-09-04 | Batch 4.3 | **`POST /api/seed` reports any catalogue-seeding failure as a won race.** The catalogue step is wrapped in `catch { return … "Base initialisée (requête concurrente)." }`, so every error — not just a genuine concurrent request — is reported to the operator as success. Observed during this batch's validation: on a copy whose users were empty but whose catalogue was intact, `seedCatalogAndSettings` threw on duplicate category names and the route answered `200` with that message. The two bootstrap users *were* created, so the C-18 behaviour under test was unaffected, but an operator seeing that message cannot tell a real race from a catalogue that failed to seed. Narrower after this batch — the new freshness guard refuses most databases that could reach it — but the swallow-everything catch is still there. Distinguish the P2002 unique-constraint case from the rest, as the users branch above it already does. | LOW (misleading operator message on a bootstrap path) | 5.7 or 7.1 |
 | **L-30** | 2026-09-04 | Batch 4.2 | **The unknown-username burn at login competes for the bounded PIN queue, so username enumeration can push honest cashiers to `503`.** `login/route.ts:52` runs a full `hashPin("dummy")` for an unknown user, on purpose, to flatten the timing signal that would otherwise enumerate accounts. Batch 4.2 put that derivation inside the concurrency bound, which is where it belongs — unbounded it is the memory-exhaustion path C-09 names. The residue is that the login rate limit is keyed `login:<ip>:<username>` and, since Batch 4.1 correctly stopped believing the proxy headers, `<ip>` is the constant `"local"`: each distinct username is its own bucket and nothing caps how many buckets a caller can mint. Measured on a scratch copy: **60 simultaneous logins with 60 unknown usernames → 34 served, 26 refused `503`**, and a legitimate login arriving inside that window would have been among the refused. Candidate fixes: a global (not per-username) budget for the unknown-user path, a cheaper constant-time burn, or binding the login limiter to something the caller cannot vary. Interacts with **DD-06** — if the app binds `127.0.0.1` the reachable surface shrinks to the till itself. | MEDIUM (availability of the login screen under a LAN-side flood) | 4.3 |

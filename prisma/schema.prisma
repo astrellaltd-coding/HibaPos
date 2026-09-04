@@ -20,10 +20,14 @@ datasource db {
 // Auth & Users
 // ---------------------------------------------------------------------------
 
+// DD-07 (2026-09-04), applied in Batch 4.4b: the restaurant's owner asked for a
+// single operational role. `CASHIER` was implemented and navigable but no such
+// account ever existed, and its half-supported state was what kept M-19s open.
+// MANAGER is now the till's only operational role; SUPER_ADMIN is the
+// developer's account.
 enum UserRole {
   SUPER_ADMIN
   MANAGER
-  CASHIER
 }
 
 model User {

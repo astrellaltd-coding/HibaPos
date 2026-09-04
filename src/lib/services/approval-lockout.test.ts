@@ -35,7 +35,7 @@ const MS_PER_MIN = 60_000;
 // files leave orders, shifts and payments pointing at their own users.
 const createdUserIds: string[] = [];
 
-async function makeUser(label: string, role: "CASHIER" | "MANAGER" = "CASHIER") {
+async function makeUser(label: string, role: "SUPER_ADMIN" | "MANAGER" = "MANAGER") {
   const user = await db.user.create({
     data: {
       username: `c08-${label}-${Date.now()}-${Math.random()}`,

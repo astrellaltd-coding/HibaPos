@@ -7,7 +7,7 @@ export type LoginProfile = {
   id: string;
   username: string;
   name: string;
-  role: "SUPER_ADMIN" | "MANAGER" | "CASHIER";
+  role: "SUPER_ADMIN" | "MANAGER";
 };
 
 /**

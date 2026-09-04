@@ -11,7 +11,7 @@ import { nextReceiptNumber, ensureFiscalCounter } from "@/lib/services/sequence"
 async function seedOrder(totalCents: number, cashCents: number, cardCents = 0) {
   await ensureFiscalCounter();
   const user = await db.user.create({
-    data: { username: "refund-test", name: "Test", role: "CASHIER", pinHash: "x:y" },
+    data: { username: "refund-test", name: "Test", role: "MANAGER", pinHash: "x:y" },
   });
   const shift = await db.shift.create({
     data: { number: 1, openedById: user.id, openingFloat: 10000, status: "OPEN" },

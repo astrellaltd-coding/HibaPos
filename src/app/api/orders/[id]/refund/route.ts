@@ -60,10 +60,17 @@ export const POST = withAuthParams(async (req, { user, params }) => {
 
   // Manager approval verification.
   // - approvalToken (preferred): signed single-use token from /api/auth/approve,
-  //   verified against (action=REFUND, amount=refundAmount).
-  // - MANAGER+/SUPER_ADMIN callers: self-approve (their session IS the auth).
-  // - CASHIER callers MUST present a valid approvalToken — legacy `approvedById`
-  //   is no longer trusted alone (closes forged-approval vulnerability S2).
+  //   verified against (action=REFUND, amount=refundAmount). Still live — the
+  //   Commandes view sends one for every refund (M-18), and the token is what
+  //   binds the approver to this exact cent amount.
+  // - otherwise the caller self-approves: their session IS the auth.
+  //
+  // Batch 4.4b removed the third arm, which refused a CASHIER that presented no
+  // token (legacy `approvedById` was no longer trusted alone — forged-approval
+  // vulnerability S2). DD-07 removed the role, so that arm was unreachable.
+  // Self-approval at any amount with no keystroke is what remains, and it is
+  // the gap DD-19 was answered to close: Batch 4.4c requires the caller's own
+  // PIN on every refund, at any amount.
   let refundApproverId: string | null = null;
   if (parsed.data.approvalToken) {
     try {
@@ -84,15 +91,9 @@ export const POST = withAuthParams(async (req, { user, params }) => {
       const message = e instanceof Error ? e.message : "Token d'approbation invalide.";
       return NextResponse.json({ error: message }, { status });
     }
-  } else if (user.role === "MANAGER" || user.role === "SUPER_ADMIN") {
-    // Self-approve; manager or super-admin callers authorize their own refund.
-    refundApproverId = user.id;
   } else {
-    // CASHIER must present a fresh signed approval token.
-    return NextResponse.json(
-      { error: "Token d'approbation manager requis pour rembourser." },
-      { status: 400 }
-    );
+    // Self-approve; the signed-in caller authorizes their own refund.
+    refundApproverId = user.id;
   }
 
   let refund;

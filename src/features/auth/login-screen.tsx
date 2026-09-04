@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useAnimation } from "framer-motion";
-import { ArrowLeft, ArrowRight, Calculator, Check, ChefHat, CircleHelp, Delete, Loader2, LockKeyhole, UserRound } from "lucide-react";
+import { ArrowLeft, ArrowRight, Calculator, Check, CircleHelp, Delete, Loader2, LockKeyhole, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { api, ApiError } from "@/lib/api-client";
@@ -14,7 +14,7 @@ type LoginProfile = {
   id: string;
   username: string;
   name: string;
-  role: "SUPER_ADMIN" | "MANAGER" | "CASHIER";
+  role: "SUPER_ADMIN" | "MANAGER";
 };
 
 const ROLE_STYLE: Record<LoginProfile["role"], { label: string; description: string }> = {
@@ -26,15 +26,10 @@ const ROLE_STYLE: Record<LoginProfile["role"], { label: string; description: str
     label: "Gérant",
     description: "Gestion des ventes et commandes",
   },
-  CASHIER: {
-    label: "Caissier",
-    description: "Gestion des ventes et commandes",
-  },
 };
 
 function getProfileIcon(role: LoginProfile["role"]) {
   if (role === "SUPER_ADMIN") return UserRound;
-  if (role === "CASHIER") return ChefHat;
   return Calculator;
 }
 

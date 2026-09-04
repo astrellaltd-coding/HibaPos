@@ -12,28 +12,32 @@ import {
 // Batch 4.3 — M-23 and the freshness half of C-18.
 
 describe("M-23 — a caller may not rewrite their own credentials", () => {
-  const cashier = { callerId: "u-cashier", callerRole: "CASHIER", targetId: "u-cashier" };
+  // Batch 4.4b: this fixture was a CASHIER. DD-07 removed the role, and
+  // `refuseUserSelfEdit` types `callerRole` as a plain string and special-cases
+  // only SUPER_ADMIN — so the rule under test never depended on which
+  // non-administrator role this was. It is now the till's operator.
+  const operator = { callerId: "u-till", callerRole: "MANAGER", targetId: "u-till" };
 
-  it("refuses a cashier changing their own PIN", () => {
+  it("refuses the till operator changing their own PIN", () => {
     // The finding, exactly: no current PIN was ever asked for, so anyone at an
-    // unlocked till could set a new one and lock the cashier out of their own
+    // unlocked till could set a new one and lock the operator out of their own
     // account.
     expect(
-      refuseUserSelfEdit({ ...cashier, pin: "999999", active: undefined }),
+      refuseUserSelfEdit({ ...operator, pin: "999999", active: undefined }),
     ).toEqual({ error: SELF_PIN_REFUSAL, status: 403 });
   });
 
-  it("refuses a cashier changing their own active flag", () => {
+  it("refuses the till operator changing their own active flag", () => {
     expect(
-      refuseUserSelfEdit({ ...cashier, pin: undefined, active: true }),
+      refuseUserSelfEdit({ ...operator, pin: undefined, active: true }),
     ).toEqual({ error: SELF_ACTIVE_REFUSAL, status: 403 });
   });
 
-  it("lets a cashier still edit their own name", () => {
+  it("lets the till operator still edit their own name", () => {
     // The refusal must be about credentials, not about self-edit in general —
     // the route's other self-editable field keeps working.
     expect(
-      refuseUserSelfEdit({ ...cashier, pin: undefined, active: undefined }),
+      refuseUserSelfEdit({ ...operator, pin: undefined, active: undefined }),
     ).toBeNull();
   });
 
@@ -92,7 +96,7 @@ describe("M-23 — a caller may not rewrite their own credentials", () => {
   });
 
   it("refuses self-deactivation for everyone, super administrator included", () => {
-    for (const role of ["CASHIER", "MANAGER", "SUPER_ADMIN"]) {
+    for (const role of ["MANAGER", "SUPER_ADMIN"]) {
       const refusal = refuseUserSelfEdit({
         callerId: "u-self",
         callerRole: role,
@@ -101,7 +105,7 @@ describe("M-23 — a caller may not rewrite their own credentials", () => {
         active: false,
       });
       expect(refusal).not.toBeNull();
-      // A cashier trips the broader credential rule first (403); a super
+      // A manager trips the broader credential rule first (403); a super
       // administrator reaches the deactivation rule itself (400). Either way
       // the account stays on.
       if (role === "SUPER_ADMIN") {

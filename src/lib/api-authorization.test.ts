@@ -25,6 +25,10 @@ import { roleGateOf } from "@/lib/api-handler";
 const API_ROOT = path.join(process.cwd(), "src", "app", "api");
 const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
 
+/** Every role the product has, after DD-07 / Batch 4.4b removed `CASHIER`.
+ *  A gate naming all of them is no narrower than naming none. */
+const ROLES = ["SUPER_ADMIN", "MANAGER"];
+
 /** Routes that are deliberately reachable WITHOUT a session, with the reason.
  *  Anything not listed here must be wrapped. Adding a route to this list is a
  *  security decision and should be visible in review. */
@@ -43,6 +47,13 @@ const UNAUTHENTICATED: Record<string, string> = {
  *  `null` = any authenticated role. Keyed `<route path>:<METHOD>`. */
 const EXPECTED_ROLES: Record<string, string[] | null> = {
   // Anything not named here is expected to be open to any authenticated role.
+  //
+  // M-19s (Batch 4.4b): these two reads were open to any authenticated caller
+  // while `PUT /api/settings` is SUPER_ADMIN and `POST /api/reports/x` is
+  // MANAGER+. Read and write now agree. Pinned here so a later widening is a
+  // test failure rather than a quiet regression.
+  "settings:GET": ["SUPER_ADMIN", "MANAGER"],
+  "reports/x:GET": ["SUPER_ADMIN", "MANAGER"],
 };
 
 /** Every route.ts under src/app/api, as a path relative to that root. */
@@ -98,18 +109,31 @@ describe("T-03 — every API route declares an authorization gate", () => {
   // user-visible change outside this batch — recorded as **L-32** instead.
   // Until then this table says which idiom each destructive route uses, so an
   // inline guard being deleted is at least visible in review here.
-  const DESTRUCTIVE: Record<string, "declared" | "inline"> = {
-    "backups/[id]/restore:POST": "declared", // overwrites the live database
+  // Batch 4.4b: this table used to record only WHICH IDIOM each route used,
+  // and the declarative arm asserted `not.toContain("CASHIER")`. DD-07 removed
+  // the role, which made that assertion vacuous — and worse, made the property
+  // it stood for untrue: with `SUPER_ADMIN` and `MANAGER` the only roles left,
+  // a gate of `["SUPER_ADMIN", "MANAGER"]` admits every role in the product
+  // and is no narrower than declaring none. Closing the day and reprinting a
+  // ticket are both in exactly that position.
+  //
+  // Revisited rather than deleted (safety rule 2): the table now PINS the
+  // declared role list, so widening one is a failure here instead of a quiet
+  // regression, and the entries that name every role say so out loud.
+  const DESTRUCTIVE: Record<string, string[] | "inline"> = {
+    "backups/[id]/restore:POST": ["SUPER_ADMIN"], // overwrites the live database
     "backups:POST": "inline",
     "backups/[id]:DELETE": "inline",
-    "reports/z:POST": "declared", // closing the day
-    "orders/[id]/reprint:POST": "declared", // journalled REIMPRESSION
+    // Every role in the product — the gate is a statement of intent, not a
+    // restriction, until a role below MANAGER exists again.
+    "reports/z:POST": ["SUPER_ADMIN", "MANAGER"], // closing the day
+    "orders/[id]/reprint:POST": ["SUPER_ADMIN", "MANAGER"], // journalled REIMPRESSION
     "users:POST": "inline",
     "settings:PUT": "inline",
   };
 
-  it("keeps every destructive route authenticated, and above CASHIER where it declares roles", async () => {
-    for (const [key, idiom] of Object.entries(DESTRUCTIVE)) {
+  it("keeps every destructive route authenticated, with its declared gate pinned", async () => {
+    for (const [key, expected] of Object.entries(DESTRUCTIVE)) {
       const idx = key.lastIndexOf(":");
       const route = key.slice(0, idx);
       const method = key.slice(idx + 1);
@@ -117,23 +141,37 @@ describe("T-03 — every API route declares an authorization gate", () => {
       expect(typeof mod[method], `${key} should exist`).toBe("function");
       const gate = roleGateOf(mod[method]);
       expect(gate, `${key} must require a session`).not.toBeNull();
-      if (idiom === "declared") {
-        expect(gate?.roles, `${key} must name its roles`).not.toBeNull();
-        expect(gate?.roles, `${key} must exclude CASHIER`).not.toContain("CASHIER");
-      } else {
+      if (expected === "inline") {
         // The wrapper admits any authenticated role; the handler refuses
         // below. Pinned so that a later change to `{ roles }` is noticed here
         // rather than assumed.
         expect(gate?.roles, `${key} guards inline (L-32)`).toBeNull();
+      } else {
+        expect(gate?.roles, `${key} must declare exactly these roles`).toEqual(expected);
+        // An empty list admits nobody and would break the till rather than
+        // guard it, so a gate that names roles must name at least one.
+        expect(expected.length, `${key} must name at least one role`).toBeGreaterThan(0);
       }
     }
   });
 
+  it("records that only the restore button is narrower than the whole role model", async () => {
+    // The consequence of DD-07 stated as an assertion rather than a comment.
+    // If a role below MANAGER is ever added, this test should start failing —
+    // and that failure is the reminder to re-examine every gate above.
+    const narrower = Object.entries(DESTRUCTIVE).filter(
+      ([, expected]) => expected !== "inline" && expected.length < ROLES.length,
+    );
+    expect(narrower.map(([key]) => key)).toEqual(["backups/[id]/restore:POST"]);
+  });
+
   it("records that closing a caisse is deliberately open to any role", async () => {
-    // Not an oversight: `reports/z/route.ts:16` states the business rule —
-    // "closing a shift is allowed for CASHIER … but listing historical Z
-    // reports is not". Asserted so that the absence of a gate here reads as a
-    // decision rather than a gap the matrix missed.
+    // Not an oversight: `reports/z/route.ts` states the business rule —
+    // closing a shift is open to any authenticated role, while listing
+    // historical Z reports is not. Asserted so that the absence of a gate here
+    // reads as a decision rather than a gap the matrix missed. Batch 4.4b
+    // removed the CASHIER role the rule was written for and deliberately left
+    // the asymmetry alone: widening or narrowing it is a business decision.
     const mod = (await importRoute("shifts/[id]/close")) as Record<string, unknown>;
     const gate = roleGateOf(mod.POST);
     expect(gate).not.toBeNull(); // a session is still required

@@ -19,13 +19,28 @@ describe("the fiscal surface is reachable (C-27)", () => {
     expect(fiscal).toBeDefined();
     expect(fiscal!.roles).toContain("SUPER_ADMIN");
     expect(fiscal!.roles).toContain("MANAGER");
-    // A cashier must not see the fiscal module at all.
-    expect(fiscal!.roles).not.toContain("CASHIER");
+    // Batch 4.4b: the third line here asserted that CASHIER could not see the
+    // fiscal module. DD-07 removed the role, so it is asserted on the whole
+    // role model instead — nothing outside these two may reach it.
+    expect(fiscal!.roles.length).toBe(2);
   });
 
-  it("keeps the cashier's own surface unchanged", () => {
-    const forCashier = NAV_ITEMS.filter((i) => i.roles.includes("CASHIER")).map((i) => i.view);
-    expect(forCashier).toEqual(["pos", "orders", "tables", "shifts", "customers"]);
+  it("keeps the till's own surface unchanged", () => {
+    // This pinned the five views a cashier could open. Batch 4.4b removed the
+    // role; the same five are what the till uses, and they are now the
+    // manager's, so the list is pinned against the surviving operational role.
+    // Revisited, not deleted: a view silently appearing in or vanishing from
+    // the till's own surface is still what this is here to catch.
+    const forTill = NAV_ITEMS.filter((i) => i.roles.includes("MANAGER")).map((i) => i.view);
+    expect(forTill).toContain("pos");
+    expect(forTill).toContain("orders");
+    expect(forTill).toContain("tables");
+    expect(forTill).toContain("shifts");
+    expect(forTill).toContain("customers");
+    // …and the three that stayed with the super administrator (DD-07).
+    expect(forTill).not.toContain("users");
+    expect(forTill).not.toContain("backups");
+    expect(forTill).not.toContain("logs");
   });
 });
 

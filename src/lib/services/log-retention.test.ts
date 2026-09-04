@@ -148,7 +148,7 @@ describe("pruneLogs", () => {
       create: {
         username: "retention-session-test",
         name: "Session Test",
-        role: "CASHIER",
+        role: "MANAGER",
         pinHash: "not-a-real-hash",
       },
     });

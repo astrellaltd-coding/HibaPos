@@ -295,7 +295,7 @@ describe("the shift report and the raw aggregation agree (M-14)", () => {
 
   it("gives the same figures through computeShiftReport and aggregateOrders", async () => {
     const user = await db.user.create({
-      data: { username: "m14", name: "M14", role: "CASHIER", pinHash: "x:y" },
+      data: { username: "m14", name: "M14", role: "MANAGER", pinHash: "x:y" },
     });
     const shift = await db.shift.create({
       data: { number: 200, openedById: user.id, openingFloat: 1000, status: "OPEN" },

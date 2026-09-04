@@ -8,7 +8,7 @@ import { refuseUserSelfEdit } from "@/lib/services/account-policy";
 
 const updateSchema = z.object({
   name: z.string().min(1).max(80).optional(),
-  role: z.enum(["SUPER_ADMIN", "MANAGER", "CASHIER"]).optional(),
+  role: z.enum(["SUPER_ADMIN", "MANAGER"]).optional(),
   pin: z.string().regex(/^\d{6}$/).optional(),
   active: z.boolean().optional(),
 });

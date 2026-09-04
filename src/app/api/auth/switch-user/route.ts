@@ -52,24 +52,14 @@ export const POST = withAuth(async (req, { user: caller }) => {
     );
   }
 
-  // Privilege escalation guard: a CASHIER may only switch to another CASHIER.
-  // MANAGER+/SUPER_ADMIN callers are trusted to switch to any role.
-  if (
-    caller.role === "CASHIER" &&
-    (user.role === "MANAGER" || user.role === "SUPER_ADMIN")
-  ) {
-    await audit(
-      "USER_SWITCH_BLOCKED",
-      "User",
-      user.id,
-      { fromUserId: caller.id, fromRole: caller.role, toRole: user.role },
-      caller.id,
-    );
-    return NextResponse.json(
-      { error: "Vous ne pouvez pas basculer vers un compte hiérarchiquement supérieur." },
-      { status: 403 }
-    );
-  }
+  // The privilege-escalation guard that stood here was a CASHIER-only rule: a
+  // cashier could not switch to a MANAGER or SUPER_ADMIN account without that
+  // account's PIN. Batch 4.4b removed the role (DD-07), and both surviving
+  // roles were already trusted to switch to any role, so the guard could never
+  // fire again. Switching still requires the target account's own PIN below —
+  // that is what makes this route safe, not the rank comparison.
+  // The `USER_SWITCH_BLOCKED` audit action it wrote is retired with it; older
+  // rows in the journal keep it and must still render.
 
   if (!(await verifyPin(pin, user.pinHash))) {
     // Increment failed attempts (same lockout logic as login).

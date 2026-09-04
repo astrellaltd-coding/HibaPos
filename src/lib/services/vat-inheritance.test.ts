@@ -139,7 +139,7 @@ describe("a category edit cannot restate a sale already made (L-16/L-17)", () =>
 
     // A sale happens, snapshotting the rate onto the line.
     const user = await db.user.create({
-      data: { username: "vat-test", name: "VAT Test", role: "CASHIER", pinHash: "x:y" },
+      data: { username: "vat-test", name: "VAT Test", role: "MANAGER", pinHash: "x:y" },
     });
     const shift = await db.shift.create({
       data: { number: 9001, openedById: user.id, openingFloat: 0, status: "OPEN" },

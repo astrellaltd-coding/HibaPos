@@ -35,13 +35,22 @@ async function getXReport(shiftId?: string | null) {
   return { data: { shift, ...report, generatedAt: new Date().toISOString() } };
 }
 
-export const GET = withAuth(async (req) => {
-  const url = new URL(req.url);
-  const shiftId = url.searchParams.get("shiftId");
-  const result = await getXReport(shiftId);
-  if (result.error) return NextResponse.json({ error: result.error }, { status: result.status });
-  return NextResponse.json(result.data);
-});
+// M-19s (Batch 4.4b): this read was open to any authenticated role while the
+// `POST` below — the same report, journalled — is MANAGER+, which made that
+// gate decorative. The X report is the running total of an open caisse. Read
+// and write now agree; with one operational role nothing observable changes.
+// It could not be raised before: `shifts-view.tsx` reads it from a view that
+// was CASHIER-visible.
+export const GET = withAuth(
+  async (req) => {
+    const url = new URL(req.url);
+    const shiftId = url.searchParams.get("shiftId");
+    const result = await getXReport(shiftId);
+    if (result.error) return NextResponse.json({ error: result.error }, { status: result.status });
+    return NextResponse.json(result.data);
+  },
+  { roles: ["SUPER_ADMIN", "MANAGER"] },
+);
 
 export const POST = withAuth(
   async (req, { user }) => {

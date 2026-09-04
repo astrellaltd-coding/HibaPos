@@ -139,7 +139,7 @@ export type CustomerInput = z.infer<typeof customerSchema>;
 export const userSchema = z.object({
   username: z.string().min(2, "Min. 2 caractères").max(30).regex(/^[a-zA-Z0-9_.-]+$/, "Caractères invalides"),
   name: z.string().min(1, "Le nom est requis").max(80),
-  role: z.enum(["SUPER_ADMIN", "MANAGER", "CASHIER"]).default("MANAGER"),
+  role: z.enum(["SUPER_ADMIN", "MANAGER"]).default("MANAGER"),
   pin: z.string().regex(/^\d{6}$/, "6 chiffres requis"),
   active: z.boolean().default(true),
 });

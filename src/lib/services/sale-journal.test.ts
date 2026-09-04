@@ -169,7 +169,7 @@ describe("an approved discount survives into the database (C-13)", () => {
     await ensureFiscalCounter();
 
     const cashier = await db.user.create({
-      data: { username: `c13-cashier-${Date.now()}`, name: "Caissier", role: "CASHIER", pinHash: "x:y" },
+      data: { username: `c13-cashier-${Date.now()}`, name: "Caissier", role: "MANAGER", pinHash: "x:y" },
     });
     const approver = await db.user.create({
       data: { username: `c13-manager-${Date.now()}`, name: "Responsable", role: "MANAGER", pinHash: "x:y" },
@@ -183,8 +183,11 @@ describe("an approved discount survives into the database (C-13)", () => {
   });
 
   it("persists the approver on the order, in the audit log and in the VENTE payload", async () => {
-    // A 25 % discount on 100,00 € — above the 20 % default threshold, so a
-    // cashier could only have taken it with a manager's approval token.
+    // A 25 % discount on 100,00 € — above the 20 % default threshold. When
+    // C-13 was written that meant a cashier presenting a manager's approval
+    // token; Batch 4.4b removed the role, so today it means the caller is
+    // recorded as their own approver. What is asserted is unchanged: the
+    // approver reaches the column, the audit log and the VENTE payload.
     const { orderId, number, eventId } = await sellWithDiscount({
       cashierId,
       shiftId,
