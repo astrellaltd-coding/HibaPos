@@ -6,7 +6,7 @@ Evidence record for the controlled remediation of HibaPOS France. Companion to `
 
 **Rules.** Append-only. Nothing here is rewritten; a correction is an appended, dated note. When a batch completes, its whole section moves here verbatim from the plan, under its stage heading, and a stub stays in the plan carrying the constraints the batch leaves behind. Sessions slice this file by heading; it is not meant to be read whole.
 
-**Contents.** Batch 0.1 · Batch 0.2 · Batch 1.1 · Batch 1.2 · Batch 2.1 · Batch 2.2 · Batch 2.3 · Batch 2.4 · Batch 3.1 · Batch 3.1b · Batch 3.1d · Batch 3.1c · Batch 3.2 · Batch 3.2b · Batch 3.3 · Batch 3.4 · Batch 3.5 · Batch 3.6 · Completed Remediation History · Resolved findings · Answered design decisions · Retired open-thread rows · Superseded procedure
+**Contents.** Batch 0.1 · Batch 0.2 · Batch 1.1 · Batch 1.2 · Batch 2.1 · Batch 2.2 · Batch 2.3 · Batch 2.4 · Batch 3.1 · Batch 3.1b · Batch 3.1d · Batch 3.1c · Batch 3.2 · Batch 3.2b · Batch 3.3 · Batch 3.4 · Batch 3.5 · Batch 3.6 · Batch 3.6b · Batch 4.1 · Batch 4.2 · Batch 4.3 · Batch 4.4 · Batch 4.4b · Batch 4.4c · Batch 4.5 · Completed Remediation History · Resolved findings · Answered design decisions · Retired open-thread rows · Superseded procedure
 
 ---
 
@@ -1820,6 +1820,107 @@ with no challenge whatsoever.
 10. **Recorded, not fixed: L-36.** `ApprovalPayload.amount` in `approvals.ts` is commented "euros" and has carried **cents** since the routes were written. This batch binds and compares cents throughout and says so at the top of `step-up.ts`, but does not edit `approvals.ts` — that file is not this batch's (safety rule 10).
 ---
 
+*Moved verbatim from REMEDIATION_PLAN.md lines 1001–1099 (commit `bcd31a5`) on 2026-09-04.*
+
+## Batch 4.5 — Dangerous operator scripts
+
+**Status:** `COMPLETED` · **Decisions:** DD-08 (answered 2026-09-04) · **Findings:** C-17, **L-37**, **L-38**; DOC-09 — all closed
+
+**Read L-37 before touching anything in `scripts/`.** It is the reason this batch's scope is larger than C-17: a third script, which C-17 does not name, wipes `db/custom.db` by a hardcoded literal and is **not** covered by the scratch-copy method every other batch relies on.
+
+### C-17 — Two operator scripts silently destroy the audit trail and the catalogue
+
+**Status:** `COMPLETED` · Severity: HIGH · Category: data loss / documentation
+
+**Problem.** `scripts/seed-users.ts` begins with three unconditional `deleteMany({})` calls. `scripts/seed-category-options.ts` deletes products and wipes every category option group, choice and add-on globally. Neither is transactional; neither is described accurately.
+
+**Evidence.**
+```
+seed-users.ts:8-10
+  db.auditLog.deleteMany({})    ← the entire ISCA audit trail
+  db.session.deleteMany({})
+  db.user.deleteMany({})
+
+seed-category-options.ts:12-21
+  db.optionGroup.deleteMany({ where:{productId} })
+  db.productAddon.deleteMany({ where:{productId} })
+  db.product.delete({ where:{id} })
+  db.categoryOptionChoice.deleteMany({})
+  db.categoryOptionGroup.deleteMany({})
+  db.categoryAddOn.deleteMany({})
+```
+`scripts/README.md` calls the first "Standalone user seeding … for ad-hoc repair" and the second "Adds option groups + choices…". Neither description mentions deletion. The header says these are "Safe to delete after running."
+
+**Location.** `scripts/seed-users.ts:8-10`; `scripts/seed-category-options.ts:12-21`; `scripts/README.md`
+
+**Impact.** An operator following the README to repair a login problem destroys the entire audit log. `user.deleteMany` then fails on the Order foreign key — but only *after* the audit rows are gone, with no transaction to roll back. The second script deletes products whose `OrderItem` links are `SetNull`, silently detaching historical order lines from their products.
+
+**Precedent.** The plan already removed `scripts/delete-products.js` for exactly this hazard (`IMPLEMENTATION_PLAN.md:42`); these two were missed.
+
+**Remediation direction — DECIDED, DD-08 (2026-09-04).** Split, in six parts.
+
+1. **Remove `scripts/port-real-data.ts`** (L-37). Its euros→cents port completed on 1 September; the data it produced is the live catalogue. Removal rather than a guard because the capability is spent.
+2. **Remove `scripts/seed-category-options.ts`** (C-17). It seeded a demo catalogue that the real 78-product one replaced.
+3. **Rebuild `scripts/seed-users.ts` as a PIN-reset tool** (C-17). **No `deleteMany` of any kind**, **no PIN in the file**, an explicit flag, and the new PIN supplied at run time. It is kept because `POST /api/seed` refuses once the till has traded, so with both PINs lost there is otherwise no way back in. It must not be able to recreate the published defaults — that is the half of C-17 the operator's 2026-09-04 PIN change would otherwise be undone by.
+4. **Guard `fix-fiscal-counter.ts` and `init-fiscal-counter.ts`** (L-38) so a counter can never be **lowered**. Repair upward stays available; that is what the scripts are for.
+5. **Bring `scripts/` under `tsc` and `eslint`** — remove the `tsconfig.json:41` and `eslint.config.mjs:49` exclusions. Accepted with its cost: pre-existing errors in these files must be fixed before `bun run build` passes again.
+6. **Correct `scripts/README.md`**: it opens with *“Safe to delete after running”*, describes none of the deletions, and omits `port-real-data.ts` and `set-drink-vat-rates.ts` (**DOC-09**).
+
+**Copy the two scripts that already do this right** rather than inventing a form: `set-drink-vat-rates.ts` (dry-run by default, refuses an unexpected category tree) and `fix-duplicate-product-options.ts` (`--dry`).
+
+**Related blind spot — now part 5 above, decided.** `scripts/` is excluded from both eslint (`eslint.config.mjs:49`) and tsc (`tsconfig.json:41`), so nine DB-mutating scripts have zero static checking.
+
+**Two things measured on 2026-09-04 so this batch does not have to re-derive them.**
+
+1. **The other two seed paths are already guarded and are OUT of scope.** `prisma/seed.ts:14-16` returns early with *« Base déjà initialisée — aucune action »* when any user exists, and `POST /api/seed` answers **409** unless the database is fresh (it counts users, orders **and** fiscal events — `seed/route.ts:37,57-61`). Both take their PINs from `SEED_ADMIN_PIN` / `SEED_MANAGER_PIN` with the published values only as a fallback, and both validate six digits. So `bun run db:seed` is a **no-op** on the live database, and **`scripts/seed-users.ts` is the only path that deletes first and then recreates the published defaults** — which is why C-17's criterion is scoped to `scripts/` and why widening this batch to `prisma/seed.ts` would be scope creep, not thoroughness.
+2. **`db/real-data-backup/` is untracked**, and holds `real-data.db` (634 KB, 1 September) plus its `-wal`/`-shm`. It is the source `port-real-data.ts` reads. Removing the script leaves it as an orphaned copy of **old real trading data** in a OneDrive-synced folder. Decide its fate deliberately — keep it as a pre-migration artefact, or move it out of the repo tree the way `db-snapshots/` already is — rather than leaving it behind by accident. It is **not** the live catalogue; that is `db/custom.db`.
+
+### Batch 4.5 — Validation Required
+
+- Manual: running each remaining script without the confirmation flag performs no writes.
+- Targeted check: `scripts/README.md` accurately describes what every script deletes, and lists every file in the folder.
+- ~~Confirm `scripts/port-real-data.ts` is documented (currently omitted — DOC-09).~~ **Superseded by DD-08: the script is removed, so DOC-09's remaining half is `set-drink-vat-rates.ts`, which is also undocumented.**
+- **L-37:** `git grep` finds no surviving file that opens a database path not derived from `DATABASE_URL` or `HIBAPOS_DATA_DIR`. This is the criterion that matters most — it is what makes the scratch-copy method complete again.
+- **L-38:** targeted test — a counter repair that would **lower** any of the three numbers is refused, and one that raises them succeeds. Prove it fails against the pre-batch code.
+- **C-17:** the rebuilt `seed-users.ts` performs **no deletes**, and `git grep` finds neither published default PIN anywhere in `scripts/`.
+- **Do not test these scripts against the production database.** Use a copy — and note that for `port-real-data.ts` the usual `DATABASE_URL` override is **not** a defence (L-37); the only safe way to exercise it is not to run it at all, which is why it is removed rather than guarded.
+- `bun test src --timeout 30000` — PASS. `bun run typecheck` — PASS. `bun run lint` — PASS. `bun run build` — PASS. **Expect typecheck and lint to fail first** once the `scripts/` exclusions come off; fixing what they report is part 5's work, not a surprise.
+- Retire about 5 KB from the plan's front matter (see *Last Updated*). This batch is already rewriting warning 5 and `scripts/README.md`, so it is the right one to do it.
+
+### Batch 4.5 — Status Record
+
+**Status:** `COMPLETED` · **Completed:** 2026-09-04 (session 10)
+
+**Changes:** DD-08's six parts, all applied. (1) **`scripts/port-real-data.ts` deleted** (L-37): it opened `db/custom.db` by a hardcoded literal, disabled foreign keys and ran `DELETE FROM` on every table, reading neither `DATABASE_URL` nor `HIBAPOS_DATA_DIR` — the one file the scratch-copy method could not protect against. Its euros→cents job completed 1 September. (2) **`scripts/seed-category-options.ts` deleted** (C-17). (3) **`scripts/seed-users.ts` rebuilt as a PIN reset**: no `deleteMany`, no `delete`, no `create` — one `update` of one column plus a `USER_PIN_RESET_SCRIPT` audit row, in one transaction. The PIN is typed at a hidden prompt (raw-mode stdin, digits only, no echo, confirmed twice) with a piped-stdin fallback for unattended runs; it is never printed. It refuses an account that does not exist rather than creating one, and refuses either published default via new **`PUBLISHED_DEFAULT_PINS` / `isPublishedDefaultPin()` in `src/lib/auth.ts`** — placed there, not in `scripts/`, so the batch's own "neither PIN anywhere in `scripts/`" check passes while the refusal is kept. (4) **Both counter scripts guarded** (L-38) by new **`src/lib/services/fiscal-counter-floor.ts`**: `fix-fiscal-counter.ts` now writes only fields that go **up** and refuses any proposal that would lower one; `init-fiscal-counter.ts` refuses when the fiscal tables are non-empty and points at the repair tool. Both now write `lastFiscalEventSequence` explicitly. (5) **`scripts/` brought under `tsc` and `eslint`** — exclusions removed from `tsconfig.json` and `eslint.config.mjs`. (6) **`scripts/README.md` rewritten** (DOC-09). Also: **`fix-duplicate-product-options.ts` flipped to dry-run-by-default** (`--apply`), since it was the last script that wrote with no flag; and `db/real-data-backup/` moved out of the repo tree.
+
+**Files:** deleted `scripts/port-real-data.ts`, `scripts/seed-category-options.ts`; rewrote `scripts/seed-users.ts`, `scripts/fix-fiscal-counter.ts`, `scripts/init-fiscal-counter.ts`, `scripts/README.md`; edited `scripts/fix-duplicate-product-options.ts`, `scripts/decrypt-backup.ts` (two inline `require("fs")` → static imports), `scripts/inspect-db.ts`, `scripts/inspect-options.ts`, `scripts/inspect-product.ts` (`require()` → ESM imports; these three declared `db` and `main` in one global scope and collided the moment `tsc` saw them); added `src/lib/services/fiscal-counter-floor.ts` + `.test.ts`; edited `src/lib/auth.ts`, `src/lib/auth.test.ts`, `tsconfig.json`, `eslint.config.mjs`.
+
+**Tests:** `bun test src --timeout 30000` → **498 pass, 0 fail** (482 before; +13 counter-floor, +3 published-default-PIN), 73.4 s. `bun run typecheck` PASS, `bun run lint` PASS, `bun run build` PASS — all three with `scripts/` now in scope; the first runs reported 11 typecheck errors and 2 lint errors in `scripts/`, all fixed, which is part 5's accepted cost. **L-38 proved against the pre-batch code three ways.** (a) Three one-property reverts of the floor module: no floor at all (the real pre-batch behaviour) → **7 of 13 fail**; refuse-every-change → **3 fail**; `<=` off-by-one at the boundary → **3 fail**. 7+3+3 = 13, so every test fails under exactly one revert and none is vacuous. Restored byte-identical (`86caff9c…`) each time. (b) The **actual pre-batch scripts**, restored from `git show HEAD:` and run against the scratch copy: old `init-fiscal-counter.ts` created the singleton at **0/0/0/0** beside tables holding 20 orders / 3 shifts / 2 Z reports / 2 journal events; old `fix-fiscal-counter.ts` **lowered 999/9/9 → 20/3/2** and printed "FiscalCounter synced" as though it were a repair. (c) The new scripts on the same states: lowering **refused, exit 1, database byte-identical**; raising **5/1/0 → 20/3/2 succeeded** and re-running was a no-op; `init` **refused** on populated tables, exit 1, no write. **C-17 validated on the scratch copy:** all nine remaining scripts run with no flag → **no writes, no sidecar files**; a missing account refused; both published defaults refused with the database unchanged; a 5-digit PIN refused; a real reset changed the hash `400154a0…` → `558a667f…`, verified through the application's own `verifyPin` (correct PIN `true`, wrong PIN `false`), and every table count identical to production except `AuditLog` 468 → **469**, the single row the reset *adds*. **L-37's criterion:** `git grep` finds **zero** tracked files importing `bun:sqlite`, calling `new Database(`, or using `better-sqlite3` — no file in the repo opens a database path outside `DATABASE_URL` / `HIBAPOS_DATA_DIR` any more. **Production untouched:** `7839db18…`, mtime 2026-09-04 16:41:52, 696 320 bytes, unchanged throughout; no `-wal`/`-shm` beside it; `db/backups/` untouched and `db/fiscal-archives/` still absent.
+
+**Commit:** `PENDING`
+
+**Notes:**
+
+1. **The scratch-copy method is complete again, and that is this batch's point.** Every batch since Stage 3 has relied on one protection: point `DATABASE_URL` and `HIBAPOS_DATA_DIR` at a copy and production cannot be reached. `port-real-data.ts` was a standing exception — both overrides set correctly and `bun scripts/port-real-data.ts` still destroyed the live fiscal record. It was removed rather than guarded because its capability was spent, and a removal cannot be got wrong the way a guard can. The `git grep` in *Tests* is the check that keeps it true; warning 5 now states the rule as a prohibition on any *new* file.
+
+2. **L-38 had a fourth counter it did not name, and the guard covers it.** L-38 names `lastReceiptNumber`, `lastShiftNumber` and `lastZReportNumber` — the three `fix-fiscal-counter.ts` writes in its `update:` branch. Both scripts **omitted `lastFiscalEventSequence` in their `create:` branch**, so Prisma's `@default(0)` applied: on a database that lost its singleton but kept its `FiscalEvent` rows, creating the row rewound the journal sequence to 0 and the next event would reuse a sequence already inside the hash chain. Demonstrated, not inferred — the pre-batch `init` produced exactly that (evidence (b) above). Guarding three of four would have left the worst one, since the journal sequence is what the chain is ordered by. This is inside L-38's own last sentence (*"`init-fiscal-counter.ts` upserts the singleton at 0 and needs the same floor"*), not a scope extension.
+
+3. **The refusal is a refusal, not a clamp.** Writing `max(current, proposed)` would have been less code and would have let the operator believe a repair happened. A counter *above* its tables means rows were destroyed; that is the incident, and the counter is only its symptom. So both scripts stop, name every offending field with both numbers, and point at `decrypt-backup.ts` — restore the backup, do not align the counter to amputated tables.
+
+4. **One test passed against a disabled floor, and the fix was in the code, not the assertion.** `describeCounterRegressions([])` still emitted the header and trailer, so a test asserting only the guidance text passed either way. It now throws on an empty list, which makes the vacuous pass impossible rather than merely unlikely, and the test additionally pins the field line. This is *Methods* → *Prove the test fails on the old code*, and it is why that method now also says to revert in both directions.
+
+5. **`scripts/` under static checking cost eleven typecheck errors, and one of them was the reason to do it.** The three `inspect-*.ts` files used `require()` in `.ts` files, which makes them global scripts rather than modules: all three declared `db` and `main` in one scope and produced "Cannot redeclare block-scoped variable" the instant `tsc` could see them, plus implicit `any` on every callback. `inspect-product.ts` also dereferenced a possibly-null `findFirst` result on a hardcoded demo product name (`"Chicken Club"`) the real catalogue replaced — it now takes the name as an argument. `decrypt-backup.ts` had two inline `require("fs")` calls beside a static `fs` import. None of this was hypothetical: the folder's own comment noted that `hashPin` became async in Batch 4.2 and a missing `await` would store `"[object Promise]"` as a PIN hash with nothing to catch it. `bun run build` still passes.
+
+6. **`db/real-data-backup/` moved, on the operator's decision, not deleted.** It is now `../db-snapshots/real-data-backup.pre-cents-port.2026-09-01T17-13-56Z/`, outside the repo tree beside the other pre-migration snapshots, hash `87a376f0f3b95a7e817373dd12e2a81800096407d4bb11f0a954e337204bb7ea` unchanged by the move. It holds the **pre-port** state — 73 products, 18 orders, 2 sealed Z reports, 440 audit rows, 2 users, in old euros — and is the only surviving copy of the catalogue as it stood before the euros→cents conversion, which is why it was kept rather than removed with the script that read it. The three files were moved together so the `.db` keeps its sidecars.
+
+7. **A read-only open of a WAL-mode database still touches its `-shm`.** Inspecting `real-data.db` with `bun:sqlite` and `readonly: true` moved that file's mtime while leaving the `.db` byte-identical. *Methods* → *Scratch copy* says to confirm "no `-wal`/`-shm` files appeared" after working on production; that check would misread this as a write. It does not affect `db/custom.db`, which is in rollback-journal mode (byte 18 = `1`, *Open Threads → A*) and produces no `-shm` — but a session inspecting a WAL-mode file should expect it.
+
+8. **Three operator-facing behaviours changed, deliberately.** `fix-duplicate-product-options.ts` no longer deletes without a flag — it was live-by-default with `--dry` to opt out, so the shorter command was the destructive one; `--dry` is still accepted and is now a no-op. `inspect-product.ts` requires a product name. `inspect-options.ts` printed cent values with a `€` suffix, which read as euros and was wrong by a factor of 100 — it now formats them. Nobody is running these today (*Hardware-dependent validation*: the app is undeployed), which is what made it safe to change the interface rather than preserve it.
+
+9. **What this batch did NOT touch.** `prisma/seed.ts` and `POST /api/seed` remain out of scope and are already guarded, as the batch specification measured on 2026-09-04 — both no-op or answer 409 once the till has traded. `prisma/seed.ts` therefore still carries the two published PINs as env fallbacks; that is not a live path, and widening the batch to it would have been scope creep. `.zscripts/dev.ps1` and `start.ps1` still reference `db\custom.db` by a literal path, but only via `Test-Path` — they do not open a database, so they do not defeat the scratch-copy method. No migration was added; nothing waits on the operator.
+
+---
+
 # COMPLETED REMEDIATION HISTORY
 
 *Moved verbatim from `REMEDIATION_PLAN.md` lines 2357–2378 (commit `5f0c2b1`) on 2026-09-04. Nothing in this section has been rewritten; corrections, if any, are appended dated notes.*
@@ -1855,6 +1956,7 @@ with no challenge whatsoever.
 ---
 | 4.4b | COMPLETED | 2026-09-04 | `45a6fb8` | M-19s, on DD-07's final answer. The owner asked for a **single operational role**, so `CASHIER` left the enum, the `Role` union, both zod schemas, five nav rows, the login screen, the CASHIER-only privilege-escalation guard on `switch-user`, and the CASHIER arms of the discount and refund gates. **Zero `User` rows carried it**, confirmed read-only before the schema changed. **M-19s closes as a no-op by construction**: `GET /api/settings` (SIRET, TVA number, discount threshold) and `GET /api/reports/x` were open to any authenticated caller while their writes were SUPER_ADMIN and MANAGER+; raising both to `["SUPER_ADMIN", "MANAGER"]` makes read and write agree without changing what anyone can do — which is the point, and is only possible because the role that made the fix breaking is gone. **Whether a migration was needed was measured, not assumed**: `prisma migrate diff` printed an empty migration both before and after the schema edit, so the enum really is app-level TEXT and **nothing waits on the operator**. Two consequences were carried deliberately and written down rather than hidden — `LEAST_PRIVILEGED_ROLE` degrades `CASHIER` → `MANAGER`, one rung weaker but still refusing `users` / `backups` / `logs`; and the approval machinery is **dormant, not deleted**, because 4.4c reuses it. Two test assertions were **revisited, not deleted**: the floor property in `nav-access.test.ts`, and the destructive-route table in `api-authorization.test.ts`, which now pins each declared role list — stronger than the vacuous `not.toContain("CASHIER")` it replaced, and the rewrite is what surfaced L-33. A new `role-model.test.ts` walks all 245 source files and fails if the role returns; 4 of its 7 tests were proved to fail against a deliberately reintroduced role, then the files were restored from copies. Manual walkthrough on a scratch copy and in a real browser: the manager takes payment, discounts 40 %, refunds with no token, reprints, opens all 14 entitled views and is refused the other three; production `db/custom.db` byte-identical throughout. Recorded L-33, L-34, L-35. 461/461. |
 | 4.4c | COMPLETED | 2026-09-04 | `d9b1b08` | DD-19, plus L-34, L-35 and — unplanned — the audit's own **M-17** and **M-18**. A discount above the configured threshold and **every** refund at any amount now require the signed-in operator to re-enter **their own** PIN; until this batch both were self-approved with no keystroke, so an unattended till would take a 100 % discount or refund the day's takings from anyone who walked up. Re-authentication, not second-person approval: with one operational role (DD-07) `/api/auth/approve` forbids self-approval and can never succeed, so a distinct `POST /api/auth/step-up` was built — reusing Batch 4.1's lockout (**one shared counter**, five attempts in total), Batch 4.2's bounded scrypt queue, and `approvals.ts`'s signed single-use amount-bound token, which now must **name the caller**. Four implementation choices were put to the operator and answered: replace the old manager token rather than keep both; close M-18 here rather than in 5.7; **no change to the sealed journal payloads** (a “PIN was typed” flag would be true on every record and would create a third vintage — the audit log carries the deliberate act instead); keep 5 wrong PINs / 15 minutes, accepting that five fumbles cost fifteen minutes of refunds. L-34 and the banner it sits under (L-35) both closed — the discount dialog showed a real 40 % as « 0.4% » and promised an approval that no longer happened. **No migration; nothing waits on the operator.** Five-revert negative control, with two tests strengthened when it showed they proved less than they claimed. Validated on a scratch copy through the routes and the real UI; production untouched at `7839db18…`. Recorded L-36. 482/482. |
+| 4.5 | COMPLETED | 2026-09-04 | `PENDING` | DD-08's six parts, closing C-17, L-37, L-38 and DOC-09: deleted `port-real-data.ts` (which wiped production by a hardcoded path, defeating the scratch-copy method) and `seed-category-options.ts`; rebuilt `seed-users.ts` as a delete-free PIN reset with both published defaults refused from `src/lib/auth.ts`; guarded both counter scripts against lowering any of four counters via the tested `fiscal-counter-floor.ts`; made every script dry-run-by-default; brought `scripts/` under `tsc` and `eslint`; rewrote `scripts/README.md`. 498/498 tests. Production untouched; no migration. Retired 6 656 bytes of plan front matter, bringing it under its ~40 KB ceiling. |
 
 # RESOLVED FINDINGS
 
@@ -1873,6 +1975,16 @@ with no challenge whatsoever.
 | L-13 ✅ **RESOLVED in Batch 1.3** (`483a86e`) | 2026-09-03 | Batch 1.3 decision prep | **`receiptWidth` is a millimetre value being used as a character count.** The live `Setting` row is `receiptWidth = 80` and `validation.ts:202` allows 32–80, but `renderReceipt()` (`services/receipt.ts:8`) uses it as `const w = Math.max(32, s.receiptWidth ?? 42)` — a column count. 80 mm of thermal paper is **48 characters** at ESC/POS Font A (64 at Font B), not 80. Harmless while printing is `window.print()`; guaranteed to wrap every receipt into garbage the moment real printing exists. Decide whether the setting means millimetres (and derive columns) or columns (and re-label + re-default it). | MEDIUM (latent; blocks correct output in 1.3) | 1.3 |
 | **L-25** ✅ **RESOLVED in Batch 3.6b** (`545b255`) | 2026-09-04 | Batch 3.6 (M-01) | **The close guard enforces order, but nothing stops you sealing a month that has not finished.** `closeMonth(2026, 9, …)` succeeds on 4 September and seals a partial September as if it were the whole month; the period is then `@unique`, so the rest of the month can never be sealed and never appears in any close. M-01's guard does not help — sealing September early is perfectly in sequence. Pre-existing, not introduced by Batch 3.6, and out of its scope (the batch's decision was about ordering, not about timing). Candidate fix: refuse a period whose end is still in the future, or require an explicit confirmation. Worth deciding before the first real close, because the first premature seal is unrepairable. | MEDIUM (a sealed, permanently incomplete fiscal period) | needs a decision — suggest a small batch before 8.0 → **decided 2026-09-04, DD-18; Batch 3.6b** |
 | **L-26** ✅ **RESOLVED in Batch 3.6b** (`545b255`) | 2026-09-04 | Batch 3.6 (M-07) | **`MonthlyClose` and `AnnualClose` hash a `totalRefunded` they have no column for.** `aggregatePeriod` returns `totalRefunded` and it is spread into `dataPayload`, so it *is* inside `dataJson` and *is* covered by the close hash — but there is no column, so no query, report or screen can read it without parsing the JSON. The Z report gained exactly these columns in M-07; the period closes did not, because the plan's M-07 names only `ZReport`. Trivial to add while zero closes exist (the same argument as DD-05); much less trivial afterwards. | LOW (data present but unreadable; consistency with M-07) | 3.6 follow-on or 8.0 → **Batch 3.6b** (DD-18) |
+
+---
+
+
+**Moved from `REMEDIATION_PLAN.md` → *Newly Discovered Issues* on 2026-09-04, unchanged, when Batch 4.5 closed them.**
+
+| ID | Date | Found during | Description | Severity | Assigned to batch |
+|---|---|---|---|---|---|
+| **L-37** | 2026-09-04 | DD-08 premise check | **`scripts/port-real-data.ts` wipes the production database by a hardcoded path, and is the one file the scratch-copy method cannot protect against.** C-17 names two dangerous scripts; this is a third, and the worst. Its own header says *“The current DB at `db/custom.db` is wiped and re-populated”*. `port-real-data.ts:16` sets `const NEW_DB = "db/custom.db"` as a **literal**, `:74` opens it read-write, `:81-83` runs `PRAGMA foreign_keys = OFF` then `DELETE FROM "<table>"` for **every** table found in `sqlite_master` — the 78 real products, all orders, both sealed Z reports, every `FiscalEvent` and its hash chain, `FiscalCounter`, `GrandTotal` and the audit log — before re-inserting from `db/real-data-backup/real-data.db` (still present, dated 1 September). There is **no flag, no confirmation and no dry-run**: `bun scripts/port-real-data.ts` from the project root does it immediately. **The reason this outranks C-17's two:** it reads neither `DATABASE_URL` nor `HIBAPOS_DATA_DIR`, so the scratch-copy method that has kept every batch since Stage 3 safe does not apply to it — overriding both variables and running this script still destroys production. Its job is finished (the euros→cents port completed 1 September). Also undocumented in `scripts/README.md` (DOC-09). | **HIGH** (one command destroys the live fiscal record; the standing protection does not cover it) | 4.5 — **removal decided, DD-08** |
+| **L-38** | 2026-09-04 | DD-08 premise check | **`scripts/fix-fiscal-counter.ts` can rewind `FiscalCounter`, which the plan elsewhere states is impossible.** The script sets `lastReceiptNumber` / `lastShiftNumber` / `lastZReportNumber` to `max(number)` of the surviving rows (`fix-fiscal-counter.ts:9-13, 17-29`), with **no floor at the current value**. Run after anything that removes orders — L-37's script, `seed-users.ts`, or a bad restore — it resets the counters **downward**, to 0 if the tables are empty, so the next genuine sale prints a receipt number already sealed into the journal. This directly contradicts Batch 4.3's recorded reasoning that *“the counter check is the one that matters, because a script that wipes users and orders cannot rewind `FiscalCounter`”* — true of the scripts 4.3 examined, false of this one. `init-fiscal-counter.ts` upserts the singleton at 0 and needs the same floor. Nothing has run either script against production: counters read `23/3/2/7` on the scratch copy and `20/3/2/2` live, both consistent with their tables. **Fix by refusing to lower a counter, not by removing the repair capability** — a counter that is too *low* is the condition these scripts exist to repair. | **HIGH** (duplicate receipt numbers in a sealed fiscal journal) | 4.5 — **guard decided, DD-08** |
 
 ---
 
@@ -1991,6 +2103,44 @@ below the stage sections is the authoritative list.* Merge this into it in 7.1.
 
 ---
 
+**Retired 2026-09-04 (Batch 4.5), from `REMEDIATION_PLAN.md` at commit `bcd31a5`.** The front matter stood at **47 506 bytes** against the ~40 KB ceiling *HOW TO USE THIS FILE* sets, and *Last Updated* had already named the first three of these as the batch's retirement debt. Six items, all superseded rather than wrong.
+
+**(1) The *Operator actions completed* block in *Open Threads → B*** — the PIN-change evidence table and the two-paragraph note under it. Retired because its lesson is now **enforced in code**: this batch put both published default PINs behind `PUBLISHED_DEFAULT_PINS` / `isPublishedDefaultPin()` in `src/lib/auth.ts`, with tests, and `scripts/seed-users.ts` refuses either value outright. The instruction it carried — *check a replacement PIN against the repository, not just against the value it replaces* — no longer depends on a human remembering it. The evidence itself is duplicated in Batch 4.3's record section and the hash lineage is in *G*. **What must survive and is restated in the trimmed *B*: the live PIN values were never seen by Claude and are recorded nowhere. Do not ask for them and do not write them down.**
+
+```
+**Operator actions completed — 2026-09-04**
+
+| Action | Evidence | Closes |
+|---|---|---|
+| **Both live PINs changed** | Done by the operator in `Utilisateurs` on the running app, twice: four `USER_UPDATED` audit rows at 15:33:25, 15:33:34, 15:41:12 and 15:41:43 UTC, and the database hash moved `a66bc96c…` → `e40735ca…` → `7839db18…`. Fiscal state untouched throughout: counters `20/3/2/2`, `integrity_check ok`, 78 products, 2 Z reports, 0 closes. | **C-18's credential half.** |
+
+**Two things about that change a later session must not misread.** (1) **The values were never seen by Claude and are recorded nowhere** — not here, not in the record, not in a commit. Do not ask for them and do not write them down. (2) The **first** attempt set the super-administrator to a value that was itself one of the two published defaults — present in `prisma/seed.ts`, `scripts/seed-users.ts`, commit `5ef7dc4`'s message and in this plan's own Batch 4.3 record. That was flagged and the operator changed both again; the second change is the one that closes the finding. The lesson is worth keeping: **this repository documents its own default PINs, so a replacement must be checked against the repository, not just against the value it replaces.**
+```
+
+**(2) Warning 5's DD-08 premise correction.** Retired because the file it warns about **no longer exists** — `scripts/port-real-data.ts` was removed in this batch, which is what the correction said Batch 4.5 would do. Warning 5 is rewritten in its place to describe the folder as it now is. The finding's own text survives in full in *Resolved findings* (L-37).
+
+```
+   **Corrected 2026-09-04 (DD-08 premise check) — the two scripts named above are an undercount, and the third one breaks a rule stated elsewhere in this file.** `port-real-data.ts` opens `db/custom.db` by a **hardcoded literal**, disables foreign keys and runs `DELETE FROM` on every table before refilling from a 1 September copy — no flag, no dry-run. It reads **neither `DATABASE_URL` nor `HIBAPOS_DATA_DIR`**, so *Methods → scratch copy* and warning 7 do **not** protect against it: both overrides set correctly, and running this script still destroys production. It is **L-37**, and Batch 4.5 removes it. Until then, treat `scripts/` as a folder where reading first is not optional.
+```
+
+**(3) Environment item 8's session-4 test count.** The sentence *"`bun test src --timeout 30000` gave **384 pass, 0 fail** at the time — that figure is a session-4 measurement kept for context; the current count is in *G*"* was a pointer to *G* wrapped around a stale number. *G* now reads 498. The L-24 lesson — 23 timeout failures on this machine are machine state, not a code defect, and must not be "fixed" — is kept in place.
+
+**(4) The *Restructured* line.** Purely historical, and its operative half (*everything a session must know before acting sits above the first stage heading*) is stated in *HOW TO USE THIS FILE* rules and in step 1.
+
+```
+**Restructured:** 2026-09-04 — completed batches now live verbatim in `REMEDIATION_RECORD.md`; this file keeps the resume block, the open work, the registers and a stub per completed batch. Everything a session must know before acting sits above the first stage heading. See *HOW TO USE THIS FILE*.
+```
+
+**(5) The two applied migration rows in *Open Threads → A*.** Both struck through and ticked `✅ APPLIED` — so neither is "shipped but not yet in effect", which is what that table is for. Their timestamps are in *G* and in their own batches' records.
+
+```
+| ~~**`MonthlyClose` / `AnnualClose` refunds columns** (3.6b)~~ ✅ **APPLIED** — `20260904091947_close_refund_totals`, 2026-09-04 09:43:54, both tables still empty so no sealed document was rewritten | — | — |
+| ~~**`ZReport.refundsTotal` / `refundsCount`** (3.6)~~ ✅ **APPLIED** — applied 2026-09-04 00:54:37; its own correction was retired to the record in Batch 4.4b, and *G* carries the state | — | — |
+```
+
+**(6) The answered design decisions, compressed to one line each.** *HOW TO USE THIS FILE* step 5.5 requires an answered decision's row to be cut to one line here with the full row moved to *Answered design decisions* — that had been done for the rationale but not for the rows, so ten answered decisions still occupied multi-sentence rows above the first stage heading. Every one of them is present in full in *Answered design decisions* above (DD-01, DD-02, DD-03, DD-05, DD-06, DD-07, DD-08, DD-17, DD-18, DD-19), verified before trimming. Nothing was summarised away that is not recorded there; the corrections some of them carry — DD-06's "protective by accident" premise, DD-07's two amendments, DD-08's undercounted premise — are all in those record entries.
+
+---
 # SUPERSEDED PROCEDURE
 
 *The plan's original *HOW TO USE THIS FILE* steps, lines 186–194, replaced on 2026-09-04 by the two-file protocol.*

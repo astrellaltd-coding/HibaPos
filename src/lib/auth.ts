@@ -69,6 +69,34 @@ export async function hashPin(pin: string): Promise<string> {
   return `${salt}:${hash}`;
 }
 
+/**
+ * The PINs this repository publishes about itself — C-17, Batch 4.5.
+ *
+ * They are `prisma/seed.ts`'s fallbacks, they were `scripts/seed-users.ts`'s
+ * hardcoded values until this batch, and they appear in commit `5ef7dc4`'s
+ * message and in the remediation record. Anyone holding a copy of this
+ * repository knows both numbers, so neither may ever be installed as a live
+ * credential.
+ *
+ * WHY THIS IS A CHECK IN CODE AND NOT A LINE IN A README. When the operator
+ * changed both live PINs on 2026-09-04, the first attempt set the
+ * super-administrator to one of these two values. It was caught by reading
+ * the repository, not by the application. A replacement PIN has to be checked
+ * against what the repository publishes, and the only reliable place to do
+ * that is where the PIN is set.
+ *
+ * It lives here rather than in `scripts/` for two reasons: `bun test src`
+ * cannot reach `scripts/`, and Batch 4.5's own validation asks that neither
+ * value appear anywhere under `scripts/` — a denylist sitting there would
+ * satisfy the intent and fail the check.
+ */
+export const PUBLISHED_DEFAULT_PINS: readonly string[] = ["123456", "111111"];
+
+/** True when `pin` is one of the values this repository publishes. */
+export function isPublishedDefaultPin(pin: string): boolean {
+  return PUBLISHED_DEFAULT_PINS.includes(pin);
+}
+
 export type PinVerifyResult = {
   valid: boolean;
   /** true = matched under the LEGACY params (pre-Phase-2A N=2^14) — the

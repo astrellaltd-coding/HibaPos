@@ -1,13 +1,27 @@
+/**
+ * Delete product-level option groups that duplicate an inherited category
+ * global.
+ *
+ * DRY RUN BY DEFAULT since Batch 4.5. It used to run LIVE by default, with
+ * `--dry` to opt out of the deletions — so the shorter, more obvious command
+ * was the destructive one. Every script in this folder now writes only with
+ * `--apply`, so there is one rule to remember rather than one per script.
+ * `--dry` is still accepted, and is now a no-op.
+ *
+ *   bun scripts/fix-duplicate-product-options.ts            # report only
+ *   bun scripts/fix-duplicate-product-options.ts --apply    # delete
+ */
 import { db } from "../src/lib/db";
 
 async function main() {
   const args = process.argv.slice(2);
-  const dryRun = args.includes("--dry");
-  
+  const apply = args.includes("--apply");
+  const dryRun = !apply;
+
   if (dryRun) {
-    console.log("Running in DRY-RUN mode. No changes will be saved.");
+    console.log("=== SIMULATION — aucune suppression (ajoutez --apply) ===");
   } else {
-    console.log("Running in LIVE mode. Deleting duplicate option groups.");
+    console.log("=== APPLY — suppression des groupes d'options en double ===");
   }
 
   const products = await db.product.findMany({
@@ -58,6 +72,9 @@ async function main() {
   console.log(`\nSummary:`);
   console.log(`Affected Products: ${affectedProducts}`);
   console.log(`Total Duplicate Groups ${dryRun ? 'to delete' : 'deleted'}: ${totalDeleted}`);
+  if (dryRun && totalDeleted > 0) {
+    console.log(`\nRien n'a été supprimé. Relancez avec --apply pour appliquer.`);
+  }
 }
 
 main()

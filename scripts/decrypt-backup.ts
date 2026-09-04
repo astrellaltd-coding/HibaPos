@@ -27,7 +27,7 @@
  *   [ 16-byte salt ][ 12-byte GCM IV ][ 16-byte GCM tag ][ ciphertext ]
  *   key = scrypt(secret, salt, N=2^17, r=8, p=1, 32 bytes)
  */
-import { promises as fs, existsSync, readdirSync } from "fs";
+import { promises as fs, existsSync, readdirSync, readFileSync, statSync } from "fs";
 import path from "path";
 import crypto from "crypto";
 
@@ -51,7 +51,7 @@ function loadSecret(): string {
     // never been started.
     const envPath = path.join(process.cwd(), ".env");
     if (existsSync(envPath)) {
-      const raw = require("fs").readFileSync(envPath, "utf8") as string;
+      const raw = readFileSync(envPath, "utf8");
       const match = raw.match(/^\s*BACKUP_ENCRYPTION_KEY\s*=\s*"?([^"\r\n]+)"?/m);
       if (match) secret = match[1];
     }
@@ -90,7 +90,7 @@ function listBackups(): void {
   }
   console.log(`\n  Sauvegardes dans ${dir} :\n`);
   for (const f of files.sort()) {
-    const stat = require("fs").statSync(path.join(dir, f));
+    const stat = statSync(path.join(dir, f));
     const mb = (stat.size / 1024 / 1024).toFixed(2);
     const kind = f.startsWith("pre-restore-")
       ? "instantané de sécurité"
