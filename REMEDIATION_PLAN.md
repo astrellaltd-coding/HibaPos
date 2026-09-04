@@ -923,7 +923,7 @@ Audit section J, step 5: close the one real privilege-escalation path, stop bloc
 
 ## Batch 4.3 — Credentials, sessions and network exposure
 
-**Status:** `COMPLETED` · **Completed:** 2026-09-04 · **Commit:** `PENDING_SHA` · **Findings:** C-18 `◐`, M-23, M-27, M-28
+**Status:** `COMPLETED` · **Completed:** 2026-09-04 · **Commit:** `aac03f6` · **Findings:** C-18 `◐`, M-23, M-27, M-28
 **Record:** `REMEDIATION_RECORD.md` → *Batch 4.3* — specification, the operator's credential policy, validation criteria and status record, moved there verbatim on 2026-09-04.
 
 **Constraints this batch leaves behind** *(sentences copied from the record, not paraphrased)*
