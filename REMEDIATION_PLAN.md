@@ -1000,7 +1000,7 @@ Audit section J, step 5: close the one real privilege-escalation path, stop bloc
 
 ## Batch 4.5 — Dangerous operator scripts
 
-**Status:** `COMPLETED` · 2026-09-04 · commit `PENDING` · **Findings:** C-17 ✅, **L-37** ✅, **L-38** ✅, DOC-09 ✅ · **Decision:** DD-08 (answered 2026-09-04)
+**Status:** `COMPLETED` · 2026-09-04 · commit `1a0836b` · **Findings:** C-17 ✅, **L-37** ✅, **L-38** ✅, DOC-09 ✅ · **Decision:** DD-08 (answered 2026-09-04)
 
 Full section, validation and evidence: `REMEDIATION_RECORD.md` → *Batch 4.5*.
 
