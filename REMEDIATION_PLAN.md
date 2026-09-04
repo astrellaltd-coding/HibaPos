@@ -877,7 +877,7 @@ Audit section J, step 5: close the one real privilege-escalation path, stop bloc
 
 ## Batch 4.1 — Manager-approval brute force
 
-**Status:** `COMPLETED` · **Completed:** 2026-09-04 · **Commit:** `__SHA__` · **Findings:** C-08
+**Status:** `COMPLETED` · **Completed:** 2026-09-04 · **Commit:** `f14a50c` · **Findings:** C-08
 **Record:** `REMEDIATION_RECORD.md` → *Batch 4.1* — specification, validation criteria and status record, moved there verbatim on 2026-09-04.
 
 **Constraints this batch leaves behind** *(sentences copied from the record, not paraphrased)*
