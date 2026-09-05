@@ -3185,6 +3185,101 @@ Each carries a comment saying so, and `src/features/tables/table-withdrawal.test
 
 ---
 
+## Batch 7.3 — Secret rotation
+
+*Moved verbatim from `REMEDIATION_PLAN.md` (commit `8813e06`) on 2026-09-05.*
+
+
+**Status:** `NOT STARTED` — **unblocked by DD-04, answered 2026-09-05**
+
+**Prerequisite: every other Stage 7 batch complete.**
+
+| ID | Status | Item |
+|---|---|---|
+| **L-04** | `NOT STARTED` | `.next/standalone/.env` is a stale build artifact carrying **live secret values** and a Linux `/home/z/…` DB path. Treat as a leaked-secret event. |
+| **SEC-ROT** | `NOT STARTED` | Rotate `SESSION_SECRET` and `BACKUP_ENCRYPTION_KEY`. There is still no key id and no envelope encryption, and **DD-04 answered that this does not matter here**: measured read-only 2026-09-05, the `Backup` table holds **zero rows**, so no file in `db/backups/` is reachable by `listBackups()` or `restoreBackup()` with or without the key (**L-46**). Rotate and accept the loss; build no versioning. |
+
+**⚠ Order matters, and one half of it was retired by DD-04.** The rule used to be that rotating the backup key before the retained backups are re-encrypted destroys the ability to restore them; **that ability does not currently exist** (L-46), so nothing has to precede the rotation. What still stands: rotating `SESSION_SECRET` invalidates all sessions and every outstanding step-up token — do it outside service hours. And take a **new** backup after rotating, then restore it, before the old key is discarded.
+
+### Batch 7.3 — Validation Required
+
+- Confirm the stale `.next/standalone/` tree is gone and does not regenerate with secrets.
+- After `SESSION_SECRET` rotation: all users can log in; existing sessions are invalidated; approval tokens issued before rotation are rejected.
+- After `BACKUP_ENCRYPTION_KEY` rotation: a **new** backup is created and successfully restored before the old key is discarded — which, per L-46, will be the **first** end-to-end restore this installation has ever managed. Old backups are recorded as **retained-but-undecryptable and already unreachable** (DD-04's answer), not re-encrypted.
+- Never record any secret value in this file, in a commit message, or in a log.
+
+### Batch 7.3 — Status Record
+
+**Status:** `COMPLETED` **for everything this repository can do — THE SECRETS ARE NOT YET ROTATED.** The rotation is an operator action, prepared, rehearsed and handed over; it is tracked in *Open Threads → B* until it is done.
+**Completed:** 2026-09-05
+
+**Changes.** **No application code changed, and that is the finding.** **L-04** asked for the stale `.next/standalone/` tree carrying live secret values to be gone and not to regenerate: **it already is.** `output: "standalone"` was removed from `next.config.ts` in Batch 2.4, the tree is absent after a fresh `bun run build`, and `.next/` is gitignored and appears in **no commit in any branch** — so that copy of the secrets never entered git. **SEC-ROT** is the operator's: this batch rehearsed it end to end on a scratch copy and hands over the exact commands. A **leaked-secret sweep** of the working tree found the live values in **`.env` and nowhere else**. `src/lib/secret-rotation.test.ts` (new) pins what the rotation does.
+
+**Files.** `src/lib/secret-rotation.test.ts` (new). Nothing else.
+
+**Tests.** `bun run test` — **798 pass, 0 fail** (793 before; +5). `bun run typecheck`, `bun run lint` — PASS. **`db/custom.db` byte-identical** after the whole rehearsal, and the rehearsal's scratch tree was deleted.
+
+**Commit:** `<pending>` + this plan/record update.
+
+**Notes.**
+
+**(1) THE REHEARSAL PROVES THE THREE CRITERIA, and it took three attempts because the first two measured the wrong thing.** Running a server on a scratch copy under an OLD secret, signing in, then restarting the same database under a NEW one: the old cookie yields **`{"user":null}`**, the same PIN still logs in **200**, and the fresh cookie yields the full user. All three of the batch's stated criteria, demonstrated.
+
+**(2) The first attempt concluded the rotation did NOT invalidate the session, and that conclusion was WRONG.** `GET /api/auth/me` answers **200 with `{"user": null}`** when there is no session — so asserting the status code proved nothing at all. This is the third time in this session that an assertion measured a status where the body carried the answer: Batch 6.3 found the e2e suite expecting 404 from a route that answers 200-with-null, and 7.4b's first L-30 test asserted a clock. **The pattern is worth naming: assert the thing the finding is about, not the thing that is easy to read.**
+
+**(3) The second attempt concluded the ENVIRONMENT was being ignored, and that was wrong too.** A server started with `SESSION_SECRET="tooshort"` served `GET /api/auth/profiles` happily, which looked like proof that `.env` overrides the inherited environment — which would have broken the scratch-copy method the whole remediation rests on. It does not: **`/api/auth/profiles` is the pre-auth endpoint and never imports `auth.ts`**, so the import-time guard could not fire. A route that does import it answers **500** with *"SESSION_SECRET must be at least 32 characters long"*. The environment override works exactly as every batch has assumed. **Two wrong conclusions in one rehearsal, both caught by measuring again rather than by writing them down.**
+
+**(4) What the rotation costs, stated plainly because the operator is the one who pays it.** Every session is invalidated, so whoever is signed in is signed out — including, if it is done remotely, the person doing it. Any step-up or approval token in flight stops verifying and the refund or discount it authorised must be re-approved. **No PIN changes and nobody is locked out**: PINs are scrypt hashes with per-row salts and have nothing to do with `SESSION_SECRET`, which the test asserts.
+
+**(5) Rotating `BACKUP_ENCRYPTION_KEY` loses nothing, and L-46's premise was re-verified rather than assumed — as its row instructs.** Read-only on production, 2026-09-05: the `Backup` table holds **0 rows** while **9 files** sit in `db/backups/`. `listBackups()` and `restoreBackup()` both key on that table, so not one of those files is reachable through the application today. That is why DD-04 could answer *"rotate and accept the loss"*: the key is not what makes them unreachable, and re-encrypting them first would be work in service of a capability that does not exist.
+
+**(6) Claude does not generate the new secrets, and does not see them.** The hand-over gives the operator the command that generates each value on their own machine. A secret pasted into this transcript would be a secret in a log.
+
+
+### Batch 7.3 — HAND-OVER: the exact rotation procedure
+
+*Prepared and rehearsed by Claude on 2026-09-05; **run by the operator**. Claude never generates or sees the values (note 6). Rehearsed end to end on a scratch copy of production, where all three criteria held.*
+
+**Before you start.** You will be signed out — every session is invalidated, including yours. Do it when the till is not in service. Nothing is lost that you can currently reach: no backup in `db/backups/` is restorable through the app today (L-46, re-verified 0 rows / 9 files on 2026-09-05).
+
+**1. Generate the two values, on this machine, one at a time.**
+
+```bash
+openssl rand -hex 32
+```
+
+Run it **twice** — once for `SESSION_SECRET`, once for `BACKUP_ENCRYPTION_KEY`. Do not reuse one value for both. If `openssl` is not on PATH, `bun -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` produces the same thing.
+
+**2. Take a copy of `.env` first**, outside the repository and outside OneDrive:
+
+```bash
+cp ".env" "C:/HibaPOS-secrets-backup/env-before-rotation-2026-09-05.txt"
+```
+
+**3. Edit `.env`** and replace the two lines. Keep the quotes, change nothing else — in particular leave `DATABASE_URL` alone.
+
+**4. Restart the application.** Whatever normally starts it; the new values are read at startup.
+
+**5. Verify, in this order.** Each of these was demonstrated in the rehearsal.
+
+```bash
+curl -s http://127.0.0.1:3000/api/auth/me
+```
+
+- Before signing in it must answer `{"user":null}` — **including in a browser tab that was signed in before the rotation.** That is the old session being refused.
+- Sign in with your usual PIN. It must work: **no PIN changed.**
+- `curl -s -b <your cookie> http://127.0.0.1:3000/api/auth/me` must now name you.
+
+**If a signed-in tab still shows you as signed in**, it is showing cached client state — reload it. The check that matters is the `/api/auth/me` body, not the screen.
+
+**What to tell Claude afterwards**, so the plan stops saying it is pending: that the rotation is done and the date. **Do not send the values.**
+
+**If something goes wrong**, put the copy from step 2 back and restart; the old secret starts working again immediately, because nothing about it is stored anywhere else.
+
+---
+
+---
+
 # COMPLETED REMEDIATION HISTORY
 
 *Moved verbatim from `REMEDIATION_PLAN.md` lines 2357–2378 (commit `5f0c2b1`) on 2026-09-04. Nothing in this section has been rewritten; corrections, if any, are appended dated notes.*
@@ -3193,6 +3288,7 @@ Each carries a comment saying so, and `src/features/tables/table-withdrawal.test
 
 | Batch | Status | Date | Commit | Notes |
 |---|---|---|---|---|
+| 7.3 | COMPLETED (rotation handed over) | 2026-09-05 | `<pending>` | L-04 was already closed by Batch 2.4 — the standalone tree is gone, does not regenerate, and never entered git. A sweep found the live secrets in `.env` and nowhere else. The rotation is rehearsed end to end and handed to the operator; **it is not yet done**. Two wrong conclusions during the rehearsal, both caught by measuring again. **Completes Stage 7.** 798/0. |
 | 7.4c | COMPLETED | 2026-09-05 | `9e8e4e7` | L-45, L-31, L-19, L-24 and L-32. C-15's shape closed at its fourth site; a failed catalogue seed is no longer reported as success; VAT rates display exactly; the test timeout is no longer something to remember. **793/0 with no flags**, four reverts all caught. Completes Batch 7.4. |
 | 7.4b | COMPLETED | 2026-09-05 | `215d9fd` | L-33 (DD-22), L-30. Two gates narrowed so the API matches the navigation; all 76 authenticated handlers classified in a table the tests check. L-30 fixed without removing the burn. 782/0. **My first test for L-30 passed under its own revert** — a timing threshold — and was rewritten to assert the 503 the finding names. |
 | 7.4a | COMPLETED | 2026-09-05 | `807e0c5` | L-48, L-44 (DD-21), L-50 (DD-20). *A period books the corrections it issued* now holds in all nine aggregation callers; a give-away is visible without being a sale; the sealed close payload grew for the third time, possible only because zero closes exist. 776/0, six reverts all caught. Two of my own assertions were wrong about the code — a correcting period contributes a negative count. |

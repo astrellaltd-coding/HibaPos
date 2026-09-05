@@ -13,11 +13,11 @@ Detailed audit record: https://claude.ai/code/artifact/329316b0-3a6b-48b0-9d27-d
 
 **Current Stage:** **Stage 6 is COMPLETED** — 6.1, 6.2 and 6.3, all 2026-09-05. **The next unstarted stage is 7 (CLEANUP AND DOCUMENTATION TRUTH).** **Stage 5 is COMPLETED** (5.1 through 5.6 and 5.7a–5.7d, all 2026-09-05, alongside 3.6c). **Stage 4 is COMPLETED** (4.1 through 4.4, 4.4b, 4.4c, 4.5, 4.6 and 4.7, all 2026-09-04). **Stage 3 is COMPLETED** (twelve batches; **3.6c** reopened it 2026-09-05 for L-27 and closed it the same day). C-22's chain-design half stays carried forward as `REQUIRES EXTERNAL VERIFICATION`, and V-03 is open. Stage 1 is **partly done**: 1.1 and 1.2 COMPLETED, 1.3 `IMPLEMENTED — TESTING REQUIRED` on hardware, 1.4 deferred. Stage 2 is COMPLETED.
 
-**Current Batch:** none. **Stages 5 and 6 are finished, and Stage 7 is under way** — 7.1 and 7.2 are `COMPLETED`; 7.4 and 7.3 remain, in that order. **5.7 was SPLIT on 2026-09-05 into 5.7a–5.7d** — it held twelve items across four risk classes, where every completed batch here has been one finding or a tight cluster. The router section carries the evidence, where each item and each criterion went, and three things measurement found that the rows did not say. Audit IDs are unchanged; the index still maps them to 5.7.
+**Current Batch:** none. **Stages 5, 6 and 7 are all finished**; 7.4 and 7.3 remain, in that order. **5.7 was SPLIT on 2026-09-05 into 5.7a–5.7d** — it held twelve items across four risk classes, where every completed batch here has been one finding or a tight cluster. The router section carries the evidence, where each item and each criterion went, and three things measurement found that the rows did not say. Audit IDs are unchanged; the index still maps them to 5.7.
 
-**Last Completed Batch:** Batch 7.4c — small correctness, closing **L-45**, **L-31**, **L-19**, **L-24** and **L-32**, and with them the whole of Batch 7.4. L-45 was **C-15's shape at a fourth site** and is fixed the way 4.7 fixed the other three. L-31's bare `catch` told an operator the catalogue had seeded when it had not — a lost race has a signature (P2002) and everything else is a real failure. **L-32 needed no work: 7.4b's `GATES` table closed its stated cost**, which is recorded rather than claimed as this batch's. **793 tests, 0 fail — with NO flags**, which is L-24's own criterion. *(Before it: 7.4b, 7.4a, 7.2, 7.1, Stage 6.)*
+**Last Completed Batch:** Batch 7.3 — secret rotation prepared, rehearsed and **handed over**, which **completes Stage 7**. L-04's leaked standalone tree was already gone (removed in 2.4) and never entered git; a sweep found the live values in `.env` and nowhere else. **The rotation itself is NOT done** — it is the operator's, in *Open Threads → B*. The rehearsal proves all three criteria, and **took three attempts because the first two measured the wrong thing**: `GET /api/auth/me` answers 200-with-null, and `/api/auth/profiles` never imports `auth.ts`. *Assert the thing the finding is about, not the thing that is easy to read.* **798 tests, 0 fail.** *(Before it: 7.4c, 7.4b, 7.4a, 7.2, 7.1, Stage 6.)*
 
-**Next Batch:** **Batch 7.3** — secret rotation (DD-04), the last of Stage 7. Prepare and rehearse; the live `.env` edit is the operator's. Then **7.2** (dead code and dependency removal), **7.4** (the nine findings whose batch completed without them, opened 2026-09-05) and **7.3** (secret rotation, DD-04), which runs last by its own prerequisite. **What remains open beyond Stage 7**: Batch 1.3's `[HW]` sign-off and 1.4, both blocked on hardware; C-22's chain-design half and V-01…V-03, which need a qualified external party; and Batch 8.0's pre-go-live fiscal reset, which must run **after** 1.3 and 1.4.
+**Next Batch:** **Stage 8** — final validation. **8.0's pre-go-live fiscal reset must run AFTER 1.3 and 1.4**, both of which are blocked on hardware, so what is startable now is 8.1's review work. Then **7.2** (dead code and dependency removal), **7.4** (the nine findings whose batch completed without them, opened 2026-09-05) and **7.3** (secret rotation, DD-04), which runs last by its own prerequisite. **What remains open beyond Stage 7**: Batch 1.3's `[HW]` sign-off and 1.4, both blocked on hardware; C-22's chain-design half and V-01…V-03, which need a qualified external party; and Batch 8.0's pre-go-live fiscal reset, which must run **after** 1.3 and 1.4.
 
 **Blocked:** Batch 1.3 `[HW]` sign-off and Batch 1.4 — both need the app running on the restaurant's POS machine, which is in a different country from the developer and has no copy of the app installed (decision of 2026-09-03).
 
@@ -54,6 +54,7 @@ real till until an action below is taken. Do not report them as delivered.
 
 | Action | Why it matters | Related |
 |---|---|---|
+| **Rotate `SESSION_SECRET` and `BACKUP_ENCRYPTION_KEY`** | **Batch 7.3, prepared and rehearsed 2026-09-05 — NOT yet done.** The exact commands, what it costs and why it is safe: `REMEDIATION_RECORD.md` → *Batch 7.3*, and the hand-over below it. Everyone signed in is signed out; no PIN changes; nothing restorable is lost (L-46). | SEC-ROT, L-04, DD-04 |
 | Correct `printerName` in Réglages | Stored value is `"Epson TM-m30"`; the physical printer is the **Sunso WTP-801** (Ethernet). Cosmetic — nothing reads it. **This was impossible until Batch 3.1d**; the settings form now saves. | DOC-15 |
 | Choose a second volume for backups | See A. | C-06 |
 | Turn FACTICE on for any pre-go-live testing | See A. | L-18 |
@@ -1376,7 +1377,7 @@ Audit section J, step 7: the suite is honest but tests the wrong third. 136 test
 
 # STAGE 7 — CLEANUP AND DOCUMENTATION TRUTH
 
-**Stage status:** `IN PROGRESS` — 7.1, 7.2, 7.4a, 7.4b and **7.4c** `COMPLETED` 2026-09-05. **Only 7.3 remains.**
+**Stage status:** `COMPLETED` (2026-09-05) — 7.1, 7.2, 7.4a, 7.4b, 7.4c and 7.3. **7.3's rotation itself is an operator action, prepared and handed over, and is NOT yet done** (*Open Threads → B*).
 
 Audit section J, step 8. Correct the false statements, remove the dead weight, then rotate secrets. **Batch 7.4 was added 2026-09-05** and runs before 7.3: it carries the nine findings whose assigned batch completed without them.
 
@@ -1528,27 +1529,19 @@ Audit section J, step 8. Correct the false statements, remove the dead weight, t
 
 ## Batch 7.3 — Secret rotation
 
-**Status:** `NOT STARTED` — **unblocked by DD-04, answered 2026-09-05**
+**Status:** `COMPLETED` for everything this repository can do · **Completed:** 2026-09-05 · **Commit:** `<pending>` · **Findings:** L-04 (already closed by Batch 2.4), SEC-ROT, DD-04.
+**⚠ THE SECRETS ARE NOT YET ROTATED.** That is an operator action, prepared, rehearsed and handed over — *Open Threads → B*, and the hand-over in the record.
+**Record:** `REMEDIATION_RECORD.md` → *Batch 7.3*.
 
-**Prerequisite: every other Stage 7 batch complete.**
+**Constraints this batch leaves behind** *(sentences copied from the record, not paraphrased)*
+- **Claude does not generate the new secrets and does not see them.** A secret pasted into a transcript is a secret in a log. *(record, note 6)*
+- **Assert the thing the finding is about, not the thing that is easy to read.** `GET /api/auth/me` answers 200 with `{"user": null}`, so a status-code assertion about a session proves nothing. *(record, note 2)*
+- **`/api/auth/profiles` never imports `auth.ts`**, so an import-time guard cannot fire on it — it is the wrong probe for anything about secrets or sessions. *(record, note 3)*
+- Rotating **invalidates every session and every approval token in flight**, and **changes no PIN** — nobody is locked out. *(record, note 4)*
+- **Rotating the backup key loses nothing**, and L-46's premise was re-verified read-only rather than assumed: 0 `Backup` rows, 9 files on disk. *(record, note 5)*
+- `output: "standalone"` stays removed. Batch 1.4 may bring it back — **deliberately, with the secret handling designed rather than inherited**. *(`next.config.ts`)*
 
-| ID | Status | Item |
-|---|---|---|
-| **L-04** | `NOT STARTED` | `.next/standalone/.env` is a stale build artifact carrying **live secret values** and a Linux `/home/z/…` DB path. Treat as a leaked-secret event. |
-| **SEC-ROT** | `NOT STARTED` | Rotate `SESSION_SECRET` and `BACKUP_ENCRYPTION_KEY`. There is still no key id and no envelope encryption, and **DD-04 answered that this does not matter here**: measured read-only 2026-09-05, the `Backup` table holds **zero rows**, so no file in `db/backups/` is reachable by `listBackups()` or `restoreBackup()` with or without the key (**L-46**). Rotate and accept the loss; build no versioning. |
-
-**⚠ Order matters, and one half of it was retired by DD-04.** The rule used to be that rotating the backup key before the retained backups are re-encrypted destroys the ability to restore them; **that ability does not currently exist** (L-46), so nothing has to precede the rotation. What still stands: rotating `SESSION_SECRET` invalidates all sessions and every outstanding step-up token — do it outside service hours. And take a **new** backup after rotating, then restore it, before the old key is discarded.
-
-### Batch 7.3 — Validation Required
-
-- Confirm the stale `.next/standalone/` tree is gone and does not regenerate with secrets.
-- After `SESSION_SECRET` rotation: all users can log in; existing sessions are invalidated; approval tokens issued before rotation are rejected.
-- After `BACKUP_ENCRYPTION_KEY` rotation: a **new** backup is created and successfully restored before the old key is discarded — which, per L-46, will be the **first** end-to-end restore this installation has ever managed. Old backups are recorded as **retained-but-undecryptable and already unreachable** (DD-04's answer), not re-encrypted.
-- Never record any secret value in this file, in a commit message, or in a log.
-
-### Batch 7.3 — Status Record
-
-**Status:** `NOT STARTED` · **Completed:** — · **Changes:** — · **Files:** — · **Tests:** — · **Commit:** — · **Notes:** —
+**Left open:** the rotation itself.
 
 ---
 
