@@ -73,3 +73,9 @@ _archive/
 download/
 agent-ctx/
 worklog.md
+
+# Playwright output (Batch 6.3). `test-results/` is the default outputDir and
+# holds traces and screenshots of failures; CI uploads it as an artifact. Both
+# are regenerated every run. Anchored, per C-26b.
+/test-results/
+/playwright-report/

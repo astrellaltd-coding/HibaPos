@@ -1356,7 +1356,7 @@ Audit section J, step 7: the suite is honest but tests the wrong third. 136 test
 
 ## Batch 6.3 — E2E and CI safety
 
-**Status:** `COMPLETED` · **Completed:** 2026-09-05 · **Commit:** `<pending>` · **Findings:** T-10, T-11, T-12, L-06, L-40, L-43 (**closes all six**). **This batch completes Stage 6.**
+**Status:** `COMPLETED` · **Completed:** 2026-09-05 · **Commit:** `71324f2` · **Findings:** T-10, T-11, T-12, L-06, L-40, L-43 (**closes all six**). **This batch completes Stage 6.**
 **Record:** `REMEDIATION_RECORD.md` → *Batch 6.3* — specification, validation criteria and status record, moved there verbatim on 2026-09-05.
 
 **⚠ `bun run test:e2e` IS NOW SAFE, and warning 2 is lifted.** It prepares a disposable database under the system temp directory, refuses to start if that path is not disposable, runs the **production build** on port **3100**, and its first spec proves the SERVER opened that database before any other spec writes.
