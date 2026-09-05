@@ -1341,7 +1341,7 @@ Audit section J, step 7: the suite is honest but tests the wrong third. 136 test
 
 ## Batch 6.2 — Remove misleading tests
 
-**Status:** `COMPLETED` · **Completed:** 2026-09-05 · **Commit:** `<pending>` · **Findings:** T-08, T-09 (**closes both**), **L-02** and **L-49** (which was T-08 opened twice)
+**Status:** `COMPLETED` · **Completed:** 2026-09-05 · **Commit:** `6201e4d` · **Findings:** T-08, T-09 (**closes both**), **L-02** and **L-49** (which was T-08 opened twice)
 **Record:** `REMEDIATION_RECORD.md` → *Batch 6.2* — specification, validation criteria and status record, moved there verbatim on 2026-09-05.
 
 **Constraints this batch leaves behind** *(sentences copied from the record, not paraphrased)*
