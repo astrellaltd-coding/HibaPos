@@ -2742,6 +2742,14 @@ below the stage sections is the authoritative list.* Merge this into it in 7.1.
 
 ---
 
+# FINDING-ID PREFIXES
+
+*Moved verbatim from `REMEDIATION_PLAN.md` on 2026-09-05 (Batch 5.5's de-stale pass), to keep the plan's front matter under its ~40 KB ceiling. It had not changed since the plan was written and is reference material, not a status.*
+
+`C-nn` audit Critical/High · `M-nn` Medium · `L-nn` Low · `T-nn` testing gap (audit section G) · `DOC-nn` documentation-vs-reality (section D) · `V-nn` final-validation task (section J step 9) · `P-nn` preservation task. IDs are stable labels, not a ranking. **Audit IDs are never renamed**; `T-`, `DOC-`, `V-` and `P-` are new IDs assigned in this plan because the audit described those as groups rather than numbered findings.
+
+---
+
 # SUPERSEDED PROCEDURE
 
 *The plan's original *HOW TO USE THIS FILE* steps, lines 186–194, replaced on 2026-09-04 by the two-file protocol.*

@@ -339,6 +339,13 @@ export type FiscalEventType =
   | "VENTE"
   | "ANNULATION"
   | "REMBOURSEMENT"
+  // M-05 (Batch 5.5). This union is a SECOND copy of the one in
+  // `src/lib/fiscal.ts`, and 5.5 first updated only the server's — caught in
+  // the de-stale pass, not by the compiler, because nothing consumes
+  // `FiscalEventDto` today (`fiscal-view.tsx` declares its own row with
+  // `type: string`). Zero impact now, and a wrong answer for the next person
+  // to type against it. Recorded as dead code under L-07 in Batch 7.2.
+  | "MOUVEMENT_CAISSE"
   | "CLOTURE_Z"
   | "CLOTURE_M"
   | "CLOTURE_A"
