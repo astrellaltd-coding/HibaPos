@@ -3005,7 +3005,7 @@ Also in scope: `src/lib/db.ts:24` cites "IMPLEMENTATION_PLAN.md → Batch C C-C2
 
 **Tests.** `bun test src --timeout 30000` — **763 pass, 0 fail**, unchanged, as a documentation batch should be. `bun run typecheck`, `bun run lint`, `bun run build` — all PASS. **`db/custom.db` byte-identical**, `96b48ad0…`. Every DOC item's prerequisite batch confirmed `COMPLETED` before its document was touched, which is this batch's third criterion.
 
-**Commit:** `<pending>` + this plan/record update.
+**Commit:** `b2262bf` + this plan/record update.
 
 **Notes.**
 
@@ -3031,7 +3031,7 @@ Also in scope: `src/lib/db.ts:24` cites "IMPLEMENTATION_PLAN.md → Batch C C-C2
 
 | Batch | Status | Date | Commit | Notes |
 |---|---|---|---|---|
-| 7.1 | COMPLETED | 2026-09-05 | `<pending>` | DOC-01…DOC-08, DOC-10, DOC-11, DOC-12 — every DOC item. Documentation only; 763/0 unchanged. Two of the four code comments it was told to fix needed no change and one claim about them was wrong; DOC-11's re-check reversed its answer; the README's opening conformity claim was qualified, not deleted; `IMPLEMENTATION_PLAN.md` gained an appended Appendix D with eight corrections plus a ninth found while writing it. Opened L-51. |
+| 7.1 | COMPLETED | 2026-09-05 | `b2262bf` | DOC-01…DOC-08, DOC-10, DOC-11, DOC-12 — every DOC item. Documentation only; 763/0 unchanged. Two of the four code comments it was told to fix needed no change and one claim about them was wrong; DOC-11's re-check reversed its answer; the README's opening conformity claim was qualified, not deleted; `IMPLEMENTATION_PLAN.md` gained an appended Appendix D with eight corrections plus a ninth found while writing it. Opened L-51. |
 | 0.1 | COMPLETED | 2026-09-03 | `e97a3e1` | C-26, C-26b: anchored 4 bare `.gitignore` patterns; recovered 3 untracked backup API route files into version control. |
 | 0.2 | COMPLETED | 2026-09-03 | *(this update)* | P-01/P-02/P-03: repo pushed to `origin/main` (user, interactive), `.env` confirmed preserved out-of-band by user, pre-remediation snapshot + fiscal/row-count baseline recorded. No code changes. |
 | 1.1 | COMPLETED | 2026-09-03 | `4766ceb` | C-01: refund dialog made a euros boundary (`parseEuroInput()` in `money.ts`, pre-fill + submit + max-check in `orders-view.tsx`). 9 new tests; 145/145. Validated end-to-end on a scratch copy of the production DB — 5,00 € → 500, 5,50 € → 550, full refund → 690, fiscal chain ok. Production DB untouched. |

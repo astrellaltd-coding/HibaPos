@@ -1380,7 +1380,7 @@ Audit section J, step 8. Correct the false statements, remove the dead weight, t
 
 ## Batch 7.1 — Documentation corrections
 
-**Status:** `COMPLETED` · **Completed:** 2026-09-05 · **Commit:** `<pending>` · **Findings:** DOC-01…DOC-08, DOC-10, DOC-11, DOC-12 (**DOC-09 was already done in Batch 4.5**) — *closes every DOC item.*
+**Status:** `COMPLETED` · **Completed:** 2026-09-05 · **Commit:** `b2262bf` · **Findings:** DOC-01…DOC-08, DOC-10, DOC-11, DOC-12 (**DOC-09 was already done in Batch 4.5**) — *closes every DOC item.*
 **Record:** `REMEDIATION_RECORD.md` → *Batch 7.1* — the DOC table, validation criteria and status record, moved there verbatim on 2026-09-05.
 
 **No application behaviour changed.** Every edit is a comment or a document.
