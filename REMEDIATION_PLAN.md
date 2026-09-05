@@ -13,17 +13,17 @@ Detailed audit record: https://claude.ai/code/artifact/329316b0-3a6b-48b0-9d27-d
 
 **Current Stage:** **Stage 5 is IN PROGRESS** — **5.1 through 5.6 COMPLETED 2026-09-05**, alongside **3.6c** the same day. **5.7 is the last one.** **Stage 4 is COMPLETED** (4.1 through 4.4, 4.4b, 4.4c, 4.5, 4.6 and 4.7, all 2026-09-04). **Stage 3 is COMPLETED** (twelve batches; **3.6c** reopened it 2026-09-05 for L-27 and closed it the same day). C-22's chain-design half stays carried forward as `REQUIRES EXTERNAL VERIFICATION`, and V-03 is open. Stage 1 is **partly done**: 1.1 and 1.2 COMPLETED, 1.3 `IMPLEMENTED — TESTING REQUIRED` on hardware, 1.4 deferred. Stage 2 is COMPLETED.
 
-**Current Batch:** none. **5.7 is unblocked and is all that is left of Stage 5** — DD-14 and DD-15 are in *Design Decisions Required*, their rationale in the record. It needs the stage's second and last migration, already measured.
+**Current Batch:** **5.7a**, the first of four. **5.7 was SPLIT on 2026-09-05 into 5.7a–5.7d** — it held twelve items across four risk classes, where every completed batch here has been one finding or a tight cluster. The router section carries the evidence, where each item and each criterion went, and three things measurement found that the rows did not say. Audit IDs are unchanged; the index still maps them to 5.7.
 
 **Last Completed Batch:** Batch 5.6 — order cancellation, which **closes M-08**. DD-13 said there is no pre-payment order state, so `enum OrderStatus` loses `PENDING` and `CANCELLED` — neither ever written by anything — along with the permanently-zero `cancelledOrders` counter and, the half that was user-visible, a `statusBadge` `default` arm reading **« En attente »** on two screens a manager reads. **The trap was a name collision, not a scope gap**: `Receipt.printStatus` is a plain `String @default("PENDING")` carried by all 20 production receipts, so a `grep PENDING` removal breaks receipt creation on every sale — the new test file allowlists those sites and fails in **both** directions. **No migration**, measured three ways before and after the edit. The API contract narrowed deliberately (`?status=CANCELLED` → 400, not `200 []`), and two claims written into code comments were verified with `tsc` rather than asserted. *(Before it: 5.5, closing M-05, whose migration the operator applied the same day; 5.4, closing C-23; 3.6c, closing L-27. Accounts: the record.)*
 
-**Next Batch:** Batch 5.7 — POS and catalogue defects (DD-14, DD-15), the last of Stage 5 and the one that needs its second migration: `DROP TABLE "AddOn"`, `DROP TABLE "ProductAddon"` and a full **rebuild of `Customer`** whose **2 rows must survive it** — so it needs the fingerprint diff of *Methods*, not a glance. Its *Validation Required* has **no criterion for M-11, M-09 or M-10**; that gap is named in the batch and must be filled before it is run.
+**Next Batch:** **5.7a** — DD-15's two removals (M-09, M-10), which carry **the stage's second and last migration**: `DROP TABLE "AddOn"`, `DROP TABLE "ProductAddon"` and a full **rebuild of `Customer`** whose **2 rows must survive it**, 2 orders pointing at one of them — the fingerprint diff of *Methods*, not a glance. Then **5.7b** (« Offert », fiscal, no DDL), **5.7c** (pricing and validation, plus L-41) and **5.7d** (POS resilience, plus L-42, and the slice L-47 blocks). Each sub-batch's *Validation Required* was derived at the split and shows what it inherited.
 
 **Blocked:** Batch 1.3 `[HW]` sign-off and Batch 1.4 — both need the app running on the restaurant's POS machine, which is in a different country from the developer and has no copy of the app installed (decision of 2026-09-03).
 
 **Awaiting decision:** **nothing — every design decision in this plan is answered**, DD-04 and DD-16 last, on 2026-09-05. No batch is blocked on a decision and nothing waits on the operator; what remains blocked is blocked on hardware. The answers and the measurements behind them: `REMEDIATION_RECORD.md` → *Answered design decisions*.
 
-**Last Updated:** 2026-09-05 (session 15 — Batch 5.6). Three things worth carrying forward. (1) **A removal driven by `grep` is only as good as the namespace the name belongs to.** `PENDING` meant two unrelated things one file apart — `checkout.ts:155` writes an order status, `:238` writes a receipt's print status — and the second is live on all 20 production receipts. The measurement that settles it is `SELECT printStatus, COUNT(*)`, not a grep. (2) **Write the trap into the test as an allowlist, so it fails in both directions.** Asserting only "no `PENDING` survives" would itself have been satisfied by the mistake; the file also asserts the receipt's `PENDING` is still there, and three of the fifteen reverts exercise that direction. (3) **A claim in a code comment is checkable — check it.** Two comments here asserted a `tsc` outcome; both were run rather than believed. **Front matter is ~1 060 bytes under its ~40 960 ceiling** — DD-13's row was retired to pay for this session's additions.
+**Last Updated:** 2026-09-05 (session 15 — Batch 5.6). Three things worth carrying forward. (1) **A removal driven by `grep` is only as good as the namespace the name belongs to.** `PENDING` meant two unrelated things one file apart — `checkout.ts:155` writes an order status, `:238` writes a receipt's print status — and the second is live on all 20 production receipts. The measurement that settles it is `SELECT printStatus, COUNT(*)`, not a grep. (2) **Write the trap into the test as an allowlist, so it fails in both directions.** Asserting only "no `PENDING` survives" would itself have been satisfied by the mistake; the file also asserts the receipt's `PENDING` is still there, and three of the fifteen reverts exercise that direction. (3) **A claim in a code comment is checkable — check it.** Two comments here asserted a `tsc` outcome; both were run rather than believed. **Front matter headroom is measured at the end of a session, not predicted mid-way** — 5.6's own line said ~1 060 and the true figure after its last two edits was **965**. Measure it again before adding.
 
 ### OPEN THREADS — read this before starting a batch
 
@@ -266,21 +266,21 @@ half open**, split across two batches. Audit IDs are never renamed.
 | C-06 ✅ | 2.2 | M-06 ✅ | 3.6 | M-30 ✅ | 2.4 |
 | C-07 | 1.4 | M-07 ✅ | 3.6 | M-31 ✅ | 2.4 |
 | C-08 ✅ | 4.1 | M-08 ✅ | 5.6 | L-01 | 7.2 |
-| C-09 ✅ | 4.2 | M-09 | 5.7 | L-02 | 7.2 |
-| C-10 ✅ | 3.2 | M-10 | 5.7 | L-03 | 7.2 |
-| C-11 ✅ | 3.2 | M-11 | 5.7 | L-04 ◐ | 2.4 / 7.3 |
-| C-12 ✅ | 3.1 | M-12 | 5.7 | L-05 | 2.4 (deferred) |
+| C-09 ✅ | 4.2 | M-09 | 5.7a | L-02 | 7.2 |
+| C-10 ✅ | 3.2 | M-10 | 5.7a | L-03 | 7.2 |
+| C-11 ✅ | 3.2 | M-11 | 5.7b | L-04 ◐ | 2.4 / 7.3 |
+| C-12 ✅ | 3.1 | M-12 | 5.7c | L-05 | 2.4 (deferred) |
 | C-13 ✅ | 3.5 | M-13 ✅ | 3.2 | L-06 | 6.3 |
 | C-14 ✅ | 5.3 | M-14 ✅ | 3.2 | L-07 | 7.2 |
-| C-15 ✅ | 2.3 + 4.7 | M-15 | 5.7 | L-08 | 7.2 |
-| C-16 ✅ | 4.4 | M-16 | 5.7 | L-09 | deferred |
+| C-15 ✅ | 2.3 + 4.7 | M-15 | 5.7c | L-08 | 7.2 |
+| C-16 ✅ | 4.4 | M-16 | 5.7c | L-09 | deferred |
 | C-17 ✅ | 4.5 | M-17 ✅ | 4.4c | L-10 | deferred |
 | C-18 ✅ | 4.3 + operator | M-18 ✅ | 4.4c | L-11 | deferred |
-| C-19 ✅ | 2.3 | M-19 | 5.7 | L-12 | 7.2 |
+| C-19 ✅ | 2.3 | M-19 | 5.7c | L-12 | 7.2 |
 | C-20 ✅ | 5.1 | M-19s ✅ | 4.4b | T-01…T-07 | 6.1 |
-| C-21 ✅ | 5.2 | M-20 | 5.7 | T-08, T-09 | 6.2 |
-| C-22 ◐ | 2.1 + 3.5 | M-21 | 5.7 | T-10…T-12 | 6.3 |
-| C-23 ✅ | 5.4 | M-22 | 5.7 | DOC-01…12 (**09 ✅** 4.5) | 7.1 |
+| C-21 ✅ | 5.2 | M-20 | 5.7d | T-08, T-09 | 6.2 |
+| C-22 ◐ | 2.1 + 3.5 | M-21 | 5.7d | T-10…T-12 | 6.3 |
+| C-23 ✅ | 5.4 | M-22 | 5.7d | DOC-01…12 (**09 ✅** 4.5) | 7.1 |
 | C-24 ✅ | 4.6 | M-23 ✅ | 4.3 | V-01…V-03, V-08…V-12 | external |
 | C-25 ✅ | 4.6 | M-24 ✅ | 4.4 | V-04…V-07 | 8.1 / 8.2 |
 | C-26, C-26b ✅ | 0.1 | C-27 ✅ | 3.4 | P-01…P-03 ✅ | 0.2 |
@@ -293,12 +293,11 @@ half open**, split across two batches. Audit IDs are never renamed.
 
 These cannot be resolved from the code. **Claude must not decide them.** Each blocks or reshapes the batch named.
 
-**Thirteen answered decisions have been retired from this table (2026-09-05, Batches 5.3, 5.5 and 5.6), because each is closed, its batch is `COMPLETED`, and every one of them was already a pointer.** Their full rows — question, answer, and the measurements the answer turned on — are in `REMEDIATION_RECORD.md` → *Answered design decisions*, unchanged: **DD-03** (VAT key format, closed not-applicable), **DD-05** (out-of-order closes: refuse), **DD-06** (no LAN access; bind `127.0.0.1`), **DD-08** (dangerous scripts: split, six parts), **DD-09** (no table service; withdraw), **DD-10** (cross-shift refunds: allow, attributed to the current open till), **DD-17** (VAT rate on the category, nearest-wins), **DD-18** (premature close: refuse, no override), **DD-19** (step up with the operator's OWN PIN), **DD-11** (one till, so held orders stay device-local) **DD-12** (entrée/sortie de caisse with a fixed category list, plus the step-up rule 5.5 settled: a PIN for money LEAVING the drawer only) **DD-13** (no pre-payment order state; remove both dead `OrderStatus` values and the zero counter) and **DD-07** (one operational role: `CASHIER` removed from the product, which is what let M-19s close — retired in 5.6 to pay for that batch's additions, Stage 4 being complete). Each also has its answer inline in the batch that carried it. The rows kept below are the ones still open, still shaping unfinished work, or blocking a Stage 5 batch not yet done.
+**Fourteen answered decisions have been retired from this table (2026-09-05, Batches 5.3, 5.5, 5.6 and the 5.7 split), because each is closed, its batch is `COMPLETED`, and every one of them was already a pointer.** Their full rows — question, answer, and the measurements the answer turned on — are in `REMEDIATION_RECORD.md` → *Answered design decisions*, unchanged: **DD-03** (VAT key format, closed not-applicable), **DD-05** (out-of-order closes: refuse), **DD-06** (no LAN access; bind `127.0.0.1`), **DD-08** (dangerous scripts: split, six parts), **DD-09** (no table service; withdraw), **DD-10** (cross-shift refunds: allow, attributed to the current open till), **DD-17** (VAT rate on the category, nearest-wins), **DD-18** (premature close: refuse, no override), **DD-19** (step up with the operator's OWN PIN), **DD-11** (one till, so held orders stay device-local) **DD-12** (entrée/sortie de caisse with a fixed category list, plus the step-up rule 5.5 settled: a PIN for money LEAVING the drawer only) **DD-13** (no pre-payment order state; remove both dead `OrderStatus` values and the zero counter) **DD-07** (one operational role: `CASHIER` removed from the product, which is what let M-19s close — retired in 5.6, Stage 4 being complete) and **DD-02** (the data directory is `C:\HibaPOS\data`; Batch 2.2 shipped the plumbing, and both the answer and the deployment step that activates it are already in *Open Threads → A*). Each also has its answer inline in the batch that carried it. The rows kept below are the ones still open, still shaping unfinished work, or blocking a Stage 5 batch not yet done.
 
 | ID | Decision | Blocks | Context |
 |---|---|---|---|
 | **DD-01** | **ANSWERED 2026-09-03 — build the ESC/POS bridge now**: raw TCP to port 9100 over the LAN, behind a transport interface leaving a Windows-RAW-spooler slot. Not deferred to Tauri. | Batch 1.3 (`IMPLEMENTED — TESTING REQUIRED`); shapes 1.4 and 3.4 | Full question and rationale: `REMEDIATION_RECORD.md` → *Answered design decisions*. |
-| **DD-02** | **ANSWERED 2026-09-03 — `C:\HibaPOS\data`.** Plumbing shipped in Batch 2.2, defaulting to the old layout; the physical move is a deployment step with Batch 1.4. | Batch 2.2 (`COMPLETED`); shapes 1.4 | Full question and rationale: `REMEDIATION_RECORD.md` → *Answered design decisions*. |
 | **DD-04** | **ANSWERED 2026-09-05 — rotate, and accept the loss.** No re-encryption step and no key versioning: the premise was already spent. The `Backup` table holds **zero rows**, so `listBackups()` and `restoreBackup()` cannot reach any of the nine files on disk with or without the key. | Batch 7.3 (`NOT STARTED`); P-02 | Full question and rationale: `REMEDIATION_RECORD.md` → *Answered design decisions*. The zero-rows finding is **L-46**. |
 | **DD-14** | **ANSWERED 2026-09-05 — yes, under its own tender** « Offert / repas personnel », journalled with VAT at zero. | Batch 5.7 (M-11) | Full question and rationale: `REMEDIATION_RECORD.md` → *Answered design decisions*. |
 | **DD-15** | **ANSWERED 2026-09-05 — remove both.** The product-level add-on design is superseded, not lost. | Batch 5.7 (M-09, M-10) | Full question and rationale: `REMEDIATION_RECORD.md` → *Answered design decisions*. |
@@ -1041,7 +1040,7 @@ Category and product updates no longer delete option groups before validating th
 
 # STAGE 5 — WORKFLOW GAPS
 
-**Stage status:** `IN PROGRESS` — 5.1 through 5.6 `COMPLETED` 2026-09-05; **only 5.7 remains**. **DD-09 through DD-15 were all answered 2026-09-05 in one brief**, so 5.4 through 5.7 are unblocked and can be worked in turn. Each batch's spec below carries its answer inline. **Three batches have now found their own *Validation Required* wanting, in different ways**: 5.2's had been written for the answer it did not get and was re-derived; 5.3's was correct and *incomplete*, and five criteria were added to it; 5.4's two *Manual* criteria could not be run by hand at all (L-47) and were converted to automated coverage that turned out to be stronger; and 5.6's was sound but **assumed a single dead value where there were two**, and said nothing about the second namespace the removal would have destroyed. Read the criteria before running them, for what they omit as well as what they assume.
+**Stage status:** `IN PROGRESS` — 5.1 through 5.6 `COMPLETED` 2026-09-05; **5.7 remains, and was SPLIT into 5.7a–5.7d** on 2026-09-05 (see its router section for the evidence and the criterion map). **DD-09 through DD-15 were all answered 2026-09-05 in one brief**, so 5.4 through 5.7 are unblocked and can be worked in turn. Each batch's spec below carries its answer inline. **Three batches have now found their own *Validation Required* wanting, in different ways**: 5.2's had been written for the answer it did not get and was re-derived; 5.3's was correct and *incomplete*, and five criteria were added to it; 5.4's two *Manual* criteria could not be run by hand at all (L-47) and were converted to automated coverage that turned out to be stronger; and 5.6's was sound but **assumed a single dead value where there were two**, and said nothing about the second namespace the removal would have destroyed. Read the criteria before running them, for what they omit as well as what they assume.
 
 Audit section J, step 6: none of these are subtle; all of them generate support calls in week one.
 
@@ -1175,44 +1174,174 @@ Audit section J, step 6: none of these are subtle; all of them generate support 
 
 ---
 
-## Batch 5.7 — POS and catalogue defects
+## Batch 5.7 — POS and catalogue defects — **SPLIT 2026-09-05 into 5.7a–5.7d**
 
-**Migration measured 2026-09-05**, before the batch was started, with `prisma migrate diff` against the live database. DD-15's removals emit real DDL — `DROP TABLE "AddOn"`, `DROP TABLE "ProductAddon"`, and a full **rebuild of `Customer`** (SQLite's create-copy-drop-rename) to drop `postalCode`, preserving the other nine columns and all three indexes. DD-14's new « Offert » tender is an enum value and emits **nothing**. So this batch's hand-over is one command, and the `Customer` rebuild is why it needs the fingerprint diff of *Methods* rather than a glance: **2 customer rows** exist and must survive it.
+**Status:** `SPLIT` — this heading is now a router. The work is in the four sections below, each of which is a batch in its own right with its own *Validation Required* and status record.
+
+**Why it was split, and on what evidence.** As written, 5.7 held **twelve items across four risk classes** — a fiscal tender change, two destructive schema removals, pricing arithmetic and a UI architecture change — where every completed batch in this plan has been one finding or a tight cluster. Three measurements taken 2026-09-05 before any code was written settled it.
+
+1. **M-09's surface is far wider than its row says.** The row names `pricing.ts` and `media-usage.ts`. It is **ten files**, including two whole API route files, both product serializers, `seed.ts`'s `SEED_ADDONS`, and three test files.
+2. **`addon` is a name collision, the same shape as 5.6's `PENDING`.** `pricing.ts:170-183` merges the **dead** `AddOn` (0 rows) and the **live** `CategoryAddOn` (**21 rows**) into one `addonMap`, reached through one `addons` request field and one `availableAddonIds` set; `media-usage.ts:51-52` lists both models one line apart. A removal driven by `grep addon` breaks the 21 live category add-ons.
+3. **M-21 is worse than its row records.** `app-store.ts:147-155` catches any `/api/auth/me` failure to `next = null`, which reaches `operatorChanged(someone, null) → true → clearForOperatorChange()`. A transient network blip does not only eject the cashier — **it wipes the in-progress cart** Batch 5.4 built persistence to protect. Carried into 5.7d.
+
+**Precedent:** 3.1 → 3.1b/3.1c/3.1d and 4.4 → 4.4b/4.4c. **Audit IDs are not renamed and nothing is renumbered**; the finding index still maps each ID to "5.7", and the sub-batch letter is where the work is.
+
+**Where each item went.**
+
+| Sub-batch | Items | Risk class | Migration? |
+|---|---|---|---|
+| **5.7a** | M-09, M-10 (DD-15) | destructive schema removal | **Yes** — the stage's second and last |
+| **5.7b** | M-11 (DD-14) | fiscal — a new tender, and the revenue it must not inflate | No DDL (an enum value) |
+| **5.7c** | M-19, M-12, M-15, M-16, L-41 | pricing and validation arithmetic | No |
+| **5.7d** | M-20, M-21, M-22, L-42 | POS resilience and UI architecture | No |
+
+**M-17 and M-18 stay here**, resolved in Batch 4.4c on 2026-09-04, before the split. They are kept because audit IDs are never renamed and because their rows record *how* they closed — M-18 by a different mechanism than the one first proposed.
+
+| **M-17** ✅ **RESOLVED in Batch 4.4c** (2026-09-04) | ~~`NOT STARTED`~~ | The discount dialog's "% du sous-total" caption divides euros by cents — a 25 % discount displays as "0,3 %", directly above a correctly-computed approval banner. | `discount-dialog.tsx:35` vs `:39` | Use one unit. Same class as C-01/C-02. **This is the same defect Batch 4.4b re-recorded as L-34** without noticing the audit had already numbered it; 4.4c closed both, and the audit ID is kept because audit IDs are never renamed. |
+| **M-18** ✅ **RESOLVED in Batch 4.4c** (2026-09-04) | ~~`NOT STARTED`~~ | A lone manager cannot refund through the UI: the client always opens the PIN dialog, and the server blocks self-approval — while the refund route would have accepted the manager's own session with no token. | `orders-view.tsx:233-238`; `approve/route.ts:121-126`; `refund/route.ts:87-89` | ~~Skip the dialog when `user.role !== "CASHIER"`.~~ **Closed by a different mechanism, by operator decision (2026-09-04):** the refund dialog now asks for the caller's *own* PIN rather than skipping the prompt, so the refund stays a deliberate act instead of becoming a silent one. Verified in the UI — the lone manager completed a full refund. |
+
+**Where each original *Validation Required* criterion went.** Per *Methods*, shown rather than dropped.
+
+| Original criterion | Went to | As |
+|---|---|---|
+| Missing — M-11 (DD-14, « Offert ») | **5.7b** | kept, and it is that batch's whole spine |
+| Missing — M-09 / M-10 (DD-15) | **5.7a** | kept, and **widened**: it named `media-usage.ts` but not the navigable `« Suppléments »` screen, nor the collision with `CategoryAddOn` |
+| Targeted test for M-19 through the dialog's own mapping | **5.7c** | kept |
+| Targeted test: switching order type produces a total the server accepts | **5.7c** | kept |
+| ~~Manual: discount caption matches the banner (M-17)~~ | — | already struck; done in 4.4c |
+| ~~Manual: a lone manager can refund (M-18)~~ | — | already struck; done in 4.4c |
+| Manual: a failed catalogue fetch shows an error (M-20) | **5.7d** | kept — and **L-47 blocks it**, see that batch |
+| Manual: a transient `/api/auth/me` failure does not log the cashier out (M-21) | **5.7d** | kept and **widened** to "does not clear the cart either" |
+| Manual: a crash in one view does not blank the topbar or POS (M-22) | **5.7d** | kept — L-47 blocks it |
+| Targeted tests for M-15 and M-16 | **5.7c** | kept |
+| Regression: `pricing.test.ts` and the cart-store tests still pass | **5.7a and 5.7c** | **split** — 5.7a must not change any pricing figure, 5.7c changes several deliberately |
+| `bun test src` / `typecheck` / `lint` — PASS | **all four** | kept in each |
+
+---
+
+## Batch 5.7a — Remove the dead add-on surface and `Customer.postalCode`
+
+**Migration — the stage's second and last, and the only part of 5.7 that waits on the operator.** Measured 2026-09-05 with `prisma migrate diff` against the live database: DD-15's removals emit real DDL — `DROP TABLE "AddOn"`, `DROP TABLE "ProductAddon"`, and a full **rebuild of `Customer`** (SQLite's create-copy-drop-rename) to drop `postalCode`, preserving the other nine columns and all three named indexes. **Re-measure rather than trusting this**, and note what makes the rebuild non-trivial: `Customer` holds **2 rows**, and **2 orders carry a `customerId`** pointing at one of them, so a rebuild that loses a row orphans a sale. It needs the fingerprint diff of *Methods*, not a glance.
+
+**Status:** `NOT STARTED` — unblocked by DD-15, answered 2026-09-05
+
+| ID | Status | Problem | Location | Direction |
+|---|---|---|---|---|
+| **M-09** | `NOT STARTED` | `ProductAddon` has **zero writers anywhere**. Product-specific add-ons can never be created; `computeLinePricing`'s handling of them is unreachable. | `schema.prisma:119-127`; `pricing.ts:25,134-146` | Either build the write path or remove the dead surface — DD-15. ~~Flagged in section I as possible lost functionality.~~ **Answered 2026-09-05 — remove it, and the section-I framing is wrong**: nothing is lost. `CategoryAddOn` (21 rows, full editor) superseded this design; `AddOn` has 0 rows and the `ProductAddon` join has no writer anywhere. Removing `AddOn` also touches `media-usage.ts`, which reads `AddOn.image` in two places. |
+| **M-10** | `NOT STARTED` | `Customer.postalCode` exists in the schema and migration with **zero references in `src/`**, despite the schema comment calling it a French delivery requirement. | `schema.prisma:214` | Either wire it into `customerSchema` and the delivery form, or remove it — DD-15. **Answered 2026-09-05 — remove it.** 0 of 2 customers have one, and the delivery rule at `orders/route.ts:261-274` requires name + phone + address and never asks for a postcode. |
+
+### The trap in this batch, stated before the work
+
+**`addon` names two things, and only one of them is dying.** Measured 2026-09-05:
+
+| | rows | writer | reached by |
+|---|---|---|---|
+| **`AddOn`** + **`ProductAddon`** | **0** and **0** | `AddOn` has a full editor; **`ProductAddon` has no writer anywhere** | dying |
+| **`CategoryAddOn`** | **21** | the editor inside `categories-view.tsx` | **must keep working** |
+
+Both flow through **one** `addonMap` (`pricing.ts:175-183`), **one** `availableAddonIds` set, **one** `addons` request field (`orders/route.ts:28`, sent by `payment-dialog.tsx:169`) and **one** DTO field — `addOns: [...categoryAddOns, ...productAddOns]` (`products/route.ts:156`, `products/[id]/route.ts:153`). `media-usage.ts:51-52` lists `CategoryAddOn` and `AddOn` on consecutive lines. **A removal driven by `grep addon` breaks the 21 live category add-ons.** Batch 5.6's method applies: write the collision into the test as an allowlist so it fails in **both** directions.
+
+### One thing M-09's row does not say, found by measuring
+
+**`AddOn` is not a dead model — it is a navigable screen that lies to the operator.** `« Suppléments »` is a 446-line CRUD view (`features/catalog/addons-view.tsx`), wired at `nav-config.ts:47` for MANAGER and SUPER_ADMIN, `app-store.ts:15,39` and `app-shell.tsx:37-38,175`. An operator can create a supplement there, it saves, and **it can never appear on any product**, because attaching one needs `ProductAddon` and nothing writes that table. That is **C-21's shape** (Batch 5.2: the table plan looked connected because a screen existed) and it takes C-21's remedy — withdraw the screen — rather than only dropping the model.
+
+### Batch 5.7a — Validation Required
+
+*(Derived 2026-09-05 at the split. The parent's single DD-15 bullet is kept and **widened**: it named `media-usage.ts` but neither the navigable screen nor the `CategoryAddOn` collision.)*
+- **Inherited from 5.7, kept:** a destructive schema change with zero rows to lose, so it needs the migration rehearsal and a handed-over command; and `media-usage.ts` reads `AddOn.image` in two places, so Batch 4.6's media scan must be re-verified after the model goes.
+- **Added — the collision, asserted in both directions:** no `AddOn` / `ProductAddon` reference survives outside a comment, **and** `CategoryAddOn`'s 21 rows still reach a product. Assert that `ProductDto.addOns` still carries the category add-ons, that `computeLinePricing` still prices one, and that `media-usage.ts` still scans `CategoryAddOn.image` — a test that only checks the removal would be satisfied by the mistake.
+- **Added — the screen:** `« Suppléments »` is gone from the navigation, the `AppView` union, the shell's render arms and the lazy-import table, and no route file for it remains. Nothing else in the catalogue group moves.
+- **Added — read-only first, before anything is removed:** re-confirm `AddOn` = 0 rows, `ProductAddon` = 0 rows, `CategoryAddOn` = 21, `Customer` = 2 rows with 0 postcodes, and that 2 orders reference a customer.
+- **Added — the rebuild:** after the rehearsal, **both `Customer` rows survive with all nine remaining columns**, all three named indexes are recreated, and the 2 orders still resolve their customer. This is what the fingerprint diff is for.
+- **Regression (from 5.7's single bullet, the half that belongs here):** `pricing.test.ts` and the cart-store tests still pass, and this batch changes **no pricing figure at all** — a removal that moves a number has removed the wrong thing.
+- `bun test src` — PASS. `bun run typecheck` — PASS. `bun run lint` — PASS. `bun run build` — PASS.
+
+### Batch 5.7a — Status Record
+
+**Status:** `NOT STARTED` · **Completed:** — · **Changes:** — · **Files:** — · **Tests:** — · **Commit:** — · **Notes:** —
+
+---
+
+## Batch 5.7b — « Offert / repas personnel », the zero-total sale
+
+**No DDL** — DD-14's new tender is a `PaymentMethod` enum value, and the parent's measurement of 2026-09-05 found it emits **nothing**. Re-measure and say so either way (Batch 4.4b's and 5.6's method).
+
+**Status:** `NOT STARTED` — unblocked by DD-14, answered 2026-09-05
+
+| ID | Status | Problem | Location | Direction |
+|---|---|---|---|---|
+| **M-11** | `NOT STARTED` | A 100 % discount cannot be checked out: the total becomes 0, but `payments` requires ≥1 entry with `amount ≥ 1`, and the server demands exact equality. | `orders/route.ts:42-50, 253` | Decide whether a zero-total order is legitimate — DD-14. **Answered 2026-09-05 — yes, under its own tender « Offert / repas personnel ».** Both walls (`payments.min(1)` with `amount.min(1)`, and the exact-equality check at `:251`) must come down together, and an « offert » line must not inflate revenue in the Batch 3.2 aggregation or the sealed period totals. |
+
+### Batch 5.7b — Validation Required
+
+*(Inherited whole from 5.7, whose list named this as **missing** and then supplied it.)*
+- **M-11 (DD-14, « Offert / repas personnel »):** a zero-total sale completes under its own tender, is journalled with VAT at zero, and — the half that matters — **does not inflate revenue** in Batch 3.2's aggregation or in a sealed period total, not merely in the Z. Both walls at `orders/route.ts:51-59` and `:251` have to come down together.
+- **Note for whoever runs it:** this is a fiscal change, so Stage 3's rule applies — prove the new tests fail on the old code, one property at a time and in both directions, and name the controls.
+- `bun test src` — PASS. `bun run typecheck` — PASS. `bun run lint` — PASS.
+
+### Batch 5.7b — Status Record
+
+**Status:** `NOT STARTED` · **Completed:** — · **Changes:** — · **Files:** — · **Tests:** — · **Commit:** — · **Notes:** —
+
+---
+
+## Batch 5.7c — Pricing and validation defects
+
+**No migration.** Every item is server or client arithmetic and every one is unit-testable.
 
 **Status:** `NOT STARTED`
 
 | ID | Status | Problem | Location | Direction |
 |---|---|---|---|---|
 | **M-19** | `NOT STARTED` | Order-type-specific option modifiers are stored in the generic `priceModifier` slot, so switching order type after adding an item computes the wrong client total — and the server then rejects the checkout with "Paiement incorrect". | `product-options-dialog-v2.tsx:86-98` vs `cart-store.ts:197-202` | Keep the dine-in modifier alongside the resolved one in `CartOption`. Existing tests miss this because they build `CartItem` by hand. |
-| **M-17** ✅ **RESOLVED in Batch 4.4c** (2026-09-04) | ~~`NOT STARTED`~~ | The discount dialog's "% du sous-total" caption divides euros by cents — a 25 % discount displays as "0,3 %", directly above a correctly-computed approval banner. | `discount-dialog.tsx:35` vs `:39` | Use one unit. Same class as C-01/C-02. **This is the same defect Batch 4.4b re-recorded as L-34** without noticing the audit had already numbered it; 4.4c closed both, and the audit ID is kept because audit IDs are never renamed. |
-| **M-18** ✅ **RESOLVED in Batch 4.4c** (2026-09-04) | ~~`NOT STARTED`~~ | A lone manager cannot refund through the UI: the client always opens the PIN dialog, and the server blocks self-approval — while the refund route would have accepted the manager's own session with no token. | `orders-view.tsx:233-238`; `approve/route.ts:121-126`; `refund/route.ts:87-89` | ~~Skip the dialog when `user.role !== "CASHIER"`.~~ **Closed by a different mechanism, by operator decision (2026-09-04):** the refund dialog now asks for the caller's *own* PIN rather than skipping the prompt, so the refund stays a deliberate act instead of becoming a silent one. Verified in the UI — the lone manager completed a full refund. |
-| **M-20** | `NOT STARTED` | The POS product grid has no error state; an API failure renders "Aucun produit dans cette catégorie". | `pos-view.tsx:43-51, 235-240` | Distinguish empty from failed. The worst false empty state in the app. |
-| **M-21** | `NOT STARTED` | Any transient failure of `/api/auth/me` is caught and treated as logged-out, ejecting the cashier mid-service. | `app-store.ts:81-83` | Distinguish a network error from a 401. |
-| **M-22** | `NOT STARTED` | A single global error boundary wraps the whole shell; a crash in any view blanks the till. No App Router `error.tsx`. | `app-shell.tsx:115,161`; `src/app/` | Per-view boundaries plus an `error.tsx` fallback. |
-| **M-11** | `NOT STARTED` | A 100 % discount cannot be checked out: the total becomes 0, but `payments` requires ≥1 entry with `amount ≥ 1`, and the server demands exact equality. | `orders/route.ts:42-50, 253` | Decide whether a zero-total order is legitimate — DD-14. **Answered 2026-09-05 — yes, under its own tender « Offert / repas personnel ».** Both walls (`payments.min(1)` with `amount.min(1)`, and the exact-equality check at `:251`) must come down together, and an « offert » line must not inflate revenue in the Batch 3.2 aggregation or the sealed period totals. |
 | **M-12** | `NOT STARTED` | The `PERCENT` discount branch's comment says the value is *percent×100*; the code treats it as a plain percent and clamps at 100. Latent — the UI only sends `AMOUNT`. | `orders/route.ts:36, 203-205` | Correct the comment or the code. A client following the comment would apply a 100 % discount. |
 | **M-15** | `NOT STARTED` | Options with negative modifiers (or an absolute category price below the base) can drive a line total negative; nothing clamps `unitPrice` at zero. | `pricing.ts:104-124, 164-165` | Clamp or reject. |
 | **M-16** | `NOT STARTED` | Item quantity has a lower bound of 1 and no upper bound. | `orders/route.ts:24` | Add a sane maximum. |
-| **M-09** | `NOT STARTED` | `ProductAddon` has **zero writers anywhere**. Product-specific add-ons can never be created; `computeLinePricing`'s handling of them is unreachable. | `schema.prisma:119-127`; `pricing.ts:25,134-146` | Either build the write path or remove the dead surface — DD-15. ~~Flagged in section I as possible lost functionality.~~ **Answered 2026-09-05 — remove it, and the section-I framing is wrong**: nothing is lost. `CategoryAddOn` (21 rows, full editor) superseded this design; `AddOn` has 0 rows and the `ProductAddon` join has no writer anywhere. Removing `AddOn` also touches `media-usage.ts`, which reads `AddOn.image` in two places. |
-| **M-10** | `NOT STARTED` | `Customer.postalCode` exists in the schema and migration with **zero references in `src/`**, despite the schema comment calling it a French delivery requirement. | `schema.prisma:214` | Either wire it into `customerSchema` and the delivery form, or remove it — DD-15. **Answered 2026-09-05 — remove it.** 0 of 2 customers have one, and the delivery rule at `orders/route.ts:261-274` requires name + phone + address and never asks for a postcode. |
 
-### Batch 5.7 — Validation Required
+**Also in this batch: L-41** *(row in *Newly Discovered Issues*)* — a sale refused for a closed shift burns the step-up PIN token, because `orders/route.ts` consumes it as its last check *before* `createOrderInTransaction` while Batch 4.7's shift assertion is the first statement *inside* the transaction. **Batch 5.5 note 4 is the pattern**: make the refusal a pure exported check the route runs *before* `consumeStepUpToken`, with the service keeping its own copy as the guarantee.
 
-*(Checked 2026-09-05. This list was written before DD-14 and DD-15 were answered and has **no criterion for either** — M-11, M-09 and M-10 are in this batch's scope and are untested by everything below. Per *Methods*, the gap is named here rather than discovered mid-batch.)*
-- **Missing — M-11 (DD-14, « Offert / repas personnel »):** a zero-total sale completes under its own tender, is journalled with VAT at zero, and — the half that matters — **does not inflate revenue** in Batch 3.2's aggregation or in a sealed period total, not merely in the Z. Both walls at `orders/route.ts:51-59` and `:251` have to come down together.
-- **Missing — M-09 / M-10 (DD-15, remove `ProductAddon`, `AddOn` and `Customer.postalCode`):** a destructive schema change with zero rows to lose, so it needs the migration rehearsal and a handed-over command; and `media-usage.ts` reads `AddOn.image` in two places, so Batch 4.6's media scan must be re-verified after the model goes.
+### Batch 5.7c — Validation Required
+
+*(Inherited from 5.7. The M-19 and M-15/M-16 criteria are kept verbatim; the regression bullet is the half of 5.7's that belongs here.)*
 - Targeted test for M-19 built through the options dialog's own mapping, not a hand-built `CartItem` — the existing tests miss the bug precisely because they bypass it.
 - Targeted test: switching order type after adding an item produces a client total the server accepts.
-- ~~Manual: the discount dialog's percentage caption matches the approval banner (M-17).~~ — **done in Batch 4.4c**, which also had to make the banner true.
-- ~~Manual: a manager alone can complete a refund (M-18).~~ — **done in Batch 4.4c**, with the caller's own PIN.
-- Manual: a failed catalogue fetch shows an error, not an empty category (M-20).
-- Manual: a transient `/api/auth/me` failure does not log the cashier out (M-21).
-- Manual: a crash in one view does not blank the topbar or the POS (M-22).
 - Targeted tests for M-15 (no negative line total) and M-16 (quantity bound).
-- Regression: `pricing.test.ts` (18 cases) and the cart-store tests still pass.
+- **Added for L-41:** a sale refused for a closed shift leaves the step-up token unspent, and the refusal is decided **before** the token is consumed — pin the ordering, as Batch 5.5 did for the cash-movement sign.
+- Regression: `pricing.test.ts` (18 cases) and the cart-store tests still pass — several figures move here **deliberately**, so re-derive the expectations rather than adjusting them to whatever the code now returns.
 - `bun test src` — PASS. `bun run typecheck` — PASS. `bun run lint` — PASS.
 
-### Batch 5.7 — Status Record
+### Batch 5.7c — Status Record
+
+**Status:** `NOT STARTED` · **Completed:** — · **Changes:** — · **Files:** — · **Tests:** — · **Commit:** — · **Notes:** —
+
+---
+
+## Batch 5.7d — POS resilience and error boundaries
+
+**No migration.** This is the slice whose *Manual* criteria **L-47 blocks** — the browser pane renders the login screen with a valid session, so no authenticated view can be driven there. Read L-47's row before planning the validation: Batch 5.4 converted two such criteria into automated coverage over the real module rather than dropping them, and that is the precedent.
+
+**Status:** `NOT STARTED`
+
+| ID | Status | Problem | Location | Direction |
+|---|---|---|---|---|
+| **M-20** | `NOT STARTED` | The POS product grid has no error state; an API failure renders "Aucun produit dans cette catégorie". | `pos-view.tsx:43-51, 235-240` | Distinguish empty from failed. The worst false empty state in the app. |
+| **M-21** | `NOT STARTED` | Any transient failure of `/api/auth/me` is caught and treated as logged-out, ejecting the cashier mid-service. | `app-store.ts:81-83` | Distinguish a network error from a 401. |
+| **M-22** | `NOT STARTED` | A single global error boundary wraps the whole shell; a crash in any view blanks the till. No App Router `error.tsx`. | `app-shell.tsx:115,161`; `src/app/` | Per-view boundaries plus an `error.tsx` fallback. |
+
+**M-21 is worse than its row above records, measured 2026-09-05.** `app-store.ts:147-155` catches **any** `/api/auth/me` failure to `next = null`, and that value reaches `operatorChanged(someone, null) → true → clearForOperatorChange()`. So a transient network failure does not merely show the login screen — **it clears the in-progress cart**, which is the exact payload Batch 5.4 (C-23) built persistence to protect. Fixing M-21 must therefore distinguish three cases, not two: a real 401, a transient failure, and a genuine sign-out.
+
+**Also in this batch: L-42** *(row in *Newly Discovered Issues*)* — every POS shortcut still fires while a modal dialog is open, so a stray F5 during payment changes the sale being paid. Its row says plainly that fixing it is **feature design, not a coercion**: which dialogs suppress which shortcuts, and whether Escape joins the hook rather than staying Radix's alone.
+
+### Batch 5.7d — Validation Required
+
+*(Inherited from 5.7. All three *Manual* criteria are kept and **at risk from L-47** — say in the record how each was actually run, or converted, rather than reporting it as done.)*
+- Manual: a failed catalogue fetch shows an error, not an empty category (M-20).
+- Manual: a transient `/api/auth/me` failure does not log the cashier out (M-21) — **widened at the split**: it must not clear the cart either, which is the half that loses money.
+- Manual: a crash in one view does not blank the topbar or the POS (M-22).
+- **Added for L-42:** decide and record which dialogs suppress which shortcuts before writing the guard; a blanket "no shortcuts while any dialog is open" is a design choice, not a bug fix, and belongs in the record either way.
+- `bun test src` — PASS. `bun run typecheck` — PASS. `bun run lint` — PASS.
+
+### Batch 5.7d — Status Record
 
 **Status:** `NOT STARTED` · **Completed:** — · **Changes:** — · **Files:** — · **Tests:** — · **Commit:** — · **Notes:** —
 
