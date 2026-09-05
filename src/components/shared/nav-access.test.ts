@@ -163,9 +163,15 @@ describe("C-21 — the table feature is withdrawn (DD-09, Batch 5.2)", () => {
     // The other half of the shrink: a removal that took a neighbour would also
     // pass every assertion above. This is what makes those meaningful, and it
     // is why the whole surviving table is pinned rather than a sample of it.
+    //
+    // DD-15 (Batch 5.7a): `"addons"` left this list when « Suppléments » was
+    // withdrawn — the second screen removed for C-21's reason, that it looked
+    // connected and could not deliver. This assertion FIRED on that removal,
+    // which is precisely its job; it is amended deliberately and recorded,
+    // never adjusted to whatever the table now holds.
     expect(ALL_VIEWS).toEqual([
       "pos", "dashboard", "orders", "shifts",
-      "categories", "products", "addons", "media", "customers",
+      "categories", "products", "media", "customers",
       "reports", "fiscal", "users", "settings",
       "audit", "backups", "logs",
     ]);

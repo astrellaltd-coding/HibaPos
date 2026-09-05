@@ -185,7 +185,6 @@ export const POST = withAuth(async (req, { user }) => {
           },
         },
         options: { include: { choices: true } },
-        productAddons: { include: { addon: true } },
       },
     });
     if (!product || !product.active || !product.available) {

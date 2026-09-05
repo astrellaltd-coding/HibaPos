@@ -48,7 +48,6 @@ async function main() {
   const {
     SEED_CATEGORIES,
     SEED_PRODUCTS,
-    SEED_ADDONS,
   } = await import("../src/lib/services/seed");
 
   // Categories
@@ -106,13 +105,10 @@ async function main() {
     }
   }
 
-  // Add-ons
-  for (let i = 0; i < SEED_ADDONS.length; i++) {
-    const a = SEED_ADDONS[i];
-    await prisma.addOn.create({
-      data: { name: a.name, price: a.price, image: a.image, active: true, sortOrder: i },
-    });
-  }
+  // DD-15 (Batch 5.7a): the standalone `AddOn` seed was here too — this file
+  // deliberately mirrors `src/lib/services/seed.ts` rather than importing it,
+  // so BOTH copies had to lose it. Category add-ons are seeded with their
+  // category and are unaffected.
 
   // Settings — inline (DEFAULT_SETTINGS mirror so we don't need server-only imports).
   const seedSettings: Record<string, unknown> = {
@@ -161,7 +157,6 @@ async function main() {
         users: 2,
         categories: SEED_CATEGORIES.length,
         products: SEED_PRODUCTS.length,
-        addons: SEED_ADDONS.length,
       }),
     },
   });

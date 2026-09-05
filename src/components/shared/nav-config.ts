@@ -7,7 +7,6 @@ import {
   ReceiptText,
   FolderTree,
   Package,
-  PlusCircle,
   Images,
   Users,
   Clock,
@@ -44,7 +43,6 @@ export const NAV_ITEMS: NavItem[] = [
 
   { view: "categories", label: "Catégories", icon: FolderTree, roles: ["SUPER_ADMIN", "MANAGER"], group: "catalogue" },
   { view: "products", label: "Produits", icon: Package, roles: ["SUPER_ADMIN", "MANAGER"], group: "catalogue" },
-  { view: "addons", label: "Suppléments", icon: PlusCircle, roles: ["SUPER_ADMIN", "MANAGER"], group: "catalogue" },
   { view: "media", label: "Médiathèque", icon: Images, roles: ["SUPER_ADMIN", "MANAGER"], group: "catalogue" },
   { view: "customers", label: "Clients", icon: Users, roles: ["SUPER_ADMIN", "MANAGER"], group: "catalogue" },
 

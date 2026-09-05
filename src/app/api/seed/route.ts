@@ -116,7 +116,7 @@ async function seed() {
     // Manager row lost the race — the concurrent request created it.
   }
 
-  let counts: { categories: number; products: number; addons: number };
+  let counts: { categories: number; products: number };
   try {
     counts = await seedCatalogAndSettings(admin.id);
   } catch {

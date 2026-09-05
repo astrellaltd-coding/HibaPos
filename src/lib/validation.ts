@@ -131,14 +131,10 @@ export const productSchema = z.object({
 });
 export type ProductInput = z.infer<typeof productSchema>;
 
-export const addOnSchema = z.object({
-  name: z.string().min(1, "Le nom est requis").max(60),
-  price: z.number().int().min(0, "Le prix doit être positif (en centimes)"),
-  image: z.string().optional().nullable(),
-  active: z.boolean().default(true),
-  sortOrder: z.number().int().default(0),
-});
-export type AddOnInput = z.infer<typeof addOnSchema>;
+// DD-15 (Batch 5.7a): `addOnSchema` / `AddOnInput` were here, used only by
+// the two deleted `/api/catalog/addons` routes. `categoryAddOnSchema` above is
+// the surviving one and is NOT the same thing — it validates the 21 live
+// category add-ons through the category editor.
 
 export const customerSchema = z.object({
   name: z.string().min(1, "Le nom est requis").max(80),

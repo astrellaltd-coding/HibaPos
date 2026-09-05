@@ -22,7 +22,6 @@ export type ProductWithRelations = {
     addOns: AddOnRow[];
   } | null;
   options: { id: string; name: string; required: boolean; multiple: boolean; choices: ChoiceRow[] }[];
-  productAddons: { addonId: string; addon: AddOnRow }[];
   inheritCategoryGlobals: boolean;
 };
 
@@ -162,24 +161,24 @@ export function computeLinePricing(
     }
   }
 
-  // Merge category addon IDs + product addon IDs for validation.
-  const categoryAddonIds = new Set(
+  // The add-ons available to this product: the CATEGORY's, and only those.
+  //
+  // DD-15 (Batch 5.7a). Until this batch these two lines merged in a second
+  // source — `product.productAddons`, the `ProductAddon` join — which had
+  // **no writer anywhere**, so the set it contributed was always empty and
+  // `addonMap`'s second loop never ran. Removing it changes no price. What it
+  // does change is that `addon` now means exactly one thing here.
+  const availableAddonIds = new Set(
     product.inheritCategoryGlobals
       ? (effectiveCategory?.addOns ?? []).map((a) => a.id)
       : [],
   );
-  const productAddonIds = new Set(product.productAddons.map((pa) => pa.addonId));
-  const availableAddonIds = new Set([...categoryAddonIds, ...productAddonIds]);
 
-  // Build a lookup map for all valid add-ons.
   const addonMap = new Map<string, AddOnRow>();
   if (product.inheritCategoryGlobals) {
     for (const a of effectiveCategory?.addOns ?? []) {
       addonMap.set(a.id, a);
     }
-  }
-  for (const pa of product.productAddons) {
-    addonMap.set(pa.addon.id, pa.addon);
   }
 
   // Validate and apply addons

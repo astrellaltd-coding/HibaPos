@@ -57,6 +57,13 @@ server.log
 # Database & backups
 /db/
 /db/backups/
+# Out-of-band pre-migration snapshots live in a SIBLING of this repo
+# (../db-snapshots/), which is where every one of them has been taken. This
+# anchored pattern exists because the obvious mistake is to create the folder
+# HERE, one `git add .` away from committing a copy of the production
+# database. Anchored, per C-26b (Batch 0.1): a bare pattern would swallow any
+# directory of that name at any depth.
+/db-snapshots/
 
 # Runtime uploads (user-uploaded images — must not be committed)
 /upload/

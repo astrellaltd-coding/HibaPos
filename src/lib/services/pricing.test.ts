@@ -18,7 +18,6 @@ function makeProduct(overrides: Partial<ProductWithRelations> = {}): ProductWith
       addOns: [],
     },
     options: [],
-    productAddons: [],
     inheritCategoryGlobals: true,
     ...overrides,
   };
@@ -223,12 +222,22 @@ describe("computeLinePricing — absolute option prices (size group)", () => {
   });
 });
 
+// DD-15 (Batch 5.7a). These four cases were fixtured on `productAddons` — the
+// `ProductAddon` join, which had 0 rows and no writer anywhere, so they were
+// exercising a path no production data could reach. They are RE-FIXTURED onto
+// `CategoryAddOn`, the surviving namespace with 21 live rows, rather than
+// deleted (safety rule 2): the four behaviours below are unchanged and are now
+// asserted through the path the POS actually uses.
 describe("computeLinePricing — addons", () => {
   const product = makeProduct({
-    productAddons: [
-      { addonId: "a1", addon: { id: "a1", name: "Bacon", price: 150, active: true } },
-      { addonId: "a2", addon: { id: "a2", name: "Sauce", price: 50, active: true } },
-    ],
+    category: {
+      parent: null,
+      optionGroups: [],
+      addOns: [
+        { id: "a1", name: "Bacon", price: 150, active: true },
+        { id: "a2", name: "Sauce", price: 50, active: true },
+      ],
+    },
   });
 
   it("charges addon price per item quantity", () => {
@@ -274,9 +283,11 @@ describe("computeLinePricing — addons", () => {
 
   it("returns error when the addon is inactive", () => {
     const product = makeProduct({
-      productAddons: [
-        { addonId: "a1", addon: { id: "a1", name: "Bacon", price: 150, active: false } },
-      ],
+      category: {
+        parent: null,
+        optionGroups: [],
+        addOns: [{ id: "a1", name: "Bacon", price: 150, active: false }],
+      },
     });
     const r = computeLinePricing(
       { ...baseIntent, addons: [{ addonId: "a1", quantity: 1 }] },

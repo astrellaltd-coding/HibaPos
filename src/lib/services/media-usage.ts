@@ -49,7 +49,6 @@ export const IMAGE_COLUMNS = [
   { model: "OptionChoice", column: "image", type: "option", usesRowName: true },
   { model: "CategoryOptionChoice", column: "image", type: "option", usesRowName: true },
   { model: "CategoryAddOn", column: "image", type: "supplement", usesRowName: true },
-  { model: "AddOn", column: "image", type: "supplement", usesRowName: true },
 ] as const;
 
 /** Fixed labels for the rows that have no useful name of their own. */
@@ -69,14 +68,13 @@ const UPLOAD_PREFIX = "/uploads/";
  * differ, and a row's own `name` is what the operator needs to see.
  */
 export async function collectImageUsage(): Promise<Map<string, UsageEntry[]>> {
-  const [categories, products, choices, categoryChoices, categoryAddOns, addOns] =
+  const [categories, products, choices, categoryChoices, categoryAddOns] =
     await Promise.all([
       db.category.findMany({ select: { icon: true } }),
       db.product.findMany({ select: { name: true, image: true } }),
       db.optionChoice.findMany({ select: { name: true, image: true } }),
       db.categoryOptionChoice.findMany({ select: { name: true, image: true } }),
       db.categoryAddOn.findMany({ select: { name: true, image: true } }),
-      db.addOn.findMany({ select: { name: true, image: true } }),
     ]);
 
   const usage = new Map<string, UsageEntry[]>();
@@ -93,8 +91,12 @@ export async function collectImageUsage(): Promise<Map<string, UsageEntry[]>> {
   for (const ch of choices) add(ch.image, "option", ch.name);
   // The three C-25 added. Everything above this line was already scanned.
   for (const ch of categoryChoices) add(ch.image, "option", ch.name);
+  // DD-15 (Batch 5.7a): a second supplement scan, `for (const a of addOns)`,
+  // sat directly below this line and went with the `AddOn` model. THIS line
+  // is the surviving one — the 21 live `CategoryAddOn` rows — and dropping it
+  // makes the media library offer to delete images that are in use, which is
+  // C-25 itself, the finding this scan exists to close.
   for (const a of categoryAddOns) add(a.image, "supplement", a.name);
-  for (const a of addOns) add(a.image, "supplement", a.name);
 
   return usage;
 }
@@ -103,7 +105,7 @@ export async function collectImageUsage(): Promise<Map<string, UsageEntry[]>> {
 export type ClearedReferences = Record<string, number>;
 
 /**
- * Clear every reference to `url` across all six columns.
+ * Clear every reference to `url` across all five columns.
  *
  * Returns the per-column counts so the caller can put them in the audit
  * entry: "deleted an unused file" and "detached this image from nine
@@ -111,14 +113,13 @@ export type ClearedReferences = Record<string, number>;
  * at all.
  */
 export async function clearImageReferences(url: string): Promise<ClearedReferences> {
-  const [category, product, optionChoice, categoryOptionChoice, categoryAddOn, addOn] =
+  const [category, product, optionChoice, categoryOptionChoice, categoryAddOn] =
     await Promise.all([
       db.category.updateMany({ where: { icon: url }, data: { icon: null } }),
       db.product.updateMany({ where: { image: url }, data: { image: null } }),
       db.optionChoice.updateMany({ where: { image: url }, data: { image: null } }),
       db.categoryOptionChoice.updateMany({ where: { image: url }, data: { image: null } }),
       db.categoryAddOn.updateMany({ where: { image: url }, data: { image: null } }),
-      db.addOn.updateMany({ where: { image: url }, data: { image: null } }),
     ]);
 
   return {
@@ -127,7 +128,6 @@ export async function clearImageReferences(url: string): Promise<ClearedReferenc
     "OptionChoice.image": optionChoice.count,
     "CategoryOptionChoice.image": categoryOptionChoice.count,
     "CategoryAddOn.image": categoryAddOn.count,
-    "AddOn.image": addOn.count,
   };
 }
 

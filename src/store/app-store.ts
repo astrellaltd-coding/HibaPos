@@ -12,7 +12,6 @@ export type AppView =
   | "orders"
   | "categories"
   | "products"
-  | "addons"
   | "media"
   | "customers"
   | "shifts"
@@ -36,7 +35,7 @@ export type AppView =
  *  other. */
 const VALID_VIEWS: AppView[] = [
   "home", "dashboard", "pos", "orders", "categories", "products",
-  "addons", "media", "customers", "shifts", "reports", "fiscal", "users", "settings",
+  "media", "customers", "shifts", "reports", "fiscal", "users", "settings",
   "audit", "backups", "logs",
 ];
 

@@ -27,12 +27,6 @@ export type SeedProduct = {
   }[];
 };
 
-export type SeedAddOn = {
-  name: string;
-  price: number; // cents
-  image: string;
-};
-
 export const SEED_CATEGORIES: SeedCategory[] = [
   { name: "Burgers", color: "#f59e0b", icon: "🍔", sortOrder: 1 },
   { name: "Menus", color: "#ef4444", icon: "🍟", sortOrder: 2 },
@@ -128,15 +122,6 @@ export const SEED_PRODUCTS: SeedProduct[] = [
   { name: "Glace 2 boules", price: 350, vatRate: 10, category: "Desserts", image: "/products/glace.png" },
 ];
 
-export const SEED_ADDONS: SeedAddOn[] = [
-  { name: "Supplément sauce", price: 50, image: "/products/addon-sauce.png" },
-  { name: "Supplément cheddar", price: 100, image: "/products/addon-cheddar.png" },
-  { name: "Bacon", price: 150, image: "/products/addon-bacon.png" },
-  { name: "Supplément viande", price: 200, image: "/products/addon-viande.png" },
-  { name: "Jalapeños", price: 80, image: "/products/addon-jalapenos.png" },
-  { name: "Oignons frits", price: 80, image: "/products/addon-oignons.png" },
-];
-
 /** Determines whether a stored image value is an emoji (vs URL / data URI). */
 export function isEmojiImage(value: string | null | undefined): boolean {
   if (!value) return false;
@@ -159,7 +144,6 @@ export function isEmojiImage(value: string | null | undefined): boolean {
 export async function seedCatalogAndSettings(auditorUserId: string): Promise<{
   categories: number;
   products: number;
-  addons: number;
 }> {
   // Fiscal counter singleton MUST exist or every order/shift/Z creation
   // throws P2025. The CLI orchestrator (prisma/seed.ts) creates it too, but
@@ -221,13 +205,10 @@ export async function seedCatalogAndSettings(auditorUserId: string): Promise<{
     }
   }
 
-  // Add-ons
-  for (let i = 0; i < SEED_ADDONS.length; i++) {
-    const a = SEED_ADDONS[i];
-    await db.addOn.create({
-      data: { name: a.name, price: a.price, image: a.image, active: true, sortOrder: i },
-    });
-  }
+  // DD-15 (Batch 5.7a): six standalone `AddOn` rows were seeded here. They
+  // could never reach a product — attaching one needs `ProductAddon`, which
+  // had no writer — so a fresh install got six supplements the POS would
+  // never show. Category add-ons are seeded with their category.
 
   // Settings (matches DEFAULT_SETTINGS plus operator metadata)
   await saveSettings({
@@ -254,7 +235,6 @@ export async function seedCatalogAndSettings(auditorUserId: string): Promise<{
       users: 2,
       categories: SEED_CATEGORIES.length,
       products: SEED_PRODUCTS.length,
-      addons: SEED_ADDONS.length,
     },
     auditorUserId,
   );
@@ -262,6 +242,5 @@ export async function seedCatalogAndSettings(auditorUserId: string): Promise<{
   return {
     categories: SEED_CATEGORIES.length,
     products: SEED_PRODUCTS.length,
-    addons: SEED_ADDONS.length,
   };
 }

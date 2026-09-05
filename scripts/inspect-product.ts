@@ -29,7 +29,6 @@ async function main() {
     include: {
       category: { include: { optionGroups: { include: { choices: true } }, addOns: true } },
       options: { include: { choices: true } },
-      productAddons: { include: { addon: true } },
     },
   });
 
@@ -43,7 +42,9 @@ async function main() {
   console.log("Category options:", product.category?.optionGroups.length ?? 0);
   console.log("Category add-ons:", product.category?.addOns.length ?? 0);
   console.log("Product-specific options:", product.options.length);
-  console.log("Product-specific add-ons:", product.productAddons.length);
+  // DD-15 (Batch 5.7a): "Product-specific add-ons" was printed here and was
+  // always 0 — `ProductAddon` had no writer anywhere. Category add-ons above
+  // are the live ones and are what this script is actually useful for.
 }
 
 main()

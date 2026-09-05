@@ -119,23 +119,12 @@ model Product {
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
-  category      Category       @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  options       OptionGroup[]
-  orderItems    OrderItem[]
-  productAddons ProductAddon[]
+  category   Category      @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  options    OptionGroup[]
+  orderItems OrderItem[]
 
   @@index([categoryId])
   @@index([name])
-}
-
-// Junction: which add-ons are available for which product
-model ProductAddon {
-  productId String
-  addonId   String
-  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-  addon     AddOn   @relation(fields: [addonId], references: [id], onDelete: Cascade)
-
-  @@id([productId, addonId])
 }
 
 // A product can have option groups (e.g. "Cuisson", "Sauce", "Taille")
@@ -168,20 +157,6 @@ model OptionChoice {
   @@index([groupId])
 }
 
-// Standalone add-ons (extras) shown in POS
-model AddOn {
-  id        String   @id @default(cuid())
-  name      String
-  price     Int // cents
-  image     String?
-  active    Boolean  @default(true)
-  sortOrder Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  productAddons ProductAddon[]
-}
-
 // Global option groups for a category (shared by all products in that category)
 model CategoryOptionGroup {
   id         String                 @id @default(cuid())
@@ -212,7 +187,14 @@ model CategoryOptionChoice {
   @@index([groupId])
 }
 
-// Global add-ons for a category (shared by all products in that category)
+// Global add-ons for a category (shared by all products in that category).
+//
+// DD-15 (2026-09-05), Batch 5.7a — THIS IS THE LIVE ONE. It holds 21 rows, has
+// a full editor inside `categories-view.tsx`, and reaches the POS through
+// `ProductDto.addOns`. The models that were removed beside it were `AddOn`
+// (0 rows, a navigable editor, and nothing to attach it to) and the
+// `ProductAddon` join (0 rows, no writer anywhere) — a product-level add-on
+// design this one superseded. `grep addon` spans both; only this one is live.
 model CategoryAddOn {
   id         String   @id @default(cuid())
   categoryId String
@@ -236,7 +218,11 @@ model Customer {
   phone      String?
   email      String?
   address    String?
-  postalCode String? // code postal (French delivery requirement)
+  // DD-15 (Batch 5.7a): `postalCode` was here, with a comment calling it a
+  // French delivery requirement and ZERO references in `src/` — not in
+  // `customerSchema`, not in `CustomerDto`, not in the delivery form. The
+  // delivery rule at `orders/route.ts` requires name + phone + address and
+  // has never asked for a postcode. 0 of the 2 customers had one.
   notes      String?
   active     Boolean  @default(true)
   createdAt  DateTime @default(now())

@@ -76,9 +76,6 @@ beforeAll(async () => {
   await db.categoryAddOn.create({
     data: { categoryId: category.id, name: `${tag}-topping`, price: 100, image: url("topping"), sortOrder: 0, active: true },
   });
-  await db.addOn.create({
-    data: { name: `${tag}-addon`, price: 100, image: url("addon"), sortOrder: 0, active: true },
-  });
 });
 
 describe("IMAGE_COLUMNS — one declaration, so the two lists cannot drift", () => {
@@ -86,20 +83,29 @@ describe("IMAGE_COLUMNS — one declaration, so the two lists cannot drift", () 
     // This is the test that actually prevents a recurrence. C-25 happened
     // because three models were added to the schema and only the routes that
     // wrote them were updated. Counting the schema's own `image`/`icon`
-    // columns here means a seventh cannot be added without this failing.
+    // columns here means a sixth cannot be added without this failing.
+    //
+    // DD-15 (Batch 5.7a): this went 6 → 5 when `AddOn` was removed. The
+    // tripwire FIRED, which is what it is for — a column left the schema and
+    // this is the assertion that noticed. Amended deliberately and recorded,
+    // never adjusted to whatever the code now returns.
     const schema = readFileSync(path.join(process.cwd(), "prisma", "schema.prisma"), "utf8");
     const declared = schema
       .split("\n")
       .filter((l) => /^\s+(image|icon)\s+String\?/.test(l)).length;
     expect(IMAGE_COLUMNS).toHaveLength(declared);
-    expect(declared).toBe(6);
+    expect(declared).toBe(5);
   });
 
-  it("names the three columns the old code missed", () => {
+  it("names the columns the old code missed, and no longer names AddOn", () => {
     const keys = IMAGE_COLUMNS.map((c) => `${c.model}.${c.column}`);
     expect(keys).toContain("CategoryOptionChoice.image");
+    // DD-15 (Batch 5.7a) — BOTH directions, because `addon` named two things.
+    // `CategoryAddOn` is the live one (21 rows) and dropping it would make the
+    // media library offer to delete images that are in use, which is C-25
+    // itself. `AddOn` is the one that was removed.
     expect(keys).toContain("CategoryAddOn.image");
-    expect(keys).toContain("AddOn.image");
+    expect(keys).not.toContain("AddOn.image");
   });
 });
 
@@ -122,13 +128,18 @@ describe("collectImageUsage", () => {
     expect(entries![0].label).toBe(`${tag}-topping`);
   });
 
-  it("reports an image used by an AddOn as used", async () => {
-    // Zero rows carry this in production today, so it is latent — which is
-    // exactly why it is covered rather than left for the next batch.
+  it("no longer scans the removed AddOn model, and still scans CategoryAddOn", async () => {
+    // DD-15 (Batch 5.7a). This case used to seed an `AddOn` row and assert its
+    // image was seen; its own comment said zero rows carried it in production.
+    // It is re-pointed rather than deleted: the assertion that matters after
+    // the removal is that the SURVIVING supplement scan still fires, because
+    // losing it is C-25 all over again.
     const usage = await collectImageUsage();
-    const entries = usage.get(url("addon"));
-    expect(entries).toBeDefined();
-    expect(entries![0].type).toBe("supplement");
+    const topping = usage.get(url("topping"));
+    expect(topping).toBeDefined();
+    expect(topping![0].type).toBe("supplement");
+    // …and nothing is scanning a model that no longer exists.
+    expect(IMAGE_COLUMNS.map((c) => c.model)).not.toContain("AddOn");
   });
 
   it("still reports the three columns it always covered", async () => {
@@ -200,19 +211,11 @@ describe("clearImageReferences", () => {
     expect(row!.image).toBeNull();
   });
 
-  it("clears an AddOn reference", async () => {
-    const cleared = await clearImageReferences(url("addon"));
-    expect(cleared["AddOn.image"]).toBe(1);
-    const row = await db.addOn.findFirst({ where: { name: `${tag}-addon` } });
-    expect(row!.image).toBeNull();
-  });
-
-  it("reports a key for all six columns even when nothing matched", async () => {
+  it("reports a key for all five columns even when nothing matched", async () => {
     // The audit entry records the per-column counts; a missing key would
     // read as "not checked" rather than "checked, none found".
     const cleared = await clearImageReferences(url("never-used"));
     expect(Object.keys(cleared).sort()).toEqual([
-      "AddOn.image",
       "Category.icon",
       "CategoryAddOn.image",
       "CategoryOptionChoice.image",

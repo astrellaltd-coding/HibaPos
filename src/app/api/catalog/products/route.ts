@@ -22,7 +22,6 @@ type ProductWithRelations = Prisma.ProductGetPayload<{
       };
     };
     options: { include: { choices: true } };
-    productAddons: { include: { addon: true } };
   };
 }>;
 
@@ -121,18 +120,6 @@ function serialize(p: ProductWithRelations): ProductDto {
         }))
     : [];
 
-  const productAddOns = (p.productAddons ?? [])
-    .filter((pa) => pa.addon?.active)
-    .sort((a, b) => a.addon.sortOrder - b.addon.sortOrder)
-    .map((pa) => ({
-      id: pa.addon.id,
-      name: pa.addon.name,
-      price: pa.addon.price,
-      image: pa.addon.image ?? null,
-      sortOrder: pa.addon.sortOrder,
-      active: pa.addon.active,
-    }));
-
   return {
     id: p.id,
     name: p.name,
@@ -153,7 +140,12 @@ function serialize(p: ProductWithRelations): ProductDto {
     inheritCategoryGlobals: inheritGlobals,
     sortOrder: p.sortOrder,
     options: [...categoryOptions, ...productOptions],
-    addOns: [...categoryAddOns, ...productAddOns],
+    // DD-15 (Batch 5.7a): this was `[...categoryAddOns, ...productAddOns]`.
+    // The second half came from the `ProductAddon` join, which had no writer
+    // anywhere, so it was ALWAYS `[]` and this concatenation always equalled
+    // its first half. `ProductDto.addOns` therefore carries exactly what it
+    // carried before — the category's add-ons, 21 of them on production.
+    addOns: categoryAddOns,
     category: p.category
       ? { id: p.category.id, name: p.category.name, color: p.category.color }
       : undefined,
@@ -206,7 +198,6 @@ export const GET = withAuth(async (req) => {
         },
       },
       options: { include: { choices: true } },
-      productAddons: { include: { addon: true } },
     },
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
   });
@@ -288,7 +279,6 @@ export const POST = withAuth(async (req, { user }) => {
           },
         },
         options: { include: { choices: true } },
-        productAddons: { include: { addon: true } },
       },
     });
   });

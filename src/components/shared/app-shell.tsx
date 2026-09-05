@@ -34,10 +34,6 @@ const ProductsView = dynamic(
   () => import("@/features/catalog/products-view").then((m) => m.ProductsView),
   { loading: () => <ViewLoader label="Chargement des produits..." />, ssr: false }
 );
-const AddonsView = dynamic(
-  () => import("@/features/catalog/addons-view").then((m) => m.AddonsView),
-  { loading: () => <ViewLoader label="Chargement des suppléments..." />, ssr: false }
-);
 const MediaView = dynamic(
   () => import("@/features/media/media-view").then((m) => m.MediaView),
   { loading: () => <ViewLoader label="Chargement de la médiathèque..." />, ssr: false }
@@ -172,7 +168,6 @@ export function AppShell() {
                 client of) is retained for the same reason. */}
             {view === "categories" && <CategoriesView />}
             {view === "products" && <ProductsView />}
-            {view === "addons" && <AddonsView />}
             {view === "media" && <MediaView />}
             {view === "customers" && <CustomersView />}
             {view === "shifts" && <ShiftsView />}
