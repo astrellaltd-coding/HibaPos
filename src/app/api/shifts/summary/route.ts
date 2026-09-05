@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { withAuth } from "@/lib/api-handler";
-import { aggregateOrders, AGGREGATE_INCLUDE } from "@/lib/services/aggregate";
+import {
+  aggregateOrders,
+  AGGREGATE_INCLUDE,
+  shiftOrdersWhere,
+  shiftAggregateOptions,
+} from "@/lib/services/aggregate";
 
 export const GET = withAuth(async () => {
   // The business invariant is ONE open shift at a time (see POST /api/shifts'
@@ -11,26 +16,33 @@ export const GET = withAuth(async () => {
   const shift = await db.shift.findFirst({
     where: { status: "OPEN" },
     orderBy: { openedAt: "desc" },
-    include: {
-      openedBy: { select: { name: true } },
-      orders: {
-        include: AGGREGATE_INCLUDE,
-      },
-    },
+    include: { openedBy: { select: { name: true } } },
   });
 
   if (!shift) {
     return NextResponse.json({ error: "Aucune caisse ouverte." }, { status: 404 });
   }
 
-  const orders = shift.orders;
+  // C-14 / DD-10 (Batch 5.3). Two sets, deliberately. `orders` is this shift's
+  // own — the counts below describe the till's own trading and must not grow
+  // because it refunded somebody else's ticket. `aggregationInput` adds the
+  // orders this shift refunded, so the money figures match the X report for the
+  // same shift; the panel disagreeing with the X report is M-14 all over again.
+  const aggregationInput = await db.order.findMany({
+    where: shiftOrdersWhere(shift.id),
+    include: AGGREGATE_INCLUDE,
+  });
+  const orders = aggregationInput.filter((o) => o.shiftId === shift.id);
 
   // M-14 (Batch 3.2). This panel was a fourth aggregation semantic: it counted
   // only `status === "COMPLETED"` orders at face value, so it disagreed with
   // both the X and the Z report for the very same shift — the one place an
   // operator would notice mid-service. It now shares the aggregation those
   // reports use.
-  const agg = aggregateOrders(orders, { topProductsLimit: 10 });
+  const agg = aggregateOrders(aggregationInput, {
+    topProductsLimit: 10,
+    ...shiftAggregateOptions(shift.id, shift.openedAt),
+  });
 
   const summary = {
     shiftId: shift.id,

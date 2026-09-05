@@ -118,6 +118,9 @@ describe("generateZReport integration", () => {
           reason: "Test",
           cashierId: user.id,
           method: "CASH",
+          // C-14 (Batch 5.3): a period's refunds are the ones IT paid out, so a
+          // fixture standing in for `processRefund` must name the paying till.
+          shiftId: shift.id,
         },
       });
     });

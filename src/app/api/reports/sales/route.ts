@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { withAuth } from "@/lib/api-handler";
-import { aggregateOrders, AGGREGATE_INCLUDE } from "@/lib/services/aggregate";
+import {
+  aggregateOrders,
+  AGGREGATE_INCLUDE,
+  periodOrdersWhere,
+  periodAggregateOptions,
+} from "@/lib/services/aggregate";
 import { parseReportRange, ReportRangeError } from "@/lib/report-range";
 
 // Sales report over a date range, grouped by day.
@@ -24,7 +29,7 @@ export const GET = withAuth(
   }
 
   const orders = await db.order.findMany({
-    where: { createdAt: { gte: fromStart, lt: toEnd }, status: { in: ["COMPLETED", "REFUNDED"] } },
+    where: periodOrdersWhere(fromStart, toEnd),
     include: AGGREGATE_INCLUDE,
   });
 
@@ -33,7 +38,12 @@ export const GET = withAuth(
   // report overstated revenue — while the Z report for the same days netted it
   // off. It also ran cent values through `round2()`. Both gone: one shared
   // aggregation, integer cents, refunds netted.
-  const agg = aggregateOrders(orders, { topProductsLimit: 15, createdAtOf: (o) => o.createdAt });
+  const agg = aggregateOrders(orders, {
+    topProductsLimit: 15,
+    createdAtOf: (o) => o.createdAt,
+    // Batch 5.3: the same period scope as the Z report and the sealed close.
+    ...periodAggregateOptions(fromStart, toEnd),
+  });
 
   return NextResponse.json({
     from: fromStart.toISOString(),

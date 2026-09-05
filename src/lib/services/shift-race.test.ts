@@ -12,7 +12,7 @@ import {
   SHIFT_CLOSED_DURING_CHECKOUT_MESSAGE,
   type CheckoutInput,
 } from "@/lib/services/checkout";
-import { processRefund, RefundError, SHIFT_CLOSED_DURING_REFUND_MESSAGE } from "@/lib/services/refund";
+import { processRefund, RefundError, NO_OPEN_SHIFT_FOR_REFUND_MESSAGE } from "@/lib/services/refund";
 import { getSettings } from "@/lib/services/settings";
 import { ensureFiscalCounter } from "@/lib/services/sequence";
 import type { SettingsDto } from "@/types/api";
@@ -340,16 +340,28 @@ describe("C-15 — a refund racing a Z close", () => {
       status: o.status as "COMPLETED" | "REFUNDED",
       orderType: o.orderType as "DINE_IN" | "TAKEAWAY" | "LIVRAISON",
       tableLabel: o.tableLabel,
-      shift: o.shift,
       refunds: o.refunds.map((r) => ({ amount: r.amount })),
+      // Read for the assertions below, not passed on: C-14 (Batch 5.3) removed
+      // `shift` from `OrderForRefund` because nothing about a refund depends on
+      // the order's own till any more.
+      capturedShiftStatus: o.shift?.status ?? null,
     };
   }
 
-  it("rejects with 409 a refund whose shift closed between the route's check and the write", async () => {
+  // RE-DERIVED for C-14 / DD-10 (Batch 5.3). What this test asserted — that a
+  // refund is refused because the ORDER's till closed under it — is the
+  // behaviour DD-10 removed: yesterday's sale is refundable today. The race it
+  // was written for is unchanged and still has to be caught, so the refusal it
+  // pins is the one that replaced it: closing the only open caisse leaves no
+  // till to charge the refund to, and the decision must still be taken from
+  // data read INSIDE the transaction rather than from the route's stale
+  // pre-check. Same race, same 409, different reason — and a different message,
+  // which is what tells the two refusals apart.
+  it("rejects with 409 a refund when the only open caisse closed between the route's check and the write", async () => {
     const order = await createOrderInTransaction(checkoutInput(5000));
     // The route's pre-check: read while the shift is still OPEN.
     const captured = await orderForRefund(order.id);
-    expect(captured.shift?.status).toBe("OPEN");
+    expect(captured.capturedShiftStatus).toBe("OPEN");
 
     await generateZReport(shiftId, 15000, userId);
 
@@ -368,14 +380,14 @@ describe("C-15 — a refund racing a Z close", () => {
 
     expect(err).toBeInstanceOf(RefundError);
     expect((err as RefundError).status).toBe(409);
-    expect((err as Error).message).toBe(SHIFT_CLOSED_DURING_REFUND_MESSAGE);
+    expect((err as Error).message).toBe(NO_OPEN_SHIFT_FOR_REFUND_MESSAGE);
     expect(await db.refund.count()).toBe(0);
   });
 
   it("racing a refund and a close: the refund either lands and is in the Z total, or is refused", async () => {
     const order = await createOrderInTransaction(checkoutInput(5000));
     const captured = await orderForRefund(order.id);
-    expect(captured.shift?.status).toBe("OPEN");
+    expect(captured.capturedShiftStatus).toBe("OPEN");
 
     const results = await Promise.allSettled([
       processRefund(
@@ -409,7 +421,7 @@ describe("C-15 — a refund racing a Z close", () => {
   // CONTROL, by design: it must pass with and without the new guard. Its job
   // is to show the guard does not over-refuse — a guard that rejected every
   // refund would satisfy every other test in this block.
-  it("still refunds normally on an open shift — the guard refuses only closed ones", async () => {
+  it("still refunds normally on an open shift — the guard refuses only a till-less refund", async () => {
     const order = await createOrderInTransaction(checkoutInput(5000));
     const captured = await orderForRefund(order.id);
     const result = await processRefund(

@@ -69,7 +69,7 @@ async function seed() {
     },
   });
   await db.refund.create({
-    data: { orderId: partial.id, amount: 500, method: "CARD", reason: "partiel", cashierId: alice.id },
+    data: { orderId: partial.id, amount: 500, method: "CARD", reason: "partiel", cashierId: alice.id, shiftId: shift.id },
   });
 
   // Bob: a 900 sale, fully refunded.
@@ -83,7 +83,7 @@ async function seed() {
     },
   });
   await db.refund.create({
-    data: { orderId: full.id, amount: 900, method: "CASH", reason: "annulation", cashierId: bob.id },
+    data: { orderId: full.id, amount: 900, method: "CASH", reason: "annulation", cashierId: bob.id, shiftId: shift.id },
   });
 
   return { alice, bob, shift };

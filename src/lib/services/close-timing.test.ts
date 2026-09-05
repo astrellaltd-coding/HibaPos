@@ -303,7 +303,7 @@ describe("period closes carry their refunds (L-26)", () => {
         },
       });
       await db.refund.create({
-        data: { orderId: o.id, amount: refund, method: "CARD", reason: "partiel", cashierId: userId, createdAt: when },
+        data: { orderId: o.id, amount: refund, method: "CARD", reason: "partiel", cashierId: userId, shiftId: shift.id, createdAt: when },
       });
     }
   }

@@ -22,7 +22,12 @@ import {
   type PeriodBounds,
 } from "@/lib/period";
 import { type VatBreakdown } from "@/lib/money";
-import { aggregateOrders, AGGREGATE_INCLUDE } from "@/lib/services/aggregate";
+import {
+  aggregateOrders,
+  AGGREGATE_INCLUDE,
+  periodOrdersWhere,
+  periodAggregateOptions,
+} from "@/lib/services/aggregate";
 import { TX_FISCAL } from "@/lib/tx-options";
 
 type Tx = Prisma.TransactionClient;
@@ -235,8 +240,15 @@ type PeriodAgg = {
 };
 
 async function aggregatePeriod(from: Date, to: Date): Promise<PeriodAgg> {
+  // C-14 / DD-10 (Batch 5.3). A close keys on `Order.createdAt`, so before this
+  // batch a refund was booked into the month of the SALE it corrected. Once a
+  // refund may be issued after its sale's month, that is a month which may
+  // already be sealed — the C-10 shape again, in a document that cannot be
+  // corrected. A refund now belongs to the period that PAID it, exactly as it
+  // belongs to the till that paid it, and the extra `OR` arm is what lets this
+  // period see the foreign order it corrected.
   const orders = await db.order.findMany({
-    where: { createdAt: { gte: from, lt: to }, status: { in: ["COMPLETED", "REFUNDED"] } },
+    where: periodOrdersWhere(from, to),
     include: AGGREGATE_INCLUDE,
   });
 
@@ -246,7 +258,10 @@ async function aggregatePeriod(from: Date, to: Date): Promise<PeriodAgg> {
   // single refund, the sealed MonthlyClose could not equal the sum of its own
   // ZReport rows — and a sealed document cannot be corrected. Both now call
   // the same function, so they cannot disagree.
-  const agg = aggregateOrders(orders, { topProductsLimit: 20 });
+  const agg = aggregateOrders(orders, {
+    topProductsLimit: 20,
+    ...periodAggregateOptions(from, to),
+  });
 
   return {
     salesTotal: agg.salesTotal,

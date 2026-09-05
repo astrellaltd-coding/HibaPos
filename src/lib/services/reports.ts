@@ -3,7 +3,12 @@
 import { db } from "@/lib/db";
 import type { PrismaClient } from "@prisma/client";
 import { splitVat, type VatBreakdown } from "@/lib/money";
-import { aggregateOrders, AGGREGATE_INCLUDE } from "@/lib/services/aggregate";
+import {
+  aggregateOrders,
+  AGGREGATE_INCLUDE,
+  shiftOrdersWhere,
+  shiftAggregateOptions,
+} from "@/lib/services/aggregate";
 import { nextZReportNumber } from "@/lib/services/sequence";
 import { appendFiscalEvent } from "@/lib/services/fiscal";
 import { getSettings } from "@/lib/services/settings";
@@ -61,8 +66,15 @@ export type SalesReport = {
  */
 export async function computeShiftReport(shiftId: string, client: Db = db): Promise<SalesReport> {
   const shift = await client.shift.findUniqueOrThrow({ where: { id: shiftId } });
+  // C-14 / DD-10 (Batch 5.3). This used to select `{ shiftId }` alone, and that
+  // one clause was where the money went. A refund for a previous day's sale is
+  // paid out of the till that is open NOW, so today's report has to see an
+  // order it does not own — otherwise `expectedCash` below is short by exactly
+  // the cash handed over the counter, and the drawer is down with no report
+  // saying why. `shiftOrdersWhere` adds that arm; `shiftAggregateOptions` then
+  // says what each order contributes, so the fetch and the filter cannot drift.
   const orders = await client.order.findMany({
-    where: { shiftId, status: { in: ["COMPLETED", "REFUNDED"] } },
+    where: shiftOrdersWhere(shiftId),
     include: AGGREGATE_INCLUDE,
   });
 
@@ -70,7 +82,10 @@ export async function computeShiftReport(shiftId: string, client: Db = db): Prom
   // here — refund netting per payment method, per-line discount pro-rating,
   // the VAT breakdown — is now `aggregateOrders`, so a Z report and the
   // monthly close that contains it cannot drift apart.
-  const agg = aggregateOrders(orders, { topProductsLimit: 10 });
+  const agg = aggregateOrders(orders, {
+    topProductsLimit: 10,
+    ...shiftAggregateOptions(shiftId, shift.openedAt),
+  });
 
   return {
     salesTotal: agg.salesTotal,
@@ -85,6 +100,8 @@ export async function computeShiftReport(shiftId: string, client: Db = db): Prom
     openingFloat: shift.openingFloat,
     // Cash the drawer should hold: what it opened with, plus cash taken,
     // less cash handed back. Card and voucher refunds never touch it.
+    // Since Batch 5.3 "handed back" means the refunds THIS till paid out,
+    // whichever shift sold the order — which is DD-10's whole point.
     expectedCash: shift.openingFloat + agg.grossCashTotal - agg.cashRefundsTotal,
     vatBreakdown: agg.vatBreakdown,
     topProducts: agg.topProducts,

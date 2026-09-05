@@ -1,11 +1,19 @@
 // Refund service — extracted from orders/[id]/refund/route.ts
 // (Phase 8b — makes the refund transaction logic testable without HTTP).
 //
-// The route keeps: order fetch, shift-status check, method-match validation,
-// approval-token verification (HTTP-bound), and HTTP response mapping.
-// This service does the transaction body: re-read inside tx,
-// validate amount, create refund, update order status, free table, audit,
-// fiscal event. Throws RefundError on in-tx validation failures.
+// The route keeps: order fetch, open-till pre-check, method-match validation,
+// step-up token verification (HTTP-bound), and HTTP response mapping.
+// This service does the transaction body: resolve the till that will pay,
+// re-read inside tx, validate amount, create refund, update order status,
+// free table, audit, fiscal event. Throws RefundError on in-tx failures.
+//
+// C-14 / DD-10 (Batch 5.3) changed what a refund is attached to. It used to be
+// refused outright when the order's own shift was closed, which made a
+// customer returning the next day unrefundable through the POS — and the
+// workaround an operator reaches for, cash out of the drawer with no record,
+// is the untraced correction the fiscal journal exists to prevent. A refund is
+// now allowed against any completed order and is attributed to the till that
+// is OPEN when it is issued, which is the till the cash actually leaves.
 
 import { db } from "@/lib/db";
 import { appendFiscalEvent, addRefundToGrandTotal } from "@/lib/services/fiscal";
@@ -49,15 +57,24 @@ type OrderForRefund = {
   status: "PENDING" | "COMPLETED" | "REFUNDED" | "CANCELLED";
   orderType: "DINE_IN" | "TAKEAWAY" | "LIVRAISON";
   tableLabel: string | null;
-  shift: { id: string; status: "OPEN" | "CLOSED" } | null;
   refunds: { amount: number }[];
+  /** C-14 / DD-10 (Batch 5.3): the order's own shift is deliberately NOT a
+   *  field here any more. Nothing in a refund depends on it — the refund is
+   *  attributed to the till that is open when it is issued, resolved inside the
+   *  transaction below. Carrying it would invite the old question back. */
 };
 
-/** Shown when the till was closed between the route's check and the refund
- *  being written. Same wording as the route's own pre-check, because it is the
- *  same refusal — only decided one step later. */
-export const SHIFT_CLOSED_DURING_REFUND_MESSAGE =
-  "La caisse attachée à cette commande est déjà clôturée. Remboursement impossible.";
+/** Shown when there is no open till to pay the refund out of. Same wording as
+ *  the route's own pre-check, because it is the same refusal — only decided one
+ *  step later, after a till was closed underneath the request.
+ *
+ *  C-14 / DD-10 (Batch 5.3) replaced `SHIFT_CLOSED_DURING_REFUND_MESSAGE`, which
+ *  refused because the ORDER's till was closed. That refusal is gone: yesterday's
+ *  sale is refundable today. What must still be refused is a refund with no till
+ *  to charge it to — the cash would leave the drawer and appear in no report,
+ *  which is the outcome this batch exists to prevent. */
+export const NO_OPEN_SHIFT_FOR_REFUND_MESSAGE =
+  "Aucune caisse ouverte. Ouvrez une caisse avant d'enregistrer un remboursement.";
 
 /** Shown when the refund could not get through — in practice a Z close
  *  holding the database. Nothing was written; retrying is safe. */
@@ -69,22 +86,27 @@ export const REFUND_BUSY_MESSAGE =
  *  fix). Caller MUST pre-validate: method match, approval token. */
 export async function processRefund(input: RefundInput, order: OrderForRefund): Promise<RefundResult> {
   return db.$transaction(async (tx) => {
-    // C-15 (Batch 4.7), the same defect as the checkout's: the route reads
-    // `order.shift.status` outside any transaction, and a read outside a
-    // transaction does not wait for one. A refund that lost that race landed
-    // in a shift whose Z had already been sealed, and since a Z is immutable
-    // its `refundsTotal` was permanently short of the money handed back.
-    // Interactive transactions do not overlap, so re-reading here is decisive.
-    // The audit named only the checkout and the Z report; the operator chose
-    // on 2026-09-04 to close this third site in the same batch.
-    if (order.shift) {
-      const shift = await tx.shift.findUnique({
-        where: { id: order.shift.id },
-        select: { status: true },
-      });
-      if (!shift || shift.status !== "OPEN") {
-        throw new RefundError(SHIFT_CLOSED_DURING_REFUND_MESSAGE, 409);
-      }
+    // C-15 (Batch 4.7) put a shift read in here, and C-14 (Batch 5.3) changed
+    // which shift it reads. The race is the same one and the reason is
+    // unchanged: a read OUTSIDE a transaction does not wait for one, so the
+    // route's pre-check can be overtaken by a Z close committing beside it. A
+    // refund that lost that race landed in a shift whose Z had already been
+    // sealed, and since a Z is immutable its `refundsTotal` was permanently
+    // short of the money handed back. Interactive transactions do not overlap,
+    // so deciding here is decisive.
+    //
+    // What changed: the question is no longer "is the ORDER's till still open"
+    // — DD-10 says a sale from a sealed shift is refundable — but "which till
+    // is open NOW, to pay this out of". `orderBy` matches `/api/shifts/summary`
+    // and `GET /api/reports/x`, so all three name the same till; the product
+    // allows only one open at a time (`POST /api/shifts` refuses a second).
+    const payingShift = await tx.shift.findFirst({
+      where: { status: "OPEN" },
+      orderBy: { openedAt: "desc" },
+      select: { id: true },
+    });
+    if (!payingShift) {
+      throw new RefundError(NO_OPEN_SHIFT_FOR_REFUND_MESSAGE, 409);
     }
     const freshRefunds = await tx.refund.findMany({ where: { orderId: order.id } });
     const freshRefunded = freshRefunds.reduce((acc, r) => acc + r.amount, 0);
@@ -113,7 +135,14 @@ export async function processRefund(input: RefundInput, order: OrderForRefund): 
         reason: input.reason,
         cashierId: input.cashierId,
         approvedById: input.approverId,
-        shiftId: order.shift?.id ?? null,
+        // C-14 / DD-10 (Batch 5.3): the till that PAYS, not the till that sold.
+        // This wrote `order.shift?.id` — the order's shift — while the schema
+        // comment described the column as the shift that issued the refund, and
+        // the two were only ever the same because a cross-shift refund was
+        // refused. The whole reporting change turns on this line: the
+        // aggregation now sources a period's refunds from this column, so the
+        // cash lands in the drawer that handed it over.
+        shiftId: payingShift.id,
         method: input.method,
       },
     });

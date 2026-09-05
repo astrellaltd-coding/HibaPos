@@ -151,7 +151,6 @@ describe("C-21 — the server-side table wire is retained and still works (DD-09
         status: "COMPLETED",
         orderType: "DINE_IN",
         tableLabel: "T2",
-        shift: { id: shiftId, status: "OPEN" },
         refunds: [],
       },
     );

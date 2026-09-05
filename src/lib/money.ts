@@ -61,13 +61,41 @@ export function addToVatBreakdown(
   ttcCents: number,
   vatRate: number,
 ): VatBreakdown {
+  return addVatMoveToBreakdown(breakdown, 0, ttcCents, vatRate);
+}
+
+/**
+ * Add the CHANGE in a line's VAT split as it moves from `fromTtc` to `toTtc`
+ * (C-14 / DD-10, Batch 5.3).
+ *
+ * A refund issued after its sale's period has closed is booked by the period
+ * that paid it out, as a correction to a line that some earlier period already
+ * declared. Booking `splitVat(-refund)` there would not reconcile: the split of
+ * a difference is not the difference of the splits, and they disagree by a cent
+ * often enough to matter. `splitVat(1500) - splitVat(2000)` is `(-454, -46)`
+ * where `splitVat(-500)` is `(-455, -45)` — so a monthly close that nets the
+ * refund into its order would end a cent away from the sum of the very Z
+ * reports it contains, which is the C-10 defect in a new place.
+ *
+ * Adding the DIFFERENCE OF THE SPLITS makes the periods telescope: whatever a
+ * line's net passes through, the periods' contributions sum to `splitVat(final)`
+ * exactly. `addToVatBreakdown` is this function from zero, so there is still one
+ * implementation.
+ */
+export function addVatMoveToBreakdown(
+  breakdown: VatBreakdown,
+  fromTtc: number,
+  toTtc: number,
+  vatRate: number,
+): VatBreakdown {
   const key = vatRateKey(vatRate);
   const existing = breakdown[key] ?? { ht: 0, vat: 0, ttc: 0 };
-  const { ht, vat } = splitVat(ttcCents, vatRate);
+  const before = splitVat(fromTtc, vatRate);
+  const after = splitVat(toTtc, vatRate);
   breakdown[key] = {
-    ht: existing.ht + ht,
-    vat: existing.vat + vat,
-    ttc: existing.ttc + ttcCents,
+    ht: existing.ht + (after.ht - before.ht),
+    vat: existing.vat + (after.vat - before.vat),
+    ttc: existing.ttc + (toTtc - fromTtc),
   };
   return breakdown;
 }

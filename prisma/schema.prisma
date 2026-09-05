@@ -415,7 +415,23 @@ model Refund {
   reason    String
   approvedById String? // manager who approved the refund — plain id, NO FK (intentional: approver may be deleted via soft-delete, refund must survive intact)
   cashierId String
-  shiftId   String?  // the shift that issued the refund — plain id, NO FK (intentional: = order.shiftId when valid; FK omitted so a shift can be hard-deleted without blocking refund history)
+  // C-14 / DD-10 (Batch 5.3) settled what this column means, and it is NOT what
+  // the code wrote. The header said "the shift that issued the refund" while
+  // `refund.ts` wrote `order.shift?.id` — the shift that took the SALE — and the
+  // parenthetical asserted the two were the same, which held only because a
+  // refund across a closed shift was refused outright. DD-10 allows that refund
+  // and attributes it to the till that is open when it is issued, so the two come
+  // apart and this column is the one the reports now key on. Settled with ZERO
+  // rows in existence (verified read-only 2026-09-05), so nothing had to be
+  // migrated or reinterpreted.
+  //
+  // Nullable, deliberately: making it NOT NULL was considered and declined. It
+  // would need a migration for a guarantee the code already gives — `processRefund`
+  // refuses when no caisse is open — and it would not survive the hard-deleted
+  // shift the missing FK exists to tolerate. A null is attributed to NO shift
+  // rather than falling back to the order's, so the failure is loud in the
+  // Z-versus-close reconciliation instead of silently landing in the wrong till.
+  shiftId   String?  // the shift that PAID the refund out — plain id, NO FK (intentional: FK omitted so a shift can be hard-deleted without blocking refund history)
   method    PaymentMethod? // refund channel; null on legacy rows; reports treat null as CASH for backward-compat
   fiscalEventId String? // link to the FiscalEvent (REMBOURSEMENT/ANNULATION) journal entry (plain id, no FK)
   createdAt DateTime @default(now())

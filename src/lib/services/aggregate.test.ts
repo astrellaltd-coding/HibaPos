@@ -227,7 +227,7 @@ describe("a sealed MonthlyClose equals the sum of its ZReports (C-10)", () => {
         },
       });
       await db.refund.create({
-        data: { orderId: partial.id, amount: 500, method: "CARD", reason: "partiel", cashierId: user.id, createdAt: when(day) },
+        data: { orderId: partial.id, amount: 500, method: "CARD", reason: "partiel", cashierId: user.id, shiftId: shift.id, createdAt: when(day) },
       });
 
       // A FULLY refunded sale — payment and refund must cancel, not linger.
@@ -241,7 +241,7 @@ describe("a sealed MonthlyClose equals the sum of its ZReports (C-10)", () => {
         },
       });
       await db.refund.create({
-        data: { orderId: full.id, amount: 900, method: "CASH", reason: "annulation", cashierId: user.id, createdAt: when(day) },
+        data: { orderId: full.id, amount: 900, method: "CASH", reason: "annulation", cashierId: user.id, shiftId: shift.id, createdAt: when(day) },
       });
 
       await generateZReport(shift.id, 5000, user.id);
@@ -310,7 +310,7 @@ describe("the shift report and the raw aggregation agree (M-14)", () => {
       },
     });
     await db.refund.create({
-      data: { orderId: o.id, amount: 200, method: "CASH", reason: "geste", cashierId: user.id },
+      data: { orderId: o.id, amount: 200, method: "CASH", reason: "geste", cashierId: user.id, shiftId: shift.id },
     });
 
     const report = await computeShiftReport(shift.id);
@@ -350,7 +350,7 @@ describe("every report agrees for the same period (C-11)", () => {
       },
     });
     await db.refund.create({
-      data: { orderId: o.id, amount: 187, method: "CASH", reason: "partiel", cashierId: user.id },
+      data: { orderId: o.id, amount: 187, method: "CASH", reason: "partiel", cashierId: user.id, shiftId: shift.id },
     });
 
     const orders = await db.order.findMany({ where: { shiftId: shift.id }, include: AGGREGATE_INCLUDE });
@@ -388,7 +388,7 @@ describe("every report agrees for the same period (C-11)", () => {
       },
     });
     await db.refund.create({
-      data: { orderId: o.id, amount: 750, method: "CASH", reason: "partiel", cashierId: user.id },
+      data: { orderId: o.id, amount: 750, method: "CASH", reason: "partiel", cashierId: user.id, shiftId: shift.id },
     });
 
     const orders = await db.order.findMany({ where: { shiftId: shift.id }, include: AGGREGATE_INCLUDE });

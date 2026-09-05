@@ -3,7 +3,11 @@ import { db } from "@/lib/db";
 import { withAuthParams, parseJson } from "@/lib/api-handler";
 import { refundSchema } from "@/lib/validation";
 import { consumeStepUpToken } from "@/lib/services/step-up";
-import { processRefund, RefundError } from "@/lib/services/refund";
+import {
+  processRefund,
+  RefundError,
+  NO_OPEN_SHIFT_FOR_REFUND_MESSAGE,
+} from "@/lib/services/refund";
 import { getSettings } from "@/lib/services/settings";
 import type { PaymentMethod } from "@prisma/client";
 
@@ -23,13 +27,21 @@ export const POST = withAuthParams(async (req, { user, params }) => {
       { status: 409 }
     );
   }
-  // Reject refunds on orders whose shift is already CLOSED (post-Z reconciliation drift).
-  // The cashier should open a new shift or escalate to a SUPER_ADMIN to re-open reconciliation.
-  if (order.shift?.status === "CLOSED") {
-    return NextResponse.json(
-      { error: "La caisse attachée à cette commande est déjà clôturée. Remboursement impossible." },
-      { status: 409 }
-    );
+  // C-14 / DD-10 (Batch 5.3). This refused any order whose own shift was
+  // CLOSED, so a customer returning the next day could not be refunded at all
+  // and the workaround was cash out of the drawer with no record. The refusal
+  // that replaces it is the opposite question: not "is the sale's till still
+  // open" but "is there a till open to pay this out of". Kept as a PRE-check,
+  // ahead of the step-up token below, so a refund attempted with no caisse
+  // open does not burn the operator's single-use PIN token (cf. L-41). The
+  // decisive check is the same one inside `processRefund`'s transaction, where
+  // a Z close committing beside this request cannot slip past it.
+  const openShift = await db.shift.findFirst({
+    where: { status: "OPEN" },
+    select: { id: true },
+  });
+  if (!openShift) {
+    return NextResponse.json({ error: NO_OPEN_SHIFT_FOR_REFUND_MESSAGE }, { status: 409 });
   }
 
   const body = await parseJson(req);
@@ -105,7 +117,6 @@ export const POST = withAuthParams(async (req, { user, params }) => {
         status: "COMPLETED" | "REFUNDED";
         orderType: "DINE_IN" | "TAKEAWAY" | "LIVRAISON";
         tableLabel: string | null;
-        shift: { id: string; status: "OPEN" | "CLOSED" } | null;
         refunds: { amount: number }[];
       },
     );

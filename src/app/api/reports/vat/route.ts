@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { withAuth } from "@/lib/api-handler";
 import { sum2 } from "@/lib/money";
-import { aggregateOrders, AGGREGATE_INCLUDE } from "@/lib/services/aggregate";
+import {
+  aggregateOrders,
+  AGGREGATE_INCLUDE,
+  periodOrdersWhere,
+  periodAggregateOptions,
+} from "@/lib/services/aggregate";
 import { parseReportRange, ReportRangeError } from "@/lib/report-range";
 
 export const GET = withAuth(
@@ -24,10 +29,7 @@ export const GET = withAuth(
   }
 
   const orders = await db.order.findMany({
-    where: {
-      createdAt: { gte: fromStart, lt: toEnd },
-      status: { in: ["COMPLETED", "REFUNDED"] },
-    },
+    where: periodOrdersWhere(fromStart, toEnd),
     include: AGGREGATE_INCLUDE,
   });
 
@@ -38,7 +40,10 @@ export const GET = withAuth(
   // it disagreeing with the Z report and the sealed close for the same period
   // meant three official-looking numbers, all different. It now shares the one
   // aggregation, in integer cents throughout.
-  const agg = aggregateOrders(orders);
+  // Batch 5.3: the same period scope the sealed close uses, so a refund paid in
+  // one month against another month's sale reduces the VAT of the month that
+  // paid it — the month whose close and Z reports already say so.
+  const agg = aggregateOrders(orders, periodAggregateOptions(fromStart, toEnd));
 
   const rows = Object.entries(agg.vatBreakdown)
     .map(([rateStr, v]) => ({ rate: Number(rateStr), ht: v.ht, vat: v.vat, ttc: v.ttc }))
