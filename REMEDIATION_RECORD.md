@@ -2853,6 +2853,54 @@ Both flow through **one** `addonMap` (`pricing.ts:175-183`), **one** `availableA
 
 ---
 
+## Batch 6.2 — Remove misleading tests
+
+*Moved verbatim from `REMEDIATION_PLAN.md` lines 1342–1385 (commit `2d417a0`, plus this batch's status record) on 2026-09-05. Nothing in this section has been rewritten; corrections, if any, are appended dated notes.*
+
+**Status:** `NOT STARTED`
+
+| ID | Status | Problem | Location |
+|---|---|---|---|
+| **T-08** | `NOT STARTED` | Six tests certify dead code. `validation.test.ts:34-89` exercises `checkoutSchema`, which no route uses — the live route validates with a differently-shaped inline `checkoutIntentSchema`. A reader concludes checkout input is validated; it is validated by nothing. | `src/lib/validation.test.ts:34-89` *Correction 2026-09-05: **L-49 is this finding, opened again by mistake.** Batch 5.7b re-discovered the parallel schema while adding the OFFERT tender and recorded it as new without checking this table. **T-08 is the canonical ID** — audit IDs are never renamed, and this one predates L-49 by the whole remediation. L-49's row now points here. 5.7b kept the two schemas in step by hand and commented each with which is which, which makes the duplication visible but does not remove it; **the removal is still this batch's**, and the note below about doing it together with L-02 still governs.* |
+| **T-09** | `NOT STARTED` | Two tests cannot fail: `receipt.test.ts:109` asserts a refunds section is absent while passing `refunds: []`; `:142` asserts `not.toThrow()` on a call already made successfully two lines above. `cart-store.test.ts` is ~80 % a restatement of `cart-store-math.test.ts` (4 of 5 cases assert identical values). | `src/lib/services/receipt.test.ts:109,142`; `src/store/cart-store.test.ts` |
+
+**⚠ Safety rule 2 and 3 apply.** These tests are being removed because they assert nothing, **not** to make anything pass. Removing them must not reduce real coverage. If `checkoutSchema` itself is removed (L-02), that is a Stage 7 cleanup item — do the test removal and the dead-code removal together or not at all.
+
+### Batch 6.2 — Validation Required
+
+- For each removed test, record what it asserted and why that assertion was vacuous.
+- Confirm no *real* behaviour loses its only coverage — grep for another test covering the same function before removing.
+- `bun test src` — PASS, with the new total recorded and the delta explained.
+
+### Batch 6.2 — Status Record
+
+**Status:** `COMPLETED`
+**Completed:** 2026-09-05
+
+**Changes.** **T-08 was re-pointed, not deleted, and that was decided by measurement rather than preference.** The six `checkoutSchema` cases tested a schema no route runs — but four of them named behaviour that is real and had **no other cover**: nothing tested the LIVRAISON customer rule against the route, and nothing tested the empty-order or no-payments refusals at all. Deleting them would have reduced real coverage, which this batch's own criterion forbids. They now drive `POST /api/orders`, and the move **added** a seventh the old shape could not express: a livraison customer who exists but has no address. **L-02 went with them, together as both rows instruct** — `orderItemSchema`, `paymentSchema`, `checkoutSchema`, `CheckoutInput`, `OrderItemInput`, all referenced only by tests. **T-09**: the refunds assertion passed `refunds: []`, which cannot produce a refunds section under any implementation, so it now passes **real refunds**; the redundant `not.toThrow()` went, because the line above had already called the same function and asserted its output; and `cart-store.test.ts` was removed, with its **one unique case** — `computeCartTotals`, which had no other cover anywhere — moved to `cart-store-math.test.ts` and given a second case for the zero clamp.
+
+**Files.** `src/lib/validation.ts` (L-02 removal); `src/lib/validation.test.ts`; `src/app/api/orders-route.test.ts`; `src/lib/services/receipt.test.ts`; `src/store/cart-store-math.test.ts`; **deleted** `src/store/cart-store.test.ts`.
+
+**Tests.** `bun test src --timeout 30000` — **763 pass, 0 fail** (765 before). **The delta is −2 and every unit of it is accounted for:** −6 vacuous `checkoutSchema` cases, **+7** re-pointed at the route, −5 duplicated cart cases, **+2** for `computeCartTotals` and its new clamp. `bun run typecheck`, `bun run lint`, `bun run build` — all PASS. **Six one-property reverts**, all six caught — including the one this batch exists for, note 2.
+
+**Commit:** `<pending>` + this plan/record update.
+
+**Notes.**
+
+**(1) "Removing them must not reduce real coverage" is a measurement, and it changed the plan.** Before touching anything: `grep` for another test covering each behaviour. The LIVRAISON customer rule had **none** against the route; the empty-order and no-payments refusals had **none at all** — only a source assertion for the string `.min(1, "Au moins un paiement")` that Batch 5.7b left behind. So the six could not simply go. Re-pointing turns six vacuous tests into seven real ones, which is what makes deleting `checkoutSchema` safe rather than merely tidy.
+
+**(2) The vacuity was DEMONSTRATED, not argued — and the first attempt at demonstrating it was wrong.** Reverting `receipt.ts` to print a refunds section **unconditionally** fails both the old and the new assertion, so it proves nothing about the difference. The realistic regression is a **conditional** one — `if (refunds.length) print` — and under that: **the old assertion (`refunds: []`) PASSES, and the new one (real refunds) FAILS.** That is the whole of T-09 in one measurement, and it is the evidence that the fix is a fix.
+
+**(3) A third name collision, found while removing dead code.** `CheckoutInput` existed in **both** `validation.ts` (dead) and `services/checkout.ts` (live, and the type `createOrderInTransaction` takes). A removal driven by the symbol name would have taken the live one. That is the same shape as `PENDING` in Batch 5.6 and `addon` in 5.7a — three in four batches — and the pattern is now explicit enough to state as a rule: **before deleting a symbol, check whether the name means something else somewhere.**
+
+**(4) L-49 was this finding twice, and the double-count is on the record rather than quietly dropped.** Batch 5.7b re-discovered the parallel `checkoutSchema` while adding the OFFERT tender and opened it as new without checking the Stage 6 table. T-08 predates it by the whole remediation and is canonical; the de-staling commit annotated L-49's row to point here, and this batch closes both.
+
+**(5) What the removed tests asserted, and why each was vacuous — as the criterion requires.** *`checkoutSchema` × 6*: they parsed an object the server never parses, so a change to the real `checkoutIntentSchema` could not fail them; four asserted real intentions and were re-pointed, two (valid DINE_IN, TAKEAWAY without customer) were already covered by this batch's own route tests and re-pointed anyway for symmetry. *Receipt refunds*: asserted absence using input that could not produce presence. *`not.toThrow()`*: the preceding line had already executed the same call and asserted its output — strictly stronger. *Cart store × 4*: identical values to `cart-store-math.test.ts` — the same 2300 line total, the same 900/1100 order-type prices, the same 1050 option modifier.
+
+**(6) A slow run was observed and attributed, not investigated.** One whole-suite run took **296 s** against the usual ~90 s, with the same 763/0 result. That is **L-24**, which is about slow runs rather than wrong results, and it is recorded here only so the next session does not read it as this batch's doing.
+
+---
+
 # COMPLETED REMEDIATION HISTORY
 
 *Moved verbatim from `REMEDIATION_PLAN.md` lines 2357–2378 (commit `5f0c2b1`) on 2026-09-04. Nothing in this section has been rewritten; corrections, if any, are appended dated notes.*
@@ -2903,6 +2951,7 @@ Both flow through **one** `addonMap` (`pricing.ts:175-183`), **one** `availableA
 | 5.7c | COMPLETED | 2026-09-05 | `9304d58` | M-19, M-12, M-15, M-16 and L-41 — pricing and validation, no migration. **M-19 survived because the tests built the shape the dialog never produced**, so the mapping was extracted from the component into `toCartOptions` and every case goes through it; `CartOption` gains `dineInPriceModifier` and the persisted version goes 1 → 2. M-15 **refuses** a negative unit price rather than clamping (a clamp sells the item free and silently); measured first — zero negative modifiers exist and the three absolute-priced choices resolve to 0, +300, +700. M-16 bounds quantity at 99, grounded on a measured maximum of 2. M-12 corrected the comment, not the code. L-41 is **narrowed, not closed** — the in-transaction assertion is still the guarantee. **All 19 new tests fail under some revert, including the control.** The walkthrough caught M-16 answering in English (L-22's class) and it was made French. |
 | 5.7d | COMPLETED | 2026-09-05 | `d922ce0` | M-20, M-21, M-22 and L-42 — POS resilience, and **the end of Stage 5**. M-21 is the one that loses money: `fetchUser` folded EVERY failure to null, which cleared the cart, so a network blip destroyed the sale in progress. Three cases now — a 401 or an explicit `{user:null}` signs out and clears; anything else keeps the operator AND the basket. L-42 suppresses every shortcut while a modal is open (Escape stays Radix's, asserted by a sweep). M-20 tests the failure branch BEFORE the empty one, which is the whole finding. M-22 adds a per-view boundary — with an `inline` variant, or the fix would have been the symptom — and the App Router `error.tsx` that never existed. **Every inherited criterion was Manual and L-47 blocked all three; each was converted, per 5.4's precedent, and the file says which claims are source-order rather than behaviour.** A fourth tripwire fired and had to be INVERTED: C-23's own test asserted that any failure ends the session. |
 | 6.1 | COMPLETED | 2026-09-05 | `a8734f4` | T-01 through T-07 — and the **request harness** they were actually waiting for. Six batches since 4.4 wrote "driving a route needs a request scope, which stays with 6.1" into their own files; `route-harness.ts` stubs `next/headers` and signs in with the app's OWN `createSession`. T-02's nine cases then close the audit's "classic POS fraud vector" by driving `POST /api/orders` and proving it REFUSES. T-05 writes through the real checkout and asks the aggregation — C-10's class. T-06 injects a LATE failure and proves the rollback takes the receipt number with it. T-07 covers two simultaneous checkouts and concurrent refunds. T-01, T-03, T-04 closed on evidence, not rewritten. **765 pass; 27 of 28 new tests fail under some revert.** Two of the batch's own assertions were wrong about the code and measurement said so. **No application code changed.** |
+| 6.2 | COMPLETED | 2026-09-05 | `<pending>` | T-08, T-09 and **L-02, done together as both rows instruct**. T-08's six `checkoutSchema` cases were **re-pointed at the live route, not deleted** — measured first, four of them named real behaviour with NO other cover, so deleting would have reduced coverage. The move added a seventh. T-09's refunds assertion passed an EMPTY array and could not fail; it now passes real refunds, and the vacuity was **demonstrated** with a conditional regression under which the old assertion passes and the new one fails. `cart-store.test.ts` removed with its one unique case moved. 765 → **763**, and every unit of the −2 is accounted for. A third name collision found: `CheckoutInput` existed dead in validation.ts and live in checkout.ts. |
 
 # RESOLVED FINDINGS
 

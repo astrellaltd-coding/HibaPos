@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { computeLineTotal, productUnitPrice, recalculateUnitPrice, type CartItem, type CartOption } from "@/store/cart-store";
+import {
+  computeLineTotal,
+  computeCartTotals,
+  productUnitPrice,
+  recalculateUnitPrice,
+  type CartItem,
+  type CartOption,
+} from "@/store/cart-store";
 import type { ProductDto } from "@/types/api";
 
 // All prices are in INTEGER CENTS (e.g. 1000 = 10.00 €).
@@ -45,6 +52,42 @@ describe("computeLineTotal — addon pricing regression (A5)", () => {
     };
     // (1000 + 150 + 80) * 3 = 3690 cents
     expect(computeLineTotal(item)).toBe(3690);
+  });
+});
+
+// T-09 (Batch 6.2). `cart-store.test.ts` held five cases, four of which
+// asserted values already asserted in this file — the same 2300 line total,
+// the same 900 / 1100 order-type prices, the same 1050 option modifier. It was
+// removed. `computeCartTotals` was its ONE unique case and had no other cover
+// anywhere, so it moves here rather than going with it.
+describe("computeCartTotals — subtotal and discount (moved from cart-store.test.ts, T-09)", () => {
+  const oneLine = (): CartItem[] => [
+    {
+      uid: "1",
+      productId: "p1",
+      productName: "Burger",
+      basePrice: 1000,
+      pickupPrice: 900,
+      deliveryPrice: 1100,
+      unitPrice: 1000,
+      quantity: 1,
+      options: [],
+      addOns: [],
+      vatRate: 10,
+    } as unknown as CartItem,
+  ];
+
+  it("subtracts the discount from the subtotal", () => {
+    const { subtotal, total } = computeCartTotals(oneLine(), 200);
+    expect(subtotal).toBe(1000);
+    expect(total).toBe(800);
+  });
+
+  it("never returns a negative total, however large the discount", () => {
+    // Added at the move. `computeCartTotals` clamps with `Math.max(0, …)` and
+    // nothing asserted it — a cart showing a negative total would be the
+    // client-side twin of M-15.
+    expect(computeCartTotals(oneLine(), 5000).total).toBe(0);
   });
 });
 

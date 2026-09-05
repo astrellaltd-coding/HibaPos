@@ -11,13 +11,13 @@ Detailed audit record: https://claude.ai/code/artifact/329316b0-3a6b-48b0-9d27-d
 
 **Overall:** NOT READY FOR PRODUCTION
 
-**Current Stage:** **Stage 6 is IN PROGRESS** — **6.1 COMPLETED 2026-09-05**; 6.2 and 6.3 remain. **Stage 5 is COMPLETED** (5.1 through 5.6 and 5.7a–5.7d, all 2026-09-05, alongside 3.6c). **Stage 4 is COMPLETED** (4.1 through 4.4, 4.4b, 4.4c, 4.5, 4.6 and 4.7, all 2026-09-04). **Stage 3 is COMPLETED** (twelve batches; **3.6c** reopened it 2026-09-05 for L-27 and closed it the same day). C-22's chain-design half stays carried forward as `REQUIRES EXTERNAL VERIFICATION`, and V-03 is open. Stage 1 is **partly done**: 1.1 and 1.2 COMPLETED, 1.3 `IMPLEMENTED — TESTING REQUIRED` on hardware, 1.4 deferred. Stage 2 is COMPLETED.
+**Current Stage:** **Stage 6 is IN PROGRESS** — **6.1 and 6.2 COMPLETED 2026-09-05**; **6.3 alone remains.** **Stage 5 is COMPLETED** (5.1 through 5.6 and 5.7a–5.7d, all 2026-09-05, alongside 3.6c). **Stage 4 is COMPLETED** (4.1 through 4.4, 4.4b, 4.4c, 4.5, 4.6 and 4.7, all 2026-09-04). **Stage 3 is COMPLETED** (twelve batches; **3.6c** reopened it 2026-09-05 for L-27 and closed it the same day). C-22's chain-design half stays carried forward as `REQUIRES EXTERNAL VERIFICATION`, and V-03 is open. Stage 1 is **partly done**: 1.1 and 1.2 COMPLETED, 1.3 `IMPLEMENTED — TESTING REQUIRED` on hardware, 1.4 deferred. Stage 2 is COMPLETED.
 
-**Current Batch:** none. **6.2 is next**, then 6.3 — which owns L-43 and L-47, the two things every session has worked around. **5.7 was SPLIT on 2026-09-05 into 5.7a–5.7d** — it held twelve items across four risk classes, where every completed batch here has been one finding or a tight cluster. The router section carries the evidence, where each item and each criterion went, and three things measurement found that the rows did not say. Audit IDs are unchanged; the index still maps them to 5.7.
+**Current Batch:** none. **6.3 is next and is the last of Stage 6** — it owns L-43 and L-47, the two things every session has worked around, plus the e2e config that still points at production. **5.7 was SPLIT on 2026-09-05 into 5.7a–5.7d** — it held twelve items across four risk classes, where every completed batch here has been one finding or a tight cluster. The router section carries the evidence, where each item and each criterion went, and three things measurement found that the rows did not say. Audit IDs are unchanged; the index still maps them to 5.7.
 
-**Last Completed Batch:** Batch 6.1 — tests for the things that can lose money, **closing T-01 through T-07**. **The request harness first**, because that is what T-02, T-05 and T-06 were actually waiting for: every route goes through `withAuth` → `getSession()` → `cookies()`, which throws outside a request scope, so **six batches since 4.4 deferred it here**. `route-harness.ts` stubs `next/headers` and signs in with the application's **own `createSession`**. T-02's nine cases then close the audit's "classic POS fraud vector" by driving `POST /api/orders` and proving it refuses. T-06 injects a **late** failure and proves the rollback takes the receipt number with it — a fiscal gap cannot be repaired afterwards. **No application code changed**: these were coverage gaps, not defects. *(Before it: 5.7d and the rest of Stage 5. Accounts: the record.)*
+**Last Completed Batch:** Batch 6.2 — remove misleading tests, **closing T-08, T-09, L-02 and L-49**. **T-08's six cases were re-pointed at the live route, not deleted**, and that was decided by measuring: four of them named behaviour with **no other cover**, so deleting would have reduced coverage — the move turned six vacuous tests into seven real ones. **L-02 went with them, together as both rows instruct.** T-09's refunds assertion passed an EMPTY array and could not fail; the vacuity was **demonstrated** with a conditional regression under which the old assertion passes and the new one fails. 765 → **763**, every unit of the −2 accounted for. **A third name collision**: `CheckoutInput` was dead in `validation.ts` and live in `services/checkout.ts`. *(Before it: 6.1, and the whole of Stage 5. Accounts: the record.)*
 
-**Next Batch:** **Batch 6.2** — remove misleading tests (T-08, T-09). **T-08 is `checkoutSchema`, the parallel copy the server never runs**, and **L-49 is the same finding opened twice** — work it as T-08. Its own warning applies: do the test removal and the dead-code removal (L-02) together or not at all. Then **6.3**, which owns **L-43** (now failing ~2 whole-suite runs in 5) and **L-47**, plus the e2e config that still points at production. The operator has approved running the e2e suite **after** the redirect is proved, and CI on push.
+**Next Batch:** **Batch 6.3**, the last of Stage 6. It owns **T-10** (`playwright.config.ts` still runs `bun run dev` against the real `.env`, so `bun run test:e2e` remains **forbidden** until it lands), **T-11**, **T-12** (no CI), **L-06**, and the two every session has worked around: **L-40/L-43** (the fixed test-database path — `test-setup.ts:21-22` builds it from `os.tmpdir()` with no per-run suffix) and **L-47**. **The operator has approved, in session, running the e2e suite once the redirect is proved, and CI running on push.**
 
 **Blocked:** Batch 1.3 `[HW]` sign-off and Batch 1.4 — both need the app running on the restaurant's POS machine, which is in a different country from the developer and has no copy of the app installed (decision of 2026-09-03).
 
@@ -27,7 +27,7 @@ Detailed audit record: https://claude.ai/code/artifact/329316b0-3a6b-48b0-9d27-d
 
 ### OPEN THREADS — read this before starting a batch
 
-*Updated through Batch 6.1. **Only G has moved since Batch 5.7a's migration** — the test count, batch by batch. None of 5.7b, 5.7c or 5.7d ships a mechanism, needs a migration or waits on anybody, so **A, B, C, D and E are unchanged**. This thread records the CURRENT state, not its history: per-batch update notes live in each batch's record section.*
+*Updated through Batch 6.2. **Only G has moved since Batch 5.7a's migration** — the test count, batch by batch. None of 5.7b, 5.7c or 5.7d ships a mechanism, needs a migration or waits on anybody, so **A, B, C, D and E are unchanged**. This thread records the CURRENT state, not its history: per-batch update notes live in each batch's record section.*
 
 Work in this plan does not finish batch-by-batch. Several completed batches
 shipped a mechanism whose **benefit is not yet delivered**, and several items
@@ -123,7 +123,7 @@ Batch 1.4, and Batch 8.2.
 
 | Thing | Value at the end of session 3 (updated through session 4) |
 |---|---|
-| Tests | **765 pass, 0 fail** (`bun test src --timeout 30000` — see L-24 for why the timeout flag). 737 before Batch 6.1, which added 28; 715 before 5.7d; 696 before 5.7c; 676 before 5.7b. **A lone failure of `shift-race.test.ts`'s ten-sales race is L-43** — reproduce before believing it; two immediate re-runs were clean. **L-43's origin was established in Batch 5.3 and it is a test defect, not a code failure** — the ten-sales race never inspects its eleventh promise, so a Z close that loses the contention leaves no row for the next line to read. For an `EPERM: rename … test.db.restore-staged` run, see warning 3b. Whole-suite runtime 60–80 s, but a slow run took **422 s** on 2026-09-05 with the same 0 failures — L-24. **Since 5.5 it fails ~4 whole-suite runs in 7** (P2025 on `shift-race.test.ts:227`) — diagnosed, not a code failure; re-run rather than investigate. **Batch 6.1 measured it at 2 whole-suite runs in 5 and made it worse on purpose** — its concurrency tests add real contention ahead of this file, which is what the row predicts. Same P2025 signature every time, and the file passes alone |
+| Tests | **763 pass, 0 fail** (`bun test src --timeout 30000` — see L-24 for why the timeout flag). 765 before Batch 6.2, which **removed 11 vacuous or duplicated cases and added 9 real ones**; 737 before 6.1; 715 before 5.7d; 696 before 5.7c. **A lone failure of `shift-race.test.ts`'s ten-sales race is L-43** — reproduce before believing it; two immediate re-runs were clean. **L-43's origin was established in Batch 5.3 and it is a test defect, not a code failure** — the ten-sales race never inspects its eleventh promise, so a Z close that loses the contention leaves no row for the next line to read. For an `EPERM: rename … test.db.restore-staged` run, see warning 3b. Whole-suite runtime 60–80 s, but a slow run took **422 s** on 2026-09-05 with the same 0 failures — L-24. **Since 5.5 it fails ~4 whole-suite runs in 7** (P2025 on `shift-race.test.ts:227`) — diagnosed, not a code failure; re-run rather than investigate. **Batch 6.1 measured it at 2 whole-suite runs in 5 and made it worse on purpose** — its concurrency tests add real contention ahead of this file, which is what the row predicts. Same P2025 signature every time, and the file passes alone |
 | Production DB sha256 | **`96b48ad0789151df5ec8f346ad6b1301f6f510a02820fb00d66d7d380706cf06`** (mtime 2026-09-05 17:48, **704 512** bytes) — moved by the operator applying **Batch 5.7a's** migration, whose rehearsal predicted the result with **zero differing fingerprint lines**. Before it: `7287640e…` (mtime 15:41, same size) — moved by the operator applying Batch 5.5's migration on 2026-09-05 14:41:21, the first change since the 2026-09-04 PIN change (`7839db18…`, 696 320 bytes). **The rehearsal predicted this state exactly**: a fiscal fingerprint of production taken afterwards is byte-for-byte identical to the one taken from the rehearsal copy — zero differing lines (record → Batch 5.5, appended note). Both sealed Z reports survived the `ZReport` table rebuild unchanged, with the three new columns at 0. Earlier lineage (`7cc3367b…` → `a66bc96c…` → `e40735ca…` → `7839db18…`) is in the record |
 | Fiscal chain | `/api/fiscal/verify` → all three chains `ok`, `lastSequence: 2`. **Zero monthly and annual closes have ever been sealed** — which is why M-01's guard, DD-18's timing rules and the payload changes of L-26 **and Batch 5.5** could all be imposed with nothing to accommodate. Re-verified read-only 2026-09-04 |
 | Fiscal counters | `20/3/2/2` (receipt / shift / Z / event). Re-verified read-only 2026-09-05 **after the migration** — a schema change moves no counter, and every batch write this session went to a scratch copy |
@@ -266,7 +266,7 @@ half open**, split across two batches. Audit IDs are never renamed.
 | C-06 ✅ | 2.2 | M-06 ✅ | 3.6 | M-30 ✅ | 2.4 |
 | C-07 | 1.4 | M-07 ✅ | 3.6 | M-31 ✅ | 2.4 |
 | C-08 ✅ | 4.1 | M-08 ✅ | 5.6 | L-01 | 7.2 |
-| C-09 ✅ | 4.2 | M-09 ✅ | 5.7a | L-02 | 7.2 |
+| C-09 ✅ | 4.2 | M-09 ✅ | 5.7a | L-02 ✅ | 6.2 |
 | C-10 ✅ | 3.2 | M-10 ✅ | 5.7a | L-03 | 7.2 |
 | C-11 ✅ | 3.2 | M-11 ✅ | 5.7b | L-04 ◐ | 2.4 / 7.3 |
 | C-12 ✅ | 3.1 | M-12 ✅ | 5.7c | L-05 | 2.4 (deferred) |
@@ -278,7 +278,7 @@ half open**, split across two batches. Audit IDs are never renamed.
 | C-18 ✅ | 4.3 + operator | M-18 ✅ | 4.4c | L-11 | deferred |
 | C-19 ✅ | 2.3 | M-19 ✅ | 5.7c | L-12 | 7.2 |
 | C-20 ✅ | 5.1 | M-19s ✅ | 4.4b | T-01…T-07 ✅ | 6.1 |
-| C-21 ✅ | 5.2 | M-20 ✅ | 5.7d | T-08, T-09 | 6.2 |
+| C-21 ✅ | 5.2 | M-20 ✅ | 5.7d | T-08, T-09 ✅ | 6.2 |
 | C-22 ◐ | 2.1 + 3.5 | M-21 ✅ | 5.7d | T-10…T-12 | 6.3 |
 | C-23 ✅ | 5.4 | M-22 ✅ | 5.7d | DOC-01…12 (**09 ✅** 4.5) | 7.1 |
 | C-24 ✅ | 4.6 | M-23 ✅ | 4.3 | V-01…V-03, V-08…V-12 | external |
@@ -1341,24 +1341,17 @@ Audit section J, step 7: the suite is honest but tests the wrong third. 136 test
 
 ## Batch 6.2 — Remove misleading tests
 
-**Status:** `NOT STARTED`
+**Status:** `COMPLETED` · **Completed:** 2026-09-05 · **Commit:** `<pending>` · **Findings:** T-08, T-09 (**closes both**), **L-02** and **L-49** (which was T-08 opened twice)
+**Record:** `REMEDIATION_RECORD.md` → *Batch 6.2* — specification, validation criteria and status record, moved there verbatim on 2026-09-05.
 
-| ID | Status | Problem | Location |
-|---|---|---|---|
-| **T-08** | `NOT STARTED` | Six tests certify dead code. `validation.test.ts:34-89` exercises `checkoutSchema`, which no route uses — the live route validates with a differently-shaped inline `checkoutIntentSchema`. A reader concludes checkout input is validated; it is validated by nothing. | `src/lib/validation.test.ts:34-89` *Correction 2026-09-05: **L-49 is this finding, opened again by mistake.** Batch 5.7b re-discovered the parallel schema while adding the OFFERT tender and recorded it as new without checking this table. **T-08 is the canonical ID** — audit IDs are never renamed, and this one predates L-49 by the whole remediation. L-49's row now points here. 5.7b kept the two schemas in step by hand and commented each with which is which, which makes the duplication visible but does not remove it; **the removal is still this batch's**, and the note below about doing it together with L-02 still governs.* |
-| **T-09** | `NOT STARTED` | Two tests cannot fail: `receipt.test.ts:109` asserts a refunds section is absent while passing `refunds: []`; `:142` asserts `not.toThrow()` on a call already made successfully two lines above. `cart-store.test.ts` is ~80 % a restatement of `cart-store-math.test.ts` (4 of 5 cases assert identical values). | `src/lib/services/receipt.test.ts:109,142`; `src/store/cart-store.test.ts` |
+**Constraints this batch leaves behind** *(sentences copied from the record, not paraphrased)*
+- **"Removing them must not reduce real coverage" is a measurement.** Four of the six named behaviour with no other cover, so they were **re-pointed at the live route, not deleted**. *(record, note 1)*
+- The live checkout validates with `checkoutIntentSchema`, declared **inline in `orders/route.ts`**. There is no longer a second copy in `validation.ts`, and there must not be one again. *(record, Changes)*
+- **Before deleting a symbol, check whether the name means something else somewhere** — `CheckoutInput` was dead in `validation.ts` and live in `services/checkout.ts`. Third such collision in four batches, after `PENDING` (5.6) and `addon` (5.7a). *(record, note 3)*
+- A vacuity claim is **demonstrated, not argued**: an unconditional revert proves nothing, because it fails the old assertion too. The realistic regression is a conditional one. *(record, note 2)*
+- The test-count delta must be **accounted for unit by unit**, not just reported. *(record, Tests)*
 
-**⚠ Safety rule 2 and 3 apply.** These tests are being removed because they assert nothing, **not** to make anything pass. Removing them must not reduce real coverage. If `checkoutSchema` itself is removed (L-02), that is a Stage 7 cleanup item — do the test removal and the dead-code removal together or not at all.
-
-### Batch 6.2 — Validation Required
-
-- For each removed test, record what it asserted and why that assertion was vacuous.
-- Confirm no *real* behaviour loses its only coverage — grep for another test covering the same function before removing.
-- `bun test src` — PASS, with the new total recorded and the delta explained.
-
-### Batch 6.2 — Status Record
-
-**Status:** `NOT STARTED` · **Completed:** — · **Changes:** — · **Files:** — · **Tests:** — · **Commit:** — · **Notes:** —
+**Left open:** nothing.
 
 ---
 

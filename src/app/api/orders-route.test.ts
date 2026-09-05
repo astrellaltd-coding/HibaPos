@@ -98,6 +98,99 @@ async function post(body: unknown) {
   });
 }
 
+// T-08 (Batch 6.2) — the six cases that used to test `checkoutSchema`.
+//
+// `validation.test.ts` exercised a schema **no route runs**: the live checkout
+// validates with `checkoutIntentSchema`, declared inline in `orders/route.ts`
+// and differently shaped. A reader concluded checkout input was validated; it
+// was validated by something else entirely, and the tests could not have
+// noticed if the real one changed.
+//
+// **They were re-pointed, not deleted.** Four of the six name behaviour that is
+// real and had NO other cover — measured before touching anything: nothing
+// tested the LIVRAISON customer rule against the route, and nothing tested the
+// empty-order or no-payments refusals at all. Deleting them would have reduced
+// real coverage, which this batch's criterion forbids and safety rule 2
+// prohibits. Re-pointed, they assert the same intentions about the object that
+// actually runs.
+describe("T-08 — the checkout input rules, against the schema the route runs", () => {
+  it("accepts a valid DINE_IN order", async () => {
+    const { status } = await post({
+      orderType: "DINE_IN",
+      items: [{ productId: product.id, quantity: 1, optionIds: [], addons: [] }],
+      payments: [{ method: "CASH", amount: product.price }],
+    });
+    expect(status).toBe(201);
+  });
+
+  it("accepts TAKEAWAY without a customer", async () => {
+    const { status } = await post(order(0));
+    expect(status).toBe(201);
+  });
+
+  it("REFUSES LIVRAISON without a customer", async () => {
+    // The old test called this "superRefine" — the live route does not use one,
+    // it checks at `orders/route.ts` after pricing. Same rule, real object.
+    const { status, body } = await post({
+      orderType: "LIVRAISON",
+      items: [{ productId: product.id, quantity: 1, optionIds: [], addons: [] }],
+      payments: [{ method: "CASH", amount: product.price }],
+    });
+    expect(status).toBe(400);
+    expect(body.error).toContain("livraison");
+    expect(await db.order.count()).toBe(0);
+  });
+
+  it("accepts LIVRAISON with a customer who has name, phone and address", async () => {
+    // CONTROL, and it pins what "a customer" has to mean: the route demands
+    // all three, so a customer row with only a name is still refused.
+    const customer = await db.customer.create({
+      data: { name: "Jean Dupont", phone: "0612131415", address: "1 rue Test" },
+    });
+    const { status } = await post({
+      orderType: "LIVRAISON",
+      customerId: customer.id,
+      items: [{ productId: product.id, quantity: 1, optionIds: [], addons: [] }],
+      payments: [{ method: "CASH", amount: product.price }],
+    });
+    expect(status).toBe(201);
+  });
+
+  it("REFUSES LIVRAISON to a customer with no address", async () => {
+    // Added at the re-pointing: the old schema test could not express this,
+    // because the schema only knew whether a `customerId` was present.
+    const customer = await db.customer.create({ data: { name: "Sans Adresse", phone: "0600000000" } });
+    const { status, body } = await post({
+      orderType: "LIVRAISON",
+      customerId: customer.id,
+      items: [{ productId: product.id, quantity: 1, optionIds: [], addons: [] }],
+      payments: [{ method: "CASH", amount: product.price }],
+    });
+    expect(status).toBe(400);
+    expect(body.error).toContain("adresse");
+  });
+
+  it("REFUSES an order with no items", async () => {
+    const { status, body } = await post({
+      orderType: "TAKEAWAY",
+      items: [],
+      payments: [{ method: "CASH", amount: 100 }],
+    });
+    expect(status).toBe(400);
+    expect(body.error).toContain("vide");
+  });
+
+  it("REFUSES an order with no payments", async () => {
+    const { status, body } = await post({
+      orderType: "TAKEAWAY",
+      items: [{ productId: product.id, quantity: 1, optionIds: [], addons: [] }],
+      payments: [],
+    });
+    expect(status).toBe(400);
+    expect(body.error).toContain("Au moins un paiement");
+  });
+});
+
 describe("T-02 — a discount over the threshold cannot be taken without a PIN", () => {
   it("THE FRAUD VECTOR: 30 % with no token is refused 403", async () => {
     // 300 of 1000 is 30 %, above the configured 20 % threshold.

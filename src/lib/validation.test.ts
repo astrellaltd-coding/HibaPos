@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
   loginSchema,
-  checkoutSchema,
   settingsSchema,
   refundSchema,
   productSchema,
@@ -31,62 +30,14 @@ describe("loginSchema", () => {
   });
 });
 
-describe("checkoutSchema", () => {
-  const validBase = {
-    orderType: "DINE_IN" as const,
-    items: [
-      {
-        productId: "p1",
-        productName: "Test",
-        unitPrice: 10,
-        quantity: 1,
-        lineTotal: 10,
-        options: [],
-        addOns: [],
-      },
-    ],
-    payments: [{ method: "CASH" as const, amount: 10 }],
-  };
-
-  it("accepts a valid DINE_IN order", () => {
-    const r = checkoutSchema.safeParse(validBase);
-    expect(r.success).toBe(true);
-  });
-
-  it("accepts TAKEAWAY without customerId", () => {
-    const r = checkoutSchema.safeParse({ ...validBase, orderType: "TAKEAWAY" });
-    expect(r.success).toBe(true);
-  });
-
-  it("rejects LIVRAISON without customerId (superRefine)", () => {
-    const r = checkoutSchema.safeParse({ ...validBase, orderType: "LIVRAISON" });
-    expect(r.success).toBe(false);
-    if (!r.success) {
-      const issue = r.error.issues.find((i) => i.path.includes("customerId"));
-      expect(issue).toBeDefined();
-      expect(issue?.message).toContain("livraison");
-    }
-  });
-
-  it("accepts LIVRAISON with customerId", () => {
-    const r = checkoutSchema.safeParse({
-      ...validBase,
-      orderType: "LIVRAISON",
-      customerId: "cust-1",
-    });
-    expect(r.success).toBe(true);
-  });
-
-  it("rejects an empty order (no items)", () => {
-    const r = checkoutSchema.safeParse({ ...validBase, items: [] });
-    expect(r.success).toBe(false);
-  });
-
-  it("rejects an order with no payments", () => {
-    const r = checkoutSchema.safeParse({ ...validBase, payments: [] });
-    expect(r.success).toBe(false);
-  });
-});
+// T-08 (Batch 6.2). A `describe("checkoutSchema")` block of six cases stood
+// here and tested a schema **no route runs** — the live checkout validates with
+// `checkoutIntentSchema`, declared inline in `orders/route.ts`. The six were
+// **re-pointed at the route**, not deleted, and now live in
+// `src/app/api/orders-route.test.ts`: four of them named real behaviour with no
+// other cover, so deleting them would have reduced coverage. `checkoutSchema`
+// itself went with them (L-02), which is why this block cannot simply be fixed
+// in place.
 
 describe("settingsSchema", () => {
   it("accepts valid settings with factice flag", () => {

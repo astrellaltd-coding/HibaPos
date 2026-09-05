@@ -198,12 +198,26 @@ describe("renderReceipt", () => {
     // Refunds happen later and are tracked separately in the audit log +
     // order detail dialog. The receipt snapshot itself does NOT include
     // refunds because they didn't exist yet when the snapshot was taken.
-    const withRefundsField: TestOrder = {
+    //
+    // T-09 (Batch 6.2): this passed `refunds: []`. An empty array cannot
+    // produce a refunds section under ANY implementation, so the assertion
+    // could not fail — it certified nothing. It now passes REAL refunds, which
+    // is the only way the claim above can be tested at all: if `renderReceipt`
+    // ever started printing them, this would catch it.
+    const withRefunds: TestOrder = {
       ...baseOrder,
-      refunds: [],
+      refunds: [
+        { id: "r1", amount: 500, reason: "Client insatisfait", createdAt: "2026-08-14T13:00:00.000Z" },
+        { id: "r2", amount: 250, reason: "Erreur de saisie", createdAt: "2026-08-14T13:05:00.000Z" },
+      ] as TestRefund[],
     };
-    const text = renderReceipt(withRefundsField, baseSettings);
+    const text = renderReceipt(withRefunds, baseSettings);
     expect(text).not.toContain("Remboursements");
+    expect(text).not.toContain("Client insatisfait");
+    expect(text).not.toContain("5,00 €"); // the refund amount, nowhere on the ticket
+    // …and the ticket still shows what it should, so this is not passing
+    // because rendering failed.
+    expect(text).toContain("TOTAL");
   });
 
   it("falls back to defaults when settings are absent", () => {
@@ -224,9 +238,13 @@ describe("renderReceipt", () => {
     // Defensive parsing: a corrupted optionsJson column should NOT break
     // receipt rendering/printing — the receipt degrades gracefully with a
     // "(options illisibles)" placeholder line instead of throwing.
+    // T-09 (Batch 6.2): an `expect(() => renderReceipt(...)).not.toThrow()`
+    // followed this line and was removed. The call below has ALREADY run and
+    // been asserted on — if it threw, the test would have failed before
+    // reaching the redundant one. Nothing is lost: asserting the output is
+    // strictly stronger than asserting the absence of a throw.
     const text = renderReceipt(malformed, baseSettings);
     expect(text).toContain("(options illisibles)");
-    expect(() => renderReceipt(malformed, baseSettings)).not.toThrow();
   });
 });
 

@@ -164,69 +164,19 @@ export const shiftCloseSchema = z.object({
   notes: z.string().max(500).optional().nullable(),
 });
 
-export const orderItemSchema = z.object({
-  productId: z.string().nullable(),
-  productName: z.string(),
-  unitPrice: z.number().int(), // cents
-  quantity: z.number().int().min(1),
-  lineTotal: z.number().int(), // cents
-  options: z
-    .array(
-      z.object({
-        group: z.string(),
-        choice: z.string(),
-        priceModifier: z.number().int().default(0), // cents
-      }),
-    )
-    .default([]),
-  addOns: z
-    .array(
-      z.object({
-        id: z.string().nullable(),
-        name: z.string(),
-        price: z.number().int(), // cents
-      }),
-    )
-    .default([]),
-  notes: z.string().optional().nullable(),
-});
-export type OrderItemInput = z.infer<typeof orderItemSchema>;
-
-// ⚠ NOT the schema the checkout runs. `orders/route.ts` declares its own
-// `checkoutIntentSchema` inline and that is the live one; this pair is
-// exercised only by `validation.test.ts`. Kept in step with the route by hand
-// so the two do not drift — the duplication itself is recorded as **L-49**.
+// L-02 (Batch 6.2), removed together with T-08 exactly as both rows instruct.
 //
-// DD-14 (Batch 5.7b): mirrors the route — OFFERT joins the tenders and
-// `amount` relaxes to `min(0)`. The rules that make that safe live in
-// `tender-policy.ts`, which the ROUTE runs; parsing alone does not enforce
-// them, and a test asserting otherwise here would be proving nothing.
-export const paymentSchema = z.object({
-  method: z.enum(["CASH", "CARD", "VOUCHER", "OFFERT"]),
-  amount: z.number().int().min(0), // cents; only OFFERT may be 0
-});
-
-export const checkoutSchema = z.object({
-  orderType: z.enum(["DINE_IN", "TAKEAWAY", "LIVRAISON"]).default("DINE_IN"),
-  tableLabel: z.string().max(40).optional().nullable(),
-  customerId: z.string().nullable().optional(),
-  items: z.array(orderItemSchema).min(1, "La commande est vide"),
-  payments: z.array(paymentSchema).min(1, "Au moins un paiement"),
-  notes: z.string().max(500).optional().nullable(),
-  discountTotal: z.number().int().min(0).default(0), // cents
-}).superRefine((data, ctx) => {
-  // Livraison requires a customer with name + phone + address (art. 286 / French
-  // delivery regulation). The server route also enforces this, but declaring it
-  // here keeps the shared schema honest with its own stated contract.
-  if (data.orderType === "LIVRAISON" && !data.customerId) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: "Un client est obligatoire pour une livraison.",
-      path: ["customerId"],
-    });
-  }
-});
-export type CheckoutInput = z.infer<typeof checkoutSchema>;
+// `orderItemSchema`, `paymentSchema`, `checkoutSchema`, `CheckoutInput` and
+// `OrderItemInput` stood here and were **referenced only by tests**. The live
+// checkout validates with `checkoutIntentSchema`, declared inline in
+// `orders/route.ts` and differently shaped, so this pair was a second
+// hand-maintained copy of a contract nothing enforced — kept in step by hand as
+// recently as Batch 5.7b, which is the cost that made removing it right.
+//
+// ⚠ `CheckoutInput` was a NAME COLLISION as well as dead code:
+// `services/checkout.ts` exports its own `CheckoutInput`, which is the live one
+// and is untouched. That is the third such collision this remediation has
+// found, after `PENDING` (Batch 5.6) and `addon` (Batch 5.7a).
 
 export const refundSchema = z.object({
   amount: z.number().int().min(1), // cents (min 1 cent)
