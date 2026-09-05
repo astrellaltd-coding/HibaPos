@@ -41,7 +41,7 @@ import {
   Legend,
 } from "recharts";
 import { cn } from "@/lib/utils";
-import { PAYMENT_LABELS } from "@/lib/order-labels";
+import { PAYMENT_LABELS, ORDER_STATUS_LABELS } from "@/lib/order-labels";
 
 const PAYMENT_COLORS: Record<string, string> = {
   CASH: "var(--chart-1)",
@@ -52,13 +52,22 @@ const PAYMENT_COLORS: Record<string, string> = {
 function statusBadge(status: OrderDto["status"]) {
   switch (status) {
     case "COMPLETED":
-      return <Badge className="bg-emerald-100 text-emerald-700">Terminée</Badge>;
+      return (
+        <Badge className="bg-emerald-100 text-emerald-700">
+          {ORDER_STATUS_LABELS.COMPLETED}
+        </Badge>
+      );
     case "REFUNDED":
-      return <Badge variant="destructive">Remboursée</Badge>;
-    case "CANCELLED":
-      return <Badge variant="secondary">Annulée</Badge>;
+      return <Badge variant="destructive">{ORDER_STATUS_LABELS.REFUNDED}</Badge>;
     default:
-      return <Badge variant="outline">En attente</Badge>;
+      // DD-13 / M-08 (Batch 5.6). Two arms went from here: « Annulée » for a
+      // CANCELLED nothing ever wrote, and — the one that mattered — a
+      // `default` reading « En attente », which is how this screen implied a
+      // pre-payment state the product does not have. Every order is one of the
+      // two above, so this is unreachable through the types; it stays as a
+      // runtime floor because `status` arrives over HTTP. It now shows what
+      // actually came back instead of naming a state that cannot exist.
+      return <Badge variant="outline">{status}</Badge>;
   }
 }
 

@@ -53,7 +53,9 @@ export const GET = withAuth(async () => {
     totalOrders: orders.length,
     completedOrders: agg.salesCount,
     refundedOrders: orders.filter((o) => o.status === "REFUNDED").length,
-    cancelledOrders: orders.filter((o) => o.status === "CANCELLED").length,
+    // M-08 / DD-13 (Batch 5.6): `cancelledOrders` was here, filtering for a
+    // status nothing ever wrote. One producer, zero consumers — it reported 0
+    // forever, which is worse than absent: a zero reads as "none today".
     subtotal: orders
       .filter((o) => o.status === "COMPLETED")
       .reduce((s, o) => s + o.subtotal, 0),

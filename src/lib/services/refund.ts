@@ -54,7 +54,8 @@ type OrderForRefund = {
    *  `orderNumber`, so making this field easy to omit would reopen it. */
   number: number;
   total: number; // cents
-  status: "PENDING" | "COMPLETED" | "REFUNDED" | "CANCELLED";
+  /** DD-13 (Batch 5.6): two values, because `enum OrderStatus` has two. */
+  status: "COMPLETED" | "REFUNDED";
   orderType: "DINE_IN" | "TAKEAWAY" | "LIVRAISON";
   tableLabel: string | null;
   refunds: { amount: number }[];

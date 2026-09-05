@@ -65,11 +65,21 @@ export const GET = withAuth(async (req) => {
   const statusRaw = url.searchParams.get("status");
   // Validate status against the OrderStatus enum before casting —
   // an invalid value previously threw PrismaClientValidationError → 500.
-  const STATUS_ENUM = z.enum(["COMPLETED", "REFUNDED", "CANCELLED", "PENDING"]);
+  //
+  // DD-13 (Batch 5.6). This list used to name four values; the enum now holds
+  // two, so `?status=CANCELLED` and `?status=PENDING` answer **400 instead of
+  // an empty list**. That is a deliberate narrowing of the API contract, not a
+  // side effect: a filter that accepts a status no row can hold is the same
+  // claim the enum was making, and keeping it would need a cast past the
+  // generated type — reopening exactly the 500 this check was added to close.
+  // The app itself never sent either value: `StatusFilter` in orders-view.tsx
+  // has always offered only ALL / COMPLETED / REFUNDED, so nothing in the
+  // product changes. Keep this list derived from the enum, not from habit.
+  const STATUS_ENUM = z.enum(["COMPLETED", "REFUNDED"]);
   const statusParse = statusRaw ? STATUS_ENUM.safeParse(statusRaw) : null;
   if (statusRaw && !statusParse?.success) {
     return NextResponse.json(
-      { error: `Statut invalide : ${statusRaw} (valeurs acceptées : COMPLETED, REFUNDED, CANCELLED, PENDING)` },
+      { error: `Statut invalide : ${statusRaw} (valeurs acceptées : ${STATUS_ENUM.options.join(", ")})` },
       { status: 400 },
     );
   }

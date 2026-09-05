@@ -150,7 +150,11 @@ export type OrderDto = {
   shiftId: string;
   cashierId: string;
   customerId: string | null;
-  status: "PENDING" | "COMPLETED" | "REFUNDED" | "CANCELLED";
+  /** DD-13 (Batch 5.6): mirrors `enum OrderStatus`, which holds exactly these
+   *  two. `PENDING` and `CANCELLED` were removed — there is no pre-payment
+   *  order state. Unrelated to `Receipt.printStatus`, a plain String whose
+   *  own default is the string "PENDING". */
+  status: "COMPLETED" | "REFUNDED";
   orderType: "DINE_IN" | "TAKEAWAY" | "LIVRAISON";
   tableLabel: string | null;
   subtotal: number;

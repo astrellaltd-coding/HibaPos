@@ -360,11 +360,22 @@ model CashMovement {
 // Orders & Payments
 // ---------------------------------------------------------------------------
 
+// DD-13 (2026-09-05), Batch 5.6 — there is no pre-payment order state.
+// An order does not exist until it is paid: the cart is client-side, and a
+// mis-rung ticket is cleared from the cart before payment. `PENDING` and
+// `CANCELLED` were never written by any code path, and all 20 production
+// orders were `COMPLETED` (confirmed read-only before the removal). They were
+// deleted deliberately, not overlooked; if order-before-payment ever arrives
+// — kitchen tickets fired in advance, telephone orders, table service — this
+// is where the state comes back, together with a void that journals an
+// `ANNULATION`.
+//
+// NOT the same namespace as `Receipt.printStatus`, which is a plain String
+// defaulting to "PENDING" and means "not yet sent to the printer". See the
+// comment on that field. `grep PENDING` spans both; only this one is fiscal.
 enum OrderStatus {
-  PENDING
   COMPLETED
   REFUNDED
-  CANCELLED
 }
 
 enum OrderType {
@@ -500,6 +511,10 @@ model Receipt {
   order         Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
   receiptNumber Int // not @unique — original order.number is already unique
   content       String // full rendered plain-text receipt snapshot
+  // A plain String, NOT `OrderStatus`. "PENDING" here means "not yet sent to
+  // the printer" and is written at checkout.ts for every receipt; it has
+  // nothing to do with an order's fiscal state. Batch 5.6 removed `PENDING`
+  // from `enum OrderStatus` and deliberately left this alone.
   printStatus   String    @default("PENDING") // PENDING | PRINTED | FAILED
   printedAt     DateTime?
   reprintCount  Int       @default(0)
