@@ -3219,7 +3219,7 @@ Each carries a comment saying so, and `src/features/tables/table-withdrawal.test
 
 **Tests.** `bun run test` — **798 pass, 0 fail** (793 before; +5). `bun run typecheck`, `bun run lint` — PASS. **`db/custom.db` byte-identical** after the whole rehearsal, and the rehearsal's scratch tree was deleted.
 
-**Commit:** `<pending>` + this plan/record update.
+**Commit:** `d937ef2` + this plan/record update.
 
 **Notes.**
 
@@ -3288,7 +3288,7 @@ curl -s http://127.0.0.1:3000/api/auth/me
 
 | Batch | Status | Date | Commit | Notes |
 |---|---|---|---|---|
-| 7.3 | COMPLETED (rotation handed over) | 2026-09-05 | `<pending>` | L-04 was already closed by Batch 2.4 — the standalone tree is gone, does not regenerate, and never entered git. A sweep found the live secrets in `.env` and nowhere else. The rotation is rehearsed end to end and handed to the operator; **it is not yet done**. Two wrong conclusions during the rehearsal, both caught by measuring again. **Completes Stage 7.** 798/0. |
+| 7.3 | COMPLETED (rotation handed over) | 2026-09-05 | `d937ef2` | L-04 was already closed by Batch 2.4 — the standalone tree is gone, does not regenerate, and never entered git. A sweep found the live secrets in `.env` and nowhere else. The rotation is rehearsed end to end and handed to the operator; **it is not yet done**. Two wrong conclusions during the rehearsal, both caught by measuring again. **Completes Stage 7.** 798/0. |
 | 7.4c | COMPLETED | 2026-09-05 | `9e8e4e7` | L-45, L-31, L-19, L-24 and L-32. C-15's shape closed at its fourth site; a failed catalogue seed is no longer reported as success; VAT rates display exactly; the test timeout is no longer something to remember. **793/0 with no flags**, four reverts all caught. Completes Batch 7.4. |
 | 7.4b | COMPLETED | 2026-09-05 | `215d9fd` | L-33 (DD-22), L-30. Two gates narrowed so the API matches the navigation; all 76 authenticated handlers classified in a table the tests check. L-30 fixed without removing the burn. 782/0. **My first test for L-30 passed under its own revert** — a timing threshold — and was rewritten to assert the 503 the finding names. |
 | 7.4a | COMPLETED | 2026-09-05 | `807e0c5` | L-48, L-44 (DD-21), L-50 (DD-20). *A period books the corrections it issued* now holds in all nine aggregation callers; a give-away is visible without being a sale; the sealed close payload grew for the third time, possible only because zero closes exist. 776/0, six reverts all caught. Two of my own assertions were wrong about the code — a correcting period contributes a negative count. |

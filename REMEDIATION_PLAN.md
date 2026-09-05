@@ -1529,7 +1529,7 @@ Audit section J, step 8. Correct the false statements, remove the dead weight, t
 
 ## Batch 7.3 — Secret rotation
 
-**Status:** `COMPLETED` for everything this repository can do · **Completed:** 2026-09-05 · **Commit:** `<pending>` · **Findings:** L-04 (already closed by Batch 2.4), SEC-ROT, DD-04.
+**Status:** `COMPLETED` for everything this repository can do · **Completed:** 2026-09-05 · **Commit:** `d937ef2` · **Findings:** L-04 (already closed by Batch 2.4), SEC-ROT, DD-04.
 **⚠ THE SECRETS ARE NOT YET ROTATED.** That is an operator action, prepared, rehearsed and handed over — *Open Threads → B*, and the hand-over in the record.
 **Record:** `REMEDIATION_RECORD.md` → *Batch 7.3*.
 
