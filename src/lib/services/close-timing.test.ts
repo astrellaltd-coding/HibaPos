@@ -198,14 +198,131 @@ describe("a month cannot be sealed while one of its caisses is open (L-25)", () 
     expect((await verifyMonthlyCloses()).ok).toBe(true);
   });
 
-  it("ignores an open caisse that belongs to another period", async () => {
-    // The rule DD-18 set is scoped to the period being sealed: a caisse opened
-    // in October must not block September's close.
+  // INVERTED for L-27 (Batch 3.6c), not deleted. It read:
+  //
+  //   it("ignores an open caisse that belongs to another period", ...)
+  //     "The rule DD-18 set is scoped to the period being sealed: a caisse
+  //      opened in October must not block September's close."
+  //     -> expect(close.period).toBe("2026-09")
+  //
+  // That was a faithful test of the scope DD-18 asked for, and the scope was
+  // the defect. The operator widened the rule on 2026-09-05: ANY open caisse
+  // refuses. The fixture is unchanged — a caisse opened in October, September
+  // being sealed — and only the expectation is turned round, so the two
+  // behaviours can be read against each other.
+  it("REFUSES because of an open caisse that belongs to another period", async () => {
     await db.shift.create({
       data: { number: 8, openedById: userId, openedAt: new Date(2026, 9, 2, 9, 0), status: "OPEN", openingFloat: 5000 },
     });
+    await expect(closeMonth(2026, 9, userId, false, new Date(2026, 9, 3))).rejects.toThrow(/n° 8/);
+    await expect(closeMonth(2026, 9, userId, false, new Date(2026, 9, 3))).rejects.toThrow(
+      /n'est pas clôturée/,
+    );
+    expect(await db.monthlyClose.count()).toBe(0);
+    expect(await db.fiscalEvent.count()).toBe(0);
+  });
+});
+
+// ------------------------------------------------ L-27, Batch 3.6c ----------
+
+describe("no period is sealed while ANY caisse is open (L-27)", () => {
+  let userId: string;
+  beforeEach(async () => {
+    userId = await reset();
+  });
+
+  it("REFUSES because of a caisse opened BEFORE the period and never closed", async () => {
+    // The case the old guard could not see, and the reason the finding's own
+    // row understated it. `openedAt` was matched against the period window, so
+    // a caisse whose opening predates the earliest period being sealed matched
+    // NO window and blocked NO close — not merely the first one. DD-05's
+    // sequencing does not catch it either: the same caisse failed to block the
+    // previous period on the same reasoning.
+    await db.shift.create({
+      data: { number: 3, openedById: userId, openedAt: new Date(2026, 7, 28, 2, 24), status: "OPEN", openingFloat: 10000 },
+    });
+    await expect(closeMonth(2026, 9, userId, false, new Date(2026, 9, 3))).rejects.toThrow(/n° 3/);
+    expect(await db.monthlyClose.count()).toBe(0);
+    expect(await db.fiscalEvent.count()).toBe(0);
+  });
+
+  it("REFUSES the production shape this was found on", async () => {
+    // Measured on `db/custom.db`, 2026-09-05: caisse n° 3 opened 2026-08-28
+    // 02:24 and still OPEN, holding orders created 2026-09-01. Sealing
+    // September passed the old guard while September's takings sat in a caisse
+    // that had never produced a Z report — so the close could not be checked
+    // against the sum of its Z reports, which is what Batch 3.2 established
+    // and what a sealed document can never be corrected to satisfy later.
+    const shift = await db.shift.create({
+      data: { number: 3, openedById: userId, openedAt: new Date(2026, 7, 28, 2, 24), status: "OPEN", openingFloat: 10000 },
+    });
+    await db.order.create({
+      data: {
+        number: 9001, shiftId: shift.id, cashierId: userId, status: "COMPLETED",
+        subtotal: 2850, discountTotal: 0, total: 2850, vatTotal: 259, itemCount: 1,
+        createdAt: new Date(2026, 8, 1, 22, 28), completedAt: new Date(2026, 8, 1, 22, 28),
+      },
+    });
+    await expect(closeMonth(2026, 9, userId, false, new Date(2026, 9, 3))).rejects.toThrow(/n° 3/);
+    expect(await db.monthlyClose.count()).toBe(0);
+  });
+
+  it("still seals when every caisse is closed, including one that spans the period boundary", async () => {
+    // THE OVER-REFUSAL CONTROL, and the reason it is here: a guard that
+    // refused every close would satisfy all three tests above. A caisse opened
+    // in August and closed in September is the ordinary long-running case, and
+    // it must not block anything once its Z exists.
+    await closedShift(userId, 3, new Date(2026, 7, 28, 2, 24));
+    await closedShift(userId, 4, new Date(2026, 8, 15, 9, 0));
     const close = await closeMonth(2026, 9, userId, false, new Date(2026, 9, 3));
     expect(close.period).toBe("2026-09");
+    expect((await verifyMonthlyCloses()).ok).toBe(true);
+  });
+
+  it("REFUSES an exercice for a caisse opened before the year, and seals once it is closed", async () => {
+    // The annual half. `closeYear` calls the same guard, so this pins that the
+    // widening reached both callers rather than only the monthly one.
+    const shift = await db.shift.create({
+      data: { number: 5, openedById: userId, openedAt: new Date(2025, 10, 4, 9, 0), status: "OPEN", openingFloat: 5000 },
+    });
+    await expect(closeYear(2026, userId, false, new Date(2027, 0, 2))).rejects.toThrow(/n° 5/);
+    expect(await db.annualClose.count()).toBe(0);
+
+    await db.shift.update({
+      where: { id: shift.id },
+      data: { status: "CLOSED", closedById: userId, closedAt: new Date(2025, 10, 4, 23, 0) },
+    });
+    const close = await closeYear(2026, userId, false, new Date(2027, 0, 2));
+    expect(close.period).toBe("2026");
+    expect((await verifyAnnualCloses()).ok).toBe(true);
+  });
+
+  it("names the lowest-numbered open caisse when several are open", async () => {
+    // Deterministic on purpose: `orderBy: { number: "asc" }` survived the
+    // widening, so the operator is always pointed at the oldest unclosed till
+    // rather than at whichever row the database happened to return.
+    for (const n of [11, 9, 14]) {
+      await db.shift.create({
+        data: { number: n, openedById: userId, openedAt: new Date(2026, 8, n, 9, 0), status: "OPEN", openingFloat: 0 },
+      });
+    }
+    await expect(closeMonth(2026, 9, userId, false, new Date(2026, 9, 3))).rejects.toThrow(/n° 9/);
+  });
+
+  it("no longer claims the caisse was opened during the period", async () => {
+    // The message had to change with the rule: it said « la caisse n° N,
+    // ouverte pendant 2026-09, n'est pas clôturée », which is now false for
+    // exactly the case this batch exists to catch. Asserting the absence keeps
+    // a future edit from reinstating a sentence that would be a lie.
+    await db.shift.create({
+      data: { number: 6, openedById: userId, openedAt: new Date(2026, 7, 1, 9, 0), status: "OPEN", openingFloat: 0 },
+    });
+    const err: unknown = await closeMonth(2026, 9, userId, false, new Date(2026, 9, 3)).catch((e) => e);
+    expect(err).toBeInstanceOf(Error);
+    const message = (err as Error).message;
+    expect(message).toContain("n° 6");
+    expect(message).toContain("Clôturez-la (rapport Z)");
+    expect(message).not.toContain("ouverte pendant");
   });
 });
 

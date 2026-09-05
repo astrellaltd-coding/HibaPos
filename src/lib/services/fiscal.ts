@@ -345,26 +345,43 @@ function assertPeriodEnded(bounds: PeriodBounds, period: string, label: string, 
 }
 
 /**
- * L-25, second half — a period may not be sealed while a caisse opened inside
- * it is still OPEN.
+ * L-25, second half, as widened by L-27 — a period may not be sealed while ANY
+ * caisse is still OPEN.
  *
  * Otherwise the sealed period exists before its own last Z report does, and
  * the reconciliation Batch 3.2 established — a period close equals the sum of
  * its Z reports — cannot be checked at sealing time.
  *
- * DD-18 scopes this to shifts whose OPENING falls inside the period, which is
- * what is checked here; it is deliberately not widened.
+ * L-27 (Batch 3.6c): this used to add `openedAt: { gte: bounds.from, lt: bounds.to }`,
+ * which is how DD-18 scoped it and how Batch 3.6b implemented it. The scope was
+ * wrong in a way the finding's own row understated. A caisse whose opening
+ * predates the earliest period being sealed matches NO period's window, so it
+ * blocked no close at all — not merely the first one. DD-05's sequencing rule
+ * does not catch it either, because the same caisse failed to block the
+ * previous period on the same reasoning. It was live on the production data
+ * when it was found: a caisse opened 2026-08-28, still open, holding orders
+ * dated 2026-09-01, would not have blocked September.
+ *
+ * Widened on the operator's answer of 2026-09-05: ANY open caisse refuses,
+ * whatever period it was opened in. Chosen over the narrower "any caisse
+ * holding an order inside the period" because it cannot be reasoned past and
+ * needs no join. The operational cost is that the Z must be run before the
+ * month is sealed, which is the order the work happens in anyway.
+ *
+ * The `bounds` parameter went with the window: nothing here is period-scoped
+ * any more, which is the whole of the change. Both callers still compute
+ * bounds for `assertPeriodEnded` and for the aggregation.
  */
-async function assertNoOpenShiftInPeriod(bounds: PeriodBounds, period: string, label: string) {
+async function assertNoOpenShift(period: string, label: string) {
   const open = await db.shift.findFirst({
-    where: { status: "OPEN", openedAt: { gte: bounds.from, lt: bounds.to } },
+    where: { status: "OPEN" },
     orderBy: { number: "asc" },
     select: { number: true },
   });
   if (!open) return;
   throw new Error(
-    `Clôture impossible : la caisse n° ${open.number}, ouverte pendant ${period}, ` +
-      `n'est pas clôturée. Clôturez-la (rapport Z) avant de sceller ${label} ${period}.`,
+    `Clôture impossible : la caisse n° ${open.number} n'est pas clôturée. ` +
+      `Clôturez-la (rapport Z) avant de sceller ${label} ${period}.`,
   );
 }
 
@@ -402,7 +419,7 @@ export async function closeMonth(
   // sit before the aggregation, for the same reason M-01's does.
   const bounds = monthBounds(year, month);
   assertPeriodEnded(bounds, period, "le mois", now);
-  await assertNoOpenShiftInPeriod(bounds, period, "le mois");
+  await assertNoOpenShift(period, "le mois");
 
   const { from, to } = bounds;
   const agg = await aggregatePeriod(from, to);
@@ -495,7 +512,7 @@ export async function closeYear(
   // L-25: same two timing rules as the month, same place in the sequence.
   const bounds = yearBounds(year);
   assertPeriodEnded(bounds, period, "l'exercice", now);
-  await assertNoOpenShiftInPeriod(bounds, period, "l'exercice");
+  await assertNoOpenShift(period, "l'exercice");
 
   const { from, to } = bounds;
   const agg = await aggregatePeriod(from, to);
