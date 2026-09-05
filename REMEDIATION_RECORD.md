@@ -3135,7 +3135,7 @@ Each carries a comment saying so, and `src/features/tables/table-withdrawal.test
 
 **Tests.** `bun test src --timeout 30000` — **782 pass, 0 fail** (776 before; +2 classification, +4 login budget). `bun run typecheck`, `bun run lint`, `bun run build` — PASS. `db/custom.db` byte-identical. **Three one-property reverts, all three caught** — but only after the fourth was found useless; see note 3.
 
-**Commit:** `<pending>` + this plan/record update.
+**Commit:** `215d9fd` + this plan/record update.
 
 **Notes.**
 
@@ -3160,7 +3160,7 @@ Each carries a comment saying so, and `src/features/tables/table-withdrawal.test
 
 | Batch | Status | Date | Commit | Notes |
 |---|---|---|---|---|
-| 7.4b | COMPLETED | 2026-09-05 | `<pending>` | L-33 (DD-22), L-30. Two gates narrowed so the API matches the navigation; all 76 authenticated handlers classified in a table the tests check. L-30 fixed without removing the burn. 782/0. **My first test for L-30 passed under its own revert** — a timing threshold — and was rewritten to assert the 503 the finding names. |
+| 7.4b | COMPLETED | 2026-09-05 | `215d9fd` | L-33 (DD-22), L-30. Two gates narrowed so the API matches the navigation; all 76 authenticated handlers classified in a table the tests check. L-30 fixed without removing the burn. 782/0. **My first test for L-30 passed under its own revert** — a timing threshold — and was rewritten to assert the 503 the finding names. |
 | 7.4a | COMPLETED | 2026-09-05 | `807e0c5` | L-48, L-44 (DD-21), L-50 (DD-20). *A period books the corrections it issued* now holds in all nine aggregation callers; a give-away is visible without being a sale; the sealed close payload grew for the third time, possible only because zero closes exist. 776/0, six reverts all caught. Two of my own assertions were wrong about the code — a correcting period contributes a negative count. |
 | 7.2 | COMPLETED | 2026-09-05 | `97c74fb` | L-01, L-03, L-07, L-08, L-12, L-29, APPROVE-DEAD. Four files, one dependency and seven dead exports removed; −428 lines. Two of L-07's ten entries were wrong and were left alone. Batch 5.6's tripwire fired and was amended stronger, three reverts all caught. Ten screens smoke-tested on a marker-proved scratch copy, zero console errors. **L-33 not closed** — a review, not a mechanical fix. |
 | 7.1 | COMPLETED | 2026-09-05 | `b2262bf` | DOC-01…DOC-08, DOC-10, DOC-11, DOC-12 — every DOC item. Documentation only; 763/0 unchanged. Two of the four code comments it was told to fix needed no change and one claim about them was wrong; DOC-11's re-check reversed its answer; the README's opening conformity claim was qualified, not deleted; `IMPLEMENTATION_PLAN.md` gained an appended Appendix D with eight corrections plus a ninth found while writing it. Opened L-51. |

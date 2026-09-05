@@ -1454,7 +1454,7 @@ Audit section J, step 8. Correct the false statements, remove the dead weight, t
 
 ## Batch 7.4b — Authorization and the login queue
 
-**Status:** `COMPLETED` · **Completed:** 2026-09-05 · **Commit:** `<pending>` · **Findings:** L-33 (DD-22), L-30 — **closes both.**
+**Status:** `COMPLETED` · **Completed:** 2026-09-05 · **Commit:** `215d9fd` · **Findings:** L-33 (DD-22), L-30 — **closes both.**
 **Record:** `REMEDIATION_RECORD.md` → *Batch 7.4b*.
 
 **Constraints this batch leaves behind** *(sentences copied from the record, not paraphrased)*
