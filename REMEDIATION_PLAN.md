@@ -23,11 +23,11 @@ Detailed audit record: https://claude.ai/code/artifact/329316b0-3a6b-48b0-9d27-d
 
 **Awaiting decision:** **only DD-04 and DD-16 remain open** — DD-04 (backup key rotation) blocks 7.3, DD-16 (tracking `public/uploads/` in git) shapes 7.1. Every other design decision is answered. Two recorded-but-not-urgent questions stand: `/api/auth/approve` and `manager-approval-dialog.tsx` have **no caller at all** since 4.4c, so whether to delete them is a real question; and **L-27** needs a decision before Batch 8.0.
 
-**Last Updated:** 2026-09-05 (session 13 — Batch 5.2). Three things worth carrying forward. (1) **A batch's own Validation Required can be the trap.** 5.2's was written for the answer DD-09 did not get; re-deriving it, rather than deleting it, is what showed that two of its six criteria had a server-side half worth automating. (2) **A removal makes weak tests easy to write.** Half of 5.2's assertions cannot fail against the old code, and one was unfalsifiable until a revert exposed it — say which is which (record → Batch 5.2, Tests and note 2). (3) **The front matter has about 560 bytes of headroom.** Retire something before adding, and say in the record what moved and where the fact lives.
+**Last Updated:** 2026-09-05 (session 13 — Batch 5.2). Two things worth carrying forward; the third — that a batch's own *Validation Required* can be the trap — was promoted to *Methods*, where a session reads it before acting rather than after. (1) **A removal makes weak tests easy to write.** Half of 5.2's assertions cannot fail against the old code, and one was unfalsifiable until a revert exposed it — say which is which (record → Batch 5.2, Tests and note 2). (2) **The front matter is ~250 bytes from its ceiling, the tightest yet.** The next session must retire before it adds its own status block, and say in the record what moved.
 
 ### OPEN THREADS — read this before starting a batch
 
-*Updated through Batch 5.1 and the DD-09…DD-15 answers.*
+*Updated through Batch 5.2. Nothing in A–F changed in that batch; the currency line is what moved.*
 
 Work in this plan does not finish batch-by-batch. Several completed batches
 shipped a mechanism whose **benefit is not yet delivered**, and several items
@@ -126,7 +126,7 @@ The session-3/4 snapshot that stood here is in the record, verbatim, under *Reti
 | Migrations | **6 applied on production**, latest `20260904091947_close_refund_totals` (applied 2026-09-04 09:43:54). **None pending.** Batches 4.1 through 4.4b added none — 4.4b's enum removal was measured with `prisma migrate diff` and emits an empty migration |
 | Catalogue | 78 products — 17 drinks at **5,5 %**, 61 at 10 % |
 | Accounts | **two, and that is now the product's whole role model**: `manager` (MANAGER) and `admin` (SUPER_ADMIN, the developer's). Both PINs changed 2026-09-04. `CASHIER` was **removed in Batch 4.4b** — zero rows carried it, confirmed read-only first. `LEAST_PRIVILEGED_ROLE` is therefore `MANAGER`, one rung weaker than before | **Since Batch 4.4c both accounts must re-enter their own PIN** for a discount above 20 % and for every refund; five wrong PINs lock both operations for 15 minutes, on the same counter as the (now callerless) manager approval
-| Out-of-band snapshots | `db-snapshots/custom.db.pre-3.1c.2026-09-03T20-54-10Z` and `…pre-3.5.2026-09-03T23-01-34Z` (both hash `711de2f1…`), and `…pre-3.6b.2026-09-04T08-27-38Z` (`7cc3367b…`). All outside the repo |
+| Out-of-band snapshots | Three, all in `db-snapshots/` **outside the repo tree**, taken before 3.1c, 3.5 and 3.6b. Filenames and hashes: record → those three batches |
 
 ### Hardware-dependent validation (policy set 2026-09-03)
 
@@ -242,6 +242,7 @@ Stated once here so no session has to rediscover them. The record sections named
 - **A scratch copy can carry a PIN Claude knows, which makes the walkthrough unattended.** Claude cannot type a *production* PIN — the live values were never seen and are recorded nowhere. On a **copy**, write a known PIN with the app's own `hashPin` before starting the server and the whole manual validation runs without the operator. Guard the script on the target path (refuse anything outside the scratchpad) so it can never address the live file. Record → Batch 4.4b (Tests).
 - **Browser driving.** Claude cannot type PINs on production; the operator enters them, everything after is driven by Claude. When synthetic clicks do not land in the browser pane, dispatch through the DOM and say so in the record. **A `keydown` probe reading `e.defaultPrevented` reports false for a handler that did fire, if the app re-registered its listener after the probe went on** — install the probe last, or observe the effect instead of the flag. Record → Batch 1.1 note 1, Batch 3.1b note 3, Batch 5.1 note 7.
 - **Journal payload vintages.** Anything that reads `FiscalEvent.dataJson` must tolerate the pre-3.5 and post-3.5 shapes; sealed rows are never re-serialised. *Open Threads → D*; record → Batch 3.5 note 3.
+- **A batch's *Validation Required* may predate its answer — read it before running it.** Many were written while the design decision was still open and quietly assume one answer. Batch 5.2's assumed a table picker; DD-09 said withdraw, so none of its six criteria was runnable. **Re-derive in place and show each original beside what replaced it** — void, halved, inverted, widened, kept — rather than dropping a criterion silently (5.7 already strikes through two that 4.4c overtook). Criteria can also be *missing*: 5.7 has none for M-11, M-09 or M-10. Record → Batch 5.2.
 - **Out-of-scope findings.** Record them in *Newly Discovered Issues* with an ID, a severity and a suggested home; do not fix them in the batch (safety rule 10).
 
 ---
@@ -305,7 +306,7 @@ These cannot be resolved from the code. **Claude must not decide them.** Each bl
 | **DD-06** | **ANSWERED 2026-09-04 — no LAN access; bind `127.0.0.1`.** No `APP_URL` change needed; printing is unaffected (the bridge dials **out**). The plan's old “protective by accident” line was wrong — corrected in the record. | Batch 4.3 (`COMPLETED`) | Full question and rationale: `REMEDIATION_RECORD.md` → *Answered design decisions*. |
 | **DD-07** | **ANSWERED 2026-09-04, amended twice the same day. Final: one operational role.** Only **MANAGER** operates the till; **SUPER_ADMIN is the developer's account**; **`CASHIER` is REMOVED from the product**, which is what let M-19s close. | Batches 4.4 and **4.4b** (both `COMPLETED`) | Full question and rationale: `REMEDIATION_RECORD.md` → *Answered design decisions*. |
 | **DD-08** | **ANSWERED 2026-09-04 — split, in six parts: remove the two scripts whose job is finished, rebuild `seed-users.ts` delete-free, guard the counter scripts, bring `scripts/` under static checking, correct the README.** The premise as written undercounted — C-17 named two dangerous scripts and there were three. | Batch 4.5 (`COMPLETED`) | Full question and rationale: `REMEDIATION_RECORD.md` → *Answered design decisions*. |
-| **DD-09** | **ANSWERED 2026-09-05 — no table service; withdraw the feature.** The floor-plan screen leaves the navigation and the README; the model and the server-side auto-link stay, unused. | Batch 5.2 (C-21) | Full question and rationale: `REMEDIATION_RECORD.md` → *Answered design decisions*. |
+| **DD-09** | **ANSWERED 2026-09-05 — no table service; withdraw the feature.** The floor-plan screen leaves the navigation and the README; the model and the server-side auto-link stay, unused. | Batch 5.2 (`COMPLETED`) | Full question and rationale: `REMEDIATION_RECORD.md` → *Answered design decisions*; what was built, and the criteria re-derived for it, in *Batch 5.2*. |
 | **DD-10** | **ANSWERED 2026-09-05 — allow, attributed to the CURRENT open till.** The original sealed Z is never touched. | Batch 5.3 (C-14) | Full question and rationale: `REMEDIATION_RECORD.md` → *Answered design decisions*. |
 | **DD-11** | **ANSWERED 2026-09-05 — one till, so held orders stay device-local.** 5.4 does the lifecycle fixes and the persist version guard only. | Batch 5.4 (C-23) | Full question and rationale: `REMEDIATION_RECORD.md` → *Answered design decisions*. |
 | **DD-12** | **ANSWERED 2026-09-05 — add entrée/sortie de caisse with a fixed category list**: *approvisionnement*, *prélèvement*, *dépense*, *erreur de caisse*. Needs a migration. | Batch 5.5 (M-05) | Full question and rationale: `REMEDIATION_RECORD.md` → *Answered design decisions*. |
@@ -1129,6 +1130,8 @@ Audit section J, step 6: none of these are subtle; all of them generate support 
 
 **Remediation direction (audit).** Move held orders server-side (they are orders); clear the cart on logout/lock/switch; add a persist `version` with a migration that discards incompatible state.
 
+**Carried in from Batch 5.2 (2026-09-05).** Held tickets fall back to `Commande N` because `cart-panel.tsx:95` calls `holdCurrent(tableLabel || …)` and the cart's `tableLabel` has no writer. Before DD-09 that was a symptom of C-21; **after it, it is the intended label** — do not read it as a bug for this batch to fix.
+
 **Scope note.** The server-side move is a design change — see DD-11. The cart-clearing and persist-versioning parts are unambiguous and can proceed regardless. **DD-11 answered 2026-09-05 — one till, so held orders stay device-local**: the cart-clearing and persist-versioning parts are now the batch's whole content, and the server-side move is not built.
 
 ### Batch 5.4 — Validation Required
@@ -1136,7 +1139,7 @@ Audit section J, step 6: none of these are subtle; all of them generate support 
 - Manual: logging out, locking, and switching user each clear the in-progress cart.
 - Manual: an old-format persisted cart is discarded rather than rehydrated with wrong values.
 - Targeted test: the persist version guard rejects an incompatible payload.
-- If held orders move server-side: targeted test that a held ticket is visible from a second client and survives a restart; and that a Z close accounts for open tickets coherently.
+- ~~If held orders move server-side: targeted test that a held ticket is visible from a second client and survives a restart; and that a Z close accounts for open tickets coherently.~~ — **VOID (DD-11, 2026-09-05): one till, so there is no server-side move and no second client.** Struck rather than deleted, per *Methods*; the Scope note above carries the answer.
 - Regression: an in-progress cart still survives a page refresh (the behaviour that persistence exists for).
 - `bun test src` — PASS. `bun run typecheck` — PASS.
 
@@ -1164,6 +1167,9 @@ Audit section J, step 6: none of these are subtle; all of them generate support 
 
 ### Batch 5.5 — Validation Required
 
+*(Checked 2026-09-05 against DD-12, answered **add it with a fixed category list**. These criteria predate the answer and survive it — the feature is being built, which is what they assume. Two gaps the batch must close, both from DD-12's own carried notes.)*
+- **Not covered below, and required:** the four categories are exactly *approvisionnement*, *prélèvement*, *dépense*, *erreur de caisse*, and a movement's category is totallable — the whole reason a fixed list beat free text.
+- **Still unanswered, and 5.5 must say plainly which it chose:** whether a cash movement needs a step-up PIN, as refunds do since 4.4c. With one operational role, any gate narrower than MANAGER gates nobody, so this is a real question rather than a formality.
 - Targeted test: a cash-in and a cash-out each adjust `expectedCash` in the right direction.
 - Targeted test: cash movements appear in the X and Z reports and in the sealed period aggregation (Batch 3.2).
 - **Fiscal verification:** each movement writes a journal event; the chain still verifies.
@@ -1195,10 +1201,11 @@ Audit section J, step 6: none of these are subtle; all of them generate support 
 
 ### Batch 5.6 — Validation Required
 
-*(Finalise after DD-13.)*
-- If implemented: targeted test that a void writes an `ANNULATION` event, does not increment the grand total, and does not appear in sales totals.
-- If removed: confirm no consumer breaks and the UI no longer implies the state exists.
-- `bun test src` — PASS.
+*(Reconciled 2026-09-05 against DD-13, which was answered **remove both dead values**. The two criteria below were written as a fork while the decision was open; the first branch is now void. Per *Methods*, struck rather than deleted.)*
+- ~~If implemented: targeted test that a void writes an `ANNULATION` event, does not increment the grand total, and does not appear in sales totals.~~ — **VOID: no pre-payment state is being built.**
+- **If removed** *(this is the live branch)*: confirm no consumer breaks and the UI no longer implies the state exists. **Both** `PENDING` and `CANCELLED` go, plus the permanently-zero counter.
+- **Not yet written, and this batch must add them:** that `prisma migrate diff` was run to measure whether the enum removal emits a migration at all (Batch 4.4b's method for the `CASHIER` removal), and that all 20 production orders being `COMPLETED` is re-confirmed read-only before anything is removed.
+- `bun test src` — PASS. `bun run typecheck` — PASS.
 
 ### Batch 5.6 — Status Record
 
@@ -1227,6 +1234,9 @@ Audit section J, step 6: none of these are subtle; all of them generate support 
 
 ### Batch 5.7 — Validation Required
 
+*(Checked 2026-09-05. This list was written before DD-14 and DD-15 were answered and has **no criterion for either** — M-11, M-09 and M-10 are in this batch's scope and are untested by everything below. Per *Methods*, the gap is named here rather than discovered mid-batch.)*
+- **Missing — M-11 (DD-14, « Offert / repas personnel »):** a zero-total sale completes under its own tender, is journalled with VAT at zero, and — the half that matters — **does not inflate revenue** in Batch 3.2's aggregation or in a sealed period total, not merely in the Z. Both walls at `orders/route.ts:51-59` and `:251` have to come down together.
+- **Missing — M-09 / M-10 (DD-15, remove `ProductAddon`, `AddOn` and `Customer.postalCode`):** a destructive schema change with zero rows to lose, so it needs the migration rehearsal and a handed-over command; and `media-usage.ts` reads `AddOn.image` in two places, so Batch 4.6's media scan must be re-verified after the model goes.
 - Targeted test for M-19 built through the options dialog's own mapping, not a hand-built `CartItem` — the existing tests miss the bug precisely because they bypass it.
 - Targeted test: switching order type after adding an item produces a client total the server accepts.
 - ~~Manual: the discount dialog's percentage caption matches the approval banner (M-17).~~ — **done in Batch 4.4c**, which also had to make the banner true.
@@ -1315,8 +1325,11 @@ Audit section J, step 7: the suite is honest but tests the wrong third. 136 test
 | **T-12** | `NOT STARTED` | No CI exists. No `.github/`, no pipeline config anywhere. Tests run only when someone remembers. All "lint 0 errors · tsc exit 0 · N tests pass" claims in `IMPLEMENTATION_PLAN.md` rest on manual local runs. | repo root | Add CI running `typecheck`, `lint`, `bun test src` — and e2e only after T-10. Depends on the repo being pushed (P-01). *Correction 2026-09-04: P-01 was done in Batch 0.2; the repository is on `origin/main`.* |
 | **L-06** | `NOT STARTED` | `vitest@^3` is a devDependency with no config and no script. Running `bunx vitest` bypasses the `bunfig.toml` preload that redirects `DATABASE_URL`, and four test files begin by wiping 17 tables. | `package.json`; `bunfig.toml:8-9`; `test-setup.ts:34` | Remove the `vitest` devDependency, or add a hard guard in `test-setup.ts` asserting the DB path is a temp path. Prefer both. |
 
+**Also assigned to this batch, from *Newly Discovered Issues* — they are not rows in the table above and are easy to miss:** **L-40** (test files clean up before each test and not after, so file order is load-bearing and a file can fail because of one it has nothing to do with) and **L-43** (one unreproduced failure of `shift-race.test.ts`'s ten-sales race; its last assertion is a **global** `db.order.count()` over a database 53 files share). Both are the same underlying hazard as warning 3b, and **the per-run test-database path fixes all three** — `test-setup.ts:21-22` builds the path from `os.tmpdir()` with no per-run suffix.
+
 ### Batch 6.3 — Validation Required
 
+- **A test run must not be able to observe another run's or another file's rows** — the per-run database path, plus a check that L-43's assertion is scoped to the shift under test rather than counting every order in the database.
 - Run the e2e suite twice in a row against the disposable database: both runs pass (proves re-runnability).
 - Confirm `db/custom.db` hash is unchanged by an e2e run.
 - Confirm a guard exists that aborts any test run whose `DATABASE_URL` is not a temp path.
@@ -1352,8 +1365,8 @@ Do **not** correct these before the corresponding fix lands — a document that 
 | **DOC-07** | `NOT STARTED` | `.env.example:20-21` `BACKUP_LOCATION` override | Read nowhere | True after Batch 2.2. |
 | **DOC-08** | `NOT STARTED` | `README.md:31`, `.env.example:9`, `README-windows.md:46` show a relative `DATABASE_URL` | The live `.env` uses an absolute Windows path | Make the docs match the decided convention (DD-02). |
 | **DOC-09** ✅ | `COMPLETED` 2026-09-04 | `scripts/README.md` documents 8 scripts and describes two destructively-wrong | 9 files; `port-real-data.ts` undocumented; `inspect-product.ts` takes no argument; the "not `src/lib/db`" note is contradicted by `fix-duplicate-product-options.ts:1` | **Done in Batch 4.5**: README rewritten around what each script deletes, `port-real-data.ts` removed outright, `inspect-product.ts` now takes the product name as an argument, and the `src/lib/db` exception is stated. Record → Batch 4.5. |
-| **DOC-10** | `NOT STARTED` | `README.md:112-113` role table | Understates cashier privileges (shift open/close have no role gate); "suppression définitive" — no hard-delete path exists | Make the table match the enforced matrix after Batch 4.4. |
-| **DOC-11** | `NOT STARTED` | `README.md:80` reports list; `README.md:90` SUPER_ADMIN fiscal duties; `README.md:95` "tables (plan de salle)" | VAT/cashiers/products reports and all fiscal functions have no UI; tables cannot be attached to an order | True after Batches 3.4 and 5.2. |
+| **DOC-10** | `NOT STARTED` | `README.md:112-113` role table | Understates cashier privileges (shift open/close have no role gate); "suppression définitive" — no hard-delete path exists | Make the table match the enforced matrix after Batch 4.4. *Correction 2026-09-05 (Batch 5.2): the line reference is stale — the role table is at `README.md:92-94`, and `:112-113` is now inside the project-structure block. Two things already moved under it: Batch 4.4b's paragraph above the table says `CASHIER` was removed, and 5.2 struck "tables" from the MANAGER row at `:93`. Neither of DOC-10's two claims is addressed by that; both stand.* |
+| **DOC-11** ◐ | `NOT STARTED` — **one of three clauses closed** | `README.md:80` reports list; `README.md:90` SUPER_ADMIN fiscal duties; ~~`README.md:95` "tables (plan de salle)"~~ | VAT/cashiers/products reports and all fiscal functions have no UI; ~~tables cannot be attached to an order~~ | *Correction 2026-09-05 (Batch 5.2).* **The tables clause is closed, and not the way this row expected.** It read "True after Batches 3.4 and 5.2" — i.e. 5.2 would make the claim true by wiring a picker. DD-09 answered *withdraw*, so 5.2 made the claim **go away** instead: the line (at `:79`, not `:95`) is deleted, and "tables" is struck from the MANAGER row at `:93`. **Nothing in the README now claims a floor plan**, which is the outcome DOC-11 wanted by either route. The other two clauses stand and are 7.1's: the reports list at `:80` is unchanged, and the SUPER_ADMIN fiscal duties are now at `:94`, not `:90` — Batch 3.4 built that UI, so re-check rather than assume. |
 | **DOC-12** | `NOT STARTED` | `IMPLEMENTATION_PLAN.md` — Phase 1 "✅ COMPLETE (NF525/ISCA)"; `:63` cites two deleted migrations; `:162` claims `VatBreakdown` is `Record<string,…>` (it is `Record<number,…>` at `money.ts:35`); `:164` claims the printer default was fixed (both seed paths still write "Epson TM-m30"); `:144` justifies `X-Real-IP` by a Caddy proxy the same document deleted at `:120`; `:256` says 50 route files (59); `:38` vs `:123` contradict each other on 0f/4f; `:33` cites a git-history archive path that does not exist | Historical record. **Do not rewrite history** — append a correction note, and never mark compliance complete on the basis of code alone. |
 
 Also in scope: `src/lib/db.ts:24` cites "IMPLEMENTATION_PLAN.md → Batch C C-C2", a section that does not exist; `src/lib/services/fiscal.test.ts:8` cites `vitest.setup.ts`, renamed in `c1cbe03`; `src/lib/http-rate-limit.ts:6-14` and `src/lib/services/backup.ts:12-19` carry rationale that no longer holds.
@@ -1383,6 +1396,14 @@ Also in scope: `src/lib/db.ts:24` cites "IMPLEMENTATION_PLAN.md → Batch C C-C2
 | **L-08** | `NOT STARTED` | Duplicated helpers missed by the Phase 7 extraction: `statusBadge` ×2, `formatBytes` ×2, three overlapping variance helpers. | `orders-view.tsx:96`; `dashboard-view.tsx:52`; `backups-view.tsx:41`; `media-view.tsx:45`; `shifts-view.tsx:58`; `reports-view.tsx:55,62` |
 | **L-12** | `NOT STARTED` | Four files carry a UTF-8 BOM before `"use client"`; both seed paths still write `printerName: "Epson TM-m30"`. | `error-boundary.tsx`, `home-dashboard.tsx`, `audit-view.tsx`, `login-screen.tsx`; `services/seed.ts:243`; `prisma/seed.ts:127` |
 | — | `DEFERRED` | 27 of 51 shadcn `ui/*` components are orphaned, keeping ~20 dependencies transitively alive (`@dnd-kit/*`, `@tanstack/react-table`, `date-fns`, `@hookform/resolvers`, `recharts`, `cmdk`, `vaul`, `input-otp`, `react-day-picker`, `react-resizable-panels`, and many `@radix-ui/*`). Template residue, not deletion evidence — **except `@dnd-kit/*`**, see M-09/section I. | `src/components/ui/` |
+
+**DO NOT REMOVE, and they will look exactly like this batch's targets (Batch 5.2, DD-09, 2026-09-05).** The table feature was **withdrawn, not deleted**, so five surfaces are now unreferenced *on purpose* and are retained in case table service ever exists:
+- `src/features/tables/tables-view.tsx` — on disk, **imported by nothing** since the shell's `dynamic()` import was removed.
+- `src/app/api/tables/route.ts`, `.../[id]/route.ts`, `.../seed/route.ts` — **no client caller**; that screen was their only one. They stay under `api-authorization.test.ts`'s filesystem walk, which is a second reason to keep them.
+- The checkout auto-link (`checkout.ts:202`) and the refund release (`refund.ts:131`) — live code on a branch **no sale can enter**, because the cart's `tableLabel` has no writer.
+- `setTableLabel` (`cart-store.ts`) — deliberately callerless; `table-withdrawal.test.ts` fails if anything calls it.
+
+Each carries a comment saying so, and `src/features/tables/table-withdrawal.test.ts` fails if any of them is deleted. **Removing them is reopening DD-09, which is a decision, not a cleanup.** Full reasoning: record → Batch 5.2.
 
 ### Batch 7.2 — Validation Required
 
