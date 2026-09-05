@@ -48,4 +48,12 @@ SESSION_SECRET="your-secure-32-char-random-secret"
 BACKUP_ENCRYPTION_KEY="your-secure-32-char-backup-key"
 ```
 
-The database initializes automatically in `./db/custom.db` in SQLite WAL mode on first launch.
+The database initializes automatically in `./db/custom.db` **when the file does not yet exist**.
+
+> **Corrected 2026-09-05 (batch 7.1, DOC-03).** This line used to say the database
+> initializes "in SQLite WAL mode on first launch". Both halves were wrong. Initialization
+> only happens when the file is **absent** — an existing database is left alone — and
+> nothing applied WAL at all until batch 2.3 moved the pragma into the application
+> (`src/lib/db-pragmas.ts`, run from `src/instrumentation.ts` at every start). WAL is now
+> applied automatically **except** when the database sits in a cloud-synced folder, where it
+> is refused on purpose. Verify with `PRAGMA journal_mode` rather than trusting this file.

@@ -23,8 +23,17 @@ per database file.
 - After cloning a fresh checkout (the dev DB file may exist but is on default
   rollback journal mode).
 - After resetting / dropping the local DB.
-- After deploy (the production `start.sh` now runs `sqlite3 … "PRAGMA
-  journal_mode=WAL"` at first boot, when the sqlite3 CLI is available).
+- ~~After deploy (the production `start.sh` now runs `sqlite3 … "PRAGMA
+  journal_mode=WAL"` at first boot, when the sqlite3 CLI is available).~~
+  **CORRIGÉ 2026-09-05 (lot 7.1, DOC-02).** `start.sh` a été supprimé dans le
+  commit `0aeea30` et n'a jamais été remplacé : pendant des mois, rien
+  n'appliquait WAL. Depuis le lot 2.3 c'est **l'application** qui le fait, à
+  chaque démarrage, depuis `src/instrumentation.ts` → `src/lib/db-pragmas.ts`.
+  Aucun outil externe n'est requis et la CLI sqlite3 n'est plus nécessaire.
+  **Le pragma est refusé — délibérément — si la base est dans un dossier
+  synchronisé** (OneDrive, Dropbox, Google Drive, iCloud) : les fichiers
+  `-wal`/`-shm` y sont corruptibles par l'agent de synchronisation. C'est le
+  cas de l'installation actuelle, qui reste donc en journal rollback.
 - After restoring a backup (the restored SQLite file is restored to whatever
   mode it was created with).
 

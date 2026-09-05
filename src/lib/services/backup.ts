@@ -14,9 +14,17 @@
 // Prisma client is disconnected + reconnected after the file swap. The caller
 // route is responsible for signalling the next process to restart.
 //
-// Note: we encrypt whole files in memory. SQLite backups are typically a few
-// MiB (single POS deployment), which is small enough that a buffered approach
-// beats a fragile stream + splice an GCM auth-tag insertion would require.
+// Note: we encrypt whole files in memory.
+//
+// CORRECTED 2026-09-05 (batch 7.1). This said SQLite backups are "typically a
+// few MiB (single POS deployment)", which is true of the database and false of
+// what this module actually buffers. Measured on the live install: the database
+// part is ~586 KB, and the uploads archive beside it is **47 MB** and grows with
+// the media library (public/uploads/ is 49 MB across 139 files today). Both are
+// read into memory whole, encrypted, and written out. The buffered approach is
+// still the deliberate choice — a stream would have to splice the GCM auth tag —
+// but it is a choice about a 47 MB buffer, not a 1 MB one, and anyone changing
+// it should know which number they are reasoning about.
 import { db } from "@/lib/db";
 import { promises as fs, createReadStream } from "fs";
 import { existsSync } from "fs";

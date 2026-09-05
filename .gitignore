@@ -65,7 +65,14 @@ server.log
 # directory of that name at any depth.
 /db-snapshots/
 
-# Runtime uploads (user-uploaded images — must not be committed)
+# `/upload/` is an empty stray directory, ignored for tidiness.
+#
+# It is NOT where the images live, and this comment used to claim that user
+# uploads "must not be committed" — which reads as a policy about
+# `public/uploads/`, where the catalogue's 139 real images (49 MB) sit and
+# ARE tracked. DD-16 (2026-09-05) decided to keep them tracked: git is
+# currently their only version-controlled copy, and no restorable backup
+# exists on the live install (L-46). Do not add public/uploads/ here.
 /upload/
 
 # Z.ai artifacts

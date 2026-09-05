@@ -5,7 +5,11 @@ import { ensureFiscalCounter, nextReceiptNumber } from "@/lib/services/sequence"
 import type { Prisma } from "@prisma/client";
 
 // Service-layer integration tests for the fiscal journal (JFP).
-// Uses the throwaway test DB (set up in vitest.setup.ts via prisma db push).
+// Uses the throwaway test DB, set up in `test-setup.ts` (preloaded by
+// `bunfig.toml`) via `prisma db push`. That file was called `vitest.setup.ts`
+// until commit `c1cbe03`; this comment still named the old one. Since batch
+// 6.3 the database lives in a per-run directory under the system temp dir,
+// and the run ABORTS if it would resolve anywhere else.
 
 async function seedMinimal() {
   // Wipe all data so each test starts clean.

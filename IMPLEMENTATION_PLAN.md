@@ -7,6 +7,19 @@
 
 Last updated: 2026-08-29 (Phase 11 complete — Phases 6-11 all done; Phase 12 features remain future)
 
+> ### ⚠ READ APPENDIX D BEFORE TRUSTING ANY LINE IN THIS FILE
+>
+> This is a **historical record of what was believed on 2026-08-29**, not a
+> description of the code as it stands. A read-only audit on 2026-09-03 and the
+> remediation that followed found eight false or contradictory statements in
+> it, several of them ticked `[x]`. They are **not corrected in place** — this
+> document's value is that it records what was believed at the time — and are
+> instead listed, each with its measurement, in **Appendix D — Corrections**
+> at the end. Added 2026-09-05 by batch 7.1 (DOC-12).
+>
+> **In particular: Phase 1 is marked "✅ COMPLETE (ISCA / NF525)" and no such
+> conclusion may be drawn from this document.** See Appendix D, item 1.
+
 ---
 
 ## Context & decisions
@@ -261,3 +274,80 @@ Roadmap items from the worklog "Unresolved" lists. Evaluate after the app is sol
 - Loi n° 2026-103 du 19 fév 2026 art. 125 (rétablit l'attestation éditeur depuis 21 fév 2026)
 - BOI-TVA-DECLA-30-10-30 (ISCA conditions) · BOI-LETTRE-000242 (attestation model, 2 volets)
 - Accredited certifiers: INFOCERT/AFNOR (NF525) · LNE. Fausse attestation = 3 yrs prison + €45,000 (art. 441-1 code pénal).
+
+---
+
+## Appendix D — Corrections (added 2026-09-05, batch 7.1 / DOC-12)
+
+**Nothing above this line has been edited.** This document is a record of what
+was believed on 2026-08-29; rewriting it would destroy the only evidence of
+that. Each item below names the line, states what it claims, and states what
+was **measured** on 2026-09-05 against the code — not against another document,
+which is how several of these claims survived as long as they did.
+
+**1. `:54` — "Phase 1 — ISCA / NF525 compliance (LEGAL BLOCKER) — ✅ COMPLETE".
+This tick may not be relied upon, and it is the most consequential line in the
+file.** What was built is a hash-chained journal, gapless numbering, sealed
+closes and a perpetual grand total — real work, and it is described accurately
+elsewhere. What no amount of code can establish is *conformité*: that is a
+statement about an attestation, an éditeur's declaration, and in the certified
+route an accredited body (INFOCERT/AFNOR, LNE). Appendix C of this very
+document records that a false attestation carries three years' imprisonment and
+a €45,000 fine. Three questions remain open for a qualified external party —
+whether an unkeyed hash chain suffices (V-01), whether the annual archive format
+satisfies the archiving obligation (V-02), and whether the journal must record
+the automatic drawer kick (V-13). **Read this tick as "the code we planned was
+written", never as "the obligation is met".**
+
+**2. `:63` — cites migrations `20260829020705_add_fiscal_journal` and
+`20260829022715_close_datajson`.** Neither exists. `prisma/migrations/` holds
+**eight** migrations, the earliest being `20260829112122_init_integer_cents`
+(listed 2026-09-05). The two named here were removed when history was reset.
+
+**3. `:162` — "`VatBreakdown` type aligned … now types `Record<string,…>` (was
+`Record<number,…>`)". This was FALSE when written and is TRUE today, which is
+why it must not simply be ticked or deleted.** At the time of writing
+`src/lib/money.ts` still declared `Record<number,…>`; the alignment actually
+landed in remediation batch 3.1. Verified 2026-09-05: `money.ts:57` reads
+`export type VatBreakdown = Record<string, { ht: number; vat: number; ttc: number }>`.
+The claim is now accurate — by accident of a later fix, not because it was true
+when it was made.
+
+**4. `:164` — "`DEFAULT_SETTINGS.printerName` 'Epson TM-m30'→'Sunso WTP-801'
+— matches the actual printer". FALSE, and still false.** Both seed paths write
+the wrong name today: `src/lib/services/seed.ts:224` and `prisma/seed.ts:123`
+each set `printerName: "Epson TM-m30"`. The physical printer is the Sunso
+WTP-801. Nothing reads the field, so it is cosmetic — but the line claims a fix
+that was never made, and the value is scheduled for correction in batch 7.2
+(L-12), with the live setting an operator action.
+
+**5. `:143` — "`clientIp()` … now prefers `X-Real-IP` (set by Caddy in the
+approved serving model)", contradicted by `:120` in the same document**, which
+records that Caddy was deleted along with the rest of the z.ai deploy infra.
+There is no proxy. Believing those headers handed any caller a fresh
+rate-limit bucket per request, which is finding C-08; remediation batch 4.1
+made trusting them **opt-in** via `TRUST_PROXY_HEADERS`, default off. The
+rationale in `src/lib/http-rate-limit.ts` was re-read on 2026-09-05 and is
+accurate as it stands.
+
+**6. `:256` — "API routes: `src/app/api/**` (50 route files)".** Counted
+2026-09-05: **61**. It was already more than 50 when written, and remediation
+has both added and removed routes since — batch 5.7a removed two
+(`/api/catalog/addons` and its `[id]`).
+
+**7. `:38` versus `:123` — two "Hygiene fixes" items, one unticked (`0f`) and
+one ticked (`4f`).** They overlap without saying so, so the file both claims
+the work is done and claims it is outstanding. Nothing here establishes which.
+
+**8. `:33` — the pre-reset git history "archived at
+`…\opencode\hibapos-git-backup-20260829023844`".** That path does not exist
+(checked 2026-09-05). Whether the archive survives elsewhere is unknown, and
+this is the only pointer to it — so it should be treated as **lost** until
+somebody produces it. It is the only copy of the history before the reset.
+
+**9. A ninth, found while writing this note and not in the original audit:
+`:140` (item 6a) describes a Zod enum of `COMPLETED`/`REFUNDED`/`CANCELLED`/
+`PENDING`.** `CANCELLED` and `PENDING` were removed from `OrderStatus` in
+remediation batch 5.6 (2026-09-05) — zero rows carried either, confirmed
+read-only first. The guard itself still exists and still validates; only two of
+its four values are gone.
