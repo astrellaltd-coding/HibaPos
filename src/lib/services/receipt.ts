@@ -2,6 +2,7 @@
 import type { OrderDto, SettingsDto } from "@/types/api";
 import { formatDateTime, formatEuro } from "@/lib/format";
 import { addToVatBreakdown, apportion, type VatBreakdown } from "@/lib/money";
+import { PAYMENT_LABELS_FULL } from "@/lib/order-labels";
 
 /**
  * M-06 (Batch 3.6) — the per-rate VAT block.
@@ -105,7 +106,11 @@ export function renderReceipt(order: OrderDto, settings?: Partial<SettingsDto>):
   lines.push("-".repeat(w));
   lines.push("Paiements");
   for (const p of order.payments) {
-    const methodLabel = p.method === "CASH" ? "Espèces" : p.method === "CARD" ? "Carte" : "Bon / Ticket";
+    // DD-14 (Batch 5.7b). This was a two-branch ternary whose ELSE meant
+    // "Bon / Ticket", so a new tender would have been printed under the wrong
+    // name onto an immutable fiscal snapshot. It now reads the shared table
+    // and falls back to the raw value rather than to a specific tender.
+    const methodLabel = PAYMENT_LABELS_FULL[p.method] ?? p.method;
     lines.push(leftRight(methodLabel, formatEuro(p.amount)));
     if (p.method === "CASH" && (p.tendered ?? 0) > 0) {
       lines.push(`  Reçu ${formatEuro(p.tendered ?? 0)} — Rendu ${formatEuro(p.change ?? 0)}`);

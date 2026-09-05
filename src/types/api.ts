@@ -133,7 +133,9 @@ export type OrderItemDto = {
   notes: string | null;
 };
 
-export type PaymentMethod = "CASH" | "CARD" | "VOUCHER";
+/** DD-14 (Batch 5.7b): `OFFERT` is the give-away tender. Not a refund
+ *  channel — `RefundDto.method` below still names only the three paid ones. */
+export type PaymentMethod = "CASH" | "CARD" | "VOUCHER" | "OFFERT";
 
 export type PaymentDto = {
   id: string;

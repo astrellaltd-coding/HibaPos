@@ -12,10 +12,11 @@ import { useCartStore, computeCartTotals } from "@/store/cart-store";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "@/lib/api-client";
 import type { OrderDto, PaymentMethod, SettingsDto } from "@/types/api";
-import { Banknote, CreditCard, Ticket, Plus, Trash2, Loader2, CheckCircle2, Coins } from "lucide-react";
+import { Banknote, CreditCard, Ticket, Plus, Trash2, Loader2, CheckCircle2, Coins, Gift } from "lucide-react";
 import { toast } from "sonner";
 import { StepUpPinDialog, type StepUpConfirmation } from "@/components/pos/step-up-pin-dialog";
 import { discountNeedsStepUp } from "@/lib/discount-policy";
+import { OFFERT, OFFERT_LABEL } from "@/lib/tender-policy";
 
 type PayLine = { method: PaymentMethod; amount: number; tendered?: number }; // cents
 
@@ -24,6 +25,13 @@ const METHODS: { method: PaymentMethod; label: string; icon: typeof Banknote; co
   { method: "CARD", label: "Carte", icon: CreditCard, color: "text-sky-600" },
   { method: "VOUCHER", label: "Bon / Ticket", icon: Ticket, color: "text-amber-600" },
 ];
+
+// DD-14 (Batch 5.7b). The give-away tender is kept OUT of the grid above and
+// offered on its own, because it is not an alternative way to pay a bill —
+// it is the only way to settle one that has been discounted to nothing. The
+// server refuses it against any non-zero total (`tender-policy.ts`), so
+// showing it beside Espèces would invite a refusal rather than prevent one.
+const OFFERT_METHOD = { method: OFFERT as PaymentMethod, label: OFFERT_LABEL, icon: Gift };
 
 export function PaymentDialog({
   open,
@@ -82,6 +90,17 @@ export function PaymentDialog({
   const close = (v: boolean) => {
     onOpenChange(v);
     if (!v) setTimeout(reset, 200);
+  };
+
+  // DD-14 (Batch 5.7b). A zero-total order cannot be settled by `addPayment`:
+  // it returns early when nothing remains, which is correct for every paid
+  // tender and is exactly why M-11's 100 % discount could not be checked out.
+  // The give-away tender gets its own path, and it writes the ONE line shape
+  // the server accepts — amount 0, nothing else alongside it.
+  const addOffert = () => {
+    if (total !== 0) return;
+    setActiveMethod(OFFERT as PaymentMethod);
+    setLines([{ method: OFFERT as PaymentMethod, amount: 0 }]);
   };
 
   const addPayment = (amount: number) => {
@@ -263,6 +282,30 @@ export function PaymentDialog({
             )}
 
             <p className="mb-2 text-xs font-medium text-muted-foreground">Moyen de paiement</p>
+            {total === 0 ? (
+              // DD-14 (Batch 5.7b). Nothing is owed, so there is nothing to
+              // take — the only legitimate settlement is the give-away tender.
+              <div className="mb-4">
+                <button
+                  onClick={addOffert}
+                  aria-pressed={lines.length > 0}
+                  className={cn(
+                    "flex w-full flex-col items-center gap-1.5 rounded-lg border py-3 text-xs font-medium transition-colors",
+                    lines.length > 0
+                      ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                      : "border-border bg-card hover:bg-muted/50",
+                  )}
+                >
+                  <OFFERT_METHOD.icon
+                    className={cn("h-5 w-5", lines.length > 0 ? "text-primary-foreground" : "text-violet-600")}
+                  />
+                  {OFFERT_METHOD.label}
+                </button>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Total nul : la commande est offerte et sera enregistrée sans recette.
+                </p>
+              </div>
+            ) : (
             <div className="mb-4 grid grid-cols-3 gap-2">
               {METHODS.map((m) => {
                 const Icon = m.icon;
@@ -283,6 +326,7 @@ export function PaymentDialog({
                 );
               })}
             </div>
+            )}
 
             {activeMethod === "CASH" && remaining > 0 && (
               <div className="mb-3">
@@ -400,7 +444,11 @@ export function PaymentDialog({
           <Button
             className="h-11 flex-1 gap-2 text-base font-semibold"
             onClick={() => void finalize()}
-            disabled={loading || paid < total - 0.01}
+            // DD-14 (Batch 5.7b): `lines.length === 0` is new. At a total of
+            // 0 the amount test alone leaves this enabled with no payment at
+            // all, which the server then refuses with « Au moins un paiement »
+            // — a refusal the operator can do nothing about from here.
+            disabled={loading || paid < total - 0.01 || lines.length === 0}
           >
             {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <CheckCircle2 className="h-5 w-5" />}
             Valider · {formatEuro(total)}

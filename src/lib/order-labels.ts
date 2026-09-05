@@ -3,17 +3,21 @@
 // (Phase 7b — pure cleanup, no behavior change).
 
 import type { OrderDto } from "@/types/api";
+import { OFFERT_LABEL } from "@/lib/tender-policy";
 
 export const PAYMENT_LABELS: Record<string, string> = {
   CASH: "Espèces",
   CARD: "Carte",
   VOUCHER: "Bon",
+  // DD-14 (Batch 5.7b). Short form for the badges; the full name is below.
+  OFFERT: "Offert",
 };
 
 export const PAYMENT_LABELS_FULL: Record<string, string> = {
   CASH: "Espèces",
   CARD: "Carte",
   VOUCHER: "Bon / Ticket",
+  OFFERT: OFFERT_LABEL,
 };
 
 export const ORDER_TYPE_LABELS: Record<OrderDto["orderType"], string> = {

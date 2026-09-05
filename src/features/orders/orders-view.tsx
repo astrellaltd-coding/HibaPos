@@ -45,6 +45,7 @@ import {
   Utensils,
   ShoppingBag,
   Coins,
+  Gift,
   CreditCard,
   Ticket,
   MapPin,
@@ -89,6 +90,8 @@ function paymentIcon(method: string) {
       return CreditCard;
     case "VOUCHER":
       return Ticket;
+    case "OFFERT":
+      return Gift;
     default:
       return Coins;
   }
@@ -122,6 +125,9 @@ function paymentBadge(method: string) {
     CASH: "bg-emerald-50 text-emerald-700 border-emerald-200",
     CARD: "bg-sky-50 text-sky-700 border-sky-200",
     VOUCHER: "bg-amber-50 text-amber-700 border-amber-200",
+    // DD-14 (Batch 5.7b) — visually distinct, because "given away" and "paid"
+    // must not look alike on the screen a manager scans.
+    OFFERT: "bg-violet-50 text-violet-700 border-violet-200",
   };
   return (
     <Badge variant="outline" className={cn("gap-1", styles[method])}>

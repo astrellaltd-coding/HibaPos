@@ -1,12 +1,11 @@
 // CSV export utilities for dashboard and reports.
 import type { DashboardDto } from "@/types/api";
 import { formatEuro, formatDateTime } from "@/lib/format";
+import { PAYMENT_LABELS } from "@/lib/order-labels";
 
-const METHOD_LABELS: Record<string, string> = {
-  CASH: "Espèces",
-  CARD: "Carte",
-  VOUCHER: "Bon",
-};
+// DD-14 (Batch 5.7b): this was a fourth hand-maintained copy of the payment
+// labels and would have silently exported a raw "OFFERT". It now reads the
+// shared table, so a new tender reaches the CSV by existing.
 
 function csvEscape(value: string | number): string {
   const s = String(value);
@@ -70,7 +69,7 @@ export function exportDashboardCSV(data: DashboardDto): string {
   rows.push(["RÉPARTITION DES PAIEMENTS"]);
   rows.push(["Méthode", "Montant", "Nombre"]);
   data.paymentBreakdown.forEach((p) => {
-    rows.push([METHOD_LABELS[p.method] ?? p.method, formatEuro(p.amount), p.count]);
+    rows.push([PAYMENT_LABELS[p.method] ?? p.method, formatEuro(p.amount), p.count]);
   });
   rows.push([]);
 
@@ -85,7 +84,7 @@ export function exportDashboardCSV(data: DashboardDto): string {
       o.tableLabel ?? "",
       o.itemCount,
       formatEuro(o.total),
-      o.payments.map((p) => METHOD_LABELS[p.method] ?? p.method).join(" + "),
+      o.payments.map((p) => PAYMENT_LABELS[p.method] ?? p.method).join(" + "),
       o.cashier?.name ?? "",
       o.status === "COMPLETED" ? "Terminée" : o.status === "REFUNDED" ? "Remboursée" : o.status,
     ]);

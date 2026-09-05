@@ -47,6 +47,9 @@ const PAYMENT_COLORS: Record<string, string> = {
   CASH: "var(--chart-1)",
   CARD: "var(--chart-2)",
   VOUCHER: "var(--chart-4)",
+  // DD-14 (Batch 5.7b). An offert line is always 0,00 €, so this slice has no
+  // area — the colour exists so a legend entry is not rendered unstyled.
+  OFFERT: "var(--chart-5)",
 };
 
 function statusBadge(status: OrderDto["status"]) {

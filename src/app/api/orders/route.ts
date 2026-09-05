@@ -7,6 +7,7 @@ import { computeLinePricing, resolveVatRate } from "@/lib/services/pricing";
 import { sum2 } from "@/lib/money";
 import { consumeStepUpToken } from "@/lib/services/step-up";
 import { discountNeedsStepUp } from "@/lib/discount-policy";
+import { checkTenderComposition, TENDER_METHODS } from "@/lib/tender-policy";
 import { createOrderInTransaction, CheckoutError } from "@/lib/services/checkout";
 import type { SettingsDto } from "@/types/api";
 
@@ -51,8 +52,18 @@ const checkoutIntentSchema = z.object({
   payments: z
     .array(
       z.object({
-        method: z.enum(["CASH", "CARD", "VOUCHER"]),
-        amount: z.number().int().min(1), // cents (min 1 cent)
+        // DD-14 (Batch 5.7b): `OFFERT` joins the three paid tenders, and
+        // `amount` relaxes from `min(1)` to `min(0)` — an « offert » line
+        // carries nothing by definition. The guarantee that relaxation gives
+        // up (a PAID line must carry a real amount) is not lost: it moves to
+        // `checkTenderComposition`, which the handler runs below, alongside
+        // the two rules that stop this tender inflating revenue.
+        //
+        // `.min(1, "Au moins un paiement")` on the ARRAY is untouched and must
+        // stay: an offert sale sends exactly one line, so a checkout with no
+        // payments at all is still refused here.
+        method: z.enum(TENDER_METHODS),
+        amount: z.number().int().min(0), // cents; only OFFERT may be 0
         tendered: z.number().int().min(0).optional(), // cents
       })
     )
@@ -254,8 +265,22 @@ export const POST = withAuth(async (req, { user }) => {
   // on its own merits.
   const needsStepUp = discountNeedsStepUp(discountTotal, subtotal, threshold);
 
-  // Validate payments cover the total exactly (cents).
   const totalAfterDiscount = subtotal - discountTotal;
+
+  // DD-14 (Batch 5.7b). The give-away tender's own rules, decided BEFORE the
+  // step-up token is consumed further down — a checkout refused for a
+  // malformed tender must not cost the operator a PIN entry, which is L-41's
+  // shape and the mistake Batch 5.5 note 4 caught in its own code.
+  //
+  // Deliberately separate from the equality check below, which is older, owns
+  // a different question, and still runs on every checkout including this one.
+  const tender = checkTenderComposition(payments, totalAfterDiscount);
+  if (!tender.ok) {
+    return NextResponse.json({ error: tender.message }, { status: 400 });
+  }
+
+  // Validate payments cover the total exactly (cents). An offert sale passes
+  // this unchanged: one OFFERT line of 0 against a total of 0.
   const paidTotal = sum2(payments.map((p) => p.amount));
   if (paidTotal !== totalAfterDiscount) {
     return NextResponse.json(

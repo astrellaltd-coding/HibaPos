@@ -428,10 +428,21 @@ model OrderItem {
   @@index([productId])
 }
 
+// DD-14 (2026-09-05), Batch 5.7b. `OFFERT` — « Offert / repas personnel » —
+// is the give-away tender: a staff meal or a comp, checked out as a 100 %
+// discount settled by a single OFFERT line carrying amount 0. It exists as its
+// own tender rather than as a 0,00 € cash sale so that what was GIVEN AWAY
+// stays separable from what was SOLD.
+//
+// ⚠ THIS ENUM IS SHARED WITH `Refund.method`, and OFFERT is NOT a refund
+// channel — there is nothing to hand back on a sale that took no money.
+// `refundSchema` in `src/lib/validation.ts` deliberately still lists only the
+// three paid tenders, and `tender-policy.test.ts` asserts it.
 enum PaymentMethod {
   CASH
   CARD
   VOUCHER
+  OFFERT
 }
 
 model Payment {

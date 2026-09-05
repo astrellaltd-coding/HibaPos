@@ -192,9 +192,18 @@ export const orderItemSchema = z.object({
 });
 export type OrderItemInput = z.infer<typeof orderItemSchema>;
 
+// ⚠ NOT the schema the checkout runs. `orders/route.ts` declares its own
+// `checkoutIntentSchema` inline and that is the live one; this pair is
+// exercised only by `validation.test.ts`. Kept in step with the route by hand
+// so the two do not drift — the duplication itself is recorded as **L-49**.
+//
+// DD-14 (Batch 5.7b): mirrors the route — OFFERT joins the tenders and
+// `amount` relaxes to `min(0)`. The rules that make that safe live in
+// `tender-policy.ts`, which the ROUTE runs; parsing alone does not enforce
+// them, and a test asserting otherwise here would be proving nothing.
 export const paymentSchema = z.object({
-  method: z.enum(["CASH", "CARD", "VOUCHER"]),
-  amount: z.number().int().min(1), // cents (min 1 cent)
+  method: z.enum(["CASH", "CARD", "VOUCHER", "OFFERT"]),
+  amount: z.number().int().min(0), // cents; only OFFERT may be 0
 });
 
 export const checkoutSchema = z.object({
