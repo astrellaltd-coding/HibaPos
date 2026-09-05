@@ -1319,7 +1319,7 @@ Audit section J, step 7: the suite is honest but tests the wrong third. 136 test
 
 ## Batch 6.1 — Tests for the things that can lose money
 
-**Status:** `COMPLETED` · **Completed:** 2026-09-05 · **Commit:** `<pending>` · **Findings:** T-01…T-07 (**closes all seven**)
+**Status:** `COMPLETED` · **Completed:** 2026-09-05 · **Commit:** `a8734f4` · **Findings:** T-01…T-07 (**closes all seven**)
 **Record:** `REMEDIATION_RECORD.md` → *Batch 6.1* — specification, validation criteria and status record, moved there verbatim on 2026-09-05.
 
 **No application code changed.** T-02…T-07 were coverage gaps, not defects.
