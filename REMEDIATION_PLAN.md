@@ -11,19 +11,19 @@ Detailed audit record: https://claude.ai/code/artifact/329316b0-3a6b-48b0-9d27-d
 
 **Overall:** NOT READY FOR PRODUCTION
 
-**Current Stage:** **Stage 5 is IN PROGRESS** — **5.1 COMPLETED 2026-09-05**, and it was the only one of its seven batches that needed no design decision. **Stage 4 is COMPLETED** (4.1 through 4.4, 4.4b, 4.4c, 4.5, 4.6 and 4.7, all 2026-09-04). **Stage 3 is COMPLETED** (3.1 through 3.6 plus 3.6b), with C-22's chain-design half carried forward as `REQUIRES EXTERNAL VERIFICATION` and V-03 open. Stage 1 is **partly done**: 1.1 and 1.2 COMPLETED, 1.3 `IMPLEMENTED — TESTING REQUIRED` on hardware, 1.4 deferred. Stage 2 is COMPLETED.
+**Current Stage:** **Stage 5 is IN PROGRESS** — **5.1 and 5.2 COMPLETED 2026-09-05**. **Stage 4 is COMPLETED** (4.1 through 4.4, 4.4b, 4.4c, 4.5, 4.6 and 4.7, all 2026-09-04). **Stage 3 is COMPLETED** (3.1 through 3.6 plus 3.6b), with C-22's chain-design half carried forward as `REQUIRES EXTERNAL VERIFICATION` and V-03 open. Stage 1 is **partly done**: 1.1 and 1.2 COMPLETED, 1.3 `IMPLEMENTED — TESTING REQUIRED` on hardware, 1.4 deferred. Stage 2 is COMPLETED.
 
-**Current Batch:** none — **Stage 5 is fully unblocked.** DD-09 through DD-15 were all answered 2026-09-05 in one brief, so 5.2 through 5.7 can each be worked in turn; their one-line answers are in *Design Decisions Required* and the rationale, with the measurements that shaped it, in the record. **5.2's Validation Required assumes the answer it did not get and must be re-derived first.**
+**Current Batch:** none — **Stage 5 is fully unblocked.** DD-09 through DD-15 were all answered 2026-09-05 in one brief, so 5.3 through 5.7 can each be worked in turn; their one-line answers are in *Design Decisions Required* and the rationale, with the measurements that shaped it, in the record.
 
-**Last Completed Batch:** Batch 5.1 — Keyboard shortcuts, which **closes C-20** and opens Stage 5. Not one of the nine POS shortcuts had ever fired since the initial commit: the matcher compared an optional `boolean | undefined` against the event's real boolean without coercion, so `undefined !== false` was true on the *ctrl* line for every shortcut on every keystroke — `Shift+?` died there before reaching its own shift check. `!!s.ctrl !== e.ctrlKey`, and the same for shift and alt, is the plan's own fix. **The measurement that reshaped it:** Windows reports `/` on the French AZERTY layout as vk `0xBF` **with SHIFT**, so the strict matcher would have refused the documented `/` search key at the very till it was written for. The operator answered **register it both ways** — QWERTY `Shift+/` emits `?` and AZERTY `Shift+:` emits `/`, so the two entries cannot collide. Running the walkthrough then found **a second dead thing behind C-20**: `pos-view.tsx` declared a `searchInputRef` it never attached, the real search box being the topbar's, so F1 and `/` fired into a no-op. The operator answered **fix it in this batch**. Both choices went up as one question each, before any code. **No migration; nothing waits on the operator.** *(Before it: Batch 4.7, C-15's shift-race half, which finished Stage 4 — record → Batch 4.7.)*
+**Last Completed Batch:** Batch 5.2 — the table feature **withdrawn**, which **closes C-21**. DD-09 answered *no table service*, so 5.2 removed the floor-plan screen rather than wiring a picker to it. The nav row is the gate — `canAccessView` refuses a view with no row, and the home grid filters on the same array — and `tables` also left the `AppView` union, so the compiler carried the removal into the shell and the home grid, and `#/tables` now resolves to nothing rather than to *« Accès refusé »*. **DD-09's retentions are intact and now tested**: the `Table` model, `/api/tables*`, the checkout auto-link and the refund release all stay, commented as deliberately unreachable. **The trap this batch was handed was its own Validation Required**, written for the opposite answer; all six criteria are reproduced in the record with what replaced each. **No migration.** One operator action was considered and declined, with Batch 8.0 amended instead (record → Batch 5.2 note 3). *(Before it: Batch 5.1, which closed C-20 — every POS shortcut had been dead since the initial commit, and the AZERTY `/` needed a second registration. Full account: record → Batch 5.1; its constraints: the stub in Stage 5.)*
 
-**Next Batch:** Batch 5.2 — withdraw the table feature (DD-09). Then 5.3, 5.4, 5.5, 5.6, 5.7. **5.5, 5.6 and 5.7 each need a migration measured and handed over.**
+**Next Batch:** Batch 5.3 — cross-shift refunds (DD-10). Then 5.4, 5.5, 5.6, 5.7. **5.5, 5.6 and 5.7 each need a migration measured and handed over.**
 
 **Blocked:** Batch 1.3 `[HW]` sign-off and Batch 1.4 — both need the app running on the restaurant's POS machine, which is in a different country from the developer and has no copy of the app installed (decision of 2026-09-03).
 
 **Awaiting decision:** **only DD-04 and DD-16 remain open** — DD-04 (backup key rotation) blocks 7.3, DD-16 (tracking `public/uploads/` in git) shapes 7.1. Every other design decision is answered. Two recorded-but-not-urgent questions stand: `/api/auth/approve` and `manager-approval-dialog.tsx` have **no caller at all** since 4.4c, so whether to delete them is a real question; and **L-27** needs a decision before Batch 8.0.
 
-**Last Updated:** 2026-09-05 (session 12 — Batch 5.1, then the DD-09…DD-15 brief). Three things worth carrying forward. (1) **"No design decision against it" is a claim to test.** 5.1 was handed over as pure coercion; measuring the keyboard found one behaviour choice and *running the app* found a second. (2) **Measure the premise before writing the brief.** Three of the seven decisions had a premise that did not survive contact with the data — the floor plan holds one stale table, `PENDING` is dead alongside `CANCELLED`, and `ProductAddon` is superseded rather than lost, the category-level design having 21 live rows. All three are corrected in the record. (3) **The front matter has about 540 bytes of headroom.** Retire something before adding, and say in the record what moved and where the fact lives.
+**Last Updated:** 2026-09-05 (session 13 — Batch 5.2). Three things worth carrying forward. (1) **A batch's own Validation Required can be the trap.** 5.2's was written for the answer DD-09 did not get; re-deriving it, rather than deleting it, is what showed that two of its six criteria had a server-side half worth automating. (2) **A removal makes weak tests easy to write.** Half of 5.2's assertions cannot fail against the old code, and one was unfalsifiable until a revert exposed it — say which is which (record → Batch 5.2, Tests and note 2). (3) **The front matter has about 560 bytes of headroom.** Retire something before adding, and say in the record what moved and where the fact lives.
 
 ### OPEN THREADS — read this before starting a batch
 
@@ -119,8 +119,8 @@ The session-3/4 snapshot that stood here is in the record, verbatim, under *Reti
 
 | Thing | Value at the end of session 3 (updated through session 4) |
 |---|---|
-| Tests | **568 pass, 0 fail** (`bun test src --timeout 30000` — see L-24 for why the timeout flag). 543 before Batch 5.1, which added 25; 531 before 4.7. **A run that fails 12 backup tests with `EPERM: rename … test.db.restore-staged` is not a code failure**: a leftover `bun` process from a stopped run is holding the shared test database — kill it and re-run (warning 3b). Whole-suite runtime 64–80 s, but a slow run took **422 s** on 2026-09-05 with the same 0 failures — L-24 |
-| Production DB sha256 | **`7839db18a7c8b132d974bd834d39d2921def66dd234b2059b022949f22ea6f2e`** (mtime 2026-09-04 16:41:52, 696 320 bytes) — last moved by the operator's **PIN change**, not by any batch. **Re-verified unchanged after Batch 5.1**, whose whole validation ran on a scratch copy. The earlier lineage (`7cc3367b…` → `a66bc96c…` → `e40735ca…`) is in the record |
+| Tests | **578 pass, 0 fail** (`bun test src --timeout 30000` — see L-24 for why the timeout flag). 568 before Batch 5.2, which added 10; 543 before 5.1. **One unreproduced failure of `shift-race.test.ts`'s ten-sales race is L-43, not a code failure** — reproduce before believing it. **A run that fails 12 backup tests with `EPERM: rename … test.db.restore-staged` is not a code failure**: a leftover `bun` process from a stopped run is holding the shared test database — kill it and re-run (warning 3b). Whole-suite runtime 64–80 s, but a slow run took **422 s** on 2026-09-05 with the same 0 failures — L-24 |
+| Production DB sha256 | **`7839db18a7c8b132d974bd834d39d2921def66dd234b2059b022949f22ea6f2e`** (mtime 2026-09-04 16:41:52, 696 320 bytes) — last moved by the operator's **PIN change**, not by any batch. **Re-verified unchanged after Batch 5.2**, whose whole validation ran on a scratch copy. The earlier lineage (`7cc3367b…` → `a66bc96c…` → `e40735ca…`) is in the record |
 | Fiscal chain | `/api/fiscal/verify` → all three chains `ok`, `lastSequence: 2`. **Zero monthly and annual closes have ever been sealed** — which is why M-01's guard, DD-18's timing rules and L-26's payload change could all be imposed with nothing to accommodate. Re-verified read-only 2026-09-04 |
 | Fiscal counters | `20/3/2/2` (receipt / shift / Z / event). Re-verified read-only after the PIN change, 2026-09-04 |
 | Migrations | **6 applied on production**, latest `20260904091947_close_refund_totals` (applied 2026-09-04 09:43:54). **None pending.** Batches 4.1 through 4.4b added none — 4.4b's enum removal was measured with `prisma migrate diff` and emits an empty migration |
@@ -277,7 +277,7 @@ half open**, split across two batches. Audit IDs are never renamed.
 | C-18 ✅ | 4.3 + operator | M-18 ✅ | 4.4c | L-11 | deferred |
 | C-19 ✅ | 2.3 | M-19 | 5.7 | L-12 | 7.2 |
 | C-20 ✅ | 5.1 | M-19s ✅ | 4.4b | T-01…T-07 | 6.1 |
-| C-21 | 5.2 | M-20 | 5.7 | T-08, T-09 | 6.2 |
+| C-21 ✅ | 5.2 | M-20 | 5.7 | T-08, T-09 | 6.2 |
 | C-22 ◐ | 2.1 + 3.5 | M-21 | 5.7 | T-10…T-12 | 6.3 |
 | C-23 | 5.4 | M-22 | 5.7 | DOC-01…12 (**09 ✅** 4.5) | 7.1 |
 | C-24 ✅ | 4.6 | M-23 ✅ | 4.3 | V-01…V-03, V-08…V-12 | external |
@@ -1030,7 +1030,7 @@ Category and product updates no longer delete option groups before validating th
 
 # STAGE 5 — WORKFLOW GAPS
 
-**Stage status:** `IN PROGRESS` — 5.1 `COMPLETED` 2026-09-05. **DD-09 through DD-15 were all answered 2026-09-05 in one brief**, so 5.2 through 5.7 are unblocked and can be worked in turn. Each batch's spec below carries its answer inline. **5.2 is the exception to pick up carefully:** its *Validation Required* was written for the answer DD-09 did not get and must be re-derived before the batch starts.
+**Stage status:** `IN PROGRESS` — 5.1 and 5.2 `COMPLETED` 2026-09-05. **DD-09 through DD-15 were all answered 2026-09-05 in one brief**, so 5.3 through 5.7 are unblocked and can be worked in turn. Each batch's spec below carries its answer inline. **5.2 was the one whose own *Validation Required* had been written for the answer it did not get; it was re-derived rather than dropped, and the record shows both.**
 
 Audit section J, step 6: none of these are subtle; all of them generate support calls in week one.
 
@@ -1056,36 +1056,21 @@ Audit section J, step 6: none of these are subtle; all of them generate support 
 
 ## Batch 5.2 — Table selection wiring
 
-**Status:** `NOT STARTED`
+**Status:** `COMPLETED` · **Completed:** 2026-09-05 · **Commit:** `1abde1f` · **Findings:** C-21 (**closes C-21**), DD-09
+**Record:** `REMEDIATION_RECORD.md` → *Batch 5.2* — specification, the **re-derived** validation criteria (with the six they replaced, and why each was void, halved, inverted, widened or kept) and the status record, moved there on 2026-09-05.
 
-### C-21 — The table plan is disconnected from the POS
+**Constraints this batch leaves behind** *(sentences copied from the record, not paraphrased)*
+- `canAccessView` refuses a view with no row (`if (!item) return false`), the sidebar reads that array, and `home-dashboard.tsx:221-225` filters its own module list against it — one deleted row closes all three. *(record, Changes)*
+- Left in the union, `#/tables` would still resolve and the shell would answer *« Accès refusé »*, claiming the address is **gated** when the screen is **gone**. *(record, Changes)*
+- **Nothing server-side was deleted**, per DD-09: the `Table` model, the three `/api/tables*` routes, the checkout auto-link and the refund release all stay, each now carrying a comment saying it is retained and unreachable, so the next dead-code sweep does not take it. *(record, Changes)*
+- `tables-view.tsx` stays on disk, imported by nothing — it is the only client `/api/tables*` has, and deleting one while keeping the other would be incoherent. *(record, Changes)*
+- The 5 that pass are named in the file as regression assertions that **cannot** fail against the old code, because the old code already had everything DD-09 retained. *(record, Tests)*
+- `DINE_IN` is **not** withdrawn: it means *eating in*, not *being served at a table*. *(record, note 4)*
+- Held tickets keep `Commande N`, and that is now a specification — Batch 5.4 owns held-order lifecycle and should not read it as a bug to fix. *(record, note 5)*
+- **Do not treat a lone failure of that test as a code failure without reproducing it**, and do not confuse it with L-24, which is about slow runs, not wrong results. *(record, note 6, on L-43)*
+- Source-level assertions in this batch strip line comments first, because an assertion that a file no longer contains a name was satisfied by the *comment* naming what had been removed. *(record, note 2)*
 
-**Status:** `NOT STARTED` · Severity: HIGH · Category: incomplete functionality
-
-**Problem.** `setTableLabel` exists in the cart store and is called from nowhere.
-
-**Evidence.** `grep -rn setTableLabel src/` → exactly two hits, both in `cart-store.ts` (type at `:59`, implementation at `:124`). `tables-view.tsx` imports neither `useCartStore` nor `setView`.
-
-**Location.** `src/store/cart-store.ts:59,124`; `src/features/tables/tables-view.tsx`
-
-**Impact.** `tableLabel` is permanently `""`, so `payment-dialog.tsx:156` always sends `null`. The server's dine-in table auto-link (`orders/route.ts:344-352`) never fires, tables never go OCCUPIED from a sale, receipts never show a table, and held-ticket labels always fall back to "Commande N". The floor plan is a decorative screen. README lists "tables (plan de salle)" as delivered.
-
-**Remediation direction.** Wire a table picker into the POS order bar, or drop the feature from the documentation until it is wired. See DD-09.
-
-**DD-09 answered 2026-09-05 — withdraw it.** There is no table service here, so 5.2 removes the floor-plan screen from the navigation and corrects the README, and leaves the `Table` model, its API and the server-side auto-link in place, unused. **Two things to carry:** held tickets keep their `Commande N` labels, which is now intended rather than a symptom; and production holds one stale `Table` row (`T1 / Salle`, `OCCUPIED`, never linked to any order) — that is live data, so removing it is the operator's action (warning 4). **The Validation Required below assumes the opposite answer and must be re-derived before the batch starts.**
-
-### Batch 5.2 — Validation Required
-
-- Manual: selecting a table in the POS carries the label through checkout to the order and the receipt.
-- Manual: completing a dine-in sale with a table sets that table OCCUPIED and links `currentOrderId`.
-- Manual: a full refund frees the table (existing behaviour at `refund.ts:99-104` — confirm it now actually fires).
-- Targeted test: `tableLabel` reaches the order payload and the table auto-link executes.
-- Regression: takeaway and delivery orders are unaffected.
-- `bun test src` — PASS. `bun run typecheck` — PASS.
-
-### Batch 5.2 — Status Record
-
-**Status:** `NOT STARTED` · **Completed:** — · **Changes:** — · **Files:** — · **Tests:** — · **Commit:** — · **Notes:** —
+**Left open:** **L-43** (one unreproduced failure of Batch 4.7's ten-sales-against-one-close test; origin not established) → Batch 6.3. The stale production `Table` row (`T1 / Salle`, `OCCUPIED`) was **deliberately not** requested as an operator action — Batch 8.0's *What must be KEPT* list is amended instead, so P-04 sweeps it rather than preserving it (record, note 3).
 
 ---
 
@@ -1457,7 +1442,9 @@ Audit section J, step 9. Nothing here is a code change; all of it is proof — w
 
 **Decision (operator, 2026-09-03).** Keep the database and the catalogue; delete the trading data — orders, order items, payments, receipts, refunds, shifts, Z reports, fiscal events, grand total, monthly/annual closes and fiscal archives — and reset `FiscalCounter` to zero, immediately before go-live.
 
-**What must be KEPT.** Categories, products, option groups, option choices, add-ons, product images, customers, tables, users and settings. The catalogue is real work recovered in commit `0c5ede6`; only the trading is fake.
+**What must be KEPT.** Categories, products, option groups, option choices, add-ons, product images, customers, ~~tables~~, users and settings. The catalogue is real work recovered in commit `0c5ede6`; only the trading is fake.
+
+**Amendment, 2026-09-05 (Batch 5.2).** **`tables` is struck from that list and moves to the delete list.** This sentence was written while the floor plan was a live feature; DD-09 has since withdrawn it, and 5.2 removed the screen from the navigation. What remains in production is **one row** — `T1 / Salle`, status `OCCUPIED`, `currentOrderId` **null**, never linked to any order — which no screen can now display and no code can now reach (`checkout.ts:203` is guarded on a `tableLabel` the cart has no writer for). Deleting it is the operator's action (warning 4) and was **deliberately not** requested as a standalone one, because the benefit today is zero and this batch is already scheduled to open the live database with a reviewed script and a verified backup. **The `Table` model itself stays** — DD-09 keeps the model, the API and the server-side auto-link in case table service ever exists; it is the stale row that goes. Reasoning in full: record → Batch 5.2 note 3.
 
 **Hard constraints.**
 1. **Timing is the whole safety property.** This runs once, before the first real sale. From that sale onwards the chain is append-only and a reset becomes precisely the deletion the attestation in `docs/attestation-conformite.md` states is impossible.
@@ -1547,6 +1534,7 @@ Open rows only. A row resolved by a batch moves, unchanged, to `REMEDIATION_RECO
 
 | ID | Date | Found during | Description | Severity | Assigned to batch |
 |---|---|---|---|---|---|
+| **L-43** | 2026-09-05 | Batch 5.2 | **`shift-race.test.ts`'s ten-sales-against-one-close test failed once in a whole-suite run and could not be reproduced, and its final assertion counts a table the whole suite shares.** Observed once: `577 pass, 1 fail` on the first post-batch run of `bun test src`; three further post-batch runs and two pre-batch runs were clean, which is **not enough to say whether it predates Batch 5.2** — at that rate two clean pre-batch runs are likely either way. Two facts narrow it. (a) The obvious interference vector is closed: Batch 5.2's new test file leaves **zero rows** in every shared table, verified by reading the test database directly after running the file alone. (b) The test's last assertion is `expect(await db.order.count()).toBe(z.salesCount)` — a **global** count across a database shared by 53 files, so any file that leaves an order behind fails it, which is the shape **L-40** already describes at a different table. The test is also timing-dependent by design: its own comment names the P1008 → 503 refusal as "what ten sales against one close actually produce on this machine" (record → Batch 4.7 note 6). Candidate fixes, in order of value: the per-run test-database path already assigned to 6.3 (warning 3b), then scoping that count to the shift under test. **Distinct from L-24**, which is about slow runs, not wrong results. **Do not "fix" this test on a single red run — reproduce it first.** | LOW (test infrastructure; a real failure would be misattributed, and a spurious one wastes a session) | 6.3 |
 | **L-42** | 2026-09-05 | Batch 5.1 | **Every POS shortcut still fires while a modal dialog is open, so a stray F5 during payment changes the sale being paid.** Measured at the till on a scratch copy: with « Encaissement » open and focus on a button, F5 set the order type to LIVRAISON underneath it. `setOrderType` reprices every cart line (`cart-store.ts:116-123`) and `PaymentDialog` reads `orderType` from the store at submit time, so the total on screen changes and the checkout is then refused **400** — *« Un client est obligatoire pour une livraison. »* — unless a customer with an address is attached. F2 and F3 do the same thing more quietly, switching between dine-in and takeaway prices; F8 stacks the discount dialog on top of the payment dialog. **Nothing is mis-journalled**: the server recomputes from the `orderType` it is sent, so the sale is *blocked*, not booked wrong. This is inherent to the current shape rather than a regression — Radix does not stop keydown propagation and the hook listens on `window` — and it was simply unreachable while every shortcut was dead. Fixing it is feature design, not a coercion: which dialogs suppress which shortcuts, and whether Escape should join the hook rather than staying Radix's alone. | MEDIUM (one keystroke changes the sale being paid; refused rather than mis-recorded) | 5.7 |
 | **L-41** | 2026-09-04 | Batch 4.7 | **A sale refused for a closed shift burns the step-up PIN token, so the cashier must re-enter their PIN to ring it again.** `orders/route.ts` consumes the single-use token as its last check *before* `createOrderInTransaction`, and Batch 4.7's shift assertion is the first statement *inside* the transaction — so a discounted sale that loses the race to a Z close is refused with the token already spent. The client handles it correctly (it drops the token on any non-400 status and re-prompts), so the cost is one extra PIN entry in a rare case, not a lost sale or a wrong record. Moving the consumption inside the transaction would drag the whole discount decision with it. | LOW | 5.7 |
 | **L-40** | 2026-09-04 | Batch 4.7 | **Test files clean up before each test and not after, so the order in which files run is load-bearing — and a file can fail because of a file it has nothing to do with.** `shift-race.test.ts` left `ZReport` rows behind; `vat-inheritance.test.ts` deletes orders and shifts but not Z reports, and its `shift.deleteMany()` then failed on a foreign key in a run where the code was fine. Fixed locally in 4.7 by giving the new file an `afterAll`, but the shape is general: any file that writes a table another file's teardown does not clear can do this. Belongs with the per-run test-database path already assigned to 6.3 (warning 3b). | LOW | 6.3 |
