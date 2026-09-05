@@ -17,7 +17,17 @@ import {
 // ~49 MiB of unchanged product images, and the annual fiscal archive — the
 // file an inspector actually asks for — not being in the backup set at all.
 
-const TEST_DB_PATH = path.join(os.tmpdir(), "hibapos-test-db", "test.db");
+/** The test database's real path, read from the environment `test-setup.ts`
+ *  set. Batch 6.3 gave every run its own directory (L-40 / L-43 / warning 3b),
+ *  so a hardcoded `hibapos-test-db/test.db` now names a stale file from before
+ *  that change — which is exactly how these three tests broke. Derived, never
+ *  written twice. */
+function testDbPath(): string {
+  const url = process.env.DATABASE_URL ?? "";
+  return path.resolve(url.replace(/^file:/, "").split("?")[0]);
+}
+
+const TEST_DB_PATH = testDbPath();
 const TEST_USER_ID = "retention-test-user";
 
 let tmpRoot: string;

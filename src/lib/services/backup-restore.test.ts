@@ -20,7 +20,17 @@ import { isRestoreInProgress } from "@/lib/services/maintenance";
 // Every path is injected, pointing at throwaway directories. Without that,
 // a run from the project root would restore over the real db/custom.db.
 
-const TEST_DB_PATH = path.join(os.tmpdir(), "hibapos-test-db", "test.db");
+/** The test database's real path, read from the environment `test-setup.ts`
+ *  set. Batch 6.3 gave every run its own directory (L-40 / L-43 / warning 3b),
+ *  so a hardcoded `hibapos-test-db/test.db` now names a stale file from before
+ *  that change — which is exactly how these three tests broke. Derived, never
+ *  written twice. */
+function testDbPath(): string {
+  const url = process.env.DATABASE_URL ?? "";
+  return path.resolve(url.replace(/^file:/, "").split("?")[0]);
+}
+
+const TEST_DB_PATH = testDbPath();
 const TEST_USER_ID = "restore-test-user";
 
 let tmpRoot: string;

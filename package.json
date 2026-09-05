@@ -17,7 +17,7 @@
     "db:seed": "prisma db seed",
     "test": "bun test src",
     "test:watch": "bun test --watch src",
-    "test:e2e": "playwright test",
+    "test:e2e": "bun tests/e2e/prepare-db.ts && next build && playwright test",
     "typecheck": "tsc --noEmit"
   },
   "prisma": {

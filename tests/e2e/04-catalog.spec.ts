@@ -1,6 +1,11 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("Catalog & Category Management Flow", () => {
+  // T-11 (Batch 6.3): this file never logged in. Every catalogue read is
+  // gated, and Playwright's `request` fixture is per-test, so nothing leaked a
+  // session in from the specs before it — both cases answered 401 and had
+  // done since the routes were gated in Batch 4.4.
+  // The session comes from the `setup` project (see playwright.config.ts).
   test("loads category list and verifies structure", async ({ request }) => {
     const res = await request.get("/api/catalog/categories");
     expect(res.status()).toBe(200);

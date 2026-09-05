@@ -1,0 +1,74 @@
+# T-12 (Batch 6.3) — the CI that did not exist.
+#
+# THE FINDING: "No CI exists. No `.github/`, no pipeline config anywhere. Tests
+# run only when someone remembers. All 'lint 0 errors · tsc exit 0 · N tests
+# pass' claims in `IMPLEMENTATION_PLAN.md` rest on manual local runs."
+#
+# Two jobs rather than one, so a failure says WHICH kind of failure it is.
+# `checks` is the fast gate every push must pass; `e2e` is slower and needs a
+# browser, and is only here because T-10 made it safe — before that batch,
+# `bun run test:e2e` wrote into the production database and the plan forbade
+# running it at all.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: typecheck · lint · unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      # The Prisma client is generated, not committed.
+      - run: bunx prisma generate
+      - run: bun run typecheck
+      - run: bun run lint
+      # `--timeout 30000` for the same reason the plan's L-24 gives: the
+      # scrypt-heavy tests are slow on a shared runner.
+      #
+      # `test-setup.ts` points DATABASE_URL at a throwaway database under the
+      # runner's temp directory and ABORTS if it is not one (L-06). There is no
+      # production database on a CI runner, but the guard is what makes that a
+      # fact rather than an assumption.
+      - run: bun test src --timeout 30000
+
+  e2e:
+    name: end-to-end
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bunx prisma generate
+      - run: bunx playwright install --with-deps chromium
+      # `test:e2e` = prepare the disposable database → build → run Playwright.
+      # The suite refuses to start if that database is not under the system
+      # temp directory (T-10), and the first spec it runs proves the SERVER
+      # opened it, by reading the seeded operator back from the pre-auth
+      # profiles endpoint.
+      - run: bun run test:e2e
+        env:
+          SESSION_SECRET: ci-session-secret-at-least-32-characters-long-0123456789
+          BACKUP_ENCRYPTION_KEY: ci-backup-key-32-characters-or-more-0123456789
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: test-results/
+          retention-days: 7

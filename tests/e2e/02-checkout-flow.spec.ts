@@ -1,4 +1,6 @@
 import { test, expect } from "@playwright/test";
+import { E2E_USERNAME, E2E_PIN } from "./env";
+import { closeAnyOpenShift } from "./helpers";
 
 // E2E checkout flow — the highest-risk untested cashier journey.
 // Verifies: login → open shift → checkout → receipt → fiscal journal → Z close.
@@ -6,14 +8,21 @@ import { test, expect } from "@playwright/test";
 // The dev server (bun run dev) auto-starts via playwright.config.ts webServer.
 
 test.describe("Checkout flow (API-level e2e)", () => {
+  // T-11 (Batch 6.3): leave no till open. Without this the suite could
+  // only be run once — the next run's `POST /api/shifts` got 409 where it
+  // expected 200. In `afterAll` so a spec that fails mid-way still cleans up.
+  test.afterAll(async ({ request }) => {
+    await closeAnyOpenShift(request);
+  });
+
   test("full cashier journey: login → open shift → checkout → Z close", async ({ request }) => {
     // 1. Login as admin
     const loginRes = await request.post("/api/auth/login", {
-      data: { username: "admin", pin: "123456" },
+      data: { username: E2E_USERNAME, pin: E2E_PIN },
     });
     expect(loginRes.status()).toBe(200);
     const loggedIn = await loginRes.json();
-    expect(loggedIn.username).toBe("admin");
+    expect(loggedIn.username).toBe(E2E_USERNAME);
     const cookies = loginRes.headers()["set-cookie"];
     expect(cookies).toBeDefined();
 
@@ -32,7 +41,11 @@ test.describe("Checkout flow (API-level e2e)", () => {
     const openRes = await request.post("/api/shifts", {
       data: { openingFloat: 100 },
     });
-    expect(openRes.status()).toBe(200);
+    // T-11 (Batch 6.3): this expected 200. The route answers **201** — it
+    // creates a shift — and has for as long as the git history goes back. The
+    // spec had never been run against a database it could reach, so nothing
+    // ever contradicted it.
+    expect(openRes.status()).toBe(201);
     const shift = await openRes.json();
     expect(shift.status).toBe("OPEN");
     expect(shift.openingFloat).toBe(100);
@@ -116,7 +129,7 @@ test.describe("Checkout flow (API-level e2e)", () => {
   test("refund appends a REMBOURSEMENT fiscal event", async ({ request }) => {
     // Login
     const loginRes = await request.post("/api/auth/login", {
-      data: { username: "admin", pin: "123456" },
+      data: { username: E2E_USERNAME, pin: E2E_PIN },
     });
     expect(loginRes.status()).toBe(200);
 
@@ -142,9 +155,26 @@ test.describe("Checkout flow (API-level e2e)", () => {
     expect(checkoutRes.status()).toBe(201);
     const order = await checkoutRes.json();
 
-    // Refund the full amount (admin self-approves)
-    const refundRes = await request.post(`/api/orders/${order.id}/refund`, {
+    // T-11 (Batch 6.3). This said "admin self-approves" and sent no token,
+    // which describes the world BEFORE DD-19 / Batch 4.4c. Since that batch
+    // **every** refund at any amount needs the caller's own PIN, so the spec
+    // as written asserted behaviour the product deliberately removed.
+    //
+    // Asserted in both directions, because the refusal is the security
+    // property and the acceptance only proves the happy path still works.
+    const refusedRes = await request.post(`/api/orders/${order.id}/refund`, {
       data: { amount: total, reason: "Test refund" },
+    });
+    expect(refusedRes.status()).toBe(403);
+
+    const stepUp = await request.post("/api/auth/step-up", {
+      data: { pin: E2E_PIN, action: "REFUND", amount: total },
+    });
+    expect(stepUp.status()).toBe(200);
+    const { stepUpToken } = await stepUp.json();
+
+    const refundRes = await request.post(`/api/orders/${order.id}/refund`, {
+      data: { amount: total, reason: "Test refund", stepUpToken },
     });
     expect([200, 201].includes(refundRes.status())).toBe(true);
 

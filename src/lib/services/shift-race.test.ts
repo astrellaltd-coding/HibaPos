@@ -224,6 +224,36 @@ describe("C-15 — a checkout racing a Z close", () => {
       generateZReport(shiftId, 20000, userId),
     ]);
 
+    // ── L-43, FIXED HERE (Batch 6.3) ────────────────────────────────────────
+    // This test was the plan's longest-running flake — ~2 whole-suite runs in
+    // 5 by the time Batch 6.1's concurrency tests added contention ahead of
+    // it. Its cause was established in Batch 5.3 and is not a code failure:
+    // the ELEVENTH promise was never inspected. Under contention
+    // `generateZReport` rejects with Prisma's transaction timeout, no ZReport
+    // row is written, and the very next line — `findUniqueOrThrow` — threw
+    // P2025 for a shift that was never closed.
+    //
+    // The fix is the one L-43's own row names: assert on `results[10]` the way
+    // the sales are asserted on. A close that lost the contention is a
+    // legitimate outcome of racing eleven transactions on SQLite, exactly as a
+    // refused sale is, so it is tolerated — and the Z assertions are skipped,
+    // because there is no Z to assert about.
+    const close = results[10];
+    if (close.status === "rejected") {
+      // The same two shapes the sales may fail with, and nothing else: this
+      // must not become a blanket "any failure is fine".
+      const reason = close.reason as { name?: string; code?: string; message?: string };
+      expect(
+        reason?.name === "CheckoutError" ||
+          reason?.code === "P1008" ||
+          /timeout|transaction/i.test(String(reason?.message ?? "")),
+      ).toBe(true);
+      // No Z row, and therefore nothing sealed that could disagree with the
+      // sales. That IS the property under test in this branch.
+      expect(await db.zReport.findUnique({ where: { shiftId } })).toBeNull();
+      return;
+    }
+
     const z = await db.zReport.findUniqueOrThrow({ where: { shiftId } });
     const orders = await db.order.findMany({ where: { shiftId } });
 
@@ -244,7 +274,12 @@ describe("C-15 — a checkout racing a Z close", () => {
     }
     // And no sale was written into the shift after it was sealed: the receipt
     // numbers that exist are exactly the ones the Z counted.
-    expect(await db.order.count()).toBe(z.salesCount);
+    //
+    // L-43 / L-40 (Batch 6.3): this was `db.order.count()` — a GLOBAL count
+    // across a database every test file shares, so any file leaving an order
+    // behind failed it. Scoped to the shift under test, which is what the
+    // sentence above actually claims.
+    expect(await db.order.count({ where: { shiftId } })).toBe(z.salesCount);
   });
 
   it("a sale that commits before the close is counted by it — the close does not total early", async () => {
