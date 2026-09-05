@@ -2,7 +2,13 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { withAuth } from "@/lib/api-handler";
 import { round2 } from "@/lib/money";
-import { aggregateOrders, orderNet, AGGREGATE_INCLUDE } from "@/lib/services/aggregate";
+import {
+  aggregateOrders,
+  orderNet,
+  AGGREGATE_INCLUDE,
+  periodOrdersWhere,
+  periodAggregateOptions,
+} from "@/lib/services/aggregate";
 
 // Sales KPIs, payment breakdowns and week-over-week comparisons are
 // manager-level data (nav-config restricts the dashboard view to
@@ -13,11 +19,13 @@ export const GET = withAuth(
   const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
 
+  // DD-21 / L-44 (Batch 7.4a). The scope is now the FISCAL one: today's own
+  // orders, plus any order today issued a refund against. Before this, a
+  // refund paid today for yesterday's sale reduced YESTERDAY here and TODAY in
+  // `/api/reports/sales` — two figures for the same day, on the two screens a
+  // manager compares first.
   const todayOrders = await db.order.findMany({
-    where: {
-      createdAt: { gte: startOfDay, lt: endOfDay },
-      status: { in: ["COMPLETED", "REFUNDED"] },
-    },
+    where: periodOrdersWhere(startOfDay, endOfDay),
     include: AGGREGATE_INCLUDE,
   });
 
@@ -27,7 +35,10 @@ export const GET = withAuth(
   // `round2(lineTotal × (1 − discountRatio))` per line — the C-11 half-cent,
   // again. It now shares the one aggregation, so the KPI a manager glances at
   // agrees with the Z report for the same day.
-  const today = aggregateOrders(todayOrders, { topProductsLimit: 6 });
+  const today = aggregateOrders(todayOrders, {
+    topProductsLimit: 6,
+    ...periodAggregateOptions(startOfDay, endOfDay),
+  });
 
   const todaySales = today.salesTotal;
   const todayOrdersCount = today.salesCount;
@@ -44,6 +55,12 @@ export const GET = withAuth(
   const hourly: { hour: number; sales: number; orders: number }[] = [];
   for (let h = 0; h < 24; h++) hourly.push({ hour: h, sales: 0, orders: 0 });
   for (const o of todayOrders) {
+    // DD-21: an order that is here only to carry a correction has no sale to
+    // place on today's clock — its sale happened on another day, and its hour
+    // belongs to that day's chart. Skipped rather than counted at its original
+    // hour, which would put a sale into today's hourly total that today's
+    // `salesTotal` does not contain.
+    if (o.createdAt < startOfDay || o.createdAt >= endOfDay) continue;
     const { counted, netTotal } = orderNet(o);
     if (!counted) continue;
     const h = new Date(o.createdAt).getHours();
@@ -123,12 +140,15 @@ export const GET = withAuth(
   // percentages compare a refund-netted number against a gross one (L-23).
   const lastWeekDayOrders = await db.order.findMany({
     where: {
-      createdAt: { gte: startOfLastWeekDay, lt: endOfLastWeekDay },
+      ...periodOrdersWhere(startOfLastWeekDay, endOfLastWeekDay),
       status: { in: ["COMPLETED", "REFUNDED"] },
     },
     include: AGGREGATE_INCLUDE,
   });
-  const lastWeekDayAgg = aggregateOrders(lastWeekDayOrders);
+  const lastWeekDayAgg = aggregateOrders(
+    lastWeekDayOrders,
+    periodAggregateOptions(startOfLastWeekDay, endOfLastWeekDay),
+  );
   const lastWeekDaySales = lastWeekDayAgg.salesTotal;
   const lastWeekDayCount = lastWeekDayAgg.salesCount;
 

@@ -3088,6 +3088,41 @@ Each carries a comment saying so, and `src/features/tables/table-withdrawal.test
 
 ---
 
+## Batch 7.4a — Reports that disagree
+
+*Written directly into the record on 2026-09-05: 7.4a was specified by the split commit `9a137ce` and worked the same day, so there was no plan section to move.*
+
+**Status:** `COMPLETED` · **Completed:** 2026-09-05
+
+**Changes.** **L-48**: `/api/shifts/summary` computed `expectedCash` without the cash-movement term, so it and `GET /api/reports/x` answered differently for the same till the moment one movement existed — **21 580 versus 26 580** after a single +50,00 € approvisionnement. One term added, same scoping, term for term identical to `computeShiftReport`. **L-44 / DD-21**: the four management reports adopt the fiscal rule, *a period books the sales of its own orders and the corrections it itself issued* — the dashboard and the products report take the period scope, and the cashier report gains `cashierAggregateOptions`, which books a refund to the cashier who **issued** it (`Refund.cashierId`) rather than the one who sold. **L-50 / DD-20**: a give-away is now counted **beside** the sales — `givenAwayCount`, `givenAwayItemsCount` and `givenAwayProducts` on `PeriodAggregate`, on the X and Z reports, on the period sales report, in the **sealed close payload**, and rendered on the reports screen as « Offerts — non comptés dans les ventes ».
+
+**Files.** `src/lib/services/aggregate.ts` (`isGiveaway`, the three fields, `cashierAggregateOptions`), `services/reports.ts`, `services/fiscal.ts`, `app/api/shifts/summary/route.ts`, `app/api/dashboard/route.ts`, `app/api/reports/{cashiers,products,sales}/route.ts`, `app/api/customers/[id]/detail/route.ts` (comment only), `src/types/api.ts`, `src/features/reports/reports-view.tsx`. Tests: **new** `app/api/shift-summary-agreement.test.ts` and `app/api/report-attribution.test.ts`; amended `services/offert-tender.test.ts` and `services/close-timing.test.ts`.
+
+**Tests.** `bun test src --timeout 30000` — **776 pass, 0 fail** (763 before). **+13, accounted for**: 5 for the `expectedCash` agreement, 6 for the attribution rule, 2 added to the give-away file. `bun run typecheck`, `bun run lint`, `bun run build` — PASS. **`db/custom.db` byte-identical** at `96b48ad0…`. **Six one-property reverts, all six caught.**
+
+**Commit:** `<pending>` + this plan/record update.
+
+**Notes.**
+
+**(1) L-48 is M-14 reopening for the third time, and that is why it got a test rather than only a fix.** M-14 was "a fourth aggregation semantic" at this very endpoint; Batch 3.2 unified it; Batch 5.5 moved five callers onto `cash.net` and its record names all five — this was the one not carried across. A fix alone would be the same repair a third time. The assertion is **driven over HTTP**, because the claim is about what the two ENDPOINTS answer, and it is stated as an equality *and* as literal figures, so a change breaking both the same way still fails. The revert — dropping `+ cash.net` — fails 4 of the 5, and the one that passes is the zero-movement control, which is exactly why nobody noticed: **the disagreement needs a movement to exist.**
+
+**(2) The sealed close payload grew for the third time, deliberately and with the cost stated in advance.** `close-timing.test.ts` pins the key list precisely so a payload cannot grow by accident; it fired, and was amended rather than adjusted. Safe for one reason and no other: **zero monthly and annual closes have ever been sealed**, re-verified by the test's own two assertions in the same run. **This is the first of the three payload changes an operator asked for** rather than a defect forcing — and the decision was put to them WITH that cost attached, because after the first sealed close it means a second vintage in a document that cannot be corrected.
+
+**(3) A correcting period contributes a NEGATIVE count, and two of my own assertions were wrong about it before the code was.** I wrote the attribution test expecting "today made one sale, so today's count is 1", and expecting a cashier who only issued a refund to show `salesTotal: 0`. The endpoints answered **0** and **−3000 with −1 order**, and the endpoints were right: under *a period books the corrections it issued*, an order that stops counting because THIS period refunded it contributes −1. That is what makes the parts of a year add up to the year, and `cross-shift-refund.test.ts:544` already pinned the same shape for shifts as `[1, 0, −1]`. **The assertions were corrected to the truth and the reasoning written into the test**, so nobody "fixes" it back into a naive count. Same lesson as Batch 6.1's two wrong assertions: *check what the code does before asserting what it should do.*
+
+**(4) L-44 named four reports and only three needed changing — the fourth is recorded in place rather than silently skipped.** `customers/[id]/detail` has **no date range**: it aggregates every order a customer ever placed, so there is no period for a correction to be booked into, and `AggregateOptions` says in as many words that its defaults "stay correct for any caller whose scope is not a period". A refund also cannot move between customers the way it moves between days and cashiers. The comment in the file says so, so the finding cannot be re-opened there.
+
+**(5) The cashier report gained a bucket it never had.** It bucketed strictly by the SELLING cashier, so a refunding cashier who sold nothing in the range had no line at all — there was nowhere for the correction to go, which is half of why the old attribution existed. An order now lands in a bucket if the cashier sold it **or** issued one of its refunds, and a second query fetches the names of refunders who sold nothing.
+
+**(6) The products report was doing something subtler than the row described, and the fix is a behaviour change worth naming.** It called `orderNet(order)`, which nets **every** refund the order has ever had — so a past period's product revenue changed retroactively when a later refund landed. It now takes the difference between the state at the start of the range and the state at its end, which is the telescoping the shared aggregate performs. **Quantity deliberately follows the SALE, not the correction**: a refund does not un-sell a dish that left the kitchen, and a negative quantity on a product line would be its own kind of wrong.
+
+**(7) The give-away is rendered, not just returned.** A count in an API response nobody displays is the same invisibility L-50 was about, one layer up. The block appears on the X report, the Z report and the period report, and **renders nothing at all when there were none** — a permanent "0 offert" on every screen an operator reads during service is noise. It states in French that an offered order is a 100 % discount settled as « Offert » and counts in neither the takings nor the number of sales, because that sentence is the whole decision.
+
+---
+
+
+---
+
 # COMPLETED REMEDIATION HISTORY
 
 *Moved verbatim from `REMEDIATION_PLAN.md` lines 2357–2378 (commit `5f0c2b1`) on 2026-09-04. Nothing in this section has been rewritten; corrections, if any, are appended dated notes.*
@@ -3096,6 +3131,7 @@ Each carries a comment saying so, and `src/features/tables/table-withdrawal.test
 
 | Batch | Status | Date | Commit | Notes |
 |---|---|---|---|---|
+| 7.4a | COMPLETED | 2026-09-05 | `<pending>` | L-48, L-44 (DD-21), L-50 (DD-20). *A period books the corrections it issued* now holds in all nine aggregation callers; a give-away is visible without being a sale; the sealed close payload grew for the third time, possible only because zero closes exist. 776/0, six reverts all caught. Two of my own assertions were wrong about the code — a correcting period contributes a negative count. |
 | 7.2 | COMPLETED | 2026-09-05 | `97c74fb` | L-01, L-03, L-07, L-08, L-12, L-29, APPROVE-DEAD. Four files, one dependency and seven dead exports removed; −428 lines. Two of L-07's ten entries were wrong and were left alone. Batch 5.6's tripwire fired and was amended stronger, three reverts all caught. Ten screens smoke-tested on a marker-proved scratch copy, zero console errors. **L-33 not closed** — a review, not a mechanical fix. |
 | 7.1 | COMPLETED | 2026-09-05 | `b2262bf` | DOC-01…DOC-08, DOC-10, DOC-11, DOC-12 — every DOC item. Documentation only; 763/0 unchanged. Two of the four code comments it was told to fix needed no change and one claim about them was wrong; DOC-11's re-check reversed its answer; the README's opening conformity claim was qualified, not deleted; `IMPLEMENTATION_PLAN.md` gained an appended Appendix D with eight corrections plus a ninth found while writing it. Opened L-51. |
 | 0.1 | COMPLETED | 2026-09-03 | `e97a3e1` | C-26, C-26b: anchored 4 bare `.gitignore` patterns; recovered 3 untracked backup API route files into version control. |

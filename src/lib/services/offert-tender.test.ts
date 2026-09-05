@@ -283,24 +283,78 @@ describe("an offert sale, through the real checkout — and what it must not mov
     expect(agg.cashTotal).toBe(3000);
     expect(agg.vatTotal).toBe(273); // 3000 TTC at 10 % — the paid sale alone
 
-    // …and `salesCount` is ONE, which is worth stating because it is not a
-    // decision this batch made. `isFullyRefunded` opens with
-    // `refundsTotal >= order.total`, and for a zero-total order that is
-    // `0 >= 0` — true. So the aggregation classifies a give-away as fully
-    // refunded and stops counting it, which also drops its items out of
-    // `itemsCount` and `topProducts`.
+    // …and `salesCount` is ONE.
     //
-    // The effect is benign — it under-counts and can never inflate anything,
-    // which is this batch's criterion — but the branch was UNREACHABLE before
-    // this batch (zero-total orders could not exist) and its semantics are
-    // wrong for the new case: "given away" is not "refunded". Changing it
-    // would mean editing Batch 3.2's unified aggregation for a reporting
-    // question nobody has been asked, so it is recorded as **L-50** and left
-    // alone (safety rules 10 and 11). Pinned here so the day someone changes
-    // it, they do it deliberately.
+    // ── L-50 WAS ANSWERED ON 2026-09-05, AND THIS IS THE DELIBERATE EDIT ────
+    // Batch 5.7b left this note saying the give-away was dropped from every
+    // count because `isFullyRefunded` opens `refundsTotal >= order.total` and
+    // for a zero total that is `0 >= 0`; it recorded the semantics as wrong
+    // ("given away" is not "refunded"), refused to change a fiscal core for a
+    // reporting question nobody had been asked, and ended: *"Pinned here so
+    // the day someone changes it, they do it deliberately."*
+    //
+    // The question was asked. **DD-20: show it separately.** So the four
+    // assertions below are UNCHANGED and now mean something stronger — the
+    // operator chose that a give-away must NOT become a sale, so `salesCount`
+    // staying at 1 is the decision, not the defect — and four more are added
+    // for the half that was missing. What was wrong was never that the order
+    // was excluded; it was that it was invisible.
     expect(agg.salesCount).toBe(1);
     expect(agg.itemsCount).toBe(1);
     expect(agg.topProducts.every((p) => p.quantity === 1)).toBe(true);
+    // `topProducts` still means what SOLD: one line, from the paid order.
+    expect(agg.topProducts).toHaveLength(1);
+
+    // …and the give-away is now VISIBLE, beside the sales rather than in them.
+    expect(agg.givenAwayCount).toBe(1);
+    expect(agg.givenAwayItemsCount).toBe(1);
+    expect(agg.givenAwayProducts.map((p) => p.quantity)).toEqual([1]);
+    // The dish that was given away is named — DD-20's "which dishes" half —
+    // and it is NOT the same list as topProducts.
+    expect(agg.givenAwayProducts).toHaveLength(1);
+  });
+
+  it("counts a give-away separately and NEVER as a sale, however many there are", async () => {
+    // DD-20 / L-50 (Batch 7.4a). The operator's framing: 40 sold and 3 given
+    // away reads as 40 sold, with the 3 shown beside it. Average spend per
+    // meal therefore stays truthful, which is why they chose this option.
+    const s = await openShift(1, APRIL(4, 9), 10000);
+    await checkout(s.id, 3000, 0, [{ method: "CASH", amount: 3000 }]);
+    await checkout(s.id, 2550, 2550, [{ method: OFFERT, amount: 0 }]);
+    await checkout(s.id, 2550, 2550, [{ method: OFFERT, amount: 0 }]);
+    await checkout(s.id, 2550, 2550, [{ method: OFFERT, amount: 0 }]);
+
+    const orders = await db.order.findMany({ where: { shiftId: s.id }, include: AGGREGATE_INCLUDE });
+    const agg = aggregateOrders(orders, {});
+
+    expect(agg.salesCount).toBe(1);
+    expect(agg.givenAwayCount).toBe(3);
+    // Every money figure is untouched by the three give-aways, which is the
+    // criterion Batch 5.7b set and this batch must not weaken.
+    expect(agg.salesTotal).toBe(3000);
+    expect(agg.cashTotal).toBe(3000);
+    expect(agg.vatTotal).toBe(273);
+    // The same dish three times aggregates, rather than listing three rows.
+    expect(agg.givenAwayProducts.map((p) => p.quantity)).toEqual([3]);
+  });
+
+  it("a REFUNDED order is not a give-away, which is the distinction the tender exists for", async () => {
+    // The predicate keys on the OFFERT tender, not on a zero total. A fully
+    // refunded order also reaches the `!counted` branch — it must not be
+    // counted as given away, or every refund would read as a comp.
+    const s = await openShift(1, APRIL(4, 9), 10000);
+    const paid = await checkout(s.id, 3000, 0, [{ method: "CASH", amount: 3000 }]);
+    await db.refund.create({
+      data: { orderId: paid.id, amount: 3000, reason: "Client insatisfait", cashierId: userId, method: "CASH" },
+    });
+    await db.order.update({ where: { id: paid.id }, data: { status: "REFUNDED" } });
+
+    const orders = await db.order.findMany({ where: { shiftId: s.id }, include: AGGREGATE_INCLUDE });
+    const agg = aggregateOrders(orders, {});
+
+    expect(agg.salesCount).toBe(0);
+    expect(agg.givenAwayCount).toBe(0); // refunded, not given away
+    expect(agg.refundsCount).toBe(1);
   });
 
   it("does NOT inflate the Z report or the cash it says to expect", async () => {

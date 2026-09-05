@@ -15,9 +15,9 @@ Detailed audit record: https://claude.ai/code/artifact/329316b0-3a6b-48b0-9d27-d
 
 **Current Batch:** none. **Stages 5 and 6 are finished, and Stage 7 is under way** — 7.1 and 7.2 are `COMPLETED`; 7.4 and 7.3 remain, in that order. **5.7 was SPLIT on 2026-09-05 into 5.7a–5.7d** — it held twelve items across four risk classes, where every completed batch here has been one finding or a tight cluster. The router section carries the evidence, where each item and each criterion went, and three things measurement found that the rows did not say. Audit IDs are unchanged; the index still maps them to 5.7.
 
-**Last Completed Batch:** Batch 7.2 — dead code and dependency removal: four files deleted, one dependency, seven dead exports, L-08's three duplications, **−428 lines**. Three things worth carrying: **two of L-07's ten entries were wrong** — `fromCents` is live and deleting `apiFetch` would have broken every screen, so *the list a batch is handed is evidence, not instruction*; **the de-duplication fired Batch 5.6's tripwire and it was amended to be stronger**, with three one-property reverts all caught; and **deleting a route left sixteen comments explaining a live decision by contrast with it**, so each says DELETED rather than being rewritten away. **L-33 is NOT closed** — its own text calls it a review, not a mechanical fix. *(Before it: 7.1, then the whole of Stage 6. Accounts: the record.)*
+**Last Completed Batch:** Batch 7.4a — the three reports that disagree, closing **L-48**, **L-44** (DD-21) and **L-50** (DD-20). *A period books the corrections it issued* is now the rule in all nine aggregation callers rather than five, a give-away is **visible without being a sale**, and the sealed close payload gained two keys — possible only because **zero closes exist**. Three things to carry: **a correcting period contributes a NEGATIVE count**, which is the rule and not a defect; **two of my own assertions were wrong about the code** and the endpoints were right; and `customers/[id]/detail` was examined and deliberately left alone, because it has no period. **776 tests, 0 fail.** *(Before it: 7.2, 7.1, the whole of Stage 6.)*
 
-**Next Batch:** **Batch 7.4a** — the three reports that disagree (L-48, L-44/DD-21, L-50/DD-20), then **7.4b** (L-33/DD-22, L-30) and **7.4c** (five small corrections). Then **7.2** (dead code and dependency removal), **7.4** (the nine findings whose batch completed without them, opened 2026-09-05) and **7.3** (secret rotation, DD-04), which runs last by its own prerequisite. **What remains open beyond Stage 7**: Batch 1.3's `[HW]` sign-off and 1.4, both blocked on hardware; C-22's chain-design half and V-01…V-03, which need a qualified external party; and Batch 8.0's pre-go-live fiscal reset, which must run **after** 1.3 and 1.4.
+**Next Batch:** **Batch 7.4b** — L-33/DD-22 and L-30. Then **7.4c** (five small corrections) and **7.2** (dead code and dependency removal), **7.4** (the nine findings whose batch completed without them, opened 2026-09-05) and **7.3** (secret rotation, DD-04), which runs last by its own prerequisite. **What remains open beyond Stage 7**: Batch 1.3's `[HW]` sign-off and 1.4, both blocked on hardware; C-22's chain-design half and V-01…V-03, which need a qualified external party; and Batch 8.0's pre-go-live fiscal reset, which must run **after** 1.3 and 1.4.
 
 **Blocked:** Batch 1.3 `[HW]` sign-off and Batch 1.4 — both need the app running on the restaurant's POS machine, which is in a different country from the developer and has no copy of the app installed (decision of 2026-09-03).
 
@@ -1376,7 +1376,7 @@ Audit section J, step 7: the suite is honest but tests the wrong third. 136 test
 
 # STAGE 7 — CLEANUP AND DOCUMENTATION TRUTH
 
-**Stage status:** `IN PROGRESS` — 7.1 and 7.2 `COMPLETED` 2026-09-05; **7.4 split into 7.4a/b/c**, then 7.3
+**Stage status:** `IN PROGRESS` — 7.1, 7.2 and **7.4a** `COMPLETED` 2026-09-05; 7.4b, 7.4c, then 7.3
 
 Audit section J, step 8. Correct the false statements, remove the dead weight, then rotate secrets. **Batch 7.4 was added 2026-09-05** and runs before 7.3: it carries the nine findings whose assigned batch completed without them.
 
@@ -1431,6 +1431,27 @@ Audit section J, step 8. Correct the false statements, remove the dead weight, t
 | **7.4c — small correctness** | **L-45**, **L-31**, **L-32**, **L-19**, **L-24** | Five independent one-file corrections with no shared surface and no decision behind any of them. |
 
 **Audit IDs are unchanged**, and the register still maps each to 7.4.
+
+---
+
+## Batch 7.4a — Reports that disagree
+
+**Status:** `COMPLETED` · **Completed:** 2026-09-05 · **Commit:** `<pending>` · **Findings:** L-48, L-44 (DD-21), L-50 (DD-20) — **closes all three.**
+**Record:** `REMEDIATION_RECORD.md` → *Batch 7.4a*.
+
+**Constraints this batch leaves behind** *(sentences copied from the record, not paraphrased)*
+- **A period books the sales of its own orders and the corrections it itself issued** — now the rule in ALL nine aggregation callers, not five. *(record, Changes)*
+- **A correcting period contributes a NEGATIVE count, and that is the rule rather than a defect.** Today's figure for "one sale made, one older sale refunded" is **0**, not 1, and a cashier who only issued refunds shows −1 order and a negative total. It is what makes the parts of a year add up to the year, and `cross-shift-refund.test.ts` already pinned the same shape for shifts as `[1, 0, −1]`. *(record, note 3)*
+- A give-away is recognised by its **TENDER, not by its zero total** — a zero total is the symptom, an `OFFERT` line is the intent. A zero-total order with no OFFERT line stays uncounted. *(`aggregate.ts`, `isGiveaway`)*
+- **A give-away is never a sale**: it stays out of `salesCount`, `itemsCount`, `topProducts`, the VAT breakdown and `byDay`, so *ticket moyen* stays truthful and "top produits" keeps meaning what SOLD. That is DD-20 and it must not be quietly relaxed. *(record, Changes)*
+- **The sealed close payload now carries `givenAwayCount` and `givenAwayProducts`**, and could only be changed while **zero closes exist**. The first sealed close fixes the shape for good. `close-timing.test.ts` pins the key list and was amended deliberately, for the third time. *(record, note 2)*
+- **`customers/[id]/detail` was examined and deliberately NOT changed**: it has no date range, so there is no period for a correction to be booked into. Recorded in the file so nobody re-opens L-44 there. *(record, note 4)*
+- The products report keeps its own **UTC `completedAt`** bounds; that difference is pre-existing and was not settled here. *(`reports/products/route.ts`)*
+
+**Left open:** nothing. **L-51 is untouched** — it belongs to 7.4c or 8.2.
+
+---
+
 
 **Why this batch exists, stated plainly so it is not mistaken for a dumping ground.** Every row below was recorded by an earlier batch under safety rule 10 — *found it, did not fix it, it is not this batch's file* — and assigned to whichever batch looked likely to touch that code next. That batch then completed without it, and nothing re-pointed the row. Nine rows accumulated that way, and a row naming a `COMPLETED` batch reads as done. **Nothing here is new work discovered in Stage 7**; every item's full text, measurement and severity is its row in *Newly Discovered Issues*, which stays the single home of the fact.
 

@@ -251,6 +251,21 @@ type PeriodAgg = {
   cashMovementsCount: number;
   vatBreakdown: VatBreakdown;
   topProducts: { name: string; quantity: number; total: number }[]; // total in cents
+  // DD-20 / L-50 (Batch 7.4a): what was GIVEN AWAY in the period, beside what
+  // was sold — never inside `salesCount`, which is the operator's choice.
+  //
+  // THIS GROWS THE SEALED `dataJson`, and that is why it is done NOW.
+  // `close-timing.test.ts` pins the key list precisely so a payload cannot
+  // grow by accident; it is amended in the same commit. **Zero monthly and
+  // annual closes have ever been sealed** (*Open Threads → D*, re-verified
+  // 2026-09-05), so there is nothing to accommodate and no second vintage.
+  // The first sealed close fixes this shape for good.
+  //
+  // No item count, deliberately: the close carries `salesCount` and not
+  // `itemsCount`, so a give-away item count would be the only one of its kind
+  // in a sealed document.
+  givenAwayCount: number;
+  givenAwayProducts: { name: string; quantity: number }[];
 };
 
 async function aggregatePeriod(from: Date, to: Date): Promise<PeriodAgg> {
@@ -301,6 +316,8 @@ async function aggregatePeriod(from: Date, to: Date): Promise<PeriodAgg> {
     cashMovementsCount: cash.count,
     vatBreakdown: agg.vatBreakdown,
     topProducts: agg.topProducts,
+    givenAwayCount: agg.givenAwayCount,
+    givenAwayProducts: agg.givenAwayProducts,
   };
 }
 

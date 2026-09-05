@@ -60,6 +60,12 @@ export const GET = withAuth(
     totalRefunded: agg.totalRefunded,
     days: agg.byDay,
     topProducts: agg.topProducts,
+    // DD-20 / L-50 (Batch 7.4a). Beside the sales, never inside them:
+    // `avgTicket` above divides by `salesCount`, and the operator chose this
+    // shape precisely so that figure stays truthful.
+    givenAwayCount: agg.givenAwayCount,
+    givenAwayItemsCount: agg.givenAwayItemsCount,
+    givenAwayProducts: agg.givenAwayProducts,
   });
   },
   { roles: ["SUPER_ADMIN", "MANAGER"] },

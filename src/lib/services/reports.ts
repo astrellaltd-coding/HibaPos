@@ -65,6 +65,13 @@ export type SalesReport = {
   expectedCash: number; // cents
   vatBreakdown: VatBreakdown;
   topProducts: { name: string; quantity: number; total: number }[]; // total in cents
+  // DD-20 / L-50 (Batch 7.4a): what this till gave away, beside what it sold.
+  // Never inside `salesCount` or `topProducts` — the operator chose that so
+  // "average spend per meal" stays truthful and "top products" keeps meaning
+  // what SOLD.
+  givenAwayCount: number;
+  givenAwayItemsCount: number;
+  givenAwayProducts: { name: string; quantity: number }[];
 };
 
 /**
@@ -134,6 +141,9 @@ export async function computeShiftReport(shiftId: string, client: Db = db): Prom
       shift.openingFloat + agg.grossCashTotal - agg.cashRefundsTotal + cash.net,
     vatBreakdown: agg.vatBreakdown,
     topProducts: agg.topProducts,
+    givenAwayCount: agg.givenAwayCount,
+    givenAwayItemsCount: agg.givenAwayItemsCount,
+    givenAwayProducts: agg.givenAwayProducts,
   };
 }
 

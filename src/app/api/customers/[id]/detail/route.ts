@@ -33,6 +33,17 @@ export const GET = withAuthParams(async (_req, { params }) => {
   // "spent" here means what every other report means by it — net of refunds,
   // in integer cents. It used to sum `o.total` at face value and divide for a
   // fractional-cent average.
+  // DD-21 / L-44 (Batch 7.4a) — EXAMINED AND DELIBERATELY UNCHANGED.
+  //
+  // L-44 named four reports. This one has **no date range**: it aggregates
+  // every order this customer has ever placed. There is therefore no period
+  // for a correction to be booked into, and the two options DD-21 turns on —
+  // `saleInPeriod` and `refundPosition` — are already right at their defaults,
+  // which `AggregateOptions` says in as many words: the defaults "stay correct
+  // for any caller whose scope is not a period". A refund also cannot move
+  // between customers the way it can move between days or cashiers.
+  //
+  // Recorded rather than silently skipped, so nobody re-opens L-44 here.
   const agg = aggregateOrders(orders, { topProductsLimit: 5 });
   const completed = orders.filter((o) => o.status === "COMPLETED");
   const totalSpent = agg.salesTotal;

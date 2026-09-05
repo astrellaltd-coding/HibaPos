@@ -45,10 +45,16 @@ export const GET = withAuth(
   //
   // Note this route keeps its own UTC `completedAt` bounds, unlike the
   // createdAt/local-day ranges elsewhere. That difference is pre-existing.
+  // DD-21 / L-44 (Batch 7.4a). The scope gains the fiscal `OR` arm: an order
+  // this range issued a refund against is present even when it was SOLD
+  // earlier. The range itself keeps its own UTC `completedAt` bounds — that
+  // difference is pre-existing and is not this batch's to settle.
   const orders = await db.order.findMany({
     where: {
-      status: { in: ["COMPLETED", "REFUNDED"] },
-      completedAt: { gte: fromDate, lte: toDate },
+      OR: [
+        { status: { in: ["COMPLETED", "REFUNDED"] }, completedAt: { gte: fromDate, lte: toDate } },
+        { refunds: { some: { createdAt: { gte: fromDate, lte: toDate } } } },
+      ],
     },
     include: AGGREGATE_INCLUDE,
   });
@@ -58,21 +64,53 @@ export const GET = withAuth(
     { productId: string | null; productName: string; quantity: number; revenue: number; vatRate: number }
   >();
 
+  // DD-21 / L-44 (Batch 7.4a) — the same before/after telescoping
+  // `aggregateOrders` performs, done by hand because this report groups by
+  // product id, which the shared aggregate does not produce.
+  //
+  // What changed: this used to call `orderNet(order)`, which nets EVERY refund
+  // the order has ever had — including ones issued after the range, so a
+  // period's product revenue changed retroactively when a later refund landed.
+  // It now nets only the refunds this range ISSUED, and takes the DIFFERENCE
+  // against the state at the start of the range. That is the rule the fiscal
+  // reports have followed since Batch 5.3, and the reason the parts of a year
+  // add up to the year.
+  const inRange = (when: Date | null | undefined) =>
+    !when || (when >= fromDate && when <= toDate);
+
   for (const order of orders) {
-    const { counted, lineNets } = orderNet(order);
-    if (!counted) continue;
+    const soldInRange =
+      !!order.completedAt && order.completedAt >= fromDate && order.completedAt <= toDate;
+    const refundsBefore = order.refunds.filter((r) => r.createdAt && r.createdAt < fromDate);
+    const refundsIn = order.refunds.filter((r) => inRange(r.createdAt));
+
+    // The state this range inherited, and the state it leaves behind. When the
+    // sale itself is in the range the baseline is "nothing given back yet",
+    // because nothing can be refunded before the sale that earned it.
+    const before = soldInRange
+      ? { counted: false, lineNets: order.items.map(() => 0) }
+      : orderNet(order, refundsBefore);
+    const after = orderNet(order, [...refundsBefore, ...refundsIn]);
+    if (!before.counted && !after.counted) continue;
+
     order.items.forEach((it, idx) => {
+      const delta = (after.counted ? after.lineNets[idx] : 0) - (before.counted ? before.lineNets[idx] : 0);
+      // Quantity follows the SALE, not the correction: a refund does not
+      // un-sell a dish that left the kitchen, and a negative quantity on a
+      // product line would be its own kind of wrong.
+      const quantity = soldInRange && after.counted ? it.quantity : 0;
+      if (delta === 0 && quantity === 0) return;
       const key = it.productId ?? it.productName;
       const existing = map.get(key);
       if (existing) {
-        existing.quantity += it.quantity;
-        existing.revenue += lineNets[idx];
+        existing.quantity += quantity;
+        existing.revenue += delta;
       } else {
         map.set(key, {
           productId: it.productId,
           productName: it.productName,
-          quantity: it.quantity,
-          revenue: lineNets[idx],
+          quantity,
+          revenue: delta,
           vatRate: it.vatRate ?? 0,
         });
       }

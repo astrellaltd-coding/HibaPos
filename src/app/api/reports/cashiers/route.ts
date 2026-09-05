@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { withAuth } from "@/lib/api-handler";
 import { sum2 } from "@/lib/money";
-import { aggregateOrders, AGGREGATE_INCLUDE } from "@/lib/services/aggregate";
+import {
+  aggregateOrders,
+  AGGREGATE_INCLUDE,
+  periodOrdersWhere,
+  cashierAggregateOptions,
+} from "@/lib/services/aggregate";
 import { parseReportRange, ReportRangeError } from "@/lib/report-range";
 
 export const GET = withAuth(
@@ -23,11 +28,10 @@ export const GET = withAuth(
     );
   }
 
+  // DD-21 / L-44 (Batch 7.4a): the fiscal scope, so an order refunded in this
+  // range is present even when it was sold before it.
   const orders = await db.order.findMany({
-    where: {
-      createdAt: { gte: fromStart, lt: toEnd },
-      status: { in: ["COMPLETED", "REFUNDED"] },
-    },
+    where: periodOrdersWhere(fromStart, toEnd),
     include: { ...AGGREGATE_INCLUDE, cashier: { select: { id: true, name: true, username: true } } },
   });
 
@@ -36,20 +40,46 @@ export const GET = withAuth(
   // ran cent values through round2(). Group the orders by cashier and hand
   // each group to the one aggregation, so a cashier's line here uses exactly
   // the arithmetic the Z report uses.
+  // DD-21 / L-44 (Batch 7.4a). An order lands in a cashier's bucket if they
+  // SOLD it **or** if they issued one of its refunds — the second is new, and
+  // it is what lets a correction be booked to the person who handed the money
+  // back. `cashierAggregateOptions` then decides, per bucket, which of the two
+  // the order is doing there.
+  const names = new Map<string, { id: string; name: string; username: string }>();
   const byCashier = new Map<string, typeof orders>();
+  const bucket = (id: string) => {
+    const b = byCashier.get(id) ?? [];
+    byCashier.set(id, b);
+    return b;
+  };
   for (const order of orders) {
-    if (!order.cashier) continue;
-    const bucket = byCashier.get(order.cashier.id) ?? [];
-    bucket.push(order);
-    byCashier.set(order.cashier.id, bucket);
+    if (order.cashier) {
+      names.set(order.cashier.id, order.cashier);
+      bucket(order.cashier.id).push(order);
+    }
+    for (const r of order.refunds) {
+      if (!r.cashierId || r.cashierId === order.cashier?.id) continue;
+      bucket(r.cashierId).push(order);
+    }
   }
 
-  const rows = Array.from(byCashier.values())
-    .map((group) => {
-      const c = group[0].cashier!;
-      const agg = aggregateOrders(group);
+  // A refunding cashier who sold nothing in the range still needs a name.
+  const missing = Array.from(byCashier.keys()).filter((id) => !names.has(id));
+  if (missing.length) {
+    for (const u of await db.user.findMany({
+      where: { id: { in: missing } },
+      select: { id: true, name: true, username: true },
+    })) {
+      names.set(u.id, u);
+    }
+  }
+
+  const rows = Array.from(byCashier.entries())
+    .map(([cashierId, group]) => {
+      const c = names.get(cashierId) ?? { id: cashierId, name: "—", username: "—" };
+      const agg = aggregateOrders(group, cashierAggregateOptions(cashierId, fromStart, toEnd));
       return {
-        cashierId: c.id,
+        cashierId,
         name: c.name,
         username: c.username,
         orders: agg.salesCount,

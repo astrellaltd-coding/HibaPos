@@ -36,6 +36,9 @@ import { addVatMoveToBreakdown, apportion, sum2, type VatBreakdown } from "@/lib
 // Type-only: names the two statuses Prisma expects in a `where`. No runtime
 // import, so this module still pulls in no database client.
 import type { OrderStatus } from "@prisma/client";
+// DD-20 (Batch 7.4a): the give-away tender's spelling, from the module that
+// owns it. `tender-policy.ts` imports nothing, so this adds no weight.
+import { OFFERT } from "@/lib/tender-policy";
 
 export type AggregatableItem = {
   productName: string;
@@ -55,6 +58,9 @@ export type AggregatableRefund = {
   /** The till that PAID this refund out (Batch 5.3) — not the till that took
    *  the sale. `processRefund` writes the shift that was open at the time. */
   shiftId?: string | null;
+  /** DD-21 / L-44 (Batch 7.4a): who ISSUED the refund. The cashier report
+   *  books a correction to the person who handed the money back. */
+  cashierId?: string | null;
 };
 
 export type AggregatableOrder = {
@@ -97,6 +103,29 @@ export type PeriodAggregate = {
   topProducts: { name: string; quantity: number; total: number }[];
   /** Per-day sales, net of refunds, keyed YYYY-MM-DD in local time. */
   byDay: { date: string; sales: number; orders: number; items: number }[];
+
+  // ── DD-20 / L-50 (Batch 7.4a): given-away orders, counted BESIDE the sales
+  //    figures and never inside them. ──────────────────────────────────────
+  //
+  // A give-away is a 100 % discount settled with the OFFERT tender — which
+  // exists because M-11 made a zero-total order unpayable at all. Until this
+  // batch such an order was **invisible**: `isFullyRefunded` opens
+  // `refundsTotal >= order.total`, and for a zero total that is `0 >= 0`, so
+  // the order was classified as fully refunded and dropped from every count.
+  // The branch was unreachable before Batch 5.7b, so its meaning had never
+  // been tested against this case, and "given away" is not "refunded".
+  //
+  // The operator chose (DD-20) to keep it out of `salesCount` and
+  // `topProducts` — so *average spend per meal* stays truthful and "top
+  // products" keeps meaning what SOLD — and to show it separately instead.
+  // Nothing above this comment changed: a give-away still contributes 0 to
+  // every money figure, because it is zero.
+  /** Orders given away: total 0, settled with the OFFERT tender. */
+  givenAwayCount: number;
+  /** Items on those orders. */
+  givenAwayItemsCount: number;
+  /** What was given away, most-given first — the "which dishes" half of DD-20. */
+  givenAwayProducts: { name: string; quantity: number }[];
 };
 
 /**
@@ -125,6 +154,25 @@ function isFullyRefunded(
 ): boolean {
   if (refundsTotal >= order.total) return true;
   return !ignoreStatus && order.status === "REFUNDED";
+}
+
+/**
+ * Was this order GIVEN AWAY rather than refunded? — DD-20 / L-50 (Batch 7.4a).
+ *
+ * Keyed on the TENDER, not on the total. A zero total is what makes the order
+ * fall out of `isFullyRefunded`, but it is a symptom: an `OFFERT` payment line
+ * is the operator's statement of intent, and `tender-policy.ts` already
+ * guarantees such a line carries 0, is the only line, and is accepted only
+ * when the total is 0. Both conditions are asserted here anyway, because this
+ * function decides what a report says and should not inherit its correctness
+ * from another module's invariants.
+ *
+ * A zero-total order with no OFFERT line therefore stays uncounted, exactly as
+ * before — the conservative reading, and unreachable for data this application
+ * writes.
+ */
+function isGiveaway(order: AggregatableOrder): boolean {
+  return order.total === 0 && order.payments.some((p) => p.method === OFFERT);
 }
 
 /** An order's aggregated state once `refundedSoFar` cents have been given back. */
@@ -241,6 +289,10 @@ export function aggregateOrders<T extends AggregatableOrder>(
   const vatBreakdown: VatBreakdown = {};
   const productAgg: Record<string, { name: string; quantity: number; total: number }> = {};
   const days: Record<string, { date: string; sales: number; orders: number; items: number }> = {};
+  // DD-20: kept in their own accumulators, never mixed into the ones above.
+  let givenAwayCount = 0;
+  let givenAwayItemsCount = 0;
+  const givenAwayAgg: Record<string, { name: string; quantity: number }> = {};
 
   // Payments and refunds are taken across EVERY order whose sale is in the
   // period, including fully refunded ones: their payment and their refund
@@ -317,7 +369,26 @@ export function aggregateOrders<T extends AggregatableOrder>(
     // The order's sale belongs here, so `refundedBefore` is zero — nothing can
     // be given back before the sale that earned it — and `after` is the whole
     // of this order's contribution rather than a difference.
-    if (!after.counted) continue;
+    if (!after.counted) {
+      // DD-20 / L-50. An order arrives here for one of two reasons, and until
+      // this batch they were indistinguishable: it was fully refunded, or it
+      // was given away. `isGiveaway` separates them on the tender, not on the
+      // total — a zero total is a symptom, an OFFERT line is the intent, and
+      // DD-14 created that tender precisely so the two stay separable.
+      //
+      // Deliberately NOT `continue`-ing into the sales arithmetic: a give-away
+      // adds nothing to salesTotal, salesCount, itemsCount, topProducts, the
+      // VAT breakdown or byDay. That is the whole of the operator's choice.
+      if (isGiveaway(order)) {
+        givenAwayCount += 1;
+        givenAwayItemsCount += order.itemCount;
+        for (const item of order.items) {
+          givenAwayAgg[item.productName] ??= { name: item.productName, quantity: 0 };
+          givenAwayAgg[item.productName].quantity += item.quantity;
+        }
+      }
+      continue;
+    }
 
     salesTotal += after.netTotal;
     salesCount += 1;
@@ -375,6 +446,11 @@ export function aggregateOrders<T extends AggregatableOrder>(
       .sort((a, b) => b.quantity - a.quantity || a.name.localeCompare(b.name))
       .slice(0, topProductsLimit),
     byDay: Object.values(days).sort((a, b) => a.date.localeCompare(b.date)),
+    givenAwayCount,
+    givenAwayItemsCount,
+    givenAwayProducts: Object.values(givenAwayAgg)
+      .sort((a, b) => b.quantity - a.quantity || a.name.localeCompare(b.name))
+      .slice(0, topProductsLimit),
   };
 }
 
@@ -423,6 +499,37 @@ export function aggregateCashMovements(
   }
   return { cashIn, cashOut, net: cashIn - cashOut, count: movements.length, byCategory };
 }
+
+/**
+ * DD-21 / L-44 (Batch 7.4a) — one cashier's slice of a period.
+ *
+ * The cashier report groups the period's orders itself and hands each bucket
+ * here. Two dimensions have to be answered at once, and until this batch only
+ * the second was:
+ *
+ *   * **the sale** belongs to the cashier who took it, inside the range;
+ *   * **the refund** belongs to the cashier who ISSUED it — `Refund.cashierId`
+ *     — not to the one who made the sale it corrects.
+ *
+ * A refund somebody else issued is positioned `"after"` rather than `"before"`:
+ * `"before"` would fold it into this cashier's baseline and quietly net it off
+ * their takings, which is the behaviour DD-21 replaced. `"after"` leaves their
+ * line showing the sale they made, and the correction shows on the line of the
+ * person who handed the money back — which is also what their drawer did.
+ */
+export const cashierAggregateOptions = <T extends { cashierId: string | null; createdAt: Date }>(
+  cashierId: string,
+  from: Date,
+  to: Date,
+): AggregateOptions<T> => ({
+  saleInPeriod: (o) => o.cashierId === cashierId && o.createdAt >= from && o.createdAt < to,
+  refundPosition: (r) => {
+    if (r.cashierId !== cashierId) return "after";
+    if (!r.createdAt) return "in";
+    if (r.createdAt < from) return "before";
+    return r.createdAt < to ? "in" : "after";
+  },
+});
 
 /** A shift's own movements: the till the money physically moved through. */
 export const shiftCashMovementsWhere = (shiftId: string) => ({ shiftId });

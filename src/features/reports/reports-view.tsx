@@ -120,6 +120,56 @@ export function ReportsView() {
 // Tab 1 — X report (live)
 // ---------------------------------------------------------------------------
 
+/**
+ * What was given away — DD-20 / L-50 (Batch 7.4a).
+ *
+ * Rendered BESIDE the sales figures and never among them: a give-away is a
+ * 100 % discount settled with the OFFERT tender, and the operator chose that
+ * it must not count as a sale, so that "ticket moyen" stays truthful and
+ * "Top produits" keeps meaning what sold.
+ *
+ * Renders nothing at all when there were none, because a permanent "0 offert"
+ * on every report is noise on the screens an operator reads during service.
+ */
+function GivenAway({
+  count,
+  items,
+  products,
+}: {
+  count: number;
+  items: number;
+  products: { name: string; quantity: number }[];
+}) {
+  if (!count) return null;
+  return (
+    <section>
+      <h3 className="mb-2 text-sm font-semibold text-foreground">
+        Offerts — non comptés dans les ventes
+      </h3>
+      <div className="rounded-lg border border-dashed border-amber-300 bg-amber-50/40 p-3 dark:border-amber-800 dark:bg-amber-950/20">
+        <div className="grid grid-cols-2 gap-3">
+          <Kpi label="Commandes offertes" value={count} />
+          <Kpi label="Articles offerts" value={items} />
+        </div>
+        {products.length > 0 && (
+          <ul className="mt-3 space-y-1 text-sm">
+            {products.map((p) => (
+              <li key={p.name} className="flex justify-between gap-3">
+                <span className="truncate text-muted-foreground">{p.name}</span>
+                <span className="tnum tabular-nums font-medium">×{p.quantity}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="mt-2 text-xs text-muted-foreground">
+          Une commande offerte est une remise de 100 % réglée en « Offert ». Elle
+          ne compte ni dans le chiffre d&apos;affaires ni dans le nombre de ventes.
+        </p>
+      </div>
+    </section>
+  );
+}
+
 function XReportTab() {
   const { data, isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: ["report", "x"],
@@ -209,6 +259,12 @@ function XReportTab() {
         <h3 className="mb-2 text-sm font-semibold text-foreground">Top produits</h3>
         <TopProductsList items={data?.topProducts ?? []} />
       </section>
+
+      <GivenAway
+        count={data?.givenAwayCount ?? 0}
+        items={data?.givenAwayItemsCount ?? 0}
+        products={data?.givenAwayProducts ?? []}
+      />
 
       <p className="rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
         Rapport en temps réel — non définitif. Les montants évoluent avec chaque vente.
@@ -385,6 +441,11 @@ function ZReportDetailDialog({
 
             <h3 className="mb-2 mt-5 text-sm font-semibold text-foreground">Top produits</h3>
             <TopProductsList items={report.topProducts} />
+            <GivenAway
+              count={report.givenAwayCount}
+              items={report.givenAwayItemsCount}
+              products={report.givenAwayProducts}
+            />
 
             {report.shift.openedBy && (
               <p className="mt-4 text-xs text-muted-foreground">
@@ -434,6 +495,10 @@ type SalesReport = {
   voucherTotal: number;
   days: { date: string; sales: number; orders: number; items: number }[];
   topProducts: { name: string; quantity: number; total: number }[];
+  // DD-20 / L-50 (Batch 7.4a) — beside the sales, never inside them.
+  givenAwayCount: number;
+  givenAwayItemsCount: number;
+  givenAwayProducts: { name: string; quantity: number }[];
 };
 
 function SalesTab() {
@@ -683,6 +748,11 @@ function SalesTab() {
               </h3>
               <div className="scroll-thin max-h-72 overflow-y-auto">
                 <TopProductsList items={data.topProducts} />
+                <GivenAway
+                  count={data.givenAwayCount}
+                  items={data.givenAwayItemsCount}
+                  products={data.givenAwayProducts}
+                />
               </div>
             </section>
           </div>

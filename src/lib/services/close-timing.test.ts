@@ -475,6 +475,19 @@ describe("period closes carry their refunds (L-26)", () => {
     // deliberately, per batch, and never adjusted to make a run go green.
     // The `CLOTURE_M` / `CLOTURE_A` EVENT payloads are still untouched
     // (Open Threads → D); this is the close row's own `dataJson`.
+    //
+    // AMENDED 2026-09-05 (Batch 7.4a, DD-20 / L-50). A THIRD time, and the
+    // first one an operator asked for rather than a defect forcing: the
+    // payload gains `givenAwayCount` and `givenAwayProducts`, so a period
+    // states what was given away beside what it sold. Safe for the same
+    // reason and no other — the two assertions below are re-run, not
+    // assumed, and both tables still hold ZERO rows.
+    //
+    // **Why now rather than when someone wants the report**: the decision was
+    // put to the operator with exactly this cost attached. Adding it after the
+    // first sealed close means a second payload vintage in a document that
+    // cannot be corrected, and the vintage rule in *Open Threads → D* exists
+    // because that has already happened twice to the EVENT payloads.
     expect(await db.monthlyClose.count()).toBe(0);
     expect(await db.annualClose.count()).toBe(0);
 
@@ -483,8 +496,9 @@ describe("period closes carry their refunds (L-26)", () => {
     const payload = JSON.parse(close.dataJson);
     expect(Object.keys(payload).sort()).toEqual([
       "cardTotal", "cashInTotal", "cashMovementsCount", "cashOutTotal", "cashTotal",
-      "discountsTotal", "month", "period", "refundsCount", "salesCount", "salesTotal",
-      "topProducts", "totalRefunded", "vatBreakdown", "vatTotal", "voucherTotal", "year",
+      "discountsTotal", "givenAwayCount", "givenAwayProducts", "month", "period",
+      "refundsCount", "salesCount", "salesTotal", "topProducts", "totalRefunded",
+      "vatBreakdown", "vatTotal", "voucherTotal", "year",
     ]);
 
     // And the chain over the row as sealed still recomputes.

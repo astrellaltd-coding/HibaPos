@@ -3,9 +3,11 @@ import { db } from "@/lib/db";
 import { withAuth } from "@/lib/api-handler";
 import {
   aggregateOrders,
+  aggregateCashMovements,
   AGGREGATE_INCLUDE,
   shiftOrdersWhere,
   shiftAggregateOptions,
+  shiftCashMovementsWhere,
 } from "@/lib/services/aggregate";
 
 export const GET = withAuth(async () => {
@@ -44,6 +46,23 @@ export const GET = withAuth(async () => {
     ...shiftAggregateOptions(shift.id, shift.openedAt),
   });
 
+  // L-48 (Batch 7.4a). This panel computed `expectedCash` WITHOUT the
+  // cash-movement term, so it and `GET /api/reports/x` answered differently for
+  // the same till the moment one movement existed — measured on a copy of
+  // production during Batch 5.6's walkthrough at **21 580 versus 26 580** after
+  // a single +50,00 € approvisionnement.
+  //
+  // That is M-14's "fourth aggregation semantic" reopening at the very endpoint
+  // M-14 was about. Batch 5.5 moved five aggregation callers onto `cash.net`
+  // and its record names all five; this was the one it did not carry across.
+  //
+  // Same scoping as `reports.ts`: the till the money physically moved through.
+  const movements = await db.cashMovement.findMany({
+    where: shiftCashMovementsWhere(shift.id),
+    select: { category: true, amount: true },
+  });
+  const cash = aggregateCashMovements(movements);
+
   const summary = {
     shiftId: shift.id,
     shiftNumber: shift.number,
@@ -68,7 +87,11 @@ export const GET = withAuth(async () => {
       VOUCHER: agg.voucherTotal,
     },
     refundedTotal: agg.totalRefunded,
-    expectedCash: shift.openingFloat + agg.grossCashTotal - agg.cashRefundsTotal,
+    // The same expression as `computeShiftReport`, term for term. If these two
+    // ever diverge again, `report-agreement.test.ts` fails — that is the point
+    // of writing the assertion rather than measuring it once by hand.
+    expectedCash:
+      shift.openingFloat + agg.grossCashTotal - agg.cashRefundsTotal + cash.net,
   };
 
   return NextResponse.json(summary);
