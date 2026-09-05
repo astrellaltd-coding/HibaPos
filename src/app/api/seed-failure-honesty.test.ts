@@ -1,4 +1,7 @@
-import { describe, it, expect, beforeEach, mock } from "bun:test";
+import { describe, it, expect, beforeEach } from "vitest";
+// Only `mock` comes from bun:test — `src/types/bun-test.d.ts` declares that one
+// function on purpose (Batch 6.1), so reaching for more of it is a type error.
+import { mock } from "bun:test";
 import { db } from "@/lib/db";
 import { ensureFiscalCounter } from "@/lib/services/sequence";
 
@@ -52,7 +55,8 @@ async function wipe() {
 }
 
 async function callSeed() {
-  const res = await seed(new Request("http://localhost/api/seed", { method: "POST" }) as never);
+  // `POST` takes no argument — the route reads its own session and counts.
+  const res = await seed();
   return { status: res.status, body: (await res.json()) as Record<string, unknown> };
 }
 
