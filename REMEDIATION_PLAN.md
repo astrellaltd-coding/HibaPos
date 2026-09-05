@@ -17,7 +17,7 @@ Detailed audit record: https://claude.ai/code/artifact/329316b0-3a6b-48b0-9d27-d
 
 **Last Completed Batch:** Batch 5.4 — held orders and cart lifecycle, which **closes C-23**. DD-11 (one till) removed the expensive half, leaving the two nobody had to decide: **nothing cleared the cart when the person at the till changed** — `logout` set `user: null` with a bare `set()`, so cashier B inherited A's open ticket and A's parked tickets and rang them under B's name — and **the persisted cart had no version guard**, so a cart written before the euros→cents migration rehydrated euros into cent fields. A pure `operatorChanged()` now decides which transitions clear (`null → someone` is the page refresh and keeps it), and all three call sites consult it. **The finding of the batch is that `version` + `migrate` does not close the second half**, and it is what the audit's own remediation direction asks for: zustand 5.0.10 skips migration entirely when the stored payload has no `version` key, which is exactly the euros-era shape — found by loading the real module against a stubbed `localStorage`, not by reading. The version is now stamped inside the state and checked in `merge`. Sixteen one-property reverts; **all 26 new tests fail under at least one**, so there are no regression assertions to disclaim. Recorded **L-47**. *(Before it: Batch 3.6c, which closed **L-27** by widening the period-close guard to any caisse still open — the old one checked a caisse's OPENING date, so a long-lived open caisse blocked no close at all. And Batch 5.3, which closed C-14: cross-shift refunds, attributed to the till that pays. Full accounts: the record's Batch 3.6c and Batch 5.3 sections, and their stubs.)*
 
-**Next Batch:** Batch 5.5 — cash movements (DD-12). Then 5.6, 5.7. **All three need a migration measured and handed over**, and whether they go to the operator as three commands or one at the end of Stage 5 has not been decided.
+**Next Batch:** Batch 5.5 — cash movements (DD-12). Then 5.6, 5.7. **Two migrations, not three** — measured 2026-09-05: 5.5 and 5.7 need one each, **5.6 emits an empty one** (enums are TEXT in SQLite, as 4.4b found). Each is handed over **as its batch lands** (operator, 2026-09-05), so the live database never lags `main`. Details in each batch's section.
 
 **Blocked:** Batch 1.3 `[HW]` sign-off and Batch 1.4 — both need the app running on the restaurant's POS machine, which is in a different country from the developer and has no copy of the app installed (decision of 2026-09-03).
 
@@ -1147,13 +1147,15 @@ Audit section J, step 6: none of these are subtle; all of them generate support 
 
 **Impact.** Every real cash movement produces a phantom variance, which trains staff to ignore the variance figure — defeating the purpose of C-02's fix.
 
-**Remediation direction.** Add an entrée/sortie de caisse model, journalled, feeding `expectedCash`. Requires a migration and a schema decision — DD-12. **Answered 2026-09-05:** build it, with a fixed category list — *approvisionnement*, *prélèvement*, *dépense*, *erreur de caisse*. The approval level was not separately specified; with one operational role since DD-07, 5.5 should say plainly whether a step-up PIN is wanted here as it is for refunds.
+**Remediation direction.** Add an entrée/sortie de caisse model, journalled, feeding `expectedCash`. Requires a migration and a schema decision — DD-12. **Answered 2026-09-05:** build it, with a fixed category list — *approvisionnement*, *prélèvement*, *dépense*, *erreur de caisse*.
+
+**The approval level was the gap DD-12 left, and it is now answered (operator, 2026-09-05): a step-up PIN for money LEAVING the drawer only.** *prélèvement*, *dépense* and a *erreur de caisse* that reduces the till require the operator's own PIN, exactly as every refund has since 4.4c; *approvisionnement* — a float top-up, which only adds cash — does not. The rule is the direction of the money, not the category name, so a negative correction is gated and a positive one is not. Chosen over gating every movement (a till where **every payment ever taken is cash** will record movements routinely) and over an amount threshold (a small payout repeated is the same money as a large one). **The cost is inherited and must be stated in the record**: 4.4c put `/api/auth/approve` and `/api/auth/step-up` on ONE shared five-attempt counter by operator decision, so five fumbled PINs on a cash payout lock **refunds and discounts** for fifteen minutes. A separate counter for cash movements was NOT built — that would reopen 4.4c's decision, which is not this batch's to reopen.
 
 ### Batch 5.5 — Validation Required
 
 *(Checked 2026-09-05 against DD-12, answered **add it with a fixed category list**. These criteria predate the answer and survive it — the feature is being built, which is what they assume. Two gaps the batch must close, both from DD-12's own carried notes.)*
 - **Not covered below, and required:** the four categories are exactly *approvisionnement*, *prélèvement*, *dépense*, *erreur de caisse*, and a movement's category is totallable — the whole reason a fixed list beat free text.
-- **Still unanswered, and 5.5 must say plainly which it chose:** whether a cash movement needs a step-up PIN, as refunds do since 4.4c. With one operational role, any gate narrower than MANAGER gates nobody, so this is a real question rather than a formality.
+- ~~**Still unanswered, and 5.5 must say plainly which it chose:** whether a cash movement needs a step-up PIN, as refunds do since 4.4c.~~ **ANSWERED 2026-09-05 — PIN on money leaving only** (see the direction above). Criteria: a *prélèvement*, a *dépense* and a negative *erreur de caisse* are each refused without a valid step-up token; an *approvisionnement* succeeds without one; and the token is bound to the movement's amount, as `consumeStepUpToken` already requires.
 - Targeted test: a cash-in and a cash-out each adjust `expectedCash` in the right direction.
 - Targeted test: cash movements appear in the X and Z reports and in the sealed period aggregation (Batch 3.2).
 - **Fiscal verification:** each movement writes a journal event; the chain still verifies.
@@ -1168,6 +1170,8 @@ Audit section J, step 6: none of these are subtle; all of them generate support 
 ---
 
 ## Batch 5.6 — Order cancellation and pre-payment void
+
+**No migration** — measured 2026-09-05 with `prisma migrate diff` against the live database, before the batch was started: removing `PENDING` and `CANCELLED` from `enum OrderStatus` emits *"This is an empty migration"*, because SQLite stores enums as TEXT. Exactly what Batch 4.4b found for the `CASHIER` removal. **Nothing waits on the operator for this batch.**
 
 **Status:** `NOT STARTED` — unblocked by DD-13, answered 2026-09-05
 
@@ -1198,6 +1202,8 @@ Audit section J, step 6: none of these are subtle; all of them generate support 
 ---
 
 ## Batch 5.7 — POS and catalogue defects
+
+**Migration measured 2026-09-05**, before the batch was started, with `prisma migrate diff` against the live database. DD-15's removals emit real DDL — `DROP TABLE "AddOn"`, `DROP TABLE "ProductAddon"`, and a full **rebuild of `Customer`** (SQLite's create-copy-drop-rename) to drop `postalCode`, preserving the other nine columns and all three indexes. DD-14's new « Offert » tender is an enum value and emits **nothing**. So this batch's hand-over is one command, and the `Customer` rebuild is why it needs the fingerprint diff of *Methods* rather than a glance: **2 customer rows** exist and must survive it.
 
 **Status:** `NOT STARTED`
 
