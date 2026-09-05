@@ -195,7 +195,7 @@ describe("the cart empties when the operator changes (C-23)", () => {
       new Response(JSON.stringify({ user: null }), {
         status: 200,
         headers: { "content-type": "application/json" },
-      })) as typeof fetch;
+      })) as unknown as typeof fetch;
     try {
       useAppStore.getState().setUser(alice);
       seedCart();
