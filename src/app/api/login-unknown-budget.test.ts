@@ -27,8 +27,28 @@ import { PIN_HASH_MAX_CONCURRENT, PIN_HASH_MAX_QUEUED } from "@/lib/pin-hash-que
 const PIN = "246810";
 
 async function wipe() {
+  // EVERY table that references `User`, in dependency order.
+  //
+  // This file first wiped only sessions, audit rows and users — and passed
+  // locally, because the files that leave orders behind happened to run after
+  // it. **CI failed it**, with `P2003` on `user.deleteMany()`, because the file
+  // order on Linux is different. That is **L-40's within-run half**, which
+  // Batch 6.3 fixed only ACROSS runs and said so in as many words: the per-run
+  // database "does NOT make files independent of each other WITHIN a run".
+  //
+  // A partial wipe is not a shortcut here; it is a dependency on file order.
   await db.session.deleteMany();
+  await db.cashMovement.deleteMany();
+  await db.fiscalEvent.deleteMany();
   await db.auditLog.deleteMany();
+  await db.zReport.deleteMany();
+  await db.payment.deleteMany();
+  await db.receipt.deleteMany();
+  await db.refund.deleteMany();
+  await db.orderItem.deleteMany();
+  await db.order.deleteMany();
+  await db.shift.deleteMany();
+  await db.grandTotal.deleteMany();
   await db.user.deleteMany();
   await db.fiscalCounter.deleteMany();
   await ensureFiscalCounter();
