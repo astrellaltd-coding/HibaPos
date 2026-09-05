@@ -3147,6 +3147,8 @@ Each carries a comment saying so, and `src/features/tables/table-withdrawal.test
 
 **(4) The narrowing broke no screen, and that was measured before the decision was put, not after.** Nothing in `src/` calls either endpoint as a MANAGER; both screens are already SUPER_ADMIN-only in the navigation. Had that not been true, DD-22 would have been a different question.
 
+
+**APPENDED 2026-09-05, after the batch was pushed — CI FAILED ON THIS FILE AND THE LOCAL SUITE HAD NOT.** `login-unknown-budget.test.ts` wiped only sessions, audit rows and users. On CI it failed with **P2003**, a foreign-key violation on `user.deleteMany()`, because another file's orders still referenced those users. **This is L-40's within-run half**, which Batch 6.3 fixed only ACROSS runs and said so in as many words: the per-run database directory "does NOT make files independent of each other WITHIN a run". A partial wipe is not a shortcut — it is a dependency on the order files happen to run in, and Linux ordered them differently from Windows. Fixed in `ea24595`; the wipe now clears every table referencing `User`, in dependency order. **Honest about the verification: the adverse ordering was NOT reproduced locally** — running the file after one that leaves orders behind still passed — and the fix does not depend on reproducing it, because it removes the ordering dependency rather than accommodating one neighbour. **This is the second thing CI has caught that the local suite could not**, and it is exactly what Batch 6.3 added it for.
 ---
 
 
