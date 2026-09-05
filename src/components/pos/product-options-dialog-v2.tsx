@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatEuro } from "@/lib/format";
 import { ProductImage } from "@/components/shared/product-image";
-import { useCartStore, productUnitPrice, type CartOption, type CartItem } from "@/store/cart-store";
+import { useCartStore, productUnitPrice, toCartOptions, type CartOption, type CartItem } from "@/store/cart-store";
 import type { ProductDto, OptionGroupDto } from "@/types/api";
 import { Check, Minus, Plus } from "lucide-react";
 // uuid replaced with built-in crypto.randomUUID()
@@ -77,30 +77,13 @@ export function ProductOptionsDialog({
     });
   };
 
-  const cartOptions: CartOption[] = useMemo(() => {
-    if (!product) return [];
-    const out: CartOption[] = [];
-    for (const g of options) {
-      const picks = selected[g.name] ?? [];
-      for (const p of picks) {
-        const ch = g.choices.find((c) => c.name === p);
-        if (ch) {
-          let effectiveMod = ch.priceModifier;
-          if (orderType === "TAKEAWAY" && ch.pickupPriceModifier != null) effectiveMod = ch.pickupPriceModifier;
-          else if (orderType === "LIVRAISON" && ch.deliveryPriceModifier != null) effectiveMod = ch.deliveryPriceModifier;
-          out.push({
-            group: g.name,
-            choice: ch.name,
-            choiceId: ch.id,
-            priceModifier: effectiveMod,
-            pickupPriceModifier: ch.pickupPriceModifier ?? null,
-            deliveryPriceModifier: ch.deliveryPriceModifier ?? null,
-          });
-        }
-      }
-    }
-    return out;
-  }, [selected, options, product, orderType]);
+  // M-19 (Batch 5.7c): this mapping was inline here and could not be tested,
+  // which is exactly why the defect survived — `cart-store.ts`'s tests build a
+  // `CartItem` by hand and never run it. It now lives beside `CartOption`.
+  const cartOptions: CartOption[] = useMemo(
+    () => (product ? toCartOptions(options, selected, orderType) : []),
+    [selected, options, product, orderType],
+  );
 
   const unitPrice = product ? productUnitPrice(product, cartOptions, orderType) : 0;
   const applicableAddOns = product?.addOns ?? [];

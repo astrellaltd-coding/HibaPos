@@ -64,7 +64,7 @@ describe("cart-store calculations", () => {
   });
 
   it("applies option modifiers", () => {
-    const opts: CartOption[] = [{ group: "Sauce", choice: "Algérienne", choiceId: "c1", priceModifier: 50 }];
+    const opts: CartOption[] = [{ group: "Sauce", choice: "Algérienne", choiceId: "c1", priceModifier: 50, dineInPriceModifier: 50 }];
     const price = productUnitPrice(baseProduct, opts, "DINE_IN");
     expect(price).toBe(1050);
   });

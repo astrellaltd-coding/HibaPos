@@ -198,6 +198,23 @@ export function computeLinePricing(
   }
 
   const unitPrice = basePrice + optionsModifier;
+
+  // M-15 (Batch 5.7c). Nothing stopped the options subtracting more than the
+  // base, and a negative `unitPrice` makes `lineTotal` negative — which would
+  // reduce the order's subtotal, corrupt the VAT apportionment and put a
+  // negative line into a sealed fiscal document.
+  //
+  // REFUSED rather than clamped, deliberately. A negative MODIFIER is normal:
+  // an absolute category price below the base produces one by design, and the
+  // three that exist on this catalogue resolve to 0, +300 and +700 against the
+  // cheapest product in their category — measured before choosing. A negative
+  // unit PRICE is a misconfiguration, and clamping it to zero would sell the
+  // item free and silently: nobody would ever see it. This way the operator
+  // gets a refusal naming the product and the catalogue can be fixed.
+  if (unitPrice < 0) {
+    return { error: `Prix négatif pour ${product.name} — vérifiez les options de ce produit.` };
+  }
+
   const lineTotal = (unitPrice + addonsTotal) * itemIntent.quantity;
 
   return {

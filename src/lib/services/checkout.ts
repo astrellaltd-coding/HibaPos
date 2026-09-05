@@ -44,6 +44,32 @@ export class CheckoutError extends Error {
 export const SHIFT_CLOSED_DURING_CHECKOUT_MESSAGE =
   "La caisse a été clôturée pendant l'encaissement. Ouvrez une caisse et recommencez la commande.";
 
+/**
+ * Is this till still open? — L-41 (Batch 5.7c).
+ *
+ * THE FINDING. `orders/route.ts` looks the shift up once, near the top, then
+ * prices every line (one database read per product), reads the settings, and
+ * only then consumes the operator's single-use step-up token — after which the
+ * transaction below re-asserts the status and may refuse 409. So a discounted
+ * sale that lost the race to a Z close was refused **with the PIN already
+ * spent**, and the operator had to re-enter it for a sale that was never
+ * refused on its own merits.
+ *
+ * The route now calls this immediately before `consumeStepUpToken`. That does
+ * NOT close the race — nothing outside a transaction can, which is C-15's
+ * whole point and why Batch 4.7 put the real assertion inside the transaction
+ * — but it moves the check from "before all the pricing work" to "one
+ * statement before the token", which is the window that was costing the PIN.
+ *
+ * Exported and shared so the route's pre-check and the transaction's guarantee
+ * cannot drift apart: Batch 5.5 note 4's shape, where the route runs a pure
+ * check first and the service keeps its own copy.
+ */
+export async function isShiftStillOpen(shiftId: string): Promise<boolean> {
+  const shift = await db.shift.findUnique({ where: { id: shiftId }, select: { status: true } });
+  return shift?.status === "OPEN";
+}
+
 /** Shown when the sale could not obtain a transaction inside its budget —
  *  in practice, a Z close holding the database longer than TX_CHECKOUT's
  *  `maxWait`. Nothing was written; retrying is safe. */

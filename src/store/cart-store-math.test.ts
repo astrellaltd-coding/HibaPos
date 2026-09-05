@@ -80,7 +80,7 @@ describe("productUnitPrice — base price per orderType on the product", () => {
   });
   it("applies priceModifier for DINE_IN option", () => {
     const opts: CartOption[] = [
-      { group: "Sauce", choice: "Algérienne", choiceId: "c1", priceModifier: 50 }, // 0.50 €
+      { group: "Sauce", choice: "Algérienne", choiceId: "c1", priceModifier: 50, dineInPriceModifier: 50 }, // 0.50 €
     ];
     expect(productUnitPrice(product, opts, "DINE_IN")).toBe(1050);
   });
@@ -98,7 +98,16 @@ describe("recalculateUnitPrice — full client-side mirror of A7", () => {
         group: "Taille",
         choice: "Moyenne",
         choiceId: "c1",
+        // M-19 (Batch 5.7c). These two are equal here, which is why this file
+        // passed throughout and never saw the defect: it hand-builds the IDEAL
+        // shape, where `priceModifier` really is the dine-in figure. The
+        // dialog did not produce that shape — it stored the RESOLVED modifier
+        // in `priceModifier` — so the line came back mispriced on a switch
+        // back to DINE_IN. `dineInPriceModifier` is what makes the two
+        // distinguishable; `offert`-style hand fixtures cannot catch it, and
+        // `cart-store-repricing.test.ts` goes through `toCartOptions` instead.
         priceModifier: 0, // dine-in
+        dineInPriceModifier: 0,
         pickupPriceModifier: 100, // takeaway override (1.00 €)
         deliveryPriceModifier: 200, // delivery override (2.00 €)
       },

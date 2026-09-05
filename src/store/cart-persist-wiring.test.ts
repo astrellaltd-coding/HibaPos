@@ -151,10 +151,17 @@ describe("the version guard is wired into persist, not merely written (C-23)", (
   it("hydrates a CURRENT-version cart intact — the over-discarding control", async () => {
     // Without this, a `migrate` that returned an empty cart unconditionally
     // would pass the case above and destroy every legitimate cart.
+    //
+    // M-19 (Batch 5.7c): this pinned version 1 and **FIRED** when the version
+    // went to 2, which is precisely its job — `CartOption` gained
+    // `dineInPriceModifier`, so a version-1 line has no dine-in figure and
+    // would reprice with whatever order type it was added under. The fixture
+    // and the pin move together, deliberately and recorded; neither is
+    // adjusted to whatever the code now returns.
     const { useCartStore, CART_PERSIST_VERSION } = await loadStoreWith(
-      CURRENT(1),
+      CURRENT(2),
     );
-    expect(CART_PERSIST_VERSION).toBe(1);
+    expect(CART_PERSIST_VERSION).toBe(2);
     const s = useCartStore.getState();
     expect(s.items).toHaveLength(1);
     expect(s.items[0].unitPrice).toBe(1000);

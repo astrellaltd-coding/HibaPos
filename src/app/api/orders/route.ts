@@ -8,7 +8,13 @@ import { sum2 } from "@/lib/money";
 import { consumeStepUpToken } from "@/lib/services/step-up";
 import { discountNeedsStepUp } from "@/lib/discount-policy";
 import { checkTenderComposition, TENDER_METHODS } from "@/lib/tender-policy";
-import { createOrderInTransaction, CheckoutError } from "@/lib/services/checkout";
+import { MAX_ITEM_QUANTITY } from "@/lib/order-limits";
+import {
+  createOrderInTransaction,
+  CheckoutError,
+  isShiftStillOpen,
+  SHIFT_CLOSED_DURING_CHECKOUT_MESSAGE,
+} from "@/lib/services/checkout";
 import type { SettingsDto } from "@/types/api";
 
 // Server-authoritative checkout intent schema.
@@ -22,7 +28,19 @@ const checkoutIntentSchema = z.object({
     .array(
       z.object({
         productId: z.string(),
-        quantity: z.number().int().min(1),
+        // M-16 (Batch 5.7c): an upper bound. There was none, so a client
+        // could ask for any quantity a 32-bit int holds and the server would
+        // price it. 99 is a till bound, not a business rule — the largest
+        // quantity ever sold on this install is 2, and 81 of 82 lines are 1.
+        // The message is French on purpose. **L-22** is that zod's own
+        // English text ("Too big: expected number to be <=99") reaches the
+        // operator untranslated; that finding stays with Batch 7.1, but a
+        // bound added HERE must not enlarge it.
+        quantity: z
+          .number()
+          .int()
+          .min(1)
+          .max(MAX_ITEM_QUANTITY, `Quantité maximale : ${MAX_ITEM_QUANTITY} par ligne.`),
         notes: z.string().optional().nullable(),
         optionIds: z.array(z.string()).default([]),
         addons: z.array(
@@ -34,7 +52,14 @@ const checkoutIntentSchema = z.object({
   discount: z
     .object({
       type: z.enum(["PERCENT", "AMOUNT"]),
-      value: z.number().int().min(0), // cents (AMOUNT) or percent×100 (PERCENT) — see server calc
+      // M-12 (Batch 5.7c). This comment said "percent×100 (PERCENT)" and was
+      // WRONG: the branch below computes `subtotal * min(value, 100) / 100`,
+      // i.e. a PLAIN percent. A client that believed the comment and sent 2500
+      // for 25 % would have been clamped to 100 and given the whole order
+      // away. The code is right and the comment was corrected — not the other
+      // way round — because the UI has only ever sent AMOUNT, so no caller
+      // depends on the documented reading.
+      value: z.number().int().min(0), // cents when AMOUNT; a plain 0-100 percent when PERCENT
       approvedById: z.string().optional(), // legacy — only honored for MANAGER+/SUPER_ADMIN callers
       // DD-19, Batch 4.4c: the caller's own step-up confirmation, issued by
       // `POST /api/auth/step-up` and bound to (this caller, DISCOUNT, this
@@ -234,7 +259,9 @@ export const POST = withAuth(async (req, { user }) => {
   let discountTotal = 0;
   if (discount) {
     if (discount.type === "PERCENT") {
-      // Percent discount: subtotal * value / 100 — round to nearest cent.
+      // Percent discount: `value` is a PLAIN percent, 0-100 (M-12, Batch 5.7c
+      // corrected the schema comment that claimed percent×100). Clamped at 100
+      // so it can never exceed the order.
       discountTotal = Math.round((subtotal * Math.min(discount.value, 100)) / 100);
     } else {
       // Amount discount: clamped to subtotal (can't discount more than the order).
@@ -306,6 +333,19 @@ export const POST = withAuth(async (req, { user }) => {
         { status: 400 }
       );
     }
+  }
+
+  // L-41 (Batch 5.7c). Re-read the till RIGHT HERE, immediately before the
+  // token is spent. The lookup near the top of this handler happened before
+  // every product was priced — one database read each — so a Z close landing
+  // during that work left the operator's single-use PIN consumed for a sale
+  // the transaction was about to refuse anyway.
+  //
+  // This does not close the race and is not meant to: only the assertion
+  // INSIDE the transaction can (C-15, Batch 4.7), and it is still there as the
+  // guarantee. What this removes is the window that was costing a PIN entry.
+  if (needsStepUp && !(await isShiftStillOpen(shift.id))) {
+    return NextResponse.json({ error: SHIFT_CLOSED_DURING_CHECKOUT_MESSAGE }, { status: 409 });
   }
 
   // Consume the step-up confirmation (DD-19). Last check before the sale is

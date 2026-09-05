@@ -8,7 +8,19 @@ export type CartOption = {
   group: string;
   choice: string;
   choiceId: string;
+  /** The modifier RESOLVED for the order type the line was added under — what
+   *  the dialog showed the operator, and what the line is priced at now. */
   priceModifier: number;
+  /** M-19 (Batch 5.7c): the DINE_IN modifier, kept alongside the resolved one.
+   *
+   *  The defect was that `priceModifier` held the resolved value and
+   *  `recalculateUnitPrice` then read it back as though it were the dine-in
+   *  one. Add a line under TAKEAWAY where the choice has a pickup modifier,
+   *  switch to DINE_IN, and the line reprices with the TAKEAWAY figure —
+   *  neither branch below fires, so `priceModifier` is used verbatim. The
+   *  client total then disagrees with the server's and the checkout is
+   *  refused « Paiement incorrect ». */
+  dineInPriceModifier: number;
   pickupPriceModifier?: number | null;
   deliveryPriceModifier?: number | null;
 };
@@ -103,8 +115,14 @@ const emptyCart = (): PersistedCart => ({ ...emptySale(), heldOrders: [], schema
  * wrongly: a 12,50 € line comes back as `unitPrice: 12.5` and is read as
  * 12 cents. The store had no version guard of any kind, which is the half of
  * C-23 that could corrupt a sale rather than merely leak one.
+ *
+ * **Version 2 (M-19, Batch 5.7c)** adds `CartOption.dineInPriceModifier`. A
+ * version-1 line has no such field, so its DINE_IN price would fall back to
+ * the modifier it was added under — the very defect M-19 names. Bumped rather
+ * than defaulted, which is what the instruction above says to do when the
+ * persisted SHAPE changes.
  */
-export const CART_PERSIST_VERSION = 1;
+export const CART_PERSIST_VERSION = 2;
 
 /**
  * Vet a persisted payload; return the empty cart when it cannot be vouched for.
@@ -291,7 +309,12 @@ export function recalculateUnitPrice(
   if (orderType === "TAKEAWAY" && item.pickupPrice != null) base = item.pickupPrice;
   else if (orderType === "LIVRAISON" && item.deliveryPrice != null) base = item.deliveryPrice;
   const modifier = item.options.reduce((acc, o) => {
-    let mod = o.priceModifier;
+    // M-19 (Batch 5.7c). The DINE_IN arm now reads the dine-in modifier rather
+    // than whatever the line happened to be added under. The `??` fallback is
+    // the pre-M-19 behaviour and is reachable only through hand-edited
+    // storage: `CART_PERSIST_VERSION` was bumped so every payload written
+    // before this batch is discarded rather than half-read.
+    let mod = o.dineInPriceModifier ?? o.priceModifier;
     if (orderType === "TAKEAWAY" && o.pickupPriceModifier != null) mod = o.pickupPriceModifier;
     else if (orderType === "LIVRAISON" && o.deliveryPriceModifier != null) mod = o.deliveryPriceModifier;
     return acc + mod;
@@ -308,6 +331,57 @@ export function computeCartTotals(items: CartItem[], discountTotal: number) {
   const subtotal = items.reduce((acc, i) => acc + computeLineTotal(i), 0);
   const total = Math.max(0, subtotal - discountTotal);
   return { subtotal, total };
+}
+
+/** The order-type-specific fields a choice can carry. Structural, so both
+ *  `OptionChoiceDto` and a category choice satisfy it. */
+export type ChoiceModifiers = {
+  id: string;
+  name: string;
+  priceModifier: number;
+  pickupPriceModifier?: number | null;
+  deliveryPriceModifier?: number | null;
+};
+
+/**
+ * Build the cart's options from what the operator ticked — M-19 (Batch 5.7c).
+ *
+ * EXTRACTED from `product-options-dialog-v2.tsx`, which built this inline in a
+ * `useMemo`. The batch's criterion is a test "built through the options
+ * dialog's own mapping, not a hand-built `CartItem` — the existing tests miss
+ * the bug precisely because they bypass it", and a mapping inside a component
+ * cannot be exercised. The dialog now calls this, so the test and the till run
+ * the same code.
+ *
+ * `priceModifier` is the value resolved for `orderType` (what the dialog
+ * prices with); `dineInPriceModifier` is always the choice's own dine-in
+ * figure, so a later switch back to DINE_IN has something true to read.
+ */
+export function toCartOptions(
+  groups: { name: string; choices: ChoiceModifiers[] }[],
+  selected: Record<string, string[]>,
+  orderType: "DINE_IN" | "TAKEAWAY" | "LIVRAISON",
+): CartOption[] {
+  const out: CartOption[] = [];
+  for (const g of groups) {
+    for (const picked of selected[g.name] ?? []) {
+      const ch = g.choices.find((c) => c.name === picked);
+      if (!ch) continue;
+      let effective = ch.priceModifier;
+      if (orderType === "TAKEAWAY" && ch.pickupPriceModifier != null) effective = ch.pickupPriceModifier;
+      else if (orderType === "LIVRAISON" && ch.deliveryPriceModifier != null) effective = ch.deliveryPriceModifier;
+      out.push({
+        group: g.name,
+        choice: ch.name,
+        choiceId: ch.id,
+        priceModifier: effective,
+        dineInPriceModifier: ch.priceModifier,
+        pickupPriceModifier: ch.pickupPriceModifier ?? null,
+        deliveryPriceModifier: ch.deliveryPriceModifier ?? null,
+      });
+    }
+  }
+  return out;
 }
 
 export function productUnitPrice(product: ProductDto, options: CartOption[], orderType?: "DINE_IN" | "TAKEAWAY" | "LIVRAISON"): number {

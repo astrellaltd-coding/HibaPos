@@ -311,10 +311,12 @@ export function OrdersView() {
     if (!detail || detail.items.length === 0) return;
     clear();
     for (const item of detail.items) {
-      // The JSON snapshots store the DINE_IN-era priceModifier per option.
-      // We keep it verbatim; if the cashier later toggles the order type,
-      // the cart falls back to that modifier (best-effort — the server
-      // recomputes authoritatively at checkout regardless).
+      // M-19 (Batch 5.7c) corrected this comment as well as the shape below.
+      // The snapshot stores the modifier AS CHARGED on that order — resolved
+      // for whatever order type it was rung under — not a "DINE_IN-era" one.
+      // A reorder therefore has no true dine-in figure to recover, so both
+      // fields get the snapshot's value: it is the only information there is,
+      // and the server recomputes authoritatively at checkout regardless.
       const options = safeParseOptions(item.optionsJson);
       const addOns = safeParseAddOns(item.addOnsJson);
       addItem({
@@ -331,6 +333,7 @@ export function OrdersView() {
           choice: o.choice,
           choiceId: "", // snapshot has no choice ids; server recomputes by product at checkout
           priceModifier: o.priceModifier ?? 0,
+          dineInPriceModifier: o.priceModifier ?? 0,
         })),
         addOns: addOns.map((a) => ({
           id: a.id ?? null,
