@@ -26,7 +26,11 @@ function buildUrl(path: string, query?: FetchOptions["query"]): string {
   return qs ? `${path}?${qs}` : path;
 }
 
-export async function apiFetch<T>(path: string, opts: FetchOptions = {}): Promise<T> {
+// L-07 (Batch 7.2): the `export` went, the function did not. `apiFetch` has
+// five callers and every one of them is the `api` object below, in this file.
+// Deleting it would have broken every screen; leaving it exported invited a
+// second way to call the API past that object's conventions.
+async function apiFetch<T>(path: string, opts: FetchOptions = {}): Promise<T> {
   const url = buildUrl(path, opts.query);
   const isFormData = opts.body instanceof FormData;
   const res = await fetch(url, {

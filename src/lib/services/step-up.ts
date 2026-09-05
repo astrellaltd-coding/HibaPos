@@ -9,7 +9,7 @@
 //
 // WHAT IT IS NOT. This is re-authentication, not second-person approval.
 // DD-07 left the product with one operational role, so there is no second
-// person to ask, and `/api/auth/approve` forbids self-approval by design —
+// person to ask, and `/api/auth/approve` (DELETED in Batch 7.2 — see `api/auth/step-up/route.ts`) forbids self-approval by design —
 // it can never succeed here. The control being bought is the UNATTENDED
 // TILL: today a passer-by can apply a 100 % discount or refund any amount
 // with no challenge at all.

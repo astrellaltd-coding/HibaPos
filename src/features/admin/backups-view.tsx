@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "@/lib/api-client";
 import type { BackupDto } from "@/types/api";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, formatBytes } from "@/lib/format";
 import { EmptyState, PageHeader } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -37,12 +37,6 @@ import {
   FileArchive,
   RotateCcw,
 } from "lucide-react";
-
-function formatBytes(b: number): string {
-  if (b < 1024) return `${b} o`;
-  if (b < 1048576) return `${(b / 1024).toFixed(1)} Ko`;
-  return `${(b / 1048576).toFixed(1)} Mo`;
-}
 
 export function BackupsView() {
   const qc = useQueryClient();

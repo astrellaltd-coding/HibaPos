@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { formatEuro } from "@/lib/format";
-import { cashVarianceCents, formatVariance } from "./z-close";
+import { cashVarianceCents } from "./z-close";
+// `formatVariance` moved to `@/lib/format` in Batch 7.2 (L-08). Same
+// function, same assertions — this test still pins C-02.
+import { formatVariance } from "@/lib/format";
 
 // fr-FR currency output uses U+00A0 before "€" and U+202F as the thousands
 // separator. Normalise both to a plain space so the assertions read as the

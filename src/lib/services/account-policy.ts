@@ -2,7 +2,7 @@
 // M-23 and C-18, Batch 4.3.
 //
 // They are here rather than in the handlers for the reason Batch 4.1 moved
-// the approval lockout out of `/api/auth/approve`: a rule expressed inside a
+// the approval lockout out of `/api/auth/approve` (DELETED in Batch 7.2 — see `api/auth/step-up/route.ts`): a rule expressed inside a
 // route can only be tested by standing up a request, and `withAuth` →
 // `getSession()` → `cookies()` throws outside one. Pure functions over plain
 // inputs can be asserted directly, which is what the plan's validation for

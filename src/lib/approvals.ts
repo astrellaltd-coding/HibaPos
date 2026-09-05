@@ -136,7 +136,7 @@ export function verifyApprovalToken(
     // Amount-bound verification: the token MUST carry the amount it was
     // issued for. A token issued WITHOUT an amount is a blank check —
     // reject it when the caller expects a specific amount (closes the
-    // amount-optional bypass where /api/auth/approve was called with
+    // amount-optional bypass where /api/auth/approve (DELETED in Batch 7.2 — see `api/auth/step-up/route.ts`) was called with
     // {pin, action} only).
     if (payload.amount == null) {
       throw new ApprovalError(

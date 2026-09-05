@@ -186,7 +186,7 @@ export const refundSchema = z.object({
   // without it; the field stays optional here so the refusal is the route's
   // French "Confirmation par code PIN requise." rather than a zod message in
   // English (L-22). It replaced `approvalToken`, the manager approval from
-  // `/api/auth/approve` — with one operational role that route can never
+  // `/api/auth/approve` (DELETED in Batch 7.2 — see `api/auth/step-up/route.ts`) — with one operational role that route can never
   // approve the caller's own refund, which is what M-18 described.
   stepUpToken: z.string().optional(), // signed single-use token from /api/auth/step-up
   method: z.enum(["CASH", "CARD", "VOUCHER"]).optional(), // refund channel; null legacy defaults to CASH in reports

@@ -1,6 +1,6 @@
 // Brute-force lockout for manager approvals — C-08, Batch 4.1.
 //
-// `POST /api/auth/approve` tests a submitted PIN against every active
+// `POST /api/auth/approve (DELETED in Batch 7.2 — see `api/auth/step-up/route.ts`)` tests a submitted PIN against every active
 // MANAGER/SUPER_ADMIN. Before this module the only wall was an in-memory
 // rate limit keyed on a client IP taken from `X-Real-IP`/`X-Forwarded-For`
 // — headers the caller supplies — so rotating a header per request minted a

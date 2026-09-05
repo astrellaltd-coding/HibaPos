@@ -221,7 +221,7 @@ export async function seedCatalogAndSettings(auditorUserId: string): Promise<{
     footerNote: "Merci de votre visite — À bientôt !",
     defaultVatRate: 10,
     currency: "EUR",
-    printerName: "Epson TM-m30",
+    printerName: "Sunso WTP-801", // L-12 (7.2): the physical printer. The live SETTING is the operator's to change (Open Threads → B).
     receiptWidth: 80,
     discountApprovalThreshold: 20,
     autoPrint: false,

@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api, ApiError } from "@/lib/api-client";
 import { Kpi, VatBreakdownTable, TopProductsList } from "@/components/shared/report-widgets";
 import type { XReportDto, ZReportDto } from "@/types/api";
-import { formatEuro, formatDateTime, formatDate } from "@/lib/format";
+import { formatEuro, formatDateTime, formatDate, formatVariance } from "@/lib/format";
 import { Money } from "@/components/shared/money";
 import { EmptyState, PageHeader } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
@@ -284,8 +284,7 @@ function ZReportsTab() {
                     <Money amount={z.cashTotal} />
                   </TableCell>
                   <TableCell className={cn("text-right font-medium", varianceTone(z.cashVariance))}>
-                    {z.cashVariance > 0 ? "+" : ""}
-                    {formatEuro(z.cashVariance)}
+                    {formatVariance(z.cashVariance)}
                   </TableCell>
                   <TableCell>
                     <Badge className="bg-primary/10 text-primary">Définitif</Badge>
@@ -370,8 +369,7 @@ function ZReportDetailDialog({
                 label="Écart"
                 value={
                   <span>
-                    {report.cashVariance > 0 ? "+" : ""}
-                    {formatEuro(report.cashVariance)}
+                    {formatVariance(report.cashVariance)}
                   </span>
                 }
                 tone={

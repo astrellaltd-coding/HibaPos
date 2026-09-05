@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useAppStore, type AppView } from "@/store/app-store";
 import { NAV_ITEMS, LEAST_PRIVILEGED_ROLE } from "@/components/shared/nav-config";

@@ -1,6 +1,9 @@
 // HTTP-friendly rate-limit wrapper for Next.js route handlers.
-import { NextResponse, type NextRequest } from "next/server";
-import { rateLimit } from "@/lib/rate-limit";
+// After L-07/L-29 removed `limitOr429`, this module holds ONE function:
+// `clientIp`. `NextResponse` and `rateLimit` went with the helper — each
+// route builds its own 429 from `rateLimit` directly, which is what made
+// the helper dead in the first place.
+import { type NextRequest } from "next/server";
 
 /** Whether the proxy headers may be believed.
  *
@@ -41,27 +44,16 @@ export function clientIp(req: NextRequest): string {
   return "unknown";
 }
 
-/**
- * Apply a per-IP rate limit. Returns a 429 NextResponse if throttled,
- * otherwise `null` — caller proceeds.
- */
-export function limitOr429(
-  req: NextRequest,
-  keyParts: string[],
-  max: number,
-  windowMs: number,
-): null | NextResponse {
-  const ip = clientIp(req);
-  const key = `${ip}:${keyParts.join(":")}`;
-  const res = rateLimit(key, max, windowMs);
-  if (!res.ok) {
-    return NextResponse.json(
-      { error: "Trop de tentatives. Réessayez plus tard." },
-      {
-        status: 429,
-        headers: { "Retry-After": String(Math.max(1, res.retryAfterSec)) },
-      },
-    );
-  }
-  return null;
-}
+// L-07 and L-29 (Batch 7.2) — the same finding, recorded twice.
+//
+// `limitOr429` stood here: a helper meant to standardise the 429 response,
+// called from NOWHERE. Every route reaches for `clientIp` + `rateLimit`
+// directly and builds its own refusal.
+//
+// It is DELETED rather than adopted, and L-29 named the reason: it embedded
+// the key shape `<ip>:<parts>`, whose IP component was the C-08 bypass. It
+// inherited Batch 4.1's fix because it called `clientIp`, so there was no live
+// risk — the hazard was a future route adopting it and quietly reintroducing
+// an IP-keyed limit. Adopting it everywhere was the other option in the row;
+// that is a change to 20-odd routes' refusal behaviour, which is not a
+// dead-code batch's business.

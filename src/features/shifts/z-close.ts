@@ -6,7 +6,6 @@
 // float rendered as "2,00 €" and a 5,00 € shortage as "0,05 €" — on the one
 // screen whose purpose is catching missing cash.
 
-import { formatEuro } from "@/lib/format";
 
 /** Counted cash minus expected cash, in CENTS. Negative = cash missing. */
 export function cashVarianceCents(
@@ -16,10 +15,7 @@ export function cashVarianceCents(
   return countedCents - expectedCashCents;
 }
 
-/**
- * The variance as the operator reads it: an explicit "+" for a surplus, the
- * formatter's own "-" for a shortage, no sign for an exact count.
- */
-export function formatVariance(varianceCents: number): string {
-  return `${varianceCents > 0 ? "+" : ""}${formatEuro(varianceCents)}`;
-}
+// L-08 (Batch 7.2): `formatVariance` moved to `src/lib/format.ts`, beside the
+// `formatEuro` it wraps. It was defined here, used ONCE, and hand-copied at
+// four other places — on the screens whose purpose is catching missing cash.
+// `cashVarianceCents` stays: that is shift arithmetic, not display.

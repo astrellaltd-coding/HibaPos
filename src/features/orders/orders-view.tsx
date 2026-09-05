@@ -57,7 +57,8 @@ import {
 import { useCartStore } from "@/store/cart-store";
 import { useAppStore } from "@/store/app-store";
 import { downloadReceipt } from "@/lib/receipt";
-import { PAYMENT_LABELS, ORDER_TYPE_LABELS, ORDER_STATUS_LABELS } from "@/lib/order-labels";
+import { PAYMENT_LABELS, ORDER_TYPE_LABELS } from "@/lib/order-labels";
+import { OrderStatusBadge } from "@/components/shared/order-status-badge";
 import { safeParseOptions, safeParseAddOns } from "@/lib/order-parsers";
 import { StepUpPinDialog, type StepUpConfirmation } from "@/components/pos/step-up-pin-dialog";
 import type { SettingsDto } from "@/types/api";
@@ -97,27 +98,9 @@ function paymentIcon(method: string) {
   }
 }
 
-function statusBadge(status: OrderDto["status"]) {
-  switch (status) {
-    case "COMPLETED":
-      return (
-        <Badge className="bg-emerald-100 text-emerald-700">
-          {ORDER_STATUS_LABELS.COMPLETED}
-        </Badge>
-      );
-    case "REFUNDED":
-      return <Badge variant="destructive">{ORDER_STATUS_LABELS.REFUNDED}</Badge>;
-    default:
-      // DD-13 / M-08 (Batch 5.6). Two arms went from here: « Annulée » for a
-      // CANCELLED nothing ever wrote, and — the one that mattered — a
-      // `default` reading « En attente », which is how this screen implied a
-      // pre-payment state the product does not have. Every order is one of the
-      // two above, so this is unreachable through the types; it stays as a
-      // runtime floor because `status` arrives over HTTP. It now shows what
-      // actually came back instead of naming a state that cannot exist.
-      return <Badge variant="outline">{status}</Badge>;
-  }
-}
+// L-08 (Batch 7.2): the `statusBadge` switch that stood here was byte-identical
+// to the one in the other view — 21 lines each — and both now come from
+// `OrderStatusBadge`. Batch 5.6's DD-13 / M-08 reasoning travelled with it.
 
 function paymentBadge(method: string) {
   const Icon = paymentIcon(method);
@@ -253,7 +236,7 @@ export function OrdersView() {
     // Every refund is confirmed by the signed-in operator's OWN PIN (DD-19,
     // Batch 4.4c) — no threshold, no second person. This replaces the manager
     // approval that used to open here: with one operational role (DD-07)
-    // `/api/auth/approve` forbids self-approval, so a lone manager could not
+    // `/api/auth/approve` (DELETED in Batch 7.2 — see `api/auth/step-up/route.ts`) forbids self-approval, so a lone manager could not
     // refund through this screen at all. That was M-18, and the operator's
     // decision of 2026-09-04 closes it here rather than in Batch 5.7.
     //
@@ -483,7 +466,9 @@ export function OrdersView() {
                     <TableCell className="text-muted-foreground">
                       {o.cashier?.name ?? "—"}
                     </TableCell>
-                    <TableCell>{statusBadge(o.status)}</TableCell>
+                    <TableCell>
+                      <OrderStatusBadge status={o.status} />
+                    </TableCell>
                   </TableRow>
                 );
               })}
@@ -527,7 +512,7 @@ export function OrdersView() {
                   {formatDateTime(detail.createdAt)}
                 </p>
                 <p className="mt-1 inline-flex">
-                  {statusBadge(detail.status)}
+                  <OrderStatusBadge status={detail.status} />
                 </p>
               </div>
               <div className="my-2 border-t border-dashed border-foreground/40" />

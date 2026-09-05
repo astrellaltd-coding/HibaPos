@@ -14,7 +14,23 @@ const stepUpSchema = z.object({
   amount: z.number().int().min(0).optional(),
 });
 
-// Same numbers as `/api/auth/approve`, and — deliberately — the same KEY, so
+// ─────────────────────────────────────────────────────────────────────────────
+// `/api/auth/approve` NO LONGER EXISTS. Deleted in Batch 7.2, along with
+// `manager-approval-dialog.tsx`. THIS route is what replaced it.
+//
+// Thirteen files still describe a design decision by contrast with it, because
+// the reasoning is what makes them make sense: it tested a submitted PIN
+// against every active manager and then forbade self-approval, so with one
+// operational role (DD-07) it could admit nobody. It had had no runtime caller
+// since Batch 4.4c made the caller's own PIN mandatory for every refund.
+//
+// It was deleted rather than left dormant for a specific reason: it was
+// `withAuth` with no role restriction, so any signed-in user could POST a PIN
+// to it, and it deliberately SHARED the five-attempt lockout counter with this
+// route — so exhausting a route that could never succeed locked out the one
+// that gates every refund and every large discount.
+// ─────────────────────────────────────────────────────────────────────────────
+// Same numbers as `/api/auth/approve` (DELETED in Batch 7.2 — see `api/auth/step-up/route.ts`), and — deliberately — the same KEY, so
 // the two surfaces share one in-memory bucket. A guesser who exhausts the
 // approve route does not get a fresh five here (operator decision,
 // 2026-09-04: one shared counter, five attempts in total).

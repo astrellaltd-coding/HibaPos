@@ -91,7 +91,11 @@ export async function appendFiscalEvent(tx: Tx, opts: AppendOpts) {
 // Grand total perpétuel — cumulative since the beginning of time, never resets.
 // ---------------------------------------------------------------------------
 
-export async function ensureGrandTotal(tx: Tx): Promise<void> {
+// L-07 (Batch 7.2): un-exported, not deleted. Both callers are in this file
+// (`incrementGrandTotal` and the reader below it), and the grand total is
+// fiscal state — an external caller creating the row out of band is exactly
+// what should not be easy.
+async function ensureGrandTotal(tx: Tx): Promise<void> {
   await tx.grandTotal.upsert({
     where: { id: "singleton" },
     create: { id: "singleton" },

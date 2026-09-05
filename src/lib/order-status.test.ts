@@ -221,10 +221,20 @@ describe("what the operator is shown", () => {
   });
 
   it("never tells the operator an order is awaiting payment or cancelled", () => {
-    // M-08's user-visible half, and the batch's own validation criterion:
+    // M-08's user-visible half, and Batch 5.6's own validation criterion:
     // "the UI no longer implies the state exists". Both `statusBadge` switches
     // fell through to « En attente » for anything they did not recognise, which
     // is a pre-payment state described in French on a screen the manager reads.
+    //
+    // ── AMENDED IN BATCH 7.2 (L-08), AND IT IS STRICTLY STRONGER ─────────────
+    // This test FAILED when 7.2 de-duplicated the two byte-identical switches
+    // into `OrderStatusBadge`: it asserted each view file contains
+    // `ORDER_STATUS_LABELS.COMPLETED`, and neither does any more — the badge is
+    // rendered from one module now. The assertion is MOVED, not dropped, and a
+    // third one is added that the old shape could not express: **neither view
+    // may declare a `statusBadge` switch of its own again**, which is the
+    // property 7.2 established and the one that would let these drift apart a
+    // second time. Nothing here was relaxed to make the run go green.
     for (const view of [
       path.join(SRC, "features", "orders", "orders-view.tsx"),
       path.join(SRC, "features", "dashboard", "dashboard-view.tsx"),
@@ -232,10 +242,21 @@ describe("what the operator is shown", () => {
       const source = readFileSync(view, "utf8");
       expect(codeLinesMentioning(source, "En attente")).toEqual([]);
       expect(codeLinesMentioning(source, "Annulée")).toEqual([]);
-      // …and the two real badges are still rendered, so a switch deleted
-      // wholesale fails here instead of passing for the wrong reason.
-      expect(source).toContain("ORDER_STATUS_LABELS.COMPLETED");
-      expect(source).toContain("ORDER_STATUS_LABELS.REFUNDED");
+      // The duplication must not come back.
+      expect(source).not.toContain("function statusBadge");
+      // …and the shared badge really is what the view renders, so a switch
+      // deleted wholesale fails here instead of passing for the wrong reason.
+      expect(source).toContain("<OrderStatusBadge status=");
     }
+
+    // The labels moved with the switch, so assert them where they now live.
+    const badge = readFileSync(
+      path.join(SRC, "components", "shared", "order-status-badge.tsx"),
+      "utf8",
+    );
+    expect(badge).toContain("ORDER_STATUS_LABELS.COMPLETED");
+    expect(badge).toContain("ORDER_STATUS_LABELS.REFUNDED");
+    expect(codeLinesMentioning(badge, "En attente")).toEqual([]);
+    expect(codeLinesMentioning(badge, "Annulée")).toEqual([]);
   });
 });

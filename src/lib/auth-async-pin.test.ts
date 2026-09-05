@@ -7,7 +7,7 @@ import { hashPin, verifyPinDetail } from "@/lib/auth";
 // parameters for a 6-digit PIN, and expensive on purpose. Run synchronously
 // they froze the single process serving the till for the whole derivation —
 // twice for a wrong PIN (strong params, then the legacy fallback) and once
-// per manager on `/api/auth/approve`, so five managers and one fumbled PIN
+// per manager on `/api/auth/approve` (DELETED in Batch 7.2 — see `api/auth/step-up/route.ts`), so five managers and one fumbled PIN
 // stopped the POS for about two seconds. Orders, printing and every other
 // request waited.
 //

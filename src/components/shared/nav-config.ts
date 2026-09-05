@@ -105,9 +105,8 @@ export function canAccessView(role: Role | null | undefined, view: AppView): boo
   return item.roles.includes(effective);
 }
 
-export const GROUP_LABELS: Record<NavItem["group"], string> = {
-  caisse: "Caisse",
-  catalogue: "Catalogue",
-  gestion: "Gestion",
-  systeme: "Système",
-};
+// L-07 (Batch 7.2). `GROUP_LABELS` stood here and was imported by nothing —
+// the nav renders its groups from `NavItem["group"]` directly. The four French
+// labels it held are not lost: they are the section headings the shell already
+// writes. Removed rather than wired up, because nothing had asked for them in
+// the whole life of the file.

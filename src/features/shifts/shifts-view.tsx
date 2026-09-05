@@ -6,10 +6,10 @@ import { toast } from "sonner";
 import { Kpi, VatBreakdownTable, TopProductsList } from "@/components/shared/report-widgets";
 import { api, ApiError } from "@/lib/api-client";
 import type { ShiftDto, XReportDto } from "@/types/api";
-import { formatEuro, formatDateTime } from "@/lib/format";
+import { formatDateTime, formatVariance } from "@/lib/format";
 import { Money } from "@/components/shared/money";
 import { EmptyState, PageHeader } from "@/components/shared/empty-state";
-import { cashVarianceCents, formatVariance } from "./z-close";
+import { cashVarianceCents } from "./z-close";
 import { CashMovementDialog } from "./cash-movement-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -268,7 +268,7 @@ export function ShiftsView() {
                       <TableCell className={cn("text-right font-medium", v.cls)}>
                         {s.cashVariance === null
                           ? "—"
-                          : `${s.cashVariance > 0 ? "+" : ""}${formatEuro(s.cashVariance)}`}
+                          : formatVariance(s.cashVariance)}
                       </TableCell>
                       <TableCell>
                         {s.status === "OPEN" ? (
@@ -785,8 +785,7 @@ function ZReportSuccessDialog({
             <div className="mt-1 flex items-center justify-between">
               <span className="text-muted-foreground">Écart de caisse</span>
               <span className={cn("font-semibold tnum tabular-nums", v.cls)}>
-                {result.cashVariance > 0 ? "+" : ""}
-                {formatEuro(result.cashVariance)}{" "}
+                {formatVariance(result.cashVariance)}{" "}
                 <span className="text-xs font-normal">({v.label})</span>
               </span>
             </div>

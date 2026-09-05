@@ -86,20 +86,8 @@ export async function saveSettings(input: Partial<SettingsInput>): Promise<Setti
   return merged;
 }
 
-export async function getSetting<T>(key: string, fallback: T): Promise<T> {
-  const row = await db.setting.findUnique({ where: { key } });
-  if (!row) return fallback;
-  try {
-    return JSON.parse(row.value) as T;
-  } catch {
-    return row.value as unknown as T;
-  }
-}
-
-export async function setSetting<T>(key: string, value: T): Promise<void> {
-  await db.setting.upsert({
-    where: { key },
-    create: { key, value: JSON.stringify(value) },
-    update: { value: JSON.stringify(value) },
-  });
-}
+// L-07 (Batch 7.2). A generic `getSetting<T>` / `setSetting<T>` pair stood
+// here, imported by nothing. Every real caller goes through the typed
+// accessors above, which know the shape of what they read and validate it;
+// a generic pair keyed by an arbitrary string was a way to write a setting
+// nothing else in the app knows how to read back.

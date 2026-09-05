@@ -19,6 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { formatBytes } from "@/lib/format";
 import {
   Images,
   Upload,
@@ -42,13 +43,6 @@ type MediaItem = {
   height: number | null;
   usedBy: { type: string; label: string }[];
 };
-
-function formatBytes(bytes: number | null): string {
-  if (!bytes) return "—";
-  if (bytes < 1024) return `${bytes} o`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} Ko`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`;
-}
 
 const TYPE_META: Record<string, { label: string; icon: typeof Package; color: string }> = {
   produit: { label: "Produit", icon: Package, color: "bg-blue-500/10 text-blue-600 border-blue-200" },

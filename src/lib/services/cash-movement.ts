@@ -17,7 +17,7 @@
 // not the category name, so a negative *erreur de caisse* is gated and a
 // positive one is not.
 //
-// A COST THAT IS INHERITED, NOT CHOSEN. Batch 4.4c put `/api/auth/approve` and
+// A COST THAT IS INHERITED, NOT CHOSEN. Batch 4.4c put `/api/auth/approve` (DELETED in Batch 7.2 — see `api/auth/step-up/route.ts`) and
 // `/api/auth/step-up` on ONE shared five-attempt counter, by operator decision.
 // A cash-out PIN spends from that same budget, so five fumbled payout PINs lock
 // REFUNDS and DISCOUNTS for fifteen minutes. A separate counter was considered

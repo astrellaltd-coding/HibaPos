@@ -264,7 +264,7 @@ function SettingsForm({ initial }: { initial: SettingsDto }) {
                   onChange={(e) =>
                     update("printerName", e.target.value || null)
                   }
-                  placeholder="Epson TM-m30"
+                  placeholder="Sunso WTP-801"
                 />
               </div>
               <div className="grid gap-4 md:grid-cols-2">

@@ -2,11 +2,10 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { api, ApiError } from "@/lib/api-client";
-import type { DashboardDto, OrderDto } from "@/types/api";
+import type { DashboardDto } from "@/types/api";
 import { PageHeader, EmptyState } from "@/components/shared/empty-state";
 import { Money } from "@/components/shared/money";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   LayoutDashboard,
@@ -41,7 +40,8 @@ import {
   Legend,
 } from "recharts";
 import { cn } from "@/lib/utils";
-import { PAYMENT_LABELS, ORDER_STATUS_LABELS } from "@/lib/order-labels";
+import { PAYMENT_LABELS } from "@/lib/order-labels";
+import { OrderStatusBadge } from "@/components/shared/order-status-badge";
 
 const PAYMENT_COLORS: Record<string, string> = {
   CASH: "var(--chart-1)",
@@ -52,27 +52,9 @@ const PAYMENT_COLORS: Record<string, string> = {
   OFFERT: "var(--chart-5)",
 };
 
-function statusBadge(status: OrderDto["status"]) {
-  switch (status) {
-    case "COMPLETED":
-      return (
-        <Badge className="bg-emerald-100 text-emerald-700">
-          {ORDER_STATUS_LABELS.COMPLETED}
-        </Badge>
-      );
-    case "REFUNDED":
-      return <Badge variant="destructive">{ORDER_STATUS_LABELS.REFUNDED}</Badge>;
-    default:
-      // DD-13 / M-08 (Batch 5.6). Two arms went from here: « Annulée » for a
-      // CANCELLED nothing ever wrote, and — the one that mattered — a
-      // `default` reading « En attente », which is how this screen implied a
-      // pre-payment state the product does not have. Every order is one of the
-      // two above, so this is unreachable through the types; it stays as a
-      // runtime floor because `status` arrives over HTTP. It now shows what
-      // actually came back instead of naming a state that cannot exist.
-      return <Badge variant="outline">{status}</Badge>;
-  }
-}
+// L-08 (Batch 7.2): the `statusBadge` switch that stood here was byte-identical
+// to the one in the other view — 21 lines each — and both now come from
+// `OrderStatusBadge`. Batch 5.6's DD-13 / M-08 reasoning travelled with it.
 
 function KpiCard({
   label,
@@ -538,7 +520,7 @@ export function DashboardView() {
                   </div>
                   <div className="flex flex-col items-end gap-1">
                     <Money amount={o.total} className="text-sm font-semibold text-foreground" />
-                    {statusBadge(o.status)}
+                    <OrderStatusBadge status={o.status} />
                   </div>
                 </li>
               ))}

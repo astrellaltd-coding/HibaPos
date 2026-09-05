@@ -12,7 +12,7 @@ import {
 
 // Batch 4.1 — C-08 (manager-approval PIN can be brute-forced).
 //
-// Before this batch `POST /api/auth/approve` wrote an audit row on a wrong
+// Before this batch `POST /api/auth/approve (DELETED in Batch 7.2 — see `api/auth/step-up/route.ts`)` wrote an audit row on a wrong
 // PIN and returned 403, and that was all: no counter, no lockout. The only
 // wall was an in-memory rate limit whose key carried a client IP taken from
 // `X-Real-IP` / `X-Forwarded-For` — headers the caller supplies — so an

@@ -76,7 +76,7 @@ export const POST = withAuthParams(async (req, { user, params }) => {
   // it issued, bound to (this caller, REFUND, this exact cent amount).
   //
   // This REPLACES two arms that stood here. The `approvalToken` arm verified a
-  // *manager's* approval from `/api/auth/approve`; with one operational role
+  // *manager's* approval from `/api/auth/approve` (DELETED in Batch 7.2 — see `api/auth/step-up/route.ts`); with one operational role
   // (DD-07) that route forbids self-approval and can never succeed, which is
   // exactly why a lone manager could not refund through the UI at all (M-18 —
   // closed here by the operator's decision, rather than in Batch 5.7). The

@@ -32,7 +32,7 @@ type StepUpPinDialogProps = {
  * DD-19, Batch 4.4c — the signed-in user re-enters THEIR OWN PIN.
  *
  * Deliberately NOT `ManagerApprovalDialog`, which asks for "le PIN d'un
- * manager" and posts to `/api/auth/approve`. That route tests the PIN against
+ * manager" and posts to `/api/auth/approve` (DELETED in Batch 7.2 — see `api/auth/step-up/route.ts`). That route tests the PIN against
  * every manager and then forbids self-approval, so with one operational role
  * (DD-07) it can never confirm the caller's own action. This posts to
  * `/api/auth/step-up`, which re-authenticates the caller and nobody else.

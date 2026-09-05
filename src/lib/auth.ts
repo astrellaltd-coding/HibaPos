@@ -45,7 +45,7 @@ const LEGACY_SCRYPT_OPTS = { N: 1 << 14, r: 8, p: 1 } as const;
  *  C-09, Batch 4.2: these calls were `scryptSync`, which froze the single
  *  Node process serving the till for ~390 ms each — twice per wrong PIN
  *  (strong params, then the legacy fallback) and once per manager on
- *  `/api/auth/approve`. The work is identical; only the thread changed.
+ *  `/api/auth/approve` (DELETED in Batch 7.2 — see `api/auth/step-up/route.ts`). The work is identical; only the thread changed.
  *  `runPinDerivation` throws `ScryptBusyError` when too many are already
  *  queued, which the auth routes answer with 503 rather than piling on. */
 function derive(
