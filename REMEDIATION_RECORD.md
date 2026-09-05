@@ -3183,6 +3183,27 @@ Each carries a comment saying so, and `src/features/tables/table-withdrawal.test
 
 # ANSWERED DESIGN DECISIONS — FULL RATIONALE
 
+**DD-16** *(retired from the plan's table on 2026-09-05: answered, and Batch 7.1 completed it the same day.)*
+
+| **DD-16** | **ANSWERED 2026-09-05 — keep them tracked; the documentation is what is wrong.** 139 files, 49 MB, all real catalogue images. Batch 7.1 corrects `README.md` and the `/upload/` typo in `.gitignore` so both say what is true. | Batch 7.1 (DOC-06) | Full question and rationale: `REMEDIATION_RECORD.md` → *Answered design decisions*. |
+
+
+**DD-20** *(moved from the plan's DESIGN DECISIONS table on 2026-09-05, the day it was answered — the row was cut to a pointer because the three of them together put the front matter 1,542 bytes over its ceiling).*
+
+| **DD-20** | **ANSWERED 2026-09-05 — a given-away order is shown SEPARATELY: it is not counted as a sale, and a distinct "given away" count and item list appear beside the sales figures.** L-50 asked whether a 100 %-discounted order should count as a ticket and whether its items belong in `topProducts`. Today it is dropped from every count, because `isFullyRefunded` opens `refundsTotal >= order.total` and for a zero-total order that is `0 >= 0`. **The operator's reasoning, in their own framing**: they had not seen the tender at all — it landed the same day and the app is not installed — and the option chosen keeps *average spend per meal* truthful and `topProducts` meaning *what sold*, while still making the give-away visible. **Timing is why it is decided now**: the new field changes the shape of the sealed close `dataJson`, and **zero closes have ever been sealed** (*Open Threads → D*), so it costs nothing today and would create a second payload vintage later. | Batch 7.4a | Full question, the measurement and the rejected options: `REMEDIATION_RECORD.md` → *Answered design decisions* |
+
+**DD-21** *(moved from the plan's DESIGN DECISIONS table on 2026-09-05, the day it was answered — the row was cut to a pointer because the three of them together put the front matter 1,542 bytes over its ceiling).*
+
+| **DD-21** | **ANSWERED 2026-09-05 — the four non-fiscal reports adopt the FISCAL rule: a period books the corrections it issued.** L-44 asked whose takings a refund reduces when it is paid on a different day from the sale. Batch 5.3 moved the five fiscal callers to the refunding period; `dashboard`, `reports/cashiers`, `reports/products` and `customers/[id]/detail` were left on the selling one, so the dashboard's "today" and `/api/reports/sales` can disagree for the same day. **One rule everywhere**, and the refunding cashier's takings drop — which is also what their drawer does. | Batch 7.4a | Full question and the rejected options: `REMEDIATION_RECORD.md` → *Answered design decisions* |
+
+**DD-22** *(moved from the plan's DESIGN DECISIONS table on 2026-09-05, the day it was answered — the row was cut to a pointer because the three of them together put the front matter 1,542 bytes over its ceiling).*
+
+| **DD-22** | **ANSWERED 2026-09-05 — narrow `GET /api/users` and `GET /api/backups` to `["SUPER_ADMIN"]`, and review the other 27 gates, marking each deliberate or decorative.** L-33: since Batch 4.4b removed `CASHIER`, a gate naming `["SUPER_ADMIN", "MANAGER"]` admits the entire role model. Those two answer **200** to a MANAGER whose nav entry is deliberately SUPER_ADMIN-only (DD-07), while `GET /api/logs` answers **403** and is the shape they should match. **Nothing in the UI calls either as a MANAGER**, so no screen breaks — verified before the decision was put. | Batch 7.4b | Full question: `REMEDIATION_RECORD.md` → *Answered design decisions* |
+
+**How these three were put, because the method is part of the answer.** Each was written as a brief in plain language before any code existed, per safety rule 11 and the operator's standing instruction. **DD-20 took three attempts and the operator corrected the question**: the first brief used the word "comp", which is jargon; the second explained it as a free meal; the operator then asked *"how can we give a meal for free I think we dont have this option, or you mean applying 100 discount?"* — and was **right**. There is no "free" button. A give-away is a **100 % discount** (which needs the caller's own PIN, DD-19) settled with the OFFERT tender, which exists only because M-11 made a zero-total order unpayable. The brief was rewritten in those terms and the decision taken against the corrected description. **An operator who has never seen a feature cannot be asked about it in its own vocabulary** — the app is not installed, and 5.7b had landed the same day.
+
+
+
 *Rows moved verbatim from *Design Decisions Required* in `REMEDIATION_PLAN.md` (commit `5f0c2b1`) on 2026-09-04; the plan keeps a one-line summary of each answer. Source lines: 2255, 2256, 2257, 2258, 2260.*
 
 | ID | Decision | Blocks | Context |
