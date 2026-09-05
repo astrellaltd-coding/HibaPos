@@ -1436,7 +1436,7 @@ Audit section J, step 8. Correct the false statements, remove the dead weight, t
 
 ## Batch 7.4a — Reports that disagree
 
-**Status:** `COMPLETED` · **Completed:** 2026-09-05 · **Commit:** `<pending>` · **Findings:** L-48, L-44 (DD-21), L-50 (DD-20) — **closes all three.**
+**Status:** `COMPLETED` · **Completed:** 2026-09-05 · **Commit:** `807e0c5` · **Findings:** L-48, L-44 (DD-21), L-50 (DD-20) — **closes all three.**
 **Record:** `REMEDIATION_RECORD.md` → *Batch 7.4a*.
 
 **Constraints this batch leaves behind** *(sentences copied from the record, not paraphrased)*
