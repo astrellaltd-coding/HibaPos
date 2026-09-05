@@ -63,7 +63,85 @@ type CartState = {
   holdCurrent: (label: string) => void;
   recallOrder: (id: string) => void;
   deleteHeld: (id: string) => void;
+  clearForOperatorChange: () => void;
 };
+
+/**
+ * The persisted shape, and the only thing hydration may produce (C-23, Batch 5.4).
+ *
+ * Kept beside the store rather than inlined three times: `clear()` resets the
+ * in-progress sale, `clearForOperatorChange()` resets that AND the parked
+ * tickets, and `vetPersistedCart()` discards a payload it cannot vouch for. All
+ * three have to mean the same "empty", or one of them is a way for state to
+ * survive something it should not.
+ */
+const emptySale = () => ({
+  items: [] as CartItem[],
+  orderType: "DINE_IN" as const,
+  tableLabel: "",
+  customerId: null as string | null,
+  discountTotal: 0,
+  notes: "",
+});
+
+export type PersistedCart = ReturnType<typeof emptySale> & {
+  heldOrders: HeldOrder[];
+  /** The schema version, carried INSIDE the state. See `vetPersistedCart`. */
+  schema: number;
+};
+
+/** A FUNCTION, not a constant. A shared empty object would hand the same
+ *  `items` array to every caller: one discarded cart's first keystroke would
+ *  then appear inside the next discard, and inside `clear()`. */
+const emptyCart = (): PersistedCart => ({ ...emptySale(), heldOrders: [], schema: CART_PERSIST_VERSION });
+
+/**
+ * Bump when the persisted shape or its UNITS change (C-23, Batch 5.4).
+ *
+ * Version 1 is the integer-cents shape. Everything written before commit
+ * `720660a` held EUROS in the same field names, so it rehydrates silently and
+ * wrongly: a 12,50 € line comes back as `unitPrice: 12.5` and is read as
+ * 12 cents. The store had no version guard of any kind, which is the half of
+ * C-23 that could corrupt a sale rather than merely leak one.
+ */
+export const CART_PERSIST_VERSION = 1;
+
+/**
+ * Vet a persisted payload; return the empty cart when it cannot be vouched for.
+ *
+ * **Why the version is stamped inside the state rather than left to zustand.**
+ * `persist`'s own `version`/`migrate` pair cannot see the case C-23 actually
+ * names. Measured against zustand 5.0.10, `middleware.js` reads:
+ *
+ *     if (typeof deserializedStorageValue.version === "number" &&
+ *         deserializedStorageValue.version !== options.version) { ...migrate... }
+ *     else { return [false, deserializedStorageValue.state]; }
+ *
+ * A euros-era payload has **no `version` key at all**, so `typeof undefined`
+ * is not `"number"`, the guard short-circuits, and the state hydrates
+ * verbatim — `migrate` is never called. A `version` and a `migrate` were
+ * written first and proved not to fire, by loading the real module against a
+ * stubbed `localStorage`; `cart-persist-wiring.test.ts` is that proof, kept.
+ *
+ * So the version travels in the payload, where `merge` — which zustand calls on
+ * every hydration, migrated or not — can see it. A cart with no `schema`, or a
+ * `schema` this build does not know, is discarded.
+ *
+ * Deliberately a discard and not a conversion. A euros-era cart could in
+ * principle be multiplied by 100, but nothing records which of the two shapes a
+ * given payload is, and a cart is seconds of re-keying — where a silently
+ * mis-scaled one is a sale rung at a hundredth of its price.
+ */
+export function vetPersistedCart(persisted: unknown): PersistedCart {
+  if (!persisted || typeof persisted !== "object") return emptyCart();
+  const c = persisted as Partial<PersistedCart>;
+  if (c.schema !== CART_PERSIST_VERSION) return emptyCart();
+  // Structural sanity at the right version: the stamp says what the units are,
+  // not that the payload is intact. Hand-edited or truncated storage reaches
+  // this point stamped correctly and shaped wrongly.
+  if (!Array.isArray(c.items) || !Array.isArray(c.heldOrders)) return emptyCart();
+  return { ...emptyCart(), ...c, schema: CART_PERSIST_VERSION };
+}
 
 export const useCartStore = create<CartState>()(
   persist(
@@ -104,15 +182,18 @@ export const useCartStore = create<CartState>()(
     set((s) => ({
       items: s.items.map((i) => (i.uid === uid ? { ...i, ...updates } : i)),
     })),
-  clear: () =>
-    set({
-      items: [],
-      orderType: "DINE_IN",
-      tableLabel: "",
-      customerId: null,
-      discountTotal: 0,
-      notes: "",
-    }),
+  clear: () => set(emptySale()),
+  /**
+   * C-23 (Batch 5.4): everything, parked tickets included.
+   *
+   * `clear()` is the end of a sale — checkout, or the "Vider" button — and
+   * must leave the held tickets alone. This is the end of an OPERATOR, and
+   * must not: `app-store.ts` used to set `user: null` without touching the
+   * cart, so cashier B inherited A's open ticket and A's parked tickets and
+   * rang them under B's name. Called from `setUser` and `logout`, which is
+   * every way the identity at the till can change.
+   */
+  clearForOperatorChange: () => set(emptyCart()),
   setOrderType: (orderType) =>
     set((s) => ({
       orderType,
@@ -147,15 +228,7 @@ export const useCartStore = create<CartState>()(
         notes: s.notes,
         heldAt: Date.now(),
       };
-      return {
-        heldOrders: [...s.heldOrders, held],
-        items: [],
-        orderType: "DINE_IN",
-        tableLabel: "",
-        customerId: null,
-        discountTotal: 0,
-        notes: "",
-      };
+      return { heldOrders: [...s.heldOrders, held], ...emptySale() };
     }),
   recallOrder: (id) =>
     set((s) => {
@@ -182,6 +255,19 @@ export const useCartStore = create<CartState>()(
       // Persist the in-progress sale + held orders so a page reload or
       // browser restart doesn't wipe them. Exclude nothing — all fields
       // are small and user-relevant.
+      //
+      // C-23 (Batch 5.4): `version` and `migrate` were both absent, so a cart
+      // written before the euros→cents migration (`720660a`) rehydrated its
+      // euro numbers into cent fields with nothing to notice. An unversioned
+      // payload is read as version 0 and discarded.
+      // C-23 (Batch 5.4). `version` is declared so zustand stamps and compares
+      // its own, and `migrate` handles a numbered upgrade — but neither is what
+      // closes the finding: an UNVERSIONED payload never reaches `migrate` at
+      // all (see `vetPersistedCart`). `merge` is the load-bearing hook, because
+      // zustand calls it on every hydration whether it migrated or not.
+      version: CART_PERSIST_VERSION,
+      migrate: (state) => vetPersistedCart(state),
+      merge: (persisted, current) => ({ ...current, ...vetPersistedCart(persisted) }),
       partialize: (s) => ({
         items: s.items,
         orderType: s.orderType,
@@ -190,6 +276,8 @@ export const useCartStore = create<CartState>()(
         discountTotal: s.discountTotal,
         notes: s.notes,
         heldOrders: s.heldOrders,
+        // Stamped into the payload so `merge` can check it. See above.
+        schema: CART_PERSIST_VERSION,
       }),
     },
   ),

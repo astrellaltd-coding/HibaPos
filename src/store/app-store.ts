@@ -3,6 +3,7 @@
 import { create } from "zustand";
 import type { UserDto } from "@/types/api";
 import { api } from "@/lib/api-client";
+import { useCartStore } from "@/store/cart-store";
 
 export type AppView =
   | "home"
@@ -68,6 +69,30 @@ function viewToHash(view: AppView): string {
  */
 export const POS_SEARCH_INPUT_ID = "pos-search-input";
 
+/**
+ * Did the person at the till change? (C-23, Batch 5.4.)
+ *
+ * Not "did `user` change" — that fires on the ordinary page refresh, where the
+ * store starts at `null` and `fetchUser()` fills it back in with the same
+ * person. Clearing there would throw away the in-progress sale that persistence
+ * exists to protect. What must clear is a change of IDENTITY:
+ *
+ *   null → someone   the refresh / first load. Keep the cart.
+ *   someone → null   logout, or the auto-lock. Clear it.
+ *   A → B            a different operator. Clear it.
+ *   A → A            re-fetch of the same session. Keep it.
+ *
+ * The lock arm is not theoretical: `POST /api/auth/unlock` takes a username and
+ * a PIN like the login route does, and the client's lock path just sets the user
+ * to null and shows the profile picker — so whoever comes back may be someone
+ * else. Pure and exported so the four cases above are tested directly.
+ */
+export function operatorChanged(prev: UserDto | null, next: UserDto | null): boolean {
+  if (prev === null) return false;
+  if (next === null) return true;
+  return prev.id !== next.id;
+}
+
 type AppState = {
   user: UserDto | null;
   loadingUser: boolean;
@@ -81,12 +106,22 @@ type AppState = {
   logout: () => Promise<void>;
 };
 
-export const useAppStore = create<AppState>((set) => ({
+export const useAppStore = create<AppState>((set, get) => ({
   user: null,
   loadingUser: true,
   view: "home",
   posSearch: "",
-  setUser: (user) => set({ user }),
+  setUser: (user) => {
+    // C-23 (Batch 5.4). The single choke point: the auto-lock sets the user to
+    // null through here, `logout` below goes through the same guard, and a
+    // future switch-user has to as well. Deciding it here rather than at each
+    // caller is the point — the defect was that one caller (`logout`) did not
+    // know it had to.
+    if (operatorChanged(get().user, user)) {
+      useCartStore.getState().clearForOperatorChange();
+    }
+    set({ user });
+  },
   setLoadingUser: (loadingUser) => set({ loadingUser }),
   setView: (view) => {
     set({ view, posSearch: "" });
@@ -101,18 +136,33 @@ export const useAppStore = create<AppState>((set) => ({
   },
   setPosSearch: (posSearch) => set({ posSearch }),
   fetchUser: async () => {
+    // C-23 (Batch 5.4). This sets the user with a bare `set()` and so bypassed
+    // `setUser` — the same way `logout` did, and the reason the guard is stated
+    // once and called from each. Both arms below can END a session: the server
+    // answers `{ user: null }` when the cookie has expired or been revoked, and
+    // the catch runs when the request fails outright. Either leaves the login
+    // screen in front of whoever is standing there, so the cart must not be
+    // waiting for them. Found by walking the app rather than by reading it.
+    let next: UserDto | null = null;
     try {
       const res = await api.get<{ user: UserDto | null }>("/api/auth/me");
-      set({ user: res.user, loadingUser: false });
+      next = res.user;
     } catch {
-      set({ user: null, loadingUser: false });
+      next = null;
     }
+    if (operatorChanged(get().user, next)) {
+      useCartStore.getState().clearForOperatorChange();
+    }
+    set({ user: next, loadingUser: false });
   },
   logout: async () => {
     try {
       await api.post("/api/auth/logout");
     } catch {
       // ignore
+    }
+    if (operatorChanged(get().user, null)) {
+      useCartStore.getState().clearForOperatorChange();
     }
     set({ user: null, view: "home" });
     if (typeof window !== "undefined" && window.location.hash !== "#/" && window.location.hash !== "") {
