@@ -11,13 +11,13 @@ Detailed audit record: https://claude.ai/code/artifact/329316b0-3a6b-48b0-9d27-d
 
 **Overall:** NOT READY FOR PRODUCTION
 
-**Current Stage:** **Stage 5 is IN PROGRESS** — **5.1, 5.2, 5.3 and 5.4 COMPLETED 2026-09-05**, alongside **3.6c** the same day. **Stage 4 is COMPLETED** (4.1 through 4.4, 4.4b, 4.4c, 4.5, 4.6 and 4.7, all 2026-09-04). **Stage 3 is COMPLETED** (twelve batches; **3.6c** reopened it 2026-09-05 for L-27 and closed it the same day). C-22's chain-design half stays carried forward as `REQUIRES EXTERNAL VERIFICATION`, and V-03 is open. Stage 1 is **partly done**: 1.1 and 1.2 COMPLETED, 1.3 `IMPLEMENTED — TESTING REQUIRED` on hardware, 1.4 deferred. Stage 2 is COMPLETED.
+**Current Stage:** **Stage 5 is IN PROGRESS** — **5.1 through 5.5 COMPLETED 2026-09-05**, alongside **3.6c** the same day. **5.5 leaves the session's only operator action: its migration is rehearsed but not applied.** **Stage 4 is COMPLETED** (4.1 through 4.4, 4.4b, 4.4c, 4.5, 4.6 and 4.7, all 2026-09-04). **Stage 3 is COMPLETED** (twelve batches; **3.6c** reopened it 2026-09-05 for L-27 and closed it the same day). C-22's chain-design half stays carried forward as `REQUIRES EXTERNAL VERIFICATION`, and V-03 is open. Stage 1 is **partly done**: 1.1 and 1.2 COMPLETED, 1.3 `IMPLEMENTED — TESTING REQUIRED` on hardware, 1.4 deferred. Stage 2 is COMPLETED.
 
-**Current Batch:** none — **Stage 5 is fully unblocked.** DD-09 through DD-15 were all answered 2026-09-05 in one brief, so 5.4 through 5.7 can each be worked in turn; their one-line answers are in *Design Decisions Required* and the rationale, with the measurements that shaped it, in the record.
+**Current Batch:** none. **5.6 and 5.7 are unblocked** — every decision they need is answered; DD-13, DD-14 and DD-15 are in *Design Decisions Required*, their rationale in the record.
 
-**Last Completed Batch:** Batch 5.4 — held orders and cart lifecycle, which **closes C-23**. DD-11 (one till) removed the expensive half, leaving the two nobody had to decide: **nothing cleared the cart when the person at the till changed** — `logout` set `user: null` with a bare `set()`, so cashier B inherited A's open ticket and A's parked tickets and rang them under B's name — and **the persisted cart had no version guard**, so a cart written before the euros→cents migration rehydrated euros into cent fields. A pure `operatorChanged()` now decides which transitions clear (`null → someone` is the page refresh and keeps it), and all three call sites consult it. **The finding of the batch is that `version` + `migrate` does not close the second half**, and it is what the audit's own remediation direction asks for: zustand 5.0.10 skips migration entirely when the stored payload has no `version` key, which is exactly the euros-era shape — found by loading the real module against a stubbed `localStorage`, not by reading. The version is now stamped inside the state and checked in `merge`. Sixteen one-property reverts; **all 26 new tests fail under at least one**, so there are no regression assertions to disclaim. Recorded **L-47**. *(Before it: Batch 3.6c, which closed **L-27** by widening the period-close guard to any caisse still open — the old one checked a caisse's OPENING date, so a long-lived open caisse blocked no close at all. And Batch 5.3, which closed C-14: cross-shift refunds, attributed to the till that pays. Full accounts: the record's Batch 3.6c and Batch 5.3 sections, and their stubs.)*
+**Last Completed Batch:** Batch 5.5 — entrée / sortie de caisse, which **closes M-05**. `expectedCash` was `openingFloat + cash − cashRefunds` with no model of any kind for cash moving otherwise, so a 200 € supplier payment produced a phantom 200 € shortfall at every close — which is how staff learn to ignore the variance figure, defeating C-02. Four fixed categories (DD-12), a **signed** amount so an *erreur de caisse* can go either way without a row contradicting its own category, the till resolved **inside** the transaction (C-15 at a fifth site), a `MOUVEMENT_CAISSE` event, and deliberately **no** touch of the perpetual `GrandTotal`. **The PIN gate is the direction of the money, not the category name.** Batch 3.6b's sealed-payload tripwire fired as designed and was amended, not silenced; and a defect in this batch's own code was found by **driving the API** and fixed here. **⚠ Its migration is rehearsed and NOT applied — *Open Threads → B*.** *(Before it: Batch 5.4, closing C-23, whose finding was that zustand's documented `version`+`migrate` never fires for an unversioned payload; and Batch 3.6c, closing L-27. Full accounts: the record.)*
 
-**Next Batch:** Batch 5.5 — cash movements (DD-12). Then 5.6, 5.7. **Two migrations, not three** — measured 2026-09-05: 5.5 and 5.7 need one each, **5.6 emits an empty one** (enums are TEXT in SQLite, as 4.4b found). Each is handed over **as its batch lands** (operator, 2026-09-05), so the live database never lags `main`. Details in each batch's section.
+**Next Batch:** Batch 5.6 — order cancellation (DD-13), which needs **no migration** (measured; enums are TEXT in SQLite). Then 5.7, which needs the stage's second and last one. **5.5's migration is waiting on the operator** and should be applied before 5.6 starts, so the live database does not lag `main`.
 
 **Blocked:** Batch 1.3 `[HW]` sign-off and Batch 1.4 — both need the app running on the restaurant's POS machine, which is in a different country from the developer and has no copy of the app installed (decision of 2026-09-03).
 
@@ -54,6 +54,7 @@ real till until an action below is taken. Do not report them as delivered.
 
 | Action | Why it matters | Related |
 |---|---|---|
+| **Apply Batch 5.5's migration — `bunx prisma migrate deploy`** | **The one blocking action.** `20260905150626_cash_movements` adds the `CashMovement` table and three columns to `ZReport`, `MonthlyClose` and `AnnualClose`. Until it runs, `main` will not start against the live database: the code queries a table that is not there. **Rehearsed 2026-09-05** on a copy, after the snapshot `db-snapshots/custom.db.pre-5.5.2026-09-05T14-26-27Z`: both sealed Z reports survived the table rebuild byte-identical and only the intended columns moved. Run it from the project root with the production `.env`. Evidence: record → Batch 5.5 notes 1 and 2. | M-05 |
 | Correct `printerName` in Réglages | Stored value is `"Epson TM-m30"`; the physical printer is the **Sunso WTP-801** (Ethernet). Cosmetic — nothing reads it. **This was impossible until Batch 3.1d**; the settings form now saves. | DOC-15 |
 | Choose a second volume for backups | See A. | C-06 |
 | Turn FACTICE on for any pre-go-live testing | See A. | L-18 |
@@ -111,22 +112,20 @@ Batch 1.4, and Batch 8.2.
 
 **V-13** (must the JFP journal the *automatic* drawer kick, or only the traced manual open?) and **V-02** (does the annual archive format satisfy the archiving obligation?) are fiscal questions, flagged not decided. Both are stated in full in *External / Legal / Fiscal Verification* below — this thread exists only so a session planning work knows they are open.
 
-#### F. Findings still open — **retired 2026-09-04 (Batch 4.4c)**
-
-The session-3/4 snapshot that stood here is in the record, verbatim, under *Retired open-thread rows*. **The instruction it carried still stands: merge it into `NEWLY DISCOVERED ISSUES` in Batch 7.1** — it holds re-measurements of **L-19** and **L-21** that exist nowhere else. L-22 is the only one of its rows still open.
-
 #### G. Current baselines — check these before trusting anything
+
+*(F was retired on 2026-09-05 and its instruction moved into Batch 7.1, which is what has to act on it. The letters are not renumbered: other sections cite them by letter.)*
 
 | Thing | Value at the end of session 3 (updated through session 4) |
 |---|---|
-| Tests | **629 pass, 0 fail** (`bun test src --timeout 30000` — see L-24 for why the timeout flag). 603 before Batch 5.4, which added 26; 597 before 3.6c; 578 before 5.3. **L-43's origin was established in Batch 5.3 and it is a test defect, not a code failure** — the ten-sales race never inspects its eleventh promise, so a Z close that loses the contention leaves no row for the next line to read; it does not reproduce in a whole-suite run. For an `EPERM: rename … test.db.restore-staged` run, see warning 3b. Whole-suite runtime 60–80 s, but a slow run took **422 s** on 2026-09-05 with the same 0 failures — L-24 |
+| Tests | **655 pass, 0 fail** (`bun test src --timeout 30000` — see L-24 for why the timeout flag). 629 before Batch 5.5, which added 26; 603 before 5.4; 597 before 3.6c. **A lone failure of `shift-race.test.ts`'s ten-sales race is L-43** — reproduce before believing it; two immediate re-runs were clean. **L-43's origin was established in Batch 5.3 and it is a test defect, not a code failure** — the ten-sales race never inspects its eleventh promise, so a Z close that loses the contention leaves no row for the next line to read; it does not reproduce in a whole-suite run. For an `EPERM: rename … test.db.restore-staged` run, see warning 3b. Whole-suite runtime 60–80 s, but a slow run took **422 s** on 2026-09-05 with the same 0 failures — L-24 |
 | Production DB sha256 | **`7839db18a7c8b132d974bd834d39d2921def66dd234b2059b022949f22ea6f2e`** (mtime 2026-09-04 16:41:52, 696 320 bytes) — last moved by the operator's **PIN change**, not by any batch. **Re-verified unchanged after Batches 5.3, 3.6c and 5.4** — the first two validated on scratch copies, the third being client-side only. The earlier lineage (`7cc3367b…` → `a66bc96c…` → `e40735ca…`) is in the record |
 | Fiscal chain | `/api/fiscal/verify` → all three chains `ok`, `lastSequence: 2`. **Zero monthly and annual closes have ever been sealed** — which is why M-01's guard, DD-18's timing rules and L-26's payload change could all be imposed with nothing to accommodate. Re-verified read-only 2026-09-04 |
 | Fiscal counters | `20/3/2/2` (receipt / shift / Z / event). Re-verified read-only 2026-09-05; Batch 5.3 moved none of them, its refund having been written to a scratch copy |
-| Migrations | **6 applied on production**, latest `20260904091947_close_refund_totals` (applied 2026-09-04 09:43:54). **None pending.** Batches 4.1 through 4.4b added none — 4.4b's enum removal was measured with `prisma migrate diff` and emits an empty migration |
+| Migrations | **6 applied on production**, latest `20260904091947_close_refund_totals` (applied 2026-09-04 09:43:54). **ONE PENDING since 2026-09-05: `20260905150626_cash_movements` (Batch 5.5)** — written, rehearsed on a copy with a full fiscal fingerprint diff, and waiting on the operator (*Open Threads → B*). Batches 4.1 through 4.4b added none — 4.4b's enum removal was measured with `prisma migrate diff` and emits an empty migration |
 | Catalogue | 78 products — 17 drinks at **5,5 %**, 61 at 10 % |
 | Accounts | **two, and that is now the product's whole role model**: `manager` (MANAGER) and `admin` (SUPER_ADMIN, the developer's). Both PINs changed 2026-09-04. `CASHIER` was **removed in Batch 4.4b** — zero rows carried it, confirmed read-only first. `LEAST_PRIVILEGED_ROLE` is therefore `MANAGER`, one rung weaker than before | **Since Batch 4.4c both accounts must re-enter their own PIN** for a discount above 20 % and for every refund; five wrong PINs lock both operations for 15 minutes, on the same counter as the (now callerless) manager approval
-| Out-of-band snapshots | Three, all in `db-snapshots/` **outside the repo tree**, taken before 3.1c, 3.5 and 3.6b. Filenames and hashes: record → those three batches |
+| Out-of-band snapshots | **Four**, all in `db-snapshots/` **outside the repo tree**, taken before 3.1c, 3.5, 3.6b and 5.5. Filenames and hashes: record → those four batches |
 
 ### Hardware-dependent validation (policy set 2026-09-03)
 
@@ -262,7 +261,7 @@ half open**, split across two batches. Audit IDs are never renamed.
 | C-02 ✅ | 1.2 | M-02 ✅ | 3.3 | M-26 ✅ | 4.4 |
 | C-03 | 1.3 | M-03 ✅ | 2.2 | M-27 ✅ | 4.3 |
 | C-04 ✅ | 3.3 | M-04 ✅ | 3.5 | M-28 ✅ | 4.3 |
-| C-05 ✅ | 2.1 | M-05 | 5.5 | M-29 ✅ | 2.4 |
+| C-05 ✅ | 2.1 | M-05 ✅ | 5.5 | M-29 ✅ | 2.4 |
 | C-06 ✅ | 2.2 | M-06 ✅ | 3.6 | M-30 ✅ | 2.4 |
 | C-07 | 1.4 | M-07 ✅ | 3.6 | M-31 ✅ | 2.4 |
 | C-08 ✅ | 4.1 | M-08 | 5.6 | L-01 | 7.2 |
@@ -1045,7 +1044,7 @@ Category and product updates no longer delete option groups before validating th
 
 # STAGE 5 — WORKFLOW GAPS
 
-**Stage status:** `IN PROGRESS` — 5.1, 5.2, 5.3 and 5.4 `COMPLETED` 2026-09-05. **DD-09 through DD-15 were all answered 2026-09-05 in one brief**, so 5.4 through 5.7 are unblocked and can be worked in turn. Each batch's spec below carries its answer inline. **Three batches have now found their own *Validation Required* wanting, in different ways**: 5.2's had been written for the answer it did not get and was re-derived; 5.3's was correct and *incomplete*, and five criteria were added to it; 5.4's two *Manual* criteria could not be run by hand at all (L-47) and were converted to automated coverage that turned out to be stronger. Read the criteria before running them, for what they omit as well as what they assume.
+**Stage status:** `IN PROGRESS` — 5.1 through 5.5 `COMPLETED` 2026-09-05; 5.6 and 5.7 remain. **DD-09 through DD-15 were all answered 2026-09-05 in one brief**, so 5.4 through 5.7 are unblocked and can be worked in turn. Each batch's spec below carries its answer inline. **Three batches have now found their own *Validation Required* wanting, in different ways**: 5.2's had been written for the answer it did not get and was re-derived; 5.3's was correct and *incomplete*, and five criteria were added to it; 5.4's two *Manual* criteria could not be run by hand at all (L-47) and were converted to automated coverage that turned out to be stronger. Read the criteria before running them, for what they omit as well as what they assume.
 
 Audit section J, step 6: none of these are subtle; all of them generate support calls in week one.
 
@@ -1135,37 +1134,25 @@ Audit section J, step 6: none of these are subtle; all of them generate support 
 
 ## Batch 5.5 — Cash movements
 
-**Status:** `NOT STARTED` — unblocked by DD-12, answered 2026-09-05
+**Status:** `COMPLETED` · **Completed:** 2026-09-05 · **Commit:** `51af203` · **Findings:** M-05 (**closes M-05**), DD-12
+**Record:** `REMEDIATION_RECORD.md` → *Batch 5.5* — specification, validation criteria and status record, moved there verbatim on 2026-09-05.
 
-### M-05 — No cash-movement model
+**⚠ ONE OPERATOR ACTION IS OUTSTANDING:** migration `20260905150626_cash_movements` is written and rehearsed but **not applied to production**. The command is in *Open Threads → B*. Until it runs, `main` will not start against the live database — the code queries a table that does not exist there yet.
 
-**Status:** `NOT STARTED` · Severity: MEDIUM · Category: missing functionality (fiscal-adjacent)
+**Constraints this batch leaves behind** *(sentences copied from the record, not paraphrased)*
+- The amount is **signed** — positive into the drawer, negative out — rather than a magnitude plus a direction flag, because `ERREUR_DE_CAISSE` genuinely goes both ways and a flag would let a row contradict its own category. *(record, Changes)*
+- `recordCashMovement` resolves the till **inside** the transaction (the C-15 lesson, at a fifth site). *(record, Changes)*
+- It deliberately does **not** touch the perpetual `GrandTotal` — a movement is not a sale. *(record, Changes)*
+- A shift books the movements it made, a date range books the movements made inside it (Batch 5.3's rule). *(record, Changes)*
+- The PIN gate is the **direction of the money, not the category name**. *(record, Changes)*
+- Hand-writing `ADD COLUMN` instead of Prisma's table rebuild was considered and **declined**: Batch 3.6 rebuilt this same table and both sealed rows survived, so deviating from the pattern the tool has already proved here is the riskier move. *(record, note 1)*
+- The `CLOTURE_M` / `CLOTURE_A` **EVENT** payloads are still untouched; only the close row's own `dataJson` moved. *(record, note 3)*
+- Refusing an impossible sign before the token is L-41's shape at the site whose open-till check was already ordered to avoid it. *(record, note 4)*
+- Four of the 26 tests fail under no revert: **two are deliberate controls that must not fail**, two are regression assertions. *(record, note 5)*
+- A separate lockout counter for cash movements was considered and **not built** — that would reopen 4.4c's decision. Five fumbled payout PINs lock refunds and discounts for fifteen minutes. *(record, note 6)*
+- The dialog itself is **`IMPLEMENTED — TESTING REQUIRED` in substance**, and Batch 5.7 or whoever clears L-47 should open it once. *(record, note 8)*
 
-**Problem.** There is no way to record a cash drop, a payout, or petty cash, so `expectedCash = openingFloat + cash − cashRefunds` will disagree with the drawer whenever real money moves.
-
-**Location.** `src/lib/services/reports.ts:94`; `prisma/schema.prisma` (no model)
-
-**Impact.** Every real cash movement produces a phantom variance, which trains staff to ignore the variance figure — defeating the purpose of C-02's fix.
-
-**Remediation direction.** Add an entrée/sortie de caisse model, journalled, feeding `expectedCash`. Requires a migration and a schema decision — DD-12. **Answered 2026-09-05:** build it, with a fixed category list — *approvisionnement*, *prélèvement*, *dépense*, *erreur de caisse*.
-
-**The approval level was the gap DD-12 left, and it is now answered (operator, 2026-09-05): a step-up PIN for money LEAVING the drawer only.** *prélèvement*, *dépense* and a *erreur de caisse* that reduces the till require the operator's own PIN, exactly as every refund has since 4.4c; *approvisionnement* — a float top-up, which only adds cash — does not. The rule is the direction of the money, not the category name, so a negative correction is gated and a positive one is not. Chosen over gating every movement (a till where **every payment ever taken is cash** will record movements routinely) and over an amount threshold (a small payout repeated is the same money as a large one). **The cost is inherited and must be stated in the record**: 4.4c put `/api/auth/approve` and `/api/auth/step-up` on ONE shared five-attempt counter by operator decision, so five fumbled PINs on a cash payout lock **refunds and discounts** for fifteen minutes. A separate counter for cash movements was NOT built — that would reopen 4.4c's decision, which is not this batch's to reopen.
-
-### Batch 5.5 — Validation Required
-
-*(Checked 2026-09-05 against DD-12, answered **add it with a fixed category list**. These criteria predate the answer and survive it — the feature is being built, which is what they assume. Two gaps the batch must close, both from DD-12's own carried notes.)*
-- **Not covered below, and required:** the four categories are exactly *approvisionnement*, *prélèvement*, *dépense*, *erreur de caisse*, and a movement's category is totallable — the whole reason a fixed list beat free text.
-- ~~**Still unanswered, and 5.5 must say plainly which it chose:** whether a cash movement needs a step-up PIN, as refunds do since 4.4c.~~ **ANSWERED 2026-09-05 — PIN on money leaving only** (see the direction above). Criteria: a *prélèvement*, a *dépense* and a negative *erreur de caisse* are each refused without a valid step-up token; an *approvisionnement* succeeds without one; and the token is bound to the movement's amount, as `consumeStepUpToken` already requires.
-- Targeted test: a cash-in and a cash-out each adjust `expectedCash` in the right direction.
-- Targeted test: cash movements appear in the X and Z reports and in the sealed period aggregation (Batch 3.2).
-- **Fiscal verification:** each movement writes a journal event; the chain still verifies.
-- Manual: a real drawer count reconciles to zero variance after recording a known drop.
-- Migration applied cleanly on a copy of the production database.
-- `bun test src` — PASS.
-
-### Batch 5.5 — Status Record
-
-**Status:** `NOT STARTED` · **Completed:** — · **Changes:** — · **Files:** — · **Tests:** — · **Commit:** — · **Notes:** —
+**Left open:** the operator action above; and the cash-movement **dialog is untested in a browser** because of **L-47**.
 
 ---
 
@@ -1341,6 +1328,8 @@ Audit section J, step 8. Correct the false statements, remove the dead weight, t
 ## Batch 7.1 — Documentation corrections
 
 **Status:** `NOT STARTED`
+
+**Carried in from *Open Threads → F*, retired from the front matter on 2026-09-05 (Batch 5.5) and moved here, where the person doing this work will read it.** The session-3/4 *Findings still open* snapshot lives in `REMEDIATION_RECORD.md` → *Retired open-thread rows*, verbatim. **Merge it into `NEWLY DISCOVERED ISSUES`** as part of this batch: it holds re-measurements of **L-19** and **L-21** that exist nowhere else. **L-22** is the only one of its rows still open.
 
 Do **not** correct these before the corresponding fix lands — a document that describes the intended state is more dangerous than one that is visibly stale. Each row records the correct action.
 
