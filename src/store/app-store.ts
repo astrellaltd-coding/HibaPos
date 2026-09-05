@@ -4,6 +4,7 @@ import { create } from "zustand";
 import type { UserDto } from "@/types/api";
 import { api } from "@/lib/api-client";
 import { useCartStore } from "@/store/cart-store";
+import { classifyMeBody, classifyMeError, nextSession } from "@/lib/session-policy";
 
 export type AppView =
   | "home"
@@ -135,24 +136,28 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   setPosSearch: (posSearch) => set({ posSearch }),
   fetchUser: async () => {
-    // C-23 (Batch 5.4). This sets the user with a bare `set()` and so bypassed
-    // `setUser` — the same way `logout` did, and the reason the guard is stated
-    // once and called from each. Both arms below can END a session: the server
-    // answers `{ user: null }` when the cookie has expired or been revoked, and
-    // the catch runs when the request fails outright. Either leaves the login
-    // screen in front of whoever is standing there, so the cart must not be
-    // waiting for them. Found by walking the app rather than by reading it.
-    let next: UserDto | null = null;
+    // C-23 (Batch 5.4) put the identity guard here, because this sets the user
+    // with a bare `set()` and so bypassed `setUser`.
+    //
+    // M-21 (Batch 5.7d) fixed what that guard was being fed. The catch used to
+    // read `next = null` for EVERY failure, so a transient network blip was
+    // indistinguishable from a sign-out — and `operatorChanged(someone, null)`
+    // is true, which meant `clearForOperatorChange()` and the loss of the
+    // in-progress sale that C-23's persistence exists to protect. Three cases
+    // now, not two; the rules are in `session-policy.ts` and are tested there.
+    let probe;
     try {
-      const res = await api.get<{ user: UserDto | null }>("/api/auth/me");
-      next = res.user;
-    } catch {
-      next = null;
+      probe = classifyMeBody(await api.get<{ user: UserDto | null }>("/api/auth/me"));
+    } catch (e) {
+      probe = classifyMeError(e);
     }
-    if (operatorChanged(get().user, next)) {
+    const outcome = nextSession(get().user, probe, operatorChanged);
+    if (outcome.clearCart) {
       useCartStore.getState().clearForOperatorChange();
     }
-    set({ user: next, loadingUser: false });
+    // `settled: false` is "we could not ask" — keep the operator and their
+    // basket, and only stop the initial spinner.
+    set({ user: outcome.user, loadingUser: false });
   },
   logout: async () => {
     try {

@@ -16,7 +16,7 @@ import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { cn } from "@/lib/utils";
 import { formatEuro } from "@/lib/format";
 // uuid replaced with built-in crypto.randomUUID() (Node 19+, all evergreen browsers)
-import { Search, PackageX, Loader2, LockKeyhole, Keyboard, ShoppingCart as CartIcon, X } from "lucide-react";
+import { Search, PackageX, Loader2, LockKeyhole, Keyboard, ShoppingCart as CartIcon, X, AlertTriangle, RefreshCw } from "lucide-react";
 import { useAppStore, POS_SEARCH_INPUT_ID } from "@/store/app-store";
 import { Button } from "@/components/ui/button";
 import {
@@ -39,12 +39,27 @@ export function PosView() {
   const [helpOpen, setHelpOpen] = useState(false);
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
 
-  const { data: categories, isLoading: catLoading } = useQuery({
+  // M-20 (Batch 5.7d): `isError` and `refetch` are read now. Neither query
+  // exposed a failure before, so a catalogue that could not be fetched fell
+  // through to `visibleProducts.length === 0` and the grid told the operator
+  // « Aucun produit dans cette catégorie » — the audit's "worst false empty
+  // state in the app". It says the shelf is bare when the shop is on fire.
+  const {
+    data: categories,
+    isLoading: catLoading,
+    isError: catError,
+    refetch: refetchCategories,
+  } = useQuery({
     queryKey: ["categories"],
     queryFn: () => api.get<CategoryDto[]>("/api/catalog/categories"),
   });
 
-  const { data: products, isLoading: prodLoading } = useQuery({
+  const {
+    data: products,
+    isLoading: prodLoading,
+    isError: prodError,
+    refetch: refetchProducts,
+  } = useQuery({
     queryKey: ["products", "all", true],
     queryFn: () => api.get<ProductDto[]>("/api/catalog/products?all=1"),
   });
@@ -155,6 +170,10 @@ export function PosView() {
   useKeyboardShortcuts(shortcuts);
 
   const loading = catLoading || prodLoading;
+  // M-20: either request failing means the grid cannot be trusted. Kept
+  // separate from `loading` so the three states — loading, failed, empty —
+  // stay three states.
+  const catalogueFailed = catError || prodError;
 
   return (
     <div className="flex h-full min-h-0" style={{ touchAction: "none" }}>
@@ -244,6 +263,28 @@ export function PosView() {
             <div className="flex h-64 items-center justify-center text-muted-foreground">
               <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Chargement du catalogue…
             </div>
+          ) : catalogueFailed ? (
+            /* M-20 (Batch 5.7d). Checked BEFORE the empty test, which is the
+               whole finding: a failed fetch leaves `visibleProducts` empty and
+               would otherwise be reported as an empty category. */
+            <EmptyState
+              icon={AlertTriangle}
+              title="Catalogue indisponible"
+              description="Les produits n'ont pas pu être chargés. Vérifiez la connexion puis réessayez — ce n'est pas une catégorie vide."
+              action={
+                <Button
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => {
+                    void refetchCategories();
+                    void refetchProducts();
+                  }}
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Réessayer
+                </Button>
+              }
+            />
           ) : visibleProducts.length === 0 ? (
             <EmptyState
               icon={search ? Search : PackageX}

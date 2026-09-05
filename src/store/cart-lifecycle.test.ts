@@ -173,21 +173,52 @@ describe("the cart empties when the operator changes (C-23)", () => {
     expect(useCartStore.getState().heldOrders).toHaveLength(1);
   });
 
-  it("clears when the session ends underneath the cashier", async () => {
+  it("clears when the server says the session is over", async () => {
     // `fetchUser()` also sets the user with a bare `set()`, so it bypassed the
-    // guard exactly as `logout` did. Both of its arms can END a session — the
-    // server answers `{ user: null }` for an expired or revoked cookie, and the
-    // catch runs when the request fails outright — and either leaves the login
-    // screen in front of whoever is standing at the till.
+    // guard exactly as `logout` did. An expired or revoked cookie makes the
+    // server answer `{ user: null }`, which leaves the login screen in front of
+    // whoever is standing at the till — so the cart must not be waiting.
     //
     // Found by walking the app, not by reading it: the walkthrough could not
     // get past the login screen, which is what made this path worth following.
+    //
+    // ── AMENDED BY M-21 (Batch 5.7d), AND INVERTED RATHER THAN DELETED ──────
+    // This case used to rely on "no server in a test: the catch takes it" and
+    // asserted that ANY failure ended the session. That is the behaviour M-21
+    // identifies as the defect — a transient blip is not a sign-out, and
+    // treating it as one destroyed the very cart this file protects. So the
+    // trigger moved from "the request failed" to "the server said so", which
+    // is what the case was always about, and the old trigger is asserted
+    // directly below as its opposite.
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ user: null }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })) as typeof fetch;
+    try {
+      useAppStore.getState().setUser(alice);
+      seedCart();
+      await useAppStore.getState().fetchUser();
+      expect(useAppStore.getState().user).toBeNull();
+      expect(useCartStore.getState().items).toEqual([]);
+      expect(useCartStore.getState().heldOrders).toEqual([]);
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
+
+  it("KEEPS the cart when the request merely FAILS — M-21", async () => {
+    // The inversion, and the money half of M-21. There is no server in a test,
+    // so `fetchUser`'s catch runs — which is exactly a transient blip. Before
+    // Batch 5.7d this ended the session and cleared the basket; the sale in
+    // progress was gone and the queue was still there.
     useAppStore.getState().setUser(alice);
     seedCart();
-    await useAppStore.getState().fetchUser(); // no server in a test: the catch takes it
-    expect(useAppStore.getState().user).toBeNull();
-    expect(useCartStore.getState().items).toEqual([]);
-    expect(useCartStore.getState().heldOrders).toEqual([]);
+    await useAppStore.getState().fetchUser();
+    expect(useAppStore.getState().user).toEqual(alice);
+    expect(useCartStore.getState().items).toHaveLength(1);
+    expect(useCartStore.getState().heldOrders).toHaveLength(1);
   });
 
   it("clears on logout, which does not go through setUser", async () => {

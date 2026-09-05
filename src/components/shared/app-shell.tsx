@@ -145,6 +145,15 @@ export function AppShell() {
           </div>
         ) : (
           <main className="scroll-thin flex-1 overflow-y-auto rounded-2xl">
+            {/* M-22 (Batch 5.7d). A SECOND boundary, around the view area
+                only. The outer one wraps the whole shell, so any view that
+                threw took the Topbar, the navigation and the POS with it —
+                the till went blank and the only way back was a reload. This
+                one keeps the frame: a broken Réglages leaves the operator able
+                to reach the POS and finish the sale in front of them.
+                `key={view}` remounts it on navigation, so "Réessayer la vue"
+                does not have to be pressed before the next view will render. */}
+            <ErrorBoundary variant="inline" label={view} key={view}>
             {/* C-16 (Batch 4.4): every branch below used to render on `view ===`
                 alone, so any hash typed into the URL mounted its view with live
                 forms and buttons — `#/backups` included the database-restore
@@ -180,6 +189,7 @@ export function AppShell() {
             {view === "logs" && <LogsView />}
             </>
             )}
+            </ErrorBoundary>
           </main>
         )}
 

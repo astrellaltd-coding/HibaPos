@@ -6,6 +6,16 @@ import { Button } from "@/components/ui/button";
 
 interface Props {
   children: ReactNode;
+  /**
+   * `"screen"` fills the viewport — the shell-level boundary, where there is
+   * nothing left to keep. `"inline"` fills its container and keeps the frame
+   * around it, which is what makes a per-view boundary worth having (M-22,
+   * Batch 5.7d): the Topbar, the navigation and the POS stay usable while one
+   * view is broken.
+   */
+  variant?: "screen" | "inline";
+  /** Named in the log line, so a crash says WHICH view died. */
+  label?: string;
 }
 
 interface State {
@@ -24,7 +34,11 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error("Uncaught rendering error in POS:", error, errorInfo);
+    console.error(
+      `Uncaught rendering error in POS${this.props.label ? ` (${this.props.label})` : ""}:`,
+      error,
+      errorInfo,
+    );
   }
 
   private handleReload = () => {
@@ -38,7 +52,13 @@ export class ErrorBoundary extends Component<Props, State> {
   public render() {
     if (this.state.hasError) {
       return (
-        <div className="flex h-screen w-full flex-col items-center justify-center bg-[var(--shell-bg)] p-6 text-foreground">
+        <div
+          className={
+            this.props.variant === "inline"
+              ? "flex h-full min-h-[16rem] w-full flex-col items-center justify-center p-6 text-foreground"
+              : "flex h-screen w-full flex-col items-center justify-center bg-[var(--shell-bg)] p-6 text-foreground"
+          }
+        >
           <div className="flex max-w-md flex-col items-center rounded-3xl border border-amber-200 bg-white p-8 text-center shadow-xl">
             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-destructive/10 text-destructive">
               <AlertTriangle className="h-8 w-8" />

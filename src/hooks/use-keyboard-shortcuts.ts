@@ -72,15 +72,58 @@ export function findShortcut(
   return null;
 }
 
+/** The minimum of `document` this module needs, so the rule can be tested
+ *  without a DOM. */
+type DocumentLike = { querySelector: (sel: string) => unknown };
+
+/** Radix marks an open modal's content with `role` and `data-state="open"`.
+ *  Both roles, because AlertDialog uses the second. */
+const OPEN_MODAL_SELECTOR =
+  '[role="dialog"][data-state="open"],[role="alertdialog"][data-state="open"]';
+
+/**
+ * Is a modal dialog open? — L-42 (Batch 5.7d).
+ *
+ * THE FINDING. Every POS shortcut fired while a dialog was open, because this
+ * hook listens on `window` and Radix does not stop keydown propagating. With
+ * « Encaissement » open, a stray **F5 set the order type to LIVRAISON
+ * underneath it**: `setOrderType` reprices every cart line and `PaymentDialog`
+ * reads `orderType` at submit time, so the total on screen changed and the
+ * checkout was then refused 400. F2 and F3 did the same more quietly, moving
+ * between dine-in and takeaway prices; F8 stacked the discount dialog on top
+ * of the payment dialog. Nothing was mis-journalled — the server recomputes
+ * from what it is sent — so the sale was BLOCKED, not booked wrong.
+ *
+ * THE DECISION, recorded because the finding said it is feature design rather
+ * than a coercion: **every shortcut is suppressed while any modal is open.**
+ * The alternative — a per-dialog allow-list — was rejected as the more
+ * dangerous default. A shortcut wrongly suppressed costs one mouse click; a
+ * shortcut wrongly fired changes the sale being paid, and the operator's next
+ * keystroke is the one that takes the money.
+ *
+ * **Escape stays Radix's alone** and is deliberately not routed through this
+ * hook: Radix already closes the top-most dialog on Escape and handles
+ * stacking, and a second handler on `window` would either double-fire or have
+ * to reimplement that ordering.
+ */
+export function isModalOpen(doc: DocumentLike | null | undefined): boolean {
+  if (!doc || typeof doc.querySelector !== "function") return false;
+  return doc.querySelector(OPEN_MODAL_SELECTOR) !== null;
+}
+
 /**
  * Register global keyboard shortcuts.
  * Shortcuts are ignored when a modifier (ctrl/shift/alt) is pressed unless
- * explicitly required, and when the focus is in an input/textarea/select
- * unless `allowInInput` is set.
+ * explicitly required, when the focus is in an input/textarea/select unless
+ * `allowInInput` is set, and — L-42 — whenever a modal dialog is open.
  */
 export function useKeyboardShortcuts(shortcuts: Shortcut[]) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      // L-42: checked FIRST and before `preventDefault`, so a suppressed
+      // keystroke reaches the dialog exactly as it would have with no
+      // shortcuts registered at all.
+      if (isModalOpen(typeof document === "undefined" ? null : document)) return;
       const inField = isEditableTarget(e.target as HTMLElement | null);
       const hit = findShortcut(shortcuts, e, inField);
       if (hit) {
