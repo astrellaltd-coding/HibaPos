@@ -3068,7 +3068,7 @@ Each carries a comment saying so, and `src/features/tables/table-withdrawal.test
 
 **Tests.** `bun test src --timeout 30000` — **763 pass, 0 fail**. **The delta is ZERO and that is explained, not shrugged at**: no test was added or removed, and `api-authorization.test.ts` walks the route tree inside seven `it()` blocks rather than one per route, so deleting a route changes what those seven iterate over and not the count. `bun run typecheck`, `bun run lint`, `bun run build` — PASS. `bun run test:e2e` — **13 passed**. **Manual smoke on a scratch copy with marker proof**: ten screens driven in the browser, **zero console errors**. `db/custom.db` byte-identical at `96b48ad0…`, and `db/backups/` still holds its nine files.
 
-**Commit:** `<pending>` + this plan/record update.
+**Commit:** `97c74fb` + this plan/record update.
 
 **Notes.**
 
@@ -3096,7 +3096,7 @@ Each carries a comment saying so, and `src/features/tables/table-withdrawal.test
 
 | Batch | Status | Date | Commit | Notes |
 |---|---|---|---|---|
-| 7.2 | COMPLETED | 2026-09-05 | `<pending>` | L-01, L-03, L-07, L-08, L-12, L-29, APPROVE-DEAD. Four files, one dependency and seven dead exports removed; −428 lines. Two of L-07's ten entries were wrong and were left alone. Batch 5.6's tripwire fired and was amended stronger, three reverts all caught. Ten screens smoke-tested on a marker-proved scratch copy, zero console errors. **L-33 not closed** — a review, not a mechanical fix. |
+| 7.2 | COMPLETED | 2026-09-05 | `97c74fb` | L-01, L-03, L-07, L-08, L-12, L-29, APPROVE-DEAD. Four files, one dependency and seven dead exports removed; −428 lines. Two of L-07's ten entries were wrong and were left alone. Batch 5.6's tripwire fired and was amended stronger, three reverts all caught. Ten screens smoke-tested on a marker-proved scratch copy, zero console errors. **L-33 not closed** — a review, not a mechanical fix. |
 | 7.1 | COMPLETED | 2026-09-05 | `b2262bf` | DOC-01…DOC-08, DOC-10, DOC-11, DOC-12 — every DOC item. Documentation only; 763/0 unchanged. Two of the four code comments it was told to fix needed no change and one claim about them was wrong; DOC-11's re-check reversed its answer; the README's opening conformity claim was qualified, not deleted; `IMPLEMENTATION_PLAN.md` gained an appended Appendix D with eight corrections plus a ninth found while writing it. Opened L-51. |
 | 0.1 | COMPLETED | 2026-09-03 | `e97a3e1` | C-26, C-26b: anchored 4 bare `.gitignore` patterns; recovered 3 untracked backup API route files into version control. |
 | 0.2 | COMPLETED | 2026-09-03 | *(this update)* | P-01/P-02/P-03: repo pushed to `origin/main` (user, interactive), `.env` confirmed preserved out-of-band by user, pre-remediation snapshot + fiscal/row-count baseline recorded. No code changes. |

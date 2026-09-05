@@ -1400,7 +1400,7 @@ Audit section J, step 8. Correct the false statements, remove the dead weight, t
 
 ## Batch 7.2 — Dead code and dependency removal
 
-**Status:** `COMPLETED` · **Completed:** 2026-09-05 · **Commit:** `<pending>` · **Findings:** L-01, L-03, L-07, L-08, L-12, L-29, APPROVE-DEAD (**L-02 was already done in Batch 6.2**). **L-33 is NOT closed** — see *Left open*.
+**Status:** `COMPLETED` · **Completed:** 2026-09-05 · **Commit:** `97c74fb` · **Findings:** L-01, L-03, L-07, L-08, L-12, L-29, APPROVE-DEAD (**L-02 was already done in Batch 6.2**). **L-33 is NOT closed** — see *Left open*.
 **Record:** `REMEDIATION_RECORD.md` → *Batch 7.2* — the item table, the DO-NOT-REMOVE list, validation criteria and status record, moved there verbatim on 2026-09-05.
 
 **Constraints this batch leaves behind** *(sentences copied from the record, not paraphrased)*
