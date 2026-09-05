@@ -939,7 +939,7 @@ Audit section J, step 5: close the one real privilege-escalation path, stop bloc
 - `payment-dialog.tsx` keeps its wiring behind a `false` constant so 4.4c hooks into a path that already works, including the post-audit N1 re-entry mechanism. *(record, note 6)*
 - The `USER_SWITCH_BLOCKED` audit action it wrote is retired with it; older rows in the journal keep it and must still render. *(record, Changes (4))*
 - `nav-access.test.ts` asserts the default can open strictly fewer views than a manager; that assertion must be revisited, not deleted (safety rule 2). *(record, the removal itself — done in note 4)*
-- **No migration** — the enum is app-level only, stored as TEXT with no `CHECK` constraint. **Nothing is waiting on the operator**, and production still stands at 6 applied migrations. *(record, note 1)*
+- **No migration** — the enum is app-level only, stored as TEXT with no `CHECK` constraint. **Nothing is waiting on the operator**, and production stood at 6 applied migrations when this was written *(7 since 2026-09-05 — Batch 5.5; the count is a snapshot, not a constraint this batch imposes)*. *(record, note 1)*
 - Closing a caisse stays open to any authenticated role. The asymmetry it describes was written for a cashier; widening or narrowing it is a business decision, and this batch deliberately left it alone. *(record, note 8)*
 - Rewording it is 4.4c's decision — DD-19 makes it true again with the caller's own PIN — so it is **L-35** rather than a guess made here. *(record, note 7)*
 - With one operational role this changes no observable behaviour — which is the point: it removes a latent inconsistency rather than fixing a live leak. *(record, M-19s scope)*
@@ -960,7 +960,7 @@ Audit section J, step 5: close the one real privilege-escalation path, stop bloc
 - **Decided where the old gate stood and consumed after the payment and livraison checks**, so a mistyped payment does not burn a single-use token. *(record, Changes (4))*
 - One mandatory step-up, **every refund, no threshold**. *(record, Changes (5))*
 - Left optional so the refusal is the route's French sentence rather than an English zod message (L-22). *(record, Changes (6))*
-- **No migration** — nothing was added to the schema, so the fix is in force the moment the code runs; production still stands at 6 applied migrations and **nothing waits on the operator**. *(record, Files)*
+- **No migration** — nothing was added to the schema, so the fix is in force the moment the code runs; production stood at 6 applied migrations when this was written *(7 since 2026-09-05 — Batch 5.5; the count is a snapshot, not a constraint this batch imposes)* and **nothing waits on the operator**. *(record, Files)*
 - A "PIN was entered" flag would be **true on every record the batch can produce** — the sale is refused without it — so it would add no information while creating a **third payload vintage** for every future reader to tolerate. *(record, note 1)*
 - A step-up failure writes `MANAGER_APPROVAL_FAILED` — Batch 4.1's own action — so five wrong PINs are five **in total** across the step-up and the manager approval, not five each. *(record, note 2)*
 - Because every refund needs a PIN, five fumbles mean **no refunds and no large discounts for fifteen minutes**. *(record, note 2)*
