@@ -9,7 +9,13 @@ if (!SECRET || SECRET.length < 32) {
   throw new Error("SESSION_SECRET missing or too short for approvals module.");
 }
 
-export type ApprovalAction = "DISCOUNT" | "REFUND";
+/** What a step-up PIN is being asked for.
+ *
+ *  `CASH_OUT` joined in Batch 5.5 (M-05 / DD-12): a cash movement that takes
+ *  money OUT of the drawer needs the operator's own PIN, exactly as a refund
+ *  has since 4.4c. Movements that only add cash do not, so there is no
+ *  `CASH_IN` — the absence is the rule, not an omission. */
+export type ApprovalAction = "DISCOUNT" | "REFUND" | "CASH_OUT";
 
 export type ApprovalPayload = {
   approverId: string;

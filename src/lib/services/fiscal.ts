@@ -24,9 +24,11 @@ import {
 import { type VatBreakdown } from "@/lib/money";
 import {
   aggregateOrders,
+  aggregateCashMovements,
   AGGREGATE_INCLUDE,
   periodOrdersWhere,
   periodAggregateOptions,
+  periodCashMovementsWhere,
 } from "@/lib/services/aggregate";
 import { TX_FISCAL } from "@/lib/tx-options";
 
@@ -43,6 +45,7 @@ type AppendOpts = {
   shiftId?: string | null;
   closeId?: string | null;
   archiveId?: string | null;
+  cashMovementId?: string | null; // M-05 (Batch 5.5)
 };
 
 /** Append a hash-chained event to the fiscal journal. MUST be called inside the
@@ -73,6 +76,7 @@ export async function appendFiscalEvent(tx: Tx, opts: AppendOpts) {
       shiftId: opts.shiftId ?? null,
       closeId: opts.closeId ?? null,
       archiveId: opts.archiveId ?? null,
+      cashMovementId: opts.cashMovementId ?? null,
       userId: opts.userId ?? null,
       factice: opts.factice ?? false,
       timestamp,
@@ -235,6 +239,12 @@ type PeriodAgg = {
   // L-26 (Batch 3.6b): how many refunds, not just how much — the M-07
   // convention, applied to the period closes it named only `ZReport` for.
   refundsCount: number;
+  // M-05 (Batch 5.5): the period's cash movements. Here for the reason Batch
+  // 3.2 exists — a close equals the sum of its Z reports, and a Z showing a
+  // 200 € payout inside a close that does not is the C-10 shape in a new column.
+  cashInTotal: number; // cents
+  cashOutTotal: number; // cents
+  cashMovementsCount: number;
   vatBreakdown: VatBreakdown;
   topProducts: { name: string; quantity: number; total: number }[]; // total in cents
 };
@@ -263,6 +273,15 @@ async function aggregatePeriod(from: Date, to: Date): Promise<PeriodAgg> {
     ...periodAggregateOptions(from, to),
   });
 
+  // M-05 (Batch 5.5): by WHEN the money moved, the same rule Batch 5.3 gave
+  // refunds, so a period books the movements it made rather than the movements
+  // of some shift that happens to straddle it.
+  const movements = await db.cashMovement.findMany({
+    where: periodCashMovementsWhere(from, to),
+    select: { category: true, amount: true },
+  });
+  const cash = aggregateCashMovements(movements);
+
   return {
     salesTotal: agg.salesTotal,
     salesCount: agg.salesCount,
@@ -273,6 +292,9 @@ async function aggregatePeriod(from: Date, to: Date): Promise<PeriodAgg> {
     discountsTotal: agg.discountsTotal,
     totalRefunded: agg.totalRefunded,
     refundsCount: agg.refundsCount,
+    cashInTotal: cash.cashIn,
+    cashOutTotal: cash.cashOut,
+    cashMovementsCount: cash.count,
     vatBreakdown: agg.vatBreakdown,
     topProducts: agg.topProducts,
   };
@@ -457,6 +479,10 @@ export async function closeMonth(
         // parsing `dataJson`.
         refundsTotal: agg.totalRefunded,
         refundsCount: agg.refundsCount,
+        // M-05 (Batch 5.5), beside L-26's pair and for the same reason.
+        cashInTotal: agg.cashInTotal,
+        cashOutTotal: agg.cashOutTotal,
+        cashMovementsCount: agg.cashMovementsCount,
         vatBreakdownJson: JSON.stringify(agg.vatBreakdown),
         topProductsJson: JSON.stringify(agg.topProducts),
         dataJson,
@@ -541,6 +567,10 @@ export async function closeYear(
         discountsTotal: agg.discountsTotal,
         refundsTotal: agg.totalRefunded, // L-26, as for the month
         refundsCount: agg.refundsCount,
+        // M-05 (Batch 5.5), beside L-26's pair and for the same reason.
+        cashInTotal: agg.cashInTotal,
+        cashOutTotal: agg.cashOutTotal,
+        cashMovementsCount: agg.cashMovementsCount,
         vatBreakdownJson: JSON.stringify(agg.vatBreakdown),
         topProductsJson: JSON.stringify(agg.topProducts),
         dataJson,

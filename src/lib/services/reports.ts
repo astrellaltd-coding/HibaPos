@@ -5,9 +5,11 @@ import type { PrismaClient } from "@prisma/client";
 import { splitVat, type VatBreakdown } from "@/lib/money";
 import {
   aggregateOrders,
+  aggregateCashMovements,
   AGGREGATE_INCLUDE,
   shiftOrdersWhere,
   shiftAggregateOptions,
+  shiftCashMovementsWhere,
 } from "@/lib/services/aggregate";
 import { nextZReportNumber } from "@/lib/services/sequence";
 import { appendFiscalEvent } from "@/lib/services/fiscal";
@@ -52,6 +54,13 @@ export type SalesReport = {
   // back, and the sealed CLOTURE_Z entry did not record it either.
   refundsTotal: number; // cents
   refundsCount: number;
+  // M-05 (Batch 5.5): the drawer's other movements, both as positive figures.
+  // `expectedCash` below nets them; these say what made it up.
+  cashInTotal: number; // cents
+  cashOutTotal: number; // cents
+  cashMovementsCount: number;
+  /** Per category, signed. DD-12 chose a fixed list so this could exist. */
+  cashByCategory: Record<string, number>;
   openingFloat: number; // cents
   expectedCash: number; // cents
   vatBreakdown: VatBreakdown;
@@ -87,6 +96,16 @@ export async function computeShiftReport(shiftId: string, client: Db = db): Prom
     ...shiftAggregateOptions(shiftId, shift.openedAt),
   });
 
+  // M-05 (Batch 5.5). Scoped to the till the money moved through, which is the
+  // same rule the refunds above follow since Batch 5.3: a period books what IT
+  // did. A movement recorded while this shift was open belongs to this shift
+  // even if it corrects something older, because the cash left THIS drawer.
+  const movements = await client.cashMovement.findMany({
+    where: shiftCashMovementsWhere(shiftId),
+    select: { category: true, amount: true },
+  });
+  const cash = aggregateCashMovements(movements);
+
   return {
     salesTotal: agg.salesTotal,
     salesCount: agg.salesCount,
@@ -97,12 +116,22 @@ export async function computeShiftReport(shiftId: string, client: Db = db): Prom
     discountsTotal: agg.discountsTotal,
     refundsTotal: agg.totalRefunded,
     refundsCount: agg.refundsCount,
+    cashInTotal: cash.cashIn,
+    cashOutTotal: cash.cashOut,
+    cashMovementsCount: cash.count,
+    cashByCategory: cash.byCategory,
     openingFloat: shift.openingFloat,
     // Cash the drawer should hold: what it opened with, plus cash taken,
-    // less cash handed back. Card and voucher refunds never touch it.
+    // less cash handed back, plus or minus every other movement of cash.
+    // Card and voucher refunds never touch it.
+    //
     // Since Batch 5.3 "handed back" means the refunds THIS till paid out,
-    // whichever shift sold the order — which is DD-10's whole point.
-    expectedCash: shift.openingFloat + agg.grossCashTotal - agg.cashRefundsTotal,
+    // whichever shift sold the order — which is DD-10's whole point. M-05
+    // (Batch 5.5) adds `cash.net`: before it, a 200 € supplier payment showed up
+    // as a 200 € shortfall at the close with nothing to explain it, every time,
+    // which is how staff learn to ignore the variance figure.
+    expectedCash:
+      shift.openingFloat + agg.grossCashTotal - agg.cashRefundsTotal + cash.net,
     vatBreakdown: agg.vatBreakdown,
     topProducts: agg.topProducts,
   };
@@ -159,6 +188,9 @@ export async function generateZReport(shiftId: string, closingFloat: number, clo
         discountsTotal: report.discountsTotal,
         refundsTotal: report.refundsTotal,
         refundsCount: report.refundsCount,
+        cashInTotal: report.cashInTotal,
+        cashOutTotal: report.cashOutTotal,
+        cashMovementsCount: report.cashMovementsCount,
         openingFloat: report.openingFloat,
         expectedCash: report.expectedCash,
         closingFloat,
@@ -202,6 +234,12 @@ export async function generateZReport(shiftId: string, closingFloat: number, clo
         // the day's corrections and not only its takings.
         refundsTotal: report.refundsTotal,
         refundsCount: report.refundsCount,
+        // M-05 (Batch 5.5), the same argument at the same place: a CLOTURE_Z
+        // whose `expectedCash` accounts for a payout it does not name cannot be
+        // reconciled from the journal alone.
+        cashInTotal: report.cashInTotal,
+        cashOutTotal: report.cashOutTotal,
+        cashMovementsCount: report.cashMovementsCount,
         openingFloat: report.openingFloat,
         expectedCash: report.expectedCash,
         closingFloat,

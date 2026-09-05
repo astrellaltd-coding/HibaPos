@@ -8,6 +8,11 @@ export type FiscalEventType =
   | "VENTE"
   | "ANNULATION"
   | "REMBOURSEMENT"
+  // M-05 (Batch 5.5): money in or out of the drawer for a reason that is not a
+  // sale — a float top-up, a drop to the safe, a supplier payment, a counting
+  // correction. Journalled because the drawer is what the Z report reconciles;
+  // it touches no revenue, no VAT and not the perpetual GrandTotal.
+  | "MOUVEMENT_CAISSE"
   | "CLOTURE_Z"
   | "CLOTURE_M"
   | "CLOTURE_A"

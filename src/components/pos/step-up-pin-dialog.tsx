@@ -11,7 +11,7 @@ import { toast } from "sonner";
 
 export type StepUpConfirmation = {
   stepUpToken: string;
-  action: "DISCOUNT" | "REFUND";
+  action: "DISCOUNT" | "REFUND" | "CASH_OUT";
   amount: number | null;
   expSec: number;
 };
@@ -20,7 +20,7 @@ type StepUpPinDialogProps = {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   /** Bound into the signed token, and re-checked by the operation. */
-  action: "DISCOUNT" | "REFUND";
+  action: "DISCOUNT" | "REFUND" | "CASH_OUT";
   /** CENTS. Bound into the token; the server compares it exactly. */
   amount?: number;
   onConfirmed: (confirmation: StepUpConfirmation) => void;

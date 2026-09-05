@@ -378,6 +378,61 @@ export function aggregateOrders<T extends AggregatableOrder>(
   };
 }
 
+// ---------------------------------------------------------------------------
+// Cash movements (M-05 / DD-12, Batch 5.5)
+// ---------------------------------------------------------------------------
+//
+// Kept OUT of `aggregateOrders`, deliberately. A movement is not an order and
+// has no lines, no VAT and no tender — folding it in would mean widening the
+// order contract for something that shares none of it. What it shares is the
+// drawer, so it is summed here and added where `expectedCash` is computed. Both
+// period scopes call this one function, for the reason Batch 3.2 exists: a Z
+// report and the close containing it must not do their own arithmetic.
+
+export type AggregatableCashMovement = {
+  category: string;
+  /** SIGNED cents: positive into the drawer, negative out of it. */
+  amount: number;
+};
+
+export type CashMovementAggregate = {
+  /** Money that went IN, as a positive number. */
+  cashIn: number;
+  /** Money that went OUT, also as a positive number — a sealed document should
+   *  state what went in and what went out, not their difference. */
+  cashOut: number;
+  /** `cashIn - cashOut`: what the drawer is up by. This is the figure
+   *  `expectedCash` adds, and the only one that carries a sign. */
+  net: number;
+  count: number;
+  /** Per category, signed, so "how much went to suppliers" is answerable —
+   *  which is the whole reason DD-12 chose a fixed list over free text. */
+  byCategory: Record<string, number>;
+};
+
+export function aggregateCashMovements(
+  movements: AggregatableCashMovement[],
+): CashMovementAggregate {
+  let cashIn = 0;
+  let cashOut = 0;
+  const byCategory: Record<string, number> = {};
+  for (const m of movements) {
+    if (m.amount >= 0) cashIn += m.amount;
+    else cashOut += -m.amount;
+    byCategory[m.category] = (byCategory[m.category] ?? 0) + m.amount;
+  }
+  return { cashIn, cashOut, net: cashIn - cashOut, count: movements.length, byCategory };
+}
+
+/** A shift's own movements: the till the money physically moved through. */
+export const shiftCashMovementsWhere = (shiftId: string) => ({ shiftId });
+
+/** A date range's movements, by when the money moved — the same rule Batch 5.3
+ *  established for refunds, so a period books the movements IT made. */
+export const periodCashMovementsWhere = (from: Date, to: Date) => ({
+  createdAt: { gte: from, lt: to },
+});
+
 /** The Prisma `include` every caller needs to produce an AggregatableOrder.
  *  `refunds: true` brings ALL of an order's refunds, not just this period's —
  *  `refundPosition` needs the ones an earlier period already booked in order

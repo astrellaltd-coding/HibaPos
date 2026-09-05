@@ -10,6 +10,7 @@ import { formatEuro, formatDateTime } from "@/lib/format";
 import { Money } from "@/components/shared/money";
 import { EmptyState, PageHeader } from "@/components/shared/empty-state";
 import { cashVarianceCents, formatVariance } from "./z-close";
+import { CashMovementDialog } from "./cash-movement-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -38,6 +39,7 @@ import {
   FileText,
   CheckCircle2,
   ArrowRight,
+  ArrowRightLeft,
   Loader2,
   DatabaseBackup,
 } from "lucide-react";
@@ -113,6 +115,7 @@ export function ShiftsView() {
   const [openDialog, setOpenDialog] = useState(false);
   const [closeDialog, setCloseDialog] = useState(false);
   const [xDialog, setXDialog] = useState(false);
+  const [cashDialog, setCashDialog] = useState(false); // M-05 (Batch 5.5)
   const [zResult, setZResult] = useState<{
     zReport: ZReportSummary;
     cashVariance: number;
@@ -194,6 +197,7 @@ export function ShiftsView() {
           xError={xError}
           onShowX={() => setXDialog(true)}
           onClose={() => setCloseDialog(true)}
+          onCashMovement={() => setCashDialog(true)}
         />
       ) : (
         <EmptyState
@@ -284,6 +288,9 @@ export function ShiftsView() {
         </div>
       </section>
 
+      {/* ---------------- Cash movement dialog (M-05, Batch 5.5) ---------------- */}
+      <CashMovementDialog open={cashDialog} onOpenChange={setCashDialog} />
+
       {/* ---------------- Open dialog ---------------- */}
       <OpenShiftDialog
         open={openDialog}
@@ -348,6 +355,7 @@ function OpenShiftCard({
   xError,
   onShowX,
   onClose,
+  onCashMovement,
 }: {
   shift: ShiftDto;
   now: Date;
@@ -355,6 +363,7 @@ function OpenShiftCard({
   xError: boolean;
   onShowX: () => void;
   onClose: () => void;
+  onCashMovement: () => void;
 }) {
   return (
     <section className="rounded-xl border-2 border-emerald-500/40 bg-emerald-500/5 p-5 shadow-sm">
@@ -387,6 +396,14 @@ function OpenShiftCard({
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
+          {/* M-05 / DD-12 (Batch 5.5): the only way to record cash that moves
+              for a reason that is not a sale. Before it, a supplier payment out
+              of the drawer had nowhere to go and showed up as a shortfall at
+              the close. */}
+          <Button variant="outline" onClick={onCashMovement}>
+            <ArrowRightLeft className="h-4 w-4" />
+            Mouvement de caisse
+          </Button>
           <Button variant="outline" onClick={onShowX} disabled={!xReport}>
             <FileText className="h-4 w-4" />
             Rapport X détaillé
@@ -399,7 +416,7 @@ function OpenShiftCard({
       </div>
 
       {/* Live X-report summary grid */}
-      <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">
         <Kpi
           label="Ventes totales"
           value={<Money amount={xReport?.salesTotal ?? 0} />}
@@ -416,10 +433,22 @@ function OpenShiftCard({
           label="Fond de caisse"
           value={<Money amount={xReport?.openingFloat ?? shift.openingFloat} />}
         />
+        {/* M-05 (Batch 5.5) */}
+        <Kpi
+          label="Mouvements"
+          value={
+            <Money
+              amount={(xReport?.cashInTotal ?? 0) - (xReport?.cashOutTotal ?? 0)}
+            />
+          }
+          hint={`${xReport?.cashMovementsCount ?? 0} mouvement(s)`}
+        />
         <Kpi
           label="Espèces attendues"
           value={<Money amount={xReport?.expectedCash ?? 0} />}
-          hint="Fond + ventes espèces"
+          // M-05 (Batch 5.5): the hint said "Fond + ventes espèces", which this
+          // batch made untrue — the figure now nets refunds and movements too.
+          hint="Fond + espèces − remboursements ± mouvements"
           tone="emerald"
         />
       </div>

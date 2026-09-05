@@ -237,6 +237,21 @@ export const refundSchema = z.object({
   method: z.enum(["CASH", "CARD", "VOUCHER"]).optional(), // refund channel; null legacy defaults to CASH in reports
 });
 
+// M-05 / DD-12 (Batch 5.5) — entrée / sortie de caisse.
+export const cashMovementSchema = z.object({
+  category: z.enum(["APPROVISIONNEMENT", "PRELEVEMENT", "DEPENSE", "ERREUR_DE_CAISSE"]),
+  // SIGNED cents: positive into the drawer, negative out of it. Zero is refused
+  // by the service with a French message rather than here, for L-22's reason.
+  // The sign must agree with the category — also the service's job, because the
+  // message has to name which direction the category means.
+  amount: z.number().int(),
+  reason: z.string().min(1, "Motif requis").max(280),
+  // Required in practice for an OUTGOING movement only (operator, 2026-09-05).
+  // Optional here so the refusal is the route's French message and not a zod
+  // one in English — the same reasoning as `refundSchema.stepUpToken`.
+  stepUpToken: z.string().optional(),
+});
+
 export const settingsSchema = z.object({
   restaurantName: z.string().min(1).max(80),
   restaurantAddress: z.string().max(200).optional().nullable(),

@@ -466,6 +466,15 @@ describe("period closes carry their refunds (L-26)", () => {
     // 2026-09-04, MonthlyClose and AnnualClose both held ZERO rows, so there
     // is no earlier close whose hash could move. This test states the premise
     // rather than assuming it — if it ever fails, the premise is gone.
+    //
+    // AMENDED 2026-09-05 (Batch 5.5, M-05). It has now happened a SECOND time:
+    // the payload gains `cashInTotal`, `cashOutTotal` and `cashMovementsCount`
+    // with the cash-movement columns. Safe for exactly the same reason and no
+    // other — re-verified read-only the same day, both tables still hold ZERO
+    // rows. The key list below is the whole point of this test: it is edited
+    // deliberately, per batch, and never adjusted to make a run go green.
+    // The `CLOTURE_M` / `CLOTURE_A` EVENT payloads are still untouched
+    // (Open Threads → D); this is the close row's own `dataJson`.
     expect(await db.monthlyClose.count()).toBe(0);
     expect(await db.annualClose.count()).toBe(0);
 
@@ -473,9 +482,9 @@ describe("period closes carry their refunds (L-26)", () => {
     const close = await closeMonth(2026, 4, userId, false, new Date(2026, 4, 2));
     const payload = JSON.parse(close.dataJson);
     expect(Object.keys(payload).sort()).toEqual([
-      "cardTotal", "cashTotal", "discountsTotal", "month", "period", "refundsCount",
-      "salesCount", "salesTotal", "topProducts", "totalRefunded", "vatBreakdown",
-      "vatTotal", "voucherTotal", "year",
+      "cardTotal", "cashInTotal", "cashMovementsCount", "cashOutTotal", "cashTotal",
+      "discountsTotal", "month", "period", "refundsCount", "salesCount", "salesTotal",
+      "topProducts", "totalRefunded", "vatBreakdown", "vatTotal", "voucherTotal", "year",
     ]);
 
     // And the chain over the row as sealed still recomputes.

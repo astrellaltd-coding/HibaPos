@@ -36,21 +36,22 @@ model User {
   pinHash        String
   name           String
   role           UserRole  @default(MANAGER)
-  active          Boolean   @default(true)
+  active         Boolean   @default(true)
   failedAttempts Int       @default(0)
   lockedUntil    DateTime?
   lastLoginAt    DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  openedShifts   Shift[]    @relation("ShiftOpenedBy")
-  closedShifts   Shift[]    @relation("ShiftClosedBy")
-  orders         Order[]    @relation("OrderCashier")
-  payments       Payment[]  @relation("PaymentCashier")
-  refunds        Refund[]   @relation("RefundBy")
-  auditLogs      AuditLog[]
-  backups        Backup[]   @relation("BackupBy")
-  sessions       Session[]
+  openedShifts  Shift[]        @relation("ShiftOpenedBy")
+  closedShifts  Shift[]        @relation("ShiftClosedBy")
+  orders        Order[]        @relation("OrderCashier")
+  payments      Payment[]      @relation("PaymentCashier")
+  refunds       Refund[]       @relation("RefundBy")
+  cashMovements CashMovement[] @relation("CashMovementBy")
+  auditLogs     AuditLog[]
+  backups       Backup[]       @relation("BackupBy")
+  sessions      Session[]
 }
 
 model Session {
@@ -60,7 +61,7 @@ model Session {
   createdAt      DateTime @default(now())
   lastActivityAt DateTime @default(now())
   expiresAt      DateTime
-  device         String?  // user-agent hint
+  device         String? // user-agent hint
 
   @@index([userId])
   @@index([expiresAt])
@@ -71,56 +72,56 @@ model Session {
 // ---------------------------------------------------------------------------
 
 model Category {
-  id             String              @id @default(cuid())
-  name           String              @unique
-  color          String              @default("#f59e0b")
-  icon           String?             // lucide icon name (preferred) or emoji fallback
-  sortOrder      Int                 @default(0)
-  active         Boolean             @default(true)
+  id        String   @id @default(cuid())
+  name      String   @unique
+  color     String   @default("#f59e0b")
+  icon      String? // lucide icon name (preferred) or emoji fallback
+  sortOrder Int      @default(0)
+  active    Boolean  @default(true)
   // VAT rate for products in this category that opt into inheritance (L-16/L-17).
   // NULL = "not set here" — resolution walks own category -> parent -> the
   // product's own rate. The fiscal criterion is the container, not the drink,
   // so this belongs on `Canette`/`Bouteilles` rather than on `Boissons`.
-  vatRate        Float?
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
+  vatRate   Float?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  parentId       String?
-  parent         Category?           @relation("CategoryChildren", fields: [parentId], references: [id], onDelete: SetNull)
-  children       Category[]          @relation("CategoryChildren")
+  parentId String?
+  parent   Category?  @relation("CategoryChildren", fields: [parentId], references: [id], onDelete: SetNull)
+  children Category[] @relation("CategoryChildren")
 
-  products       Product[]
-  optionGroups   CategoryOptionGroup[]
-  addOns         CategoryAddOn[]
+  products     Product[]
+  optionGroups CategoryOptionGroup[]
+  addOns       CategoryAddOn[]
 
   @@index([parentId])
 }
 
 model Product {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  price       Int // TTC cents (primary POS price)
-  pickupPrice  Int? // TTC cents for takeaway (if different from default)
-  deliveryPrice Int? // TTC cents for delivery
-  vatRate     Float   @default(20.0) // French VAT: 20% standard, 10% food, 5.5%
-  categoryId  String
-  image       String? // url or data path
-  active      Boolean  @default(true)
-  available   Boolean  @default(true) // 86'd / out of stock toggle
-  inheritCategoryGlobals Boolean @default(true) // inherits category-level options & add-ons
+  id                     String   @id @default(cuid())
+  name                   String
+  description            String?
+  price                  Int // TTC cents (primary POS price)
+  pickupPrice            Int? // TTC cents for takeaway (if different from default)
+  deliveryPrice          Int? // TTC cents for delivery
+  vatRate                Float    @default(20.0) // French VAT: 20% standard, 10% food, 5.5%
+  categoryId             String
+  image                  String? // url or data path
+  active                 Boolean  @default(true)
+  available              Boolean  @default(true) // 86'd / out of stock toggle
+  inheritCategoryGlobals Boolean  @default(true) // inherits category-level options & add-ons
   // Take the VAT rate from the category chain instead of the `vatRate` column
   // above (L-16/L-17). Mirrors inheritCategoryGlobals. Defaults to FALSE so
   // every existing product keeps the rate it already has — the migration
   // changes no behaviour on its own.
-  inheritCategoryVat     Boolean @default(false)
-  sortOrder   Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  inheritCategoryVat     Boolean  @default(false)
+  sortOrder              Int      @default(0)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
-  category     Category      @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  options      OptionGroup[]
-  orderItems   OrderItem[]
+  category      Category       @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  options       OptionGroup[]
+  orderItems    OrderItem[]
   productAddons ProductAddon[]
 
   @@index([categoryId])
@@ -139,14 +140,14 @@ model ProductAddon {
 
 // A product can have option groups (e.g. "Cuisson", "Sauce", "Taille")
 model OptionGroup {
-  id          String  @id @default(cuid())
-  productId   String
-  name        String
-  required    Boolean @default(false)
-  multiple    Boolean @default(false) // single vs multi select
-  sortOrder   Int     @default(0)
+  id        String  @id @default(cuid())
+  productId String
+  name      String
+  required  Boolean @default(false)
+  multiple  Boolean @default(false) // single vs multi select
+  sortOrder Int     @default(0)
 
-  product Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
   choices OptionChoice[]
 
   @@index([productId])
@@ -156,9 +157,9 @@ model OptionChoice {
   id                    String  @id @default(cuid())
   groupId               String
   name                  String
-  priceModifier         Int   @default(0) // cents added to base price
-  pickupPriceModifier   Int?  // cents override for takeaway
-  deliveryPriceModifier Int?  // cents override for delivery
+  priceModifier         Int     @default(0) // cents added to base price
+  pickupPriceModifier   Int? // cents override for takeaway
+  deliveryPriceModifier Int? // cents override for delivery
   image                 String? // optional thumbnail shown in POS picker
   sortOrder             Int     @default(0)
 
@@ -169,28 +170,28 @@ model OptionChoice {
 
 // Standalone add-ons (extras) shown in POS
 model AddOn {
-  id            String         @id @default(cuid())
-  name          String
-  price         Int // cents
-  image         String?
-  active        Boolean        @default(true)
-  sortOrder     Int            @default(0)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  id        String   @id @default(cuid())
+  name      String
+  price     Int // cents
+  image     String?
+  active    Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   productAddons ProductAddon[]
 }
 
 // Global option groups for a category (shared by all products in that category)
 model CategoryOptionGroup {
-  id          String              @id @default(cuid())
-  categoryId  String
-  category    Category            @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  name        String
-  required    Boolean             @default(false)
-  multiple    Boolean             @default(false)
-  sortOrder   Int                 @default(0)
-  choices     CategoryOptionChoice[]
+  id         String                 @id @default(cuid())
+  categoryId String
+  category   Category               @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  name       String
+  required   Boolean                @default(false)
+  multiple   Boolean                @default(false)
+  sortOrder  Int                    @default(0)
+  choices    CategoryOptionChoice[]
 
   @@index([categoryId])
 }
@@ -200,12 +201,12 @@ model CategoryOptionChoice {
   groupId               String
   group                 CategoryOptionGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
   name                  String
-  priceModifier         Int   @default(0) // cents
-  pickupPriceModifier   Int?  // cents override for takeaway
-  deliveryPriceModifier Int?  // cents override for delivery
-  pickupPrice           Int?              // absolute fixed price in cents for takeaway (overrides modifier logic)
-  deliveryPrice         Int?              // absolute fixed price in cents for delivery
-  image                 String?             // optional thumbnail shown in POS picker
+  priceModifier         Int                 @default(0) // cents
+  pickupPriceModifier   Int? // cents override for takeaway
+  deliveryPriceModifier Int? // cents override for delivery
+  pickupPrice           Int? // absolute fixed price in cents for takeaway (overrides modifier logic)
+  deliveryPrice         Int? // absolute fixed price in cents for delivery
+  image                 String? // optional thumbnail shown in POS picker
   sortOrder             Int                 @default(0)
 
   @@index([groupId])
@@ -235,7 +236,7 @@ model Customer {
   phone      String?
   email      String?
   address    String?
-  postalCode String?  // code postal (French delivery requirement)
+  postalCode String? // code postal (French delivery requirement)
   notes      String?
   active     Boolean  @default(true)
   createdAt  DateTime @default(now())
@@ -263,11 +264,11 @@ model Table {
   label          String      @unique // e.g. "T1", "Terrasse 2"
   seats          Int         @default(4)
   status         TableStatus @default(FREE)
-  zone           String?     // e.g. "Salle", "Terrasse", "Bar"
+  zone           String? // e.g. "Salle", "Terrasse", "Bar"
   sortOrder      Int         @default(0)
   active         Boolean     @default(true)
   notes          String?
-  currentOrderId String?     // link to active order when occupied — plain id, NO FK (intentional: avoids circular FK with Order; integrity maintained by the app clearing currentOrderId when a table is freed)
+  currentOrderId String? // link to active order when occupied — plain id, NO FK (intentional: avoids circular FK with Order; integrity maintained by the app clearing currentOrderId when a table is freed)
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 
@@ -285,29 +286,74 @@ enum ShiftStatus {
 }
 
 model Shift {
-  id            String      @id @default(cuid())
-  number        Int         @unique // sequential shift number
-  status        ShiftStatus @default(OPEN)
-  openedById    String
-  openedAt      DateTime    @default(now())
-  closedById    String?
-  closedAt      DateTime?
-  openingFloat  Int       @default(0) // cents
-  closingFloat  Int?
-  expectedCash  Int?
-  cashVariance  Int?
-  salesTotal    Int?
-  salesCount    Int?
-  notes         String?
+  id           String      @id @default(cuid())
+  number       Int         @unique // sequential shift number
+  status       ShiftStatus @default(OPEN)
+  openedById   String
+  openedAt     DateTime    @default(now())
+  closedById   String?
+  closedAt     DateTime?
+  openingFloat Int         @default(0) // cents
+  closingFloat Int?
+  expectedCash Int?
+  cashVariance Int?
+  salesTotal   Int?
+  salesCount   Int?
+  notes        String?
 
-  openedBy User @relation("ShiftOpenedBy", fields: [openedById], references: [id])
+  openedBy User  @relation("ShiftOpenedBy", fields: [openedById], references: [id])
   closedBy User? @relation("ShiftClosedBy", fields: [closedById], references: [id])
 
-  orders Order[]
-  zReport ZReport?
+  orders        Order[]
+  zReport       ZReport?
+  cashMovements CashMovement[]
 
   @@index([status])
   @@index([openedById])
+}
+
+// ---------------------------------------------------------------------------
+// Cash movements — entrée / sortie de caisse (M-05, DD-12, Batch 5.5)
+// ---------------------------------------------------------------------------
+
+/// The four movements the operator chose (DD-12, 2026-09-05). A FIXED list, not
+/// free text, for the reason that decided it: prose reasons cannot be totalled,
+/// so "how much went to suppliers this month" stops being answerable the moment
+/// it is asked.
+enum CashMovementType {
+  APPROVISIONNEMENT // float top-up — money INTO the drawer
+  PRELEVEMENT // cash to the safe — money OUT
+  DEPENSE // supplier or petty cash — money OUT
+  ERREUR_DE_CAISSE // a counting correction — either direction
+}
+
+model CashMovement {
+  id            String           @id @default(cuid())
+  shiftId       String // the till the money actually moved through
+  category      CashMovementType
+  /// SIGNED cents: positive INTO the drawer, negative out of it.
+  ///
+  /// Signed rather than a magnitude plus a direction flag, because
+  /// `ERREUR_DE_CAISSE` genuinely goes both ways and a flag would let a row
+  /// contradict itself. `expectedCash` adds this column and nothing else has to
+  /// know which categories mean what. The service refuses a sign the category
+  /// cannot have: an APPROVISIONNEMENT must be positive, a PRELEVEMENT and a
+  /// DEPENSE negative, and only an ERREUR_DE_CAISSE may be either.
+  amount        Int
+  reason        String
+  cashierId     String
+  /// The step-up approver, for movements that take money OUT (operator, 2026-09-05).
+  /// Null on an APPROVISIONNEMENT and on a positive correction, which need no PIN.
+  approvedById  String? // plain id, NO FK — same reasoning as Refund.approvedById
+  fiscalEventId String? // link to the MOUVEMENT_CAISSE journal entry (plain id, no FK)
+  createdAt     DateTime         @default(now())
+
+  shift   Shift @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  cashier User  @relation("CashMovementBy", fields: [cashierId], references: [id])
+
+  @@index([shiftId])
+  @@index([createdAt])
+  @@index([category])
 }
 
 // ---------------------------------------------------------------------------
@@ -328,28 +374,28 @@ enum OrderType {
 }
 
 model Order {
-  id             String      @id @default(cuid())
-  number         Int         @unique // sequential receipt number
-  shiftId        String
-  cashierId      String
-  customerId     String?
-  status         OrderStatus @default(COMPLETED)
-  orderType      OrderType   @default(DINE_IN)
-  tableLabel     String? // free text table / order number
-  subtotal       Int       @default(0) // cents HT + options (excl VAT)
-  vatTotal       Int       @default(0) // cents
-  discountTotal  Int       @default(0) // cents
+  id                   String      @id @default(cuid())
+  number               Int         @unique // sequential receipt number
+  shiftId              String
+  cashierId            String
+  customerId           String?
+  status               OrderStatus @default(COMPLETED)
+  orderType            OrderType   @default(DINE_IN)
+  tableLabel           String? // free text table / order number
+  subtotal             Int         @default(0) // cents HT + options (excl VAT)
+  vatTotal             Int         @default(0) // cents
+  discountTotal        Int         @default(0) // cents
   // C-13 (Batch 3.5): the manager who authorised an above-threshold discount.
   // Plain id, NO FK — deliberately the same convention as Refund.approvedById:
   // an approver may be soft-deleted later and the sale must survive intact.
   discountApprovedById String?
-  total          Int       @default(0) // cents TTC
-  notes          String?
-  itemCount      Int         @default(0)
-  fiscalEventId  String?     // link to the FiscalEvent (VENTE) journal entry (plain id, no FK by design)
-  createdAt      DateTime    @default(now())
-  completedAt    DateTime?
-  refundedAt     DateTime?
+  total                Int         @default(0) // cents TTC
+  notes                String?
+  itemCount            Int         @default(0)
+  fiscalEventId        String? // link to the FiscalEvent (VENTE) journal entry (plain id, no FK by design)
+  createdAt            DateTime    @default(now())
+  completedAt          DateTime?
+  refundedAt           DateTime?
 
   shift    Shift     @relation(fields: [shiftId], references: [id], onDelete: Restrict)
   cashier  User      @relation("OrderCashier", fields: [cashierId], references: [id])
@@ -373,12 +419,12 @@ model OrderItem {
   unitPrice   Int // TTC cents unit price (base + options)
   quantity    Int
   lineTotal   Int // cents
-  vatRate     Float?  // snapshot of VAT rate at time of sale
+  vatRate     Float? // snapshot of VAT rate at time of sale
   optionsJson String? // JSON snapshot of chosen options
   addOnsJson  String? // JSON snapshot of chosen add-ons
   notes       String?
 
-  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
 
   @@index([orderId])
@@ -395,9 +441,9 @@ model Payment {
   id        String        @id @default(cuid())
   orderId   String
   method    PaymentMethod
-  amount    Int         // cents applied to bill
-  tendered  Int?        // cents handed over (cash only)
-  change    Int?        // cents returned (cash only)
+  amount    Int // cents applied to bill
+  tendered  Int? // cents handed over (cash only)
+  change    Int? // cents returned (cash only)
   cashierId String
   createdAt DateTime      @default(now())
 
@@ -409,12 +455,12 @@ model Payment {
 }
 
 model Refund {
-  id        String   @id @default(cuid())
-  orderId   String
-  amount    Int // cents
-  reason    String
-  approvedById String? // manager who approved the refund — plain id, NO FK (intentional: approver may be deleted via soft-delete, refund must survive intact)
-  cashierId String
+  id            String         @id @default(cuid())
+  orderId       String
+  amount        Int // cents
+  reason        String
+  approvedById  String? // manager who approved the refund — plain id, NO FK (intentional: approver may be deleted via soft-delete, refund must survive intact)
+  cashierId     String
   // C-14 / DD-10 (Batch 5.3) settled what this column means, and it is NOT what
   // the code wrote. The header said "the shift that issued the refund" while
   // `refund.ts` wrote `order.shift?.id` — the shift that took the SALE — and the
@@ -431,10 +477,10 @@ model Refund {
   // shift the missing FK exists to tolerate. A null is attributed to NO shift
   // rather than falling back to the order's, so the failure is loud in the
   // Z-versus-close reconciliation instead of silently landing in the wrong till.
-  shiftId   String?  // the shift that PAID the refund out — plain id, NO FK (intentional: FK omitted so a shift can be hard-deleted without blocking refund history)
-  method    PaymentMethod? // refund channel; null on legacy rows; reports treat null as CASH for backward-compat
+  shiftId       String? // the shift that PAID the refund out — plain id, NO FK (intentional: FK omitted so a shift can be hard-deleted without blocking refund history)
+  method        PaymentMethod? // refund channel; null on legacy rows; reports treat null as CASH for backward-compat
   fiscalEventId String? // link to the FiscalEvent (REMBOURSEMENT/ANNULATION) journal entry (plain id, no FK)
-  createdAt DateTime @default(now())
+  createdAt     DateTime       @default(now())
 
   order   Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
   cashier User  @relation("RefundBy", fields: [cashierId], references: [id])
@@ -449,15 +495,15 @@ model Refund {
 // ---------------------------------------------------------------------------
 
 model Receipt {
-  id            String   @id @default(cuid())
-  orderId       String   @unique
-  order         Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  receiptNumber Int      // not @unique — original order.number is already unique
-  content       String   // full rendered plain-text receipt snapshot
-  printStatus   String   @default("PENDING") // PENDING | PRINTED | FAILED
+  id            String    @id @default(cuid())
+  orderId       String    @unique
+  order         Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  receiptNumber Int // not @unique — original order.number is already unique
+  content       String // full rendered plain-text receipt snapshot
+  printStatus   String    @default("PENDING") // PENDING | PRINTED | FAILED
   printedAt     DateTime?
-  reprintCount  Int      @default(0)
-  createdAt     DateTime @default(now())
+  reprintCount  Int       @default(0)
+  createdAt     DateTime  @default(now())
 }
 
 // ---------------------------------------------------------------------------
@@ -465,29 +511,39 @@ model Receipt {
 // ---------------------------------------------------------------------------
 
 model ZReport {
-  id               String   @id @default(cuid())
-  shiftId          String   @unique
-  number           Int      @unique
-  generatedAt      DateTime @default(now())
-  salesTotal       Int
-  salesCount       Int
-  vatTotal         Int
-  cashTotal        Int
-  cardTotal        Int
-  voucherTotal     Int
-  discountsTotal   Int
+  id                 String   @id @default(cuid())
+  shiftId            String   @unique
+  number             Int      @unique
+  generatedAt        DateTime @default(now())
+  salesTotal         Int
+  salesCount         Int
+  vatTotal           Int
+  cashTotal          Int
+  cardTotal          Int
+  voucherTotal       Int
+  discountsTotal     Int
   // M-07 (Batch 3.6): the period's corrections. Defaulted so the two existing
   // rows migrate without a rewrite — both predate any refund (there are none
   // in the database at all), so 0 is the true value for them, not a guess.
-  refundsTotal     Int      @default(0)
-  refundsCount     Int      @default(0)
-  openingFloat     Int
-  expectedCash     Int
-  closingFloat     Int
-  cashVariance     Int
-  topProductsJson  String? // JSON snapshot
-  vatBreakdownJson String? // {rate: {base, vat, ttc}}
-  fiscalEventId    String? // link to the FiscalEvent (CLOTURE_Z) journal entry (plain id, no FK)
+  refundsTotal       Int      @default(0)
+  refundsCount       Int      @default(0)
+  // M-05 (Batch 5.5): the drawer's other movements. `expectedCash` below now
+  // accounts for them, so without these an inspector could see that the figure
+  // does not equal float + cash − refunds and have nothing to explain it —
+  // which is M-07's argument for `refundsTotal`, at the same column. Signed
+  // amounts are split into two totals here because a sealed document should
+  // state what went in and what went out, not their difference. Defaulted 0:
+  // both existing rows predate the feature, so 0 is their true value.
+  cashInTotal        Int      @default(0)
+  cashOutTotal       Int      @default(0)
+  cashMovementsCount Int      @default(0)
+  openingFloat       Int
+  expectedCash       Int
+  closingFloat       Int
+  cashVariance       Int
+  topProductsJson    String? // JSON snapshot
+  vatBreakdownJson   String? // {rate: {base, vat, ttc}}
+  fiscalEventId      String? // link to the FiscalEvent (CLOTURE_Z) journal entry (plain id, no FK)
 
   shift Shift @relation(fields: [shiftId], references: [id], onDelete: Restrict)
 }
@@ -497,11 +553,11 @@ model ZReport {
 // ---------------------------------------------------------------------------
 
 model FiscalCounter {
-  id                     String @id @default("singleton")
-  lastReceiptNumber      Int    @default(0)
-  lastShiftNumber        Int    @default(0)
-  lastZReportNumber      Int    @default(0)
-  lastFiscalEventSequence Int   @default(0) // gapless sequence for the FiscalEvent journal (JFP)
+  id                      String @id @default("singleton")
+  lastReceiptNumber       Int    @default(0)
+  lastShiftNumber         Int    @default(0)
+  lastZReportNumber       Int    @default(0)
+  lastFiscalEventSequence Int    @default(0) // gapless sequence for the FiscalEvent journal (JFP)
 }
 
 // ---------------------------------------------------------------------------
@@ -532,10 +588,10 @@ model Backup {
   id          String   @id @default(cuid())
   filename    String
   size        Int
-  checksum    String?  // SHA-256 of plaintext
+  checksum    String? // SHA-256 of plaintext
   encrypted   Boolean  @default(false)
-  sizeBytes   Int?     // size after encryption
-  imagesPath  String?  // path to included uploads directory
+  sizeBytes   Int? // size after encryption
+  imagesPath  String? // path to included uploads directory
   createdAt   DateTime @default(now())
   createdById String?
 
@@ -544,8 +600,8 @@ model Backup {
 
 model TechnicalLog {
   id         String   @id @default(cuid())
-  level      String   // INFO | WARN | ERROR
-  source     String   // module name
+  level      String // INFO | WARN | ERROR
+  source     String // module name
   message    String
   stackTrace String?
   createdAt  DateTime @default(now())
@@ -563,21 +619,22 @@ model TechnicalLog {
 // ---------------------------------------------------------------------------
 
 model FiscalEvent {
-  id           String   @id @default(cuid())
-  sequence     Int      @unique // gapless monotonic journal sequence
-  type         String   // VENTE | ANNULATION | REMBOURSEMENT | CLOTURE_Z | CLOTURE_M | CLOTURE_A | OUVERTURE_TIROIR | REIMPRESSION | SESSION_OPEN | SESSION_CLOSE | SESSION_LOCK | ARCHIVE_GENEREE | RESTAURATION | SUPPRESSION_SAUVEGARDE
-  orderId      String?
-  refundId     String?
-  zReportId    String?
-  shiftId      String?
-  closeId      String?  // monthly/annual close id (CLOTURE_M / CLOTURE_A)
-  archiveId    String?  // fiscal archive id (ARCHIVE_GENEREE)
-  userId       String?  // operator who triggered the event
-  factice      Boolean  @default(false) // FACTICE / SIMULATION mode flag
-  timestamp    DateTime @default(now())
-  dataJson     String   // canonical (sorted-key) JSON payload for audit/reconstruction
-  previousHash String?  // hash of the previous FiscalEvent (null for the first event)
-  hash         String   // SHA-256(previousHash + sequence + type + timestamp + dataJson)
+  id             String   @id @default(cuid())
+  sequence       Int      @unique // gapless monotonic journal sequence
+  type           String // VENTE | ANNULATION | REMBOURSEMENT | MOUVEMENT_CAISSE | CLOTURE_Z | CLOTURE_M | CLOTURE_A | OUVERTURE_TIROIR | REIMPRESSION | SESSION_OPEN | SESSION_CLOSE | SESSION_LOCK | ARCHIVE_GENEREE | RESTAURATION | SUPPRESSION_SAUVEGARDE
+  orderId        String?
+  refundId       String?
+  zReportId      String?
+  shiftId        String?
+  closeId        String? // monthly/annual close id (CLOTURE_M / CLOTURE_A)
+  archiveId      String? // fiscal archive id (ARCHIVE_GENEREE)
+  cashMovementId String? // cash movement id (MOUVEMENT_CAISSE) — M-05, Batch 5.5
+  userId         String? // operator who triggered the event
+  factice        Boolean  @default(false) // FACTICE / SIMULATION mode flag
+  timestamp      DateTime @default(now())
+  dataJson       String // canonical (sorted-key) JSON payload for audit/reconstruction
+  previousHash   String? // hash of the previous FiscalEvent (null for the first event)
+  hash           String // SHA-256(previousHash + sequence + type + timestamp + dataJson)
 
   @@index([timestamp])
   @@index([type])
@@ -589,69 +646,79 @@ model FiscalEvent {
 // separately in monthly/annual closes).
 model GrandTotal {
   id            String   @id @default("singleton")
-  totalSales    Int    @default(0) // gross cumulative TTC cents
-  totalOrders   Int    @default(0)
-  totalVat      Int    @default(0) // cents
-  totalCash     Int    @default(0) // cents
-  totalCard     Int    @default(0) // cents
-  totalVoucher  Int    @default(0) // cents
-  totalRefunded Int    @default(0) // cumulative refunded cents (for reconciliation)
+  totalSales    Int      @default(0) // gross cumulative TTC cents
+  totalOrders   Int      @default(0)
+  totalVat      Int      @default(0) // cents
+  totalCash     Int      @default(0) // cents
+  totalCard     Int      @default(0) // cents
+  totalVoucher  Int      @default(0) // cents
+  totalRefunded Int      @default(0) // cumulative refunded cents (for reconciliation)
   lastUpdatedAt DateTime @default(now())
 }
 
 // Sealed monthly clôture (C = conservation). One per "YYYY-MM" period.
 model MonthlyClose {
-  id              String   @id @default(cuid())
-  period          String   @unique // "YYYY-MM"
-  year            Int
-  month           Int      // 1-12
-  salesTotal      Int
-  salesCount      Int
-  vatTotal        Int
-  cashTotal       Int
-  cardTotal       Int
-  voucherTotal    Int
-  discountsTotal  Int
+  id                 String   @id @default(cuid())
+  period             String   @unique // "YYYY-MM"
+  year               Int
+  month              Int // 1-12
+  salesTotal         Int
+  salesCount         Int
+  vatTotal           Int
+  cashTotal          Int
+  cardTotal          Int
+  voucherTotal       Int
+  discountsTotal     Int
   // L-26 (Batch 3.6b): the aggregation has always produced these; the close
   // hashed them inside dataJson and had nowhere to put them, so no query,
   // report or screen could read them. NOT NULL + default 0, the M-07
   // convention on ZReport.
-  refundsTotal    Int      @default(0)
-  refundsCount    Int      @default(0)
-  vatBreakdownJson String
-  topProductsJson  String
-  dataJson        String   // canonical payload used to compute the hash (for chain verification)
-  sealedAt        DateTime @default(now())
-  sealedById      String
-  previousHash    String?
-  hash            String
-  fiscalEventId   String?  // link to the FiscalEvent (CLOTURE_M) journal entry
+  refundsTotal       Int      @default(0)
+  refundsCount       Int      @default(0)
+  // M-05 (Batch 5.5), the same three as on ZReport and for the same reason:
+  // Batch 3.2's rule is that a period close equals the sum of its Z reports,
+  // and a Z that shows a 200 € payout while the close containing it does not
+  // is the C-10 shape in a new column.
+  cashInTotal        Int      @default(0)
+  cashOutTotal       Int      @default(0)
+  cashMovementsCount Int      @default(0)
+  vatBreakdownJson   String
+  topProductsJson    String
+  dataJson           String // canonical payload used to compute the hash (for chain verification)
+  sealedAt           DateTime @default(now())
+  sealedById         String
+  previousHash       String?
+  hash               String
+  fiscalEventId      String? // link to the FiscalEvent (CLOTURE_M) journal entry
 
   @@index([year])
 }
 
 // Sealed annual clôture (A = archivage). One per "YYYY" period.
 model AnnualClose {
-  id              String   @id @default(cuid())
-  period          String   @unique // "YYYY"
-  year            Int
-  salesTotal      Int
-  salesCount      Int
-  vatTotal        Int
-  cashTotal       Int
-  cardTotal       Int
-  voucherTotal    Int
-  discountsTotal  Int
-  refundsTotal    Int      @default(0) // L-26 (Batch 3.6b), as on MonthlyClose
-  refundsCount    Int      @default(0)
-  vatBreakdownJson String
-  topProductsJson  String
-  dataJson        String   // canonical payload used to compute the hash (for chain verification)
-  sealedAt        DateTime @default(now())
-  sealedById      String
-  previousHash    String?
-  hash            String
-  fiscalEventId   String?  // link to the FiscalEvent (CLOTURE_A) journal entry
+  id                 String   @id @default(cuid())
+  period             String   @unique // "YYYY"
+  year               Int
+  salesTotal         Int
+  salesCount         Int
+  vatTotal           Int
+  cashTotal          Int
+  cardTotal          Int
+  voucherTotal       Int
+  discountsTotal     Int
+  refundsTotal       Int      @default(0) // L-26 (Batch 3.6b), as on MonthlyClose
+  refundsCount       Int      @default(0)
+  cashInTotal        Int      @default(0) // M-05 (Batch 5.5), as on MonthlyClose
+  cashOutTotal       Int      @default(0)
+  cashMovementsCount Int      @default(0)
+  vatBreakdownJson   String
+  topProductsJson    String
+  dataJson           String // canonical payload used to compute the hash (for chain verification)
+  sealedAt           DateTime @default(now())
+  sealedById         String
+  previousHash       String?
+  hash               String
+  fiscalEventId      String? // link to the FiscalEvent (CLOTURE_A) journal entry
 }
 
 // Record of a generated annual fiscal archive (open format + SHA-256 + FR notice).
@@ -659,9 +726,9 @@ model FiscalArchive {
   id            String   @id @default(cuid())
   year          Int      @unique
   filename      String
-  checksum      String   // SHA-256 of the archive content
+  checksum      String // SHA-256 of the archive content
   sizeBytes     Int
   generatedAt   DateTime @default(now())
   generatedById String
-  fiscalEventId String?  // link to the FiscalEvent (ARCHIVE_GENEREE) journal entry
+  fiscalEventId String? // link to the FiscalEvent (ARCHIVE_GENEREE) journal entry
 }

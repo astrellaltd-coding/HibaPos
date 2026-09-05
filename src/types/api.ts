@@ -234,11 +234,30 @@ export type XReportDto = {
   cardTotal: number;
   voucherTotal: number;
   discountsTotal: number;
+  // M-05 (Batch 5.5): entrée / sortie de caisse, both as positive figures.
+  cashInTotal: number;
+  cashOutTotal: number;
+  cashMovementsCount: number;
+  cashByCategory: Record<string, number>;
   openingFloat: number;
   expectedCash: number;
   vatBreakdown: Record<string, { ht: number; vat: number; ttc: number }>;
   topProducts: { name: string; quantity: number; total: number }[];
   generatedAt: string;
+};
+
+/** M-05 / DD-12 (Batch 5.5) — one entrée / sortie de caisse. */
+export type CashMovementDto = {
+  id: string;
+  shiftId: string;
+  category: "APPROVISIONNEMENT" | "PRELEVEMENT" | "DEPENSE" | "ERREUR_DE_CAISSE";
+  /** SIGNED cents: positive into the drawer, negative out of it. */
+  amount: number;
+  reason: string;
+  cashierId: string;
+  approvedById: string | null;
+  createdAt: string;
+  cashier?: { name: string } | null;
 };
 
 export type ZReportDto = {

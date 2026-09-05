@@ -8,7 +8,8 @@ import type { ApprovalAction } from "@/lib/approvals";
 
 const stepUpSchema = z.object({
   pin: z.string().min(6).max(10),
-  action: z.enum(["DISCOUNT", "REFUND"]),
+  // CASH_OUT joined in Batch 5.5 — a cash movement that empties the drawer.
+  action: z.enum(["DISCOUNT", "REFUND", "CASH_OUT"]),
   /** Cents. Bound into the token; the operation re-checks it exactly. */
   amount: z.number().int().min(0).optional(),
 });
