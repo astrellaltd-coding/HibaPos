@@ -13,7 +13,17 @@ export const GET = withAuth(
     });
     return NextResponse.json(users);
   },
-  { roles: ["SUPER_ADMIN", "MANAGER"] },
+  // DD-22 / L-33 (Batch 7.4b) — narrowed from `["SUPER_ADMIN", "MANAGER"]`.
+  //
+  // Since Batch 4.4b removed `CASHIER`, that pair admitted the ENTIRE role
+  // model — no narrower than declaring no roles at all. This endpoint answered
+  // 200 to a MANAGER whose navigation entry for the screen is deliberately
+  // SUPER_ADMIN-only (DD-07), so the API contradicted the navigation.
+  // `GET /api/logs` already answered 403 and is the shape this now matches.
+  //
+  // Verified before the change was proposed: **nothing in `src/` calls this as
+  // a MANAGER**, so no screen breaks. The operator decided it (DD-22).
+  { roles: ["SUPER_ADMIN"] },
 );
 
 export const POST = withAuth(async (req, { user }) => {

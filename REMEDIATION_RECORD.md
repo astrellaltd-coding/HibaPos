@@ -3123,6 +3123,35 @@ Each carries a comment saying so, and `src/features/tables/table-withdrawal.test
 
 ---
 
+## Batch 7.4b — Authorization and the login queue
+
+*Written directly into the record on 2026-09-05.*
+
+**Status:** `COMPLETED` · **Completed:** 2026-09-05
+
+**Changes.** **L-33 / DD-22**: `GET /api/users` and `GET /api/backups` narrowed from `["SUPER_ADMIN", "MANAGER"]` to `["SUPER_ADMIN"]`, so the API stops contradicting a navigation that hides both screens from a MANAGER (DD-07); `GET /api/logs` already answered 403 and is the shape they now match. The other 27 were reviewed, and the review's output is a **`GATES` table classifying all 76 authenticated handlers** — BOTH / SUPER_ADMIN / INLINE / ANY — which the test derives from the source and compares, key by key and as counts. **L-30**: a second rate-limit budget on the unknown-username path, keyed `login-unknown:<ip>` **without** the username, so inventing names no longer mints buckets. Past it the response is identical and only the scrypt burn is skipped.
+
+**Files.** `src/app/api/users/route.ts`, `src/app/api/backups/route.ts`, `src/app/api/auth/login/route.ts`, `src/lib/api-authorization.test.ts`; **new** `src/app/api/login-unknown-budget.test.ts`.
+
+**Tests.** `bun test src --timeout 30000` — **782 pass, 0 fail** (776 before; +2 classification, +4 login budget). `bun run typecheck`, `bun run lint`, `bun run build` — PASS. `db/custom.db` byte-identical. **Three one-property reverts, all three caught** — but only after the fourth was found useless; see note 3.
+
+**Commit:** `<pending>` + this plan/record update.
+
+**Notes.**
+
+**(1) DD-22's review is now a standing property rather than a paragraph.** L-33 said "deciding which of the 29 should narrow is a review, not a mechanical fix", and a review that produces prose decays the moment someone edits a gate. The `GATES` table names every one of the **76** authenticated handlers and the test recomputes each from the source: **29 BOTH, 26 ANY, 14 INLINE, 7 SUPER_ADMIN**. Change any gate and it fails; add a route without classifying it and it fails; delete one and it fails. **The verdict on the 29 is that every one is a till operation, a report or a management action the MANAGER genuinely performs** — that account runs the restaurant. Two boundaries were checked rather than assumed because they look wrong at a glance and are not: `fiscal/close-month` admits a MANAGER while `fiscal/close-year` does not, and `audit` (the business trail) admits a MANAGER while `logs` (the technical one) does not. Both are exactly what the README's role table says.
+
+**(2) L-30 was fixed without removing the burn, which is the whole difficulty.** Every unknown username burns one `hashPin` on purpose, and those derivations pass through the bounded queue — 2 concurrent + 32 queued = **34**, which is precisely why the finding measured "60 simultaneous logins → 34 served, 26 refused 503". The tempting fix is to stop burning; that trades a denial-of-service for the account-enumeration oracle Batch 4.2 closed, which is a worse trade. Instead the *number* of burns one caller can demand is bounded, by a key that carries no username. **The response past the budget is byte-for-byte identical** — same 401, same message — so nothing about the answer reveals whether a burn happened; only the timing differs, and only for a caller who has already made five unknown-username attempts in a minute. **It costs an honest operator nothing, and that is structural**: the login screen is a profile picker (`GET /api/auth/profiles`), so a real sign-in never sends a username that does not exist.
+
+**(3) MY FIRST TEST FOR L-30 PASSED UNDER ITS OWN REVERT, and that is the note worth keeping.** It fired fifty unknown-username logins and asserted they finished in under ten seconds. With the fix removed it *still* passed — thirty-four burns two-at-a-time at ~390 ms come in under the threshold — so it certified nothing. Two lessons, and the second is the general one. **A timing threshold is the easiest useless assertion to write**, and L-24 says this machine's timings swing by a factor of five. And **the revert is what found it**: the test looked reasonable, read reasonably, and was worthless. Rewritten, it fires sixty unknown logins **concurrently with an honest one** and asserts the honest login is **not 503** — the exact harm the finding names — and the revert now fails with `Expected: not 503`.
+
+**(4) The narrowing broke no screen, and that was measured before the decision was put, not after.** Nothing in `src/` calls either endpoint as a MANAGER; both screens are already SUPER_ADMIN-only in the navigation. Had that not been true, DD-22 would have been a different question.
+
+---
+
+
+---
+
 # COMPLETED REMEDIATION HISTORY
 
 *Moved verbatim from `REMEDIATION_PLAN.md` lines 2357–2378 (commit `5f0c2b1`) on 2026-09-04. Nothing in this section has been rewritten; corrections, if any, are appended dated notes.*
@@ -3131,6 +3160,7 @@ Each carries a comment saying so, and `src/features/tables/table-withdrawal.test
 
 | Batch | Status | Date | Commit | Notes |
 |---|---|---|---|---|
+| 7.4b | COMPLETED | 2026-09-05 | `<pending>` | L-33 (DD-22), L-30. Two gates narrowed so the API matches the navigation; all 76 authenticated handlers classified in a table the tests check. L-30 fixed without removing the burn. 782/0. **My first test for L-30 passed under its own revert** — a timing threshold — and was rewritten to assert the 503 the finding names. |
 | 7.4a | COMPLETED | 2026-09-05 | `807e0c5` | L-48, L-44 (DD-21), L-50 (DD-20). *A period books the corrections it issued* now holds in all nine aggregation callers; a give-away is visible without being a sale; the sealed close payload grew for the third time, possible only because zero closes exist. 776/0, six reverts all caught. Two of my own assertions were wrong about the code — a correcting period contributes a negative count. |
 | 7.2 | COMPLETED | 2026-09-05 | `97c74fb` | L-01, L-03, L-07, L-08, L-12, L-29, APPROVE-DEAD. Four files, one dependency and seven dead exports removed; −428 lines. Two of L-07's ten entries were wrong and were left alone. Batch 5.6's tripwire fired and was amended stronger, three reverts all caught. Ten screens smoke-tested on a marker-proved scratch copy, zero console errors. **L-33 not closed** — a review, not a mechanical fix. |
 | 7.1 | COMPLETED | 2026-09-05 | `b2262bf` | DOC-01…DOC-08, DOC-10, DOC-11, DOC-12 — every DOC item. Documentation only; 763/0 unchanged. Two of the four code comments it was told to fix needed no change and one claim about them was wrong; DOC-11's re-check reversed its answer; the README's opening conformity claim was qualified, not deleted; `IMPLEMENTATION_PLAN.md` gained an appended Appendix D with eight corrections plus a ninth found while writing it. Opened L-51. |

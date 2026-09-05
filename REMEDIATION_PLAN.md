@@ -15,9 +15,9 @@ Detailed audit record: https://claude.ai/code/artifact/329316b0-3a6b-48b0-9d27-d
 
 **Current Batch:** none. **Stages 5 and 6 are finished, and Stage 7 is under way** — 7.1 and 7.2 are `COMPLETED`; 7.4 and 7.3 remain, in that order. **5.7 was SPLIT on 2026-09-05 into 5.7a–5.7d** — it held twelve items across four risk classes, where every completed batch here has been one finding or a tight cluster. The router section carries the evidence, where each item and each criterion went, and three things measurement found that the rows did not say. Audit IDs are unchanged; the index still maps them to 5.7.
 
-**Last Completed Batch:** Batch 7.4a — the three reports that disagree, closing **L-48**, **L-44** (DD-21) and **L-50** (DD-20). *A period books the corrections it issued* is now the rule in all nine aggregation callers rather than five, a give-away is **visible without being a sale**, and the sealed close payload gained two keys — possible only because **zero closes exist**. Three things to carry: **a correcting period contributes a NEGATIVE count**, which is the rule and not a defect; **two of my own assertions were wrong about the code** and the endpoints were right; and `customers/[id]/detail` was examined and deliberately left alone, because it has no period. **776 tests, 0 fail.** *(Before it: 7.2, 7.1, the whole of Stage 6.)*
+**Last Completed Batch:** Batch 7.4b — authorization and the login queue, closing **L-33** (DD-22) and **L-30**. `GET /api/users` and `GET /api/backups` narrowed to `["SUPER_ADMIN"]` so the API matches the navigation, and **all 76 authenticated handlers are now classified in a table the tests check**, which turns DD-22's one-time review into a standing property. L-30 is fixed **without removing the burn**: one budget on the unknown-user path, keyed without the username. **The lesson worth carrying: my first test for it PASSED under its own revert** — it asserted a timing threshold, which proved nothing; rewritten to assert the 503 the finding names, the revert fails. **782 tests, 0 fail.** *(Before it: 7.4a, 7.2, 7.1, Stage 6.)*
 
-**Next Batch:** **Batch 7.4b** — L-33/DD-22 and L-30. Then **7.4c** (five small corrections) and **7.2** (dead code and dependency removal), **7.4** (the nine findings whose batch completed without them, opened 2026-09-05) and **7.3** (secret rotation, DD-04), which runs last by its own prerequisite. **What remains open beyond Stage 7**: Batch 1.3's `[HW]` sign-off and 1.4, both blocked on hardware; C-22's chain-design half and V-01…V-03, which need a qualified external party; and Batch 8.0's pre-go-live fiscal reset, which must run **after** 1.3 and 1.4.
+**Next Batch:** **Batch 7.4c** — five small corrections (L-45, L-31, L-32, L-19, L-24). Then **7.2** (dead code and dependency removal), **7.4** (the nine findings whose batch completed without them, opened 2026-09-05) and **7.3** (secret rotation, DD-04), which runs last by its own prerequisite. **What remains open beyond Stage 7**: Batch 1.3's `[HW]` sign-off and 1.4, both blocked on hardware; C-22's chain-design half and V-01…V-03, which need a qualified external party; and Batch 8.0's pre-go-live fiscal reset, which must run **after** 1.3 and 1.4.
 
 **Blocked:** Batch 1.3 `[HW]` sign-off and Batch 1.4 — both need the app running on the restaurant's POS machine, which is in a different country from the developer and has no copy of the app installed (decision of 2026-09-03).
 
@@ -1376,7 +1376,7 @@ Audit section J, step 7: the suite is honest but tests the wrong third. 136 test
 
 # STAGE 7 — CLEANUP AND DOCUMENTATION TRUTH
 
-**Stage status:** `IN PROGRESS` — 7.1, 7.2 and **7.4a** `COMPLETED` 2026-09-05; 7.4b, 7.4c, then 7.3
+**Stage status:** `IN PROGRESS` — 7.1, 7.2, **7.4a** and **7.4b** `COMPLETED` 2026-09-05; 7.4c, then 7.3
 
 Audit section J, step 8. Correct the false statements, remove the dead weight, then rotate secrets. **Batch 7.4 was added 2026-09-05** and runs before 7.3: it carries the nine findings whose assigned batch completed without them.
 
@@ -1449,6 +1449,23 @@ Audit section J, step 8. Correct the false statements, remove the dead weight, t
 - The products report keeps its own **UTC `completedAt`** bounds; that difference is pre-existing and was not settled here. *(`reports/products/route.ts`)*
 
 **Left open:** nothing. **L-51 is untouched** — it belongs to 7.4c or 8.2.
+
+---
+
+## Batch 7.4b — Authorization and the login queue
+
+**Status:** `COMPLETED` · **Completed:** 2026-09-05 · **Commit:** `<pending>` · **Findings:** L-33 (DD-22), L-30 — **closes both.**
+**Record:** `REMEDIATION_RECORD.md` → *Batch 7.4b*.
+
+**Constraints this batch leaves behind** *(sentences copied from the record, not paraphrased)*
+- **The unknown-username burn is deliberate and must not be removed.** Batch 4.2 put that derivation inside the concurrency bound on purpose, and the burn flattens the timing signal that would otherwise enumerate accounts. Removing it trades a denial-of-service for an enumeration oracle. *(record, note 2)*
+- Past the unknown-user budget the response is **byte-for-byte the one an unknown username already gets** — same status, same message — and only the burn is skipped. *(`login/route.ts`)*
+- **The login screen is a profile picker**, so a real sign-in never sends a username that does not exist. That is what makes the budget free for an honest operator, and it is a property of this product rather than an assumption. *(record, note 2)*
+- **`GATES` in `api-authorization.test.ts` classifies EVERY authenticated handler**; change any gate anywhere and it fails. Adding a route without classifying it fails too. *(record, note 1)*
+- Two boundaries were checked rather than assumed and are correct: **`fiscal/close-month` admits a MANAGER and `fiscal/close-year` does not**; **`audit` admits a MANAGER and `logs` does not**. Both match the README's role table. *(record, note 1)*
+- **A test that survives its own revert proves nothing**, and a timing threshold is the easiest way to write one — L-24's machine makes it easier still. *(record, note 3)*
+
+**Left open:** nothing. **L-32** — the two role-gating idioms — is 7.4c's.
 
 ---
 

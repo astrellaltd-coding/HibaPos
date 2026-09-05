@@ -15,6 +15,40 @@ const LOCKOUT_MINUTES = 15;
 const RL_MAX = 10;
 const RL_WINDOW_MS = 60_000;
 
+/**
+ * L-30 (Batch 7.4b) — a SECOND budget, for unknown usernames only.
+ *
+ * THE FINDING. The throttle above is keyed `login:<ip>:<username>`, and since
+ * Batch 4.1 correctly stopped believing proxy headers, `<ip>` is the constant
+ * `"local"`. So each distinct username is its own bucket and **nothing caps
+ * how many buckets a caller can mint**. Every unknown username burns one
+ * `hashPin` by design, and those derivations pass through the bounded queue
+ * (2 concurrent + 32 queued). Measured on a scratch copy: **60 simultaneous
+ * logins with 60 unknown usernames → 34 served, 26 refused 503** — 34 being
+ * exactly the queue's depth — and a legitimate login arriving in that window
+ * would have been among the refused.
+ *
+ * WHAT THIS FIX MUST NOT DO, and the row says so: **it must not remove the
+ * burn.** Batch 4.2 put that derivation inside the bound deliberately, and the
+ * burn itself flattens the timing signal that would otherwise enumerate
+ * accounts. Removing it "fixes" a DoS by restoring an enumeration oracle.
+ *
+ * WHAT IT DOES INSTEAD. One extra budget on the unknown-user path, keyed
+ * WITHOUT the username, so it cannot be multiplied by inventing names. Past
+ * it, the response is byte-for-byte the one an unknown username already gets
+ * — same status, same message — and only the scrypt burn is skipped. The
+ * enumeration oracle therefore reopens only for a caller who has ALREADY made
+ * `UNKNOWN_MAX` unknown-username attempts in the window, which is not a signal
+ * worth protecting: they have demonstrated they are enumerating.
+ *
+ * **This costs an honest operator nothing**, and that is a property of this
+ * product rather than an assumption: the login screen is a PROFILE PICKER
+ * (`GET /api/auth/profiles`), so a real sign-in never sends a username that
+ * does not exist. Two accounts exist in total.
+ */
+const UNKNOWN_MAX = 5;
+const UNKNOWN_WINDOW_MS = 60_000;
+
 export async function POST(req: NextRequest) {
   // C-09, Batch 4.2: every PIN derivation on this route is bounded. When the
   // queue is full the caller is answered 503 rather than being allowed to
@@ -64,7 +98,15 @@ async function login(req: NextRequest) {
 
   // Constant-time comparison for unknown users (mitigate timing enumeration)
   if (!user) {
-    await hashPin("dummy"); // burn similar time
+    // L-30 (Batch 7.4b). The burn stays; what is bounded is how many of them
+    // one caller can demand. `login-unknown:<ip>` carries no username, so
+    // inventing more names does not buy more budget.
+    const unknown = rateLimit(`login-unknown:${ip}`, UNKNOWN_MAX, UNKNOWN_WINDOW_MS);
+    if (unknown.ok) {
+      await hashPin("dummy"); // burn similar time
+    }
+    // Identical response either way — status, body and shape. Only the time
+    // differs, and only after this caller has spent the budget.
     return NextResponse.json(
       { error: "Utilisateur introuvable ou inactif" },
       { status: 401 }

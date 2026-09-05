@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readdirSync, statSync } from "fs";
+import { readdirSync, statSync, readFileSync } from "fs";
 import path from "path";
 import { roleGateOf } from "@/lib/api-handler";
 
@@ -188,6 +188,166 @@ describe("T-03 — every API route declares an authorization gate", () => {
     // GET stays open to any authenticated role — the customers view is
     // available to every role and reading a customer is what it is for.
     expect(roleGateOf(customer.GET)?.roles).toBeNull();
+  });
+
+  // ── DD-22 / L-33 (Batch 7.4b): EVERY authenticated handler, classified ────
+  //
+  // L-33 said that since Batch 4.4b removed `CASHIER`, a gate of
+  // `["SUPER_ADMIN", "MANAGER"]` admits the entire role model — "no narrower
+  // than declaring no roles at all" — and that **"deciding which of the 29
+  // should narrow to `["SUPER_ADMIN"]` is a review, not a mechanical fix"**.
+  // DD-22 ordered that review and it was done on 2026-09-05. This table is
+  // its OUTPUT, and it converts a one-time review into a standing property:
+  // change any gate anywhere and this fails, so the next change is deliberate.
+  //
+  // THE VERDICT ON THE 29. Every one of them is a till operation, a report, or
+  // a management action the MANAGER genuinely performs — that account runs the
+  // restaurant. Two were not, and they are the two DD-22 narrowed:
+  // `GET /api/users` and `GET /api/backups` answered 200 to a MANAGER whose
+  // navigation entry for those screens is deliberately SUPER_ADMIN-only
+  // (DD-07), so the API contradicted the navigation. `GET /api/logs` already
+  // answered 403 and is the shape they now match.
+  //
+  // Two boundaries were checked rather than assumed, because they are the ones
+  // that look wrong at a glance: **`fiscal/close-month` admits a MANAGER and
+  // `fiscal/close-year` does not**, which is exactly what the README's role
+  // table says; and **`audit` (the business trail) admits a MANAGER while
+  // `logs` (the technical one) does not**, which is also what it says.
+  //
+  //   BOTH        — declares ["SUPER_ADMIN", "MANAGER"]. Reviewed: the manager
+  //                 needs it. Admits every role only because none is narrower.
+  //   SUPER_ADMIN — declares ["SUPER_ADMIN"]. Genuinely narrower.
+  //   INLINE      — any role at the wrapper, refused in the handler (L-32).
+  //   ANY         — any authenticated role, deliberately.
+  const GATES: Record<string, "BOTH" | "SUPER_ADMIN" | "INLINE" | "ANY"> = {
+  "audit:GET": "BOTH",
+  "auth/lock:POST": "ANY",
+  "auth/step-up:POST": "ANY",
+  "auth/switch-user:POST": "ANY",
+  "backups:GET": "SUPER_ADMIN",
+  "backups:POST": "INLINE",
+  "backups/[id]:DELETE": "INLINE",
+  "backups/[id]/restore:POST": "SUPER_ADMIN",
+  "cash-movements:GET": "BOTH",
+  "cash-movements:POST": "BOTH",
+  "catalog/categories:GET": "ANY",
+  "catalog/categories:POST": "INLINE",
+  "catalog/categories/[id]:DELETE": "INLINE",
+  "catalog/categories/[id]:GET": "ANY",
+  "catalog/categories/[id]:PUT": "INLINE",
+  "catalog/products:GET": "ANY",
+  "catalog/products:POST": "INLINE",
+  "catalog/products/[id]:DELETE": "INLINE",
+  "catalog/products/[id]:GET": "ANY",
+  "catalog/products/[id]:PUT": "INLINE",
+  "catalog/products/availability:GET": "ANY",
+  "catalog/products/availability:POST": "BOTH",
+  "catalog/products/favorites:GET": "ANY",
+  "catalog/products/update-images:POST": "SUPER_ADMIN",
+  "customers:GET": "ANY",
+  "customers:POST": "ANY",
+  "customers/[id]:DELETE": "BOTH",
+  "customers/[id]:GET": "ANY",
+  "customers/[id]:PUT": "BOTH",
+  "customers/[id]/detail:GET": "ANY",
+  "dashboard:GET": "BOTH",
+  "fiscal/archive:GET": "BOTH",
+  "fiscal/archive:POST": "SUPER_ADMIN",
+  "fiscal/archive/[year]:GET": "BOTH",
+  "fiscal/close-month:POST": "BOTH",
+  "fiscal/close-year:POST": "SUPER_ADMIN",
+  "fiscal/closes:GET": "BOTH",
+  "fiscal/drawer:POST": "BOTH",
+  "fiscal/events:GET": "BOTH",
+  "fiscal/grand-total:GET": "BOTH",
+  "fiscal/verify:GET": "BOTH",
+  "logs:GET": "SUPER_ADMIN",
+  "media:DELETE": "INLINE",
+  "media:GET": "ANY",
+  "orders:GET": "ANY",
+  "orders:POST": "ANY",
+  "orders/[id]:GET": "ANY",
+  "orders/[id]/print:POST": "ANY",
+  "orders/[id]/refund:POST": "ANY",
+  "orders/[id]/reprint:POST": "BOTH",
+  "print/test:POST": "BOTH",
+  "reports/cashiers:GET": "BOTH",
+  "reports/products:GET": "BOTH",
+  "reports/sales:GET": "BOTH",
+  "reports/vat:GET": "BOTH",
+  "reports/x:GET": "BOTH",
+  "reports/x:POST": "BOTH",
+  "reports/z:GET": "BOTH",
+  "reports/z:POST": "BOTH",
+  "settings:GET": "BOTH",
+  "settings:PUT": "INLINE",
+  "shifts:GET": "ANY",
+  "shifts:POST": "ANY",
+  "shifts/[id]/close:POST": "ANY",
+  "shifts/current:GET": "ANY",
+  "shifts/summary:GET": "ANY",
+  "tables:GET": "ANY",
+  "tables:POST": "INLINE",
+  "tables/[id]:DELETE": "BOTH",
+  "tables/[id]:PUT": "ANY",
+  "tables/seed:POST": "BOTH",
+  "upload:POST": "BOTH",
+  "users:GET": "SUPER_ADMIN",
+  "users:POST": "INLINE",
+  "users/[id]:DELETE": "INLINE",
+  "users/[id]:PUT": "INLINE",
+  };
+
+  /** Where the next `export const <METHOD> = withAuth(` starts, or EOF. */
+  function nextExportIndex(src: string, from: number): number {
+    const rest = src.slice(from + 10);
+    const m = /export const (?:GET|POST|PUT|PATCH|DELETE)\s*=\s*withAuth/.exec(rest);
+    return m ? from + 10 + m.index : src.length;
+  }
+
+  /** Does this handler refuse a non-SUPER_ADMIN inside its own body? (L-32) */
+  function guardsInline(route: string, method: string): boolean {
+    const src = readFileSync(path.join(API_ROOT, route, "route.ts"), "utf8");
+    const at = src.indexOf(`export const ${method} =`);
+    if (at === -1) return false;
+    return /user\.role\s*!==\s*"SUPER_ADMIN"/.test(src.slice(at, nextExportIndex(src, at)));
+  }
+
+  it("classifies every authenticated handler, and none has changed gate (DD-22)", async () => {
+    const seen: Record<string, string> = {};
+    for (const route of ROUTES) {
+      const mod = (await importRoute(route)) as Record<string, unknown>;
+      for (const method of METHODS) {
+        const handler = mod[method];
+        if (typeof handler !== "function") continue;
+        const gate = roleGateOf(handler);
+        if (!gate) continue; // unauthenticated — the test above owns those
+        const roles = gate.roles;
+        seen[`${route}:${method}`] = roles
+          ? roles.length === 1 && roles[0] === "SUPER_ADMIN"
+            ? "SUPER_ADMIN"
+            : "BOTH"
+          : guardsInline(route, method)
+            ? "INLINE"
+            : "ANY";
+      }
+    }
+
+    // Every handler is classified, and nothing is classified that no longer
+    // exists — a route deleted without touching this table fails here too.
+    expect(Object.keys(seen).sort()).toEqual(Object.keys(GATES).sort());
+    expect(seen).toEqual(GATES);
+  });
+
+  it("the count of genuinely-narrow gates is what the review left (DD-22)", () => {
+    // Stated as numbers so that widening one gate and narrowing another —
+    // which the per-key comparison catches, but as two failures that could be
+    // read as noise — shows up as one legible change.
+    const counts = Object.values(GATES).reduce<Record<string, number>>((acc, v) => {
+      acc[v] = (acc[v] ?? 0) + 1;
+      return acc;
+    }, {});
+    expect(counts).toEqual({ BOTH: 29, ANY: 26, INLINE: 14, SUPER_ADMIN: 7 });
   });
 
   it("matches the expected gate wherever one is pinned", async () => {
