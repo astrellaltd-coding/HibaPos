@@ -34,9 +34,15 @@ describe("the fiscal surface is reachable (C-27)", () => {
     const forTill = NAV_ITEMS.filter((i) => i.roles.includes("MANAGER")).map((i) => i.view);
     expect(forTill).toContain("pos");
     expect(forTill).toContain("orders");
-    expect(forTill).toContain("tables");
     expect(forTill).toContain("shifts");
     expect(forTill).toContain("customers");
+    // C-21 / DD-09 (Batch 5.2): `tables` was the fifth member of this list and
+    // is now asserted ABSENT. It is not being dropped because it broke — it
+    // broke because the feature was withdrawn, and "a view vanishing from the
+    // till's own surface" is exactly what this test exists to catch, so the
+    // catch is answered here rather than deleted. Flipping it keeps the count
+    // of pinned views at five.
+    expect(forTill).not.toContain("tables");
     // …and the three that stayed with the super administrator (DD-07).
     expect(forTill).not.toContain("users");
     expect(forTill).not.toContain("backups");

@@ -17,7 +17,6 @@ import {
   ScrollText,
   DatabaseBackup,
   Terminal,
-  Grid3x3,
   ShieldCheck,
 } from "lucide-react";
 
@@ -33,7 +32,14 @@ export const NAV_ITEMS: NavItem[] = [
   { view: "pos", label: "Caisse", icon: ScanLine, roles: ["SUPER_ADMIN", "MANAGER"], group: "caisse" },
   { view: "dashboard", label: "Tableau de bord", icon: LayoutDashboard, roles: ["SUPER_ADMIN", "MANAGER"], group: "caisse" },
   { view: "orders", label: "Commandes", icon: ReceiptText, roles: ["SUPER_ADMIN", "MANAGER"], group: "caisse" },
-  { view: "tables", label: "Tables", icon: Grid3x3, roles: ["SUPER_ADMIN", "MANAGER"], group: "caisse" },
+  // C-21 / DD-09 (Batch 5.2, 2026-09-05): the "tables" row stood here and was
+  // REMOVED. This restaurant does not serve at tables, so the floor plan is
+  // withdrawn rather than wired in. This removal is the gate: `canAccessView`
+  // refuses a view with no row (`if (!item) return false`), the sidebar reads
+  // this array, and `home-dashboard.tsx` filters its own module list against
+  // it — so one deleted row closes all three. What deliberately STAYS is
+  // server-side and unused: the `Table` model, `/api/tables*`, the checkout
+  // auto-link (`checkout.ts:202`) and the refund release (`refund.ts:131`).
   { view: "shifts", label: "Caisses (shifts)", icon: Clock, roles: ["SUPER_ADMIN", "MANAGER"], group: "caisse" },
 
   { view: "categories", label: "Catégories", icon: FolderTree, roles: ["SUPER_ADMIN", "MANAGER"], group: "catalogue" },

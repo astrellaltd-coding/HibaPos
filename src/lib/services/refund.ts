@@ -129,6 +129,11 @@ export async function processRefund(input: RefundInput, order: OrderForRefund): 
     }
 
     // Auto-free the table linked to this order (if dine-in with a table label).
+    //
+    // C-21 / DD-09 (Batch 5.2): RETAINED DELIBERATELY, and unreachable today —
+    // no order has ever carried a table label, so nothing has ever been linked
+    // for this to free. It is the other half of `checkout.ts`'s auto-link and
+    // stays for the same reason.
     if (fullyRefunded && order.orderType === "DINE_IN" && order.tableLabel) {
       await tx.table.updateMany({
         where: { currentOrderId: order.id, status: "OCCUPIED" },

@@ -121,6 +121,14 @@ export const useCartStore = create<CartState>()(
         unitPrice: recalculateUnitPrice(item, orderType),
       })),
     })),
+  // C-21 / DD-09 (Batch 5.2): CALLED FROM NOWHERE, deliberately. This setter
+  // is the near end of the table wire — cart → payment-dialog → POST /api/orders
+  // → checkout auto-link → receipt — every other link of which is live and
+  // retained. C-21 was that the wire looked connected because a floor-plan
+  // screen existed; 5.2 removed the screen and left the wire, so `tableLabel`
+  // is permanently "" and `payment-dialog.tsx:160` permanently sends null.
+  // Held tickets therefore keep their "Commande N" fallback (`cart-panel.tsx:95`),
+  // which is now the intended behaviour and not a symptom.
   setTableLabel: (tableLabel) => set({ tableLabel }),
   setCustomerId: (customerId) => set({ customerId }),
   setDiscount: (discountTotal) => set({ discountTotal }),

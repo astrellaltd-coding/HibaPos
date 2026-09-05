@@ -200,6 +200,13 @@ export async function createOrderInTransaction(input: CheckoutInput): Promise<Or
       }
 
       // Auto-link table: if dine-in with a tableLabel matching a Table, set it OCCUPIED.
+      //
+      // C-21 / DD-09 (Batch 5.2): RETAINED DELIBERATELY, and unreachable
+      // today. `tableLabel` arrives from the cart, whose `tableLabel` has no
+      // writer — that is C-21 itself — so this branch has never been entered
+      // by any sale, and the withdrawal of the floor-plan screen does not
+      // change that. It stays, working and tested, in case table service ever
+      // exists. Do not delete it as dead code without reopening DD-09.
       if (orderType === "DINE_IN" && tableLabel) {
         const table = await tx.table.findUnique({ where: { label: tableLabel } });
         if (table) {

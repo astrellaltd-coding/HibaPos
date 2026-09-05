@@ -76,7 +76,7 @@ bun run test:e2e     # Playwright (caissier flow)
 - **Caisse** : Prise de commande sur place / à emporter / livraison, paiements multiples (espèces, carte, bon), remises avec approbation manager
 - **Fiscalité (ISCA)** : Tickets immuables (snapshot textuel), numérotation séquentielle atomique, journal fiscal chaîné (JFP), grand total perpétuel, clôtures Z (journalière) + M (mensuelle) + A (annuelle), mode FACTICE, archive annuelle ouverte (JSON + SHA-256 + notice FR)
 - **Sécurité** : Verrouillage après 30 min d'inactivité, brute-force protection (lockout 5 essais / 15 min), approbation manager pour remises et remboursements, révocation de session par session
-- **Gestion** : Produits, options, suppléments, catégories (soft-delete), tables (plan de salle), clients, médiathèque
+- **Gestion** : Produits, options, suppléments, catégories (soft-delete), clients, médiathèque
 - **Rapports** : X-Report (caisse ouverte, temps réel), Z-Report (clôture immuable), ventes par produit/période, TVA, caissiers
 - **Backups** : Sauvegardes SQLite chiffrées (AES-256-GCM, scrypt N=2^17) avec checksum SHA-256 et restauration sécurisée
 - **Journal technique** : Logs structurés en base, consultation restreinte au SUPER_ADMIN
@@ -90,7 +90,7 @@ jamais existé.
 
 | Rôle | Permissions |
 |------|-------------|
-| `MANAGER` | Encaissement, commandes, tables, caisses, remboursements, rapports, gestion du catalogue, clôtures mensuelles, disponibilité produits, réglages, journal d'audit |
+| `MANAGER` | Encaissement, commandes, caisses, remboursements, rapports, gestion du catalogue, clôtures mensuelles, disponibilité produits, réglages, journal d'audit |
 | `SUPER_ADMIN` | Paramètres, utilisateurs, backups, logs techniques, clôtures annuelles, archives fiscales, suppression définitive |
 
 ## Structure du projet

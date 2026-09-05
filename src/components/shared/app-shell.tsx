@@ -78,10 +78,6 @@ const LogsView = dynamic(
   () => import("@/features/admin/logs-view").then((m) => m.LogsView),
   { loading: () => <ViewLoader label="Chargement des logs système..." />, ssr: false }
 );
-const TablesView = dynamic(
-  () => import("@/features/tables/tables-view").then((m) => m.TablesView),
-  { loading: () => <ViewLoader label="Chargement du plan de salle..." />, ssr: false }
-);
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
@@ -168,7 +164,12 @@ export function AppShell() {
             {view === "pos" && <PosView />}
             {view === "dashboard" && <DashboardView />}
             {view === "orders" && <OrdersView />}
-            {view === "tables" && <TablesView />}
+            {/* C-21 / DD-09 (Batch 5.2): the `tables` arm and its `dynamic()`
+                import stood here and were removed with the view itself.
+                `src/features/tables/tables-view.tsx` is left on disk,
+                unimported — the decision withdraws the feature, it does not
+                delete it, and `/api/tables*` (which that screen is the only
+                client of) is retained for the same reason. */}
             {view === "categories" && <CategoriesView />}
             {view === "products" && <ProductsView />}
             {view === "addons" && <AddonsView />}

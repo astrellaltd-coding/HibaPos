@@ -4,6 +4,7 @@ import {
   NAV_ITEMS,
   canAccessView,
 } from "@/components/shared/nav-config";
+import { hashToView } from "@/store/app-store";
 import type { AppView } from "@/store/app-store";
 import type { Role } from "@/types/api";
 
@@ -114,5 +115,59 @@ describe("C-16 — canAccessView is the single gate", () => {
         expect(canAccessView(role, item.view)).toBe(item.roles.includes(role));
       }
     }
+  });
+});
+
+// C-21, Batch 5.2 — the table feature is withdrawn (DD-09).
+//
+// WHY THIS BLOCK EXISTS AT ALL, stated plainly because it is the trap this
+// batch was handed. Both loops above are driven by `NAV_ITEMS`: `ALL_VIEWS` is
+// built from it at the top of this file, and the last test walks it directly.
+// So deleting a row does not fail anything here — it silently removes one view
+// from everything this file checks, and the suite still reports green. The
+// coverage that C-16 bought would have shrunk by one view with nobody
+// noticing. These assertions are what is put back in its place: the row is
+// gone, and that is now a claim under test rather than an absence.
+describe("C-21 — the table feature is withdrawn (DD-09, Batch 5.2)", () => {
+  it("has no nav row, so the gate refuses the view for every role", () => {
+    // `canAccessView` refuses a view with no row (`if (!item) return false`),
+    // which is what makes deleting the row sufficient rather than merely
+    // cosmetic. The cast is the same one the "nonsense" test above uses, and
+    // it says the right thing: after this batch, `tables` IS an unknown view.
+    expect(NAV_ITEMS.find((n) => n.view === ("tables" as AppView))).toBeUndefined();
+    for (const role of ROLES) {
+      expect(canAccessView(role, "tables" as AppView)).toBe(false);
+    }
+    // And the fail-closed default cannot reach it either.
+    expect(canAccessView(undefined, "tables" as AppView)).toBe(false);
+    expect(canAccessView(null, "tables" as AppView)).toBe(false);
+    expect(canAccessView(LEAST_PRIVILEGED_ROLE, "tables" as AppView)).toBe(false);
+  });
+
+  it("does not resolve #/tables to a view at all", () => {
+    // The second half of the withdrawal, and the reason `tables` left the
+    // `AppView` union rather than just the nav table. Left in the union, the
+    // hash would still resolve and the shell would answer «Accès refusé» —
+    // which claims the address is GATED. It is not gated; the screen is gone.
+    // `#/tables` is now an unrecognised hash like any other, so the view does
+    // not change.
+    expect(hashToView("#/tables")).toBeNull();
+    expect(hashToView("#/nonsense")).toBeNull();
+    // The neighbours it was removed from between are untouched.
+    expect(hashToView("#/orders")).toBe("orders");
+    expect(hashToView("#/shifts")).toBe("shifts");
+    expect(hashToView("#/")).toBe("home");
+  });
+
+  it("took exactly one row with it", () => {
+    // The other half of the shrink: a removal that took a neighbour would also
+    // pass every assertion above. This is what makes those meaningful, and it
+    // is why the whole surviving table is pinned rather than a sample of it.
+    expect(ALL_VIEWS).toEqual([
+      "pos", "dashboard", "orders", "shifts",
+      "categories", "products", "addons", "media", "customers",
+      "reports", "fiscal", "users", "settings",
+      "audit", "backups", "logs",
+    ]);
   });
 });

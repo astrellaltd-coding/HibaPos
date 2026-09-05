@@ -59,7 +59,6 @@ const MODULE_META: Partial<
   settings: { label: "Paramètres", subtitle: "Configuration", icon: Settings, image: "/home-cards/parametres.png" },
   backups: { label: "Sauvegardes", subtitle: "Données & sauvegarde", icon: DatabaseBackup, image: "/home-cards/sauvegardes.png" },
   logs: { label: "Journaux", subtitle: "Logs techniques", icon: FileText, image: "/home-cards/journaux.png" },
-  tables: { label: "Tables", subtitle: "Plan de salle", icon: Grid3x3, image: "/home-cards/tables.png" },
   shifts: { label: "Caisses", subtitle: "Gestion des shifts", icon: Clock, image: "/home-cards/shifts.png" },
   audit: { label: "Audit", subtitle: "Journal d'audit", icon: ScrollText, image: "/home-cards/audit.png" },
 };
@@ -75,7 +74,12 @@ const MODULE_ORDER: AppView[] = [
   "settings",
   "backups",
   "logs",
-  "tables",
+  // C-21 / DD-09 (Batch 5.2): the "tables" entry stood here and in
+  // MODULE_META above. The filter below reads NAV_ITEMS, so deleting the nav
+  // row alone would already have dropped the card — but MODULE_ORDER is
+  // `AppView[]`, so removing the view from the union makes this a compile
+  // error rather than a silently dead entry. C-27's lesson was that this list
+  // is separate from the nav table; that cuts both ways.
   "shifts",
   "audit",
 ];

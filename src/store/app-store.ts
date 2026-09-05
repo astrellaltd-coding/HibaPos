@@ -9,7 +9,6 @@ export type AppView =
   | "dashboard"
   | "pos"
   | "orders"
-  | "tables"
   | "categories"
   | "products"
   | "addons"
@@ -24,15 +23,29 @@ export type AppView =
   | "backups"
   | "logs";
 
+/** Every hash the address bar may resolve to a view.
+ *
+ *  C-21 / DD-09 (Batch 5.2): `"tables"` was removed from here and from
+ *  `AppView` above. Dropping the nav row alone would already refuse the view —
+ *  `canAccessView` returns false for a view with no row — but it would refuse
+ *  it as *Accès refusé*, which says the address is gated when in fact the
+ *  screen no longer exists. Removing the view from the union instead makes the
+ *  compiler carry the withdrawal into `app-shell.tsx` and
+ *  `home-dashboard.tsx`, and makes `#/tables` an unrecognised hash like any
+ *  other. */
 const VALID_VIEWS: AppView[] = [
-  "home", "dashboard", "pos", "orders", "tables", "categories", "products",
+  "home", "dashboard", "pos", "orders", "categories", "products",
   "addons", "media", "customers", "shifts", "reports", "fiscal", "users", "settings",
   "audit", "backups", "logs",
 ];
 
 /** Map a URL hash (e.g. "#/pos", "#/orders", "#/", "") to an AppView.
- *  Returns null for unrecognized hashes (no view change). */
-function hashToView(hash: string): AppView | null {
+ *  Returns null for unrecognized hashes (no view change).
+ *
+ *  Exported for `nav-access.test.ts` only: `initHashSync` needs a `window`,
+ *  which `bun test` does not provide, and this is the pure half of it. Same
+ *  reason Batch 5.1 extracted `matchesShortcut`. */
+export function hashToView(hash: string): AppView | null {
   const clean = hash.replace(/^#\/?/, "").split("?")[0] as AppView;
   if (!clean || clean === "home") return "home";
   return VALID_VIEWS.includes(clean) ? clean : null;
