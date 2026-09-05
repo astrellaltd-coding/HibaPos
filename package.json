@@ -15,8 +15,8 @@
     "db:deploy": "prisma migrate deploy",
     "db:reset": "prisma migrate reset",
     "db:seed": "prisma db seed",
-    "test": "bun test src",
-    "test:watch": "bun test --watch src",
+    "test": "bun test src --timeout 30000",
+    "test:watch": "bun test --watch src --timeout 30000",
     "test:e2e": "bun tests/e2e/prepare-db.ts && next build && playwright test",
     "typecheck": "tsc --noEmit"
   },

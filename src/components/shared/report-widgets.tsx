@@ -44,6 +44,28 @@ export function Kpi({
   );
 }
 
+/**
+ * A VAT rate as the operator reads it — L-19 (Batch 7.4c).
+ *
+ * This was `Number(r).toFixed(1)`, which cannot show a two-decimal rate: a
+ * Corsican or overseas rate of 1,05 % rendered as **"1.1 %"** — a WRONG RATE
+ * on a fiscal report, not merely an ugly one. 10 % also rendered as "10.0 %".
+ *
+ * The display layer is what needed fixing and NOT the key: `vatRateKey`
+ * decides how a rate is stored and grouped, and Batch 3.1 already settled
+ * that. Changing the key here would regroup sealed figures.
+ *
+ * Unreachable today — every product is at 10 % or 5,5 % — and recorded so a
+ * later batch does not preserve the defect. French decimal comma, because the
+ * rest of the ticket and every money figure already use it.
+ */
+export function formatVatRate(rate: string | number): string {
+  const n = Number(rate);
+  if (!Number.isFinite(n)) return String(rate);
+  // Up to two decimals, trailing zeros dropped: 10, 5,5 and 1,05.
+  return n.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
 export function VatBreakdownTable({
   breakdown,
 }: {
@@ -73,7 +95,7 @@ export function VatBreakdownTable({
             const row = breakdown[r];
             return (
               <TableRow key={r}>
-                <TableCell className="font-medium">{Number(r).toFixed(1)} %</TableCell>
+                <TableCell className="font-medium">{formatVatRate(r)} %</TableCell>
                 <TableCell className="text-right">
                   <Money amount={row.ht} />
                 </TableCell>

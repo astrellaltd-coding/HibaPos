@@ -119,14 +119,40 @@ async function seed() {
   let counts: { categories: number; products: number };
   try {
     counts = await seedCatalogAndSettings(admin.id);
-  } catch {
-    // Catalog lost the race (unique category names). The concurrent request
-    // completed the seeding — treat as success.
-    return NextResponse.json({
-      ok: true,
-      message: "Base initialisée (requête concurrente).",
-      users: 2,
-    });
+  } catch (e) {
+    // L-31 (Batch 7.4c). This used to be a bare `catch` reporting EVERY error
+    // as a won race, so an operator was told "Base initialisée" when the
+    // catalogue had not been seeded at all. Observed during Batch 4.3's
+    // validation: on a copy whose users were empty but whose catalogue was
+    // intact, `seedCatalogAndSettings` threw on duplicate category names and
+    // the route answered 200 with that message.
+    //
+    // A lost race has a signature — P2002, the unique constraint — and the
+    // users branch above already distinguishes it. Anything else is a real
+    // failure and is now reported as one: the two bootstrap users WERE
+    // created, which the operator needs to know, and the catalogue was not.
+    const code =
+      typeof e === "object" && e !== null && "code" in e
+        ? (e as { code?: string }).code
+        : undefined;
+    if (code === "P2002") {
+      return NextResponse.json({
+        ok: true,
+        message: "Base initialisée (requête concurrente).",
+        users: 2,
+      });
+    }
+    return NextResponse.json(
+      {
+        ok: false,
+        message:
+          "Les deux comptes ont été créés, mais le catalogue n'a PAS été initialisé. " +
+          "Vérifiez la base avant de continuer.",
+        users: 2,
+        error: e instanceof Error ? e.message : String(e),
+      },
+      { status: 500 },
+    );
   }
 
   return NextResponse.json({
