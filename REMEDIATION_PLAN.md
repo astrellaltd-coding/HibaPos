@@ -1471,7 +1471,7 @@ Audit section J, step 8. Correct the false statements, remove the dead weight, t
 
 ## Batch 7.4c — Small correctness
 
-**Status:** `COMPLETED` · **Completed:** 2026-09-05 · **Commit:** `<pending>` · **Findings:** L-45, L-31, L-19, L-24 — **and L-32, which 7.4b had already closed.** *This completes Batch 7.4 and every carried-over finding it was opened for.*
+**Status:** `COMPLETED` · **Completed:** 2026-09-05 · **Commit:** `9e8e4e7` · **Findings:** L-45, L-31, L-19, L-24 — **and L-32, which 7.4b had already closed.** *This completes Batch 7.4 and every carried-over finding it was opened for.*
 **Record:** `REMEDIATION_RECORD.md` → *Batch 7.4c*.
 
 **Constraints this batch leaves behind** *(sentences copied from the record, not paraphrased)*

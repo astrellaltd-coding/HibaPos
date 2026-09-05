@@ -3164,7 +3164,7 @@ Each carries a comment saying so, and `src/features/tables/table-withdrawal.test
 
 **Tests.** **`bun run test` — 793 pass, 0 fail, WITH NO FLAGS**, which is L-24's own validation criterion. 782 before; **+11**: 3 for the till race, 5 for the VAT display, 3 for the seed honesty. `bun run typecheck`, `bun run lint`, `bun run build` — PASS. `db/custom.db` byte-identical. **Four one-property reverts, all four caught.**
 
-**Commit:** `<pending>` + this plan/record update.
+**Commit:** `9e8e4e7` + this plan/record update. **Plus `4a2c5d8`, a fix — see note 6.**
 
 **Notes.**
 
@@ -3178,6 +3178,8 @@ Each carries a comment saying so, and `src/features/tables/table-withdrawal.test
 
 **(5) L-19's row insisted the display layer was the defect and not the key, and the test pins both.** `vatRateKey` decides how a rate is stored and grouped, and Batch 3.1 settled it — changing it here would regroup figures that are already sealed. So `formatVatRate` renders, `vatRateKey` keys, and the test asserts that the display of a key round-trips to the rate. It also asserts an unparseable key renders as itself rather than "NaN %", because a report shows whatever the key says.
 
+
+**(6) The batch commit did not typecheck, and I committed before checking.** `bun test` compiles nothing, so a test file can pass and still be a type error — this session has now leaned on that twice. The new seed test imported `describe`/`it`/`expect`/`beforeEach` from `bun:test`, and `src/types/bun-test.d.ts` deliberately declares **only** `mock.module` (Batch 6.1 kept that surface minimal so reaching for more is a type error, which is exactly what it did); it also called the seed handler with a `Request`, and `POST` takes no argument. Both fixed in `4a2c5d8`. **Recorded rather than amended away**: the commit sequence is the honest account, and the lesson — *run the typecheck before the commit, not beside it* — is worth more than a tidy history.
 ---
 
 
@@ -3191,7 +3193,7 @@ Each carries a comment saying so, and `src/features/tables/table-withdrawal.test
 
 | Batch | Status | Date | Commit | Notes |
 |---|---|---|---|---|
-| 7.4c | COMPLETED | 2026-09-05 | `<pending>` | L-45, L-31, L-19, L-24 and L-32. C-15's shape closed at its fourth site; a failed catalogue seed is no longer reported as success; VAT rates display exactly; the test timeout is no longer something to remember. **793/0 with no flags**, four reverts all caught. Completes Batch 7.4. |
+| 7.4c | COMPLETED | 2026-09-05 | `9e8e4e7` | L-45, L-31, L-19, L-24 and L-32. C-15's shape closed at its fourth site; a failed catalogue seed is no longer reported as success; VAT rates display exactly; the test timeout is no longer something to remember. **793/0 with no flags**, four reverts all caught. Completes Batch 7.4. |
 | 7.4b | COMPLETED | 2026-09-05 | `215d9fd` | L-33 (DD-22), L-30. Two gates narrowed so the API matches the navigation; all 76 authenticated handlers classified in a table the tests check. L-30 fixed without removing the burn. 782/0. **My first test for L-30 passed under its own revert** — a timing threshold — and was rewritten to assert the 503 the finding names. |
 | 7.4a | COMPLETED | 2026-09-05 | `807e0c5` | L-48, L-44 (DD-21), L-50 (DD-20). *A period books the corrections it issued* now holds in all nine aggregation callers; a give-away is visible without being a sale; the sealed close payload grew for the third time, possible only because zero closes exist. 776/0, six reverts all caught. Two of my own assertions were wrong about the code — a correcting period contributes a negative count. |
 | 7.2 | COMPLETED | 2026-09-05 | `97c74fb` | L-01, L-03, L-07, L-08, L-12, L-29, APPROVE-DEAD. Four files, one dependency and seven dead exports removed; −428 lines. Two of L-07's ten entries were wrong and were left alone. Batch 5.6's tripwire fired and was amended stronger, three reverts all caught. Ten screens smoke-tested on a marker-proved scratch copy, zero console errors. **L-33 not closed** — a review, not a mechanical fix. |
