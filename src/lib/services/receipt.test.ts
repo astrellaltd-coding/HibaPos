@@ -245,6 +245,62 @@ describe("renderReceipt", () => {
     expect(text).toMatch(/HibaPOS France v\d+\.\d+\.\d+/);
   });
 
+  // L-58 (Batch 3.10) — the ticket's « numéro de la caisse ».
+  //
+  // BOFiP § 50 lists « numéro de la caisse » among the data in scope for the
+  // fonctionnalité de caisse. The ticket carried `Caisse #${shift.number}` —
+  // the SHIFT counter, at 3 on production on a single-till install — so it
+  // named a third till whose two siblings have no data anywhere, and it named
+  // no till at all.
+  it("prints a till number that is the TILL, not the shift counter (L-58)", () => {
+    const text = renderReceipt(baseOrder, baseSettings);
+    // `baseOrder.shift.number` is 7. Under the old code that 7 was printed as
+    // the caisse number; under any correct one it cannot be.
+    expect(baseOrder.shift!.number).toBe(7);
+    expect(text).toContain("Caisse N° 1");
+    expect(text).not.toContain("Caisse #7");
+    expect(text).not.toContain("Caisse N° 7");
+  });
+
+  it("still carries the shift number, under a label that says what it is", () => {
+    // Not dropped — it ties the ticket to the Z report that rolls it up. Only
+    // its name was wrong.
+    const text = renderReceipt(baseOrder, baseSettings);
+    expect(text).toContain("Service 7");
+    const shiftLine = text.split("\n").find((l) => l.includes("Service 7"))!;
+    expect(shiftLine).toContain("Caissier : Admin");
+    // The till number belongs to the establishment block, above the separator
+    // that opens the transaction — not on this line.
+    expect(shiftLine).not.toContain("Caisse");
+  });
+
+  it("puts the till number in the establishment block, and centred", () => {
+    const lines = renderReceipt(baseOrder, baseSettings).split("\n");
+    const caisse = lines.findIndex((l) => l.includes("Caisse N° 1"));
+    const tva = lines.findIndex((l) => l.includes("TVA : TEST-TVA"));
+    const ticket = lines.findIndex((l) => l.includes("Ticket N°"));
+    expect(tva).toBeLessThan(caisse);
+    expect(caisse).toBeLessThan(ticket);
+    // Centred, so it cannot collide with anything at any column count — which
+    // is why it is here and not on the cashier line (L-21: this renderer
+    // centres but never wraps).
+    expect(lines[caisse].startsWith(" ")).toBe(true);
+    expect(lines[caisse].trim()).toBe("Caisse N° 1");
+  });
+
+  it("does not make the cashier line wider than it already was (L-21)", () => {
+    // `Service 7` is exactly as wide as the `Caisse #7` it replaces, so no
+    // ticket gets closer to overflowing than it was before this batch. Pinned
+    // at the narrowest supported width, where it would show first.
+    expect("Service 7".length).toBe("Caisse #7".length);
+    const narrow = renderReceipt(baseOrder, { ...baseSettings, receiptWidth: 32 });
+    const shiftLine = narrow.split("\n").find((l) => l.includes("Service 7"))!;
+    expect(shiftLine).toBe("Caissier : Admin" + " ".repeat(7) + "Service 7");
+    expect(shiftLine.length).toBe(32);
+    // And the new centred line fits at the same width.
+    expect(narrow.split("\n").every((l) => l.length <= 32)).toBe(true);
+  });
+
   it("keeps the operator's footer note ABOVE the software line", () => {
     const text = renderReceipt(baseOrder, { ...baseSettings, footerNote: "À bientôt !" });
     const lines = text.split("\n").map((l) => l.trim());

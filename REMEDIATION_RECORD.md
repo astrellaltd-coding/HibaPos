@@ -6,7 +6,7 @@ Evidence record for the controlled remediation of HibaPOS France. Companion to `
 
 **Rules.** Append-only. Nothing here is rewritten; a correction is an appended, dated note. When a batch completes, its whole section moves here verbatim from the plan, under its stage heading, and a stub stays in the plan carrying the constraints the batch leaves behind. Sessions slice this file by heading; it is not meant to be read whole.
 
-**Contents.** Batch 0.1 · Batch 0.2 · Batch 1.1 · Batch 1.2 · Batch 2.1 · Batch 2.2 · Batch 2.3 · Batch 2.4 · Batch 3.1 · Batch 3.1b · Batch 3.1d · Batch 3.1c · Batch 3.2 · Batch 3.2b · Batch 3.3 · Batch 3.4 · Batch 3.5 · Batch 3.6 · Batch 3.6b · Batch 4.1 · Batch 4.2 · Batch 4.3 · Batch 4.4 · Batch 4.4b · Batch 4.4c · Batch 4.5 · Batch 4.6 · Batch 4.7 · Completed Remediation History · Resolved findings · Answered design decisions · Retired open-thread rows · Superseded procedure
+**Contents.** Batch 0.1 · Batch 0.2 · Batch 1.1 · Batch 1.2 · Batch 2.1 · Batch 2.2 · Batch 2.3 · Batch 2.4 · Batch 3.1 · Batch 3.1b · Batch 3.1d · Batch 3.1c · Batch 3.2 · Batch 3.2b · Batch 3.3 · Batch 3.4 · Batch 3.5 · Batch 3.6 · Batch 3.6b · Batch 4.1 · Batch 4.2 · Batch 4.3 · Batch 4.4 · Batch 4.4b · Batch 4.4c · Batch 4.5 · Batch 4.6 · Batch 4.7 · Batch 3.10 · Completed Remediation History · Resolved findings · Answered design decisions · Retired open-thread rows · Superseded procedure
 
 ---
 
@@ -1405,6 +1405,169 @@ A caisse opened *before* `bounds.from` is never matched, for any period. DD-18 s
 5. **The guard costs no extra query.** The previous entry was already being read for its hash; only the column list widened.
 6. **`assertNextPeriod`-style flags were considered and rejected.** A stored "this journal is keyed" marker could be flipped; recomputing the previous entry cannot be argued with.
 7. **The walkthrough is not a formality.** Two batches running, it has now found what the tests missed: 3.8's uncovered Z report came from a revert, and 3.9's mute 503 came from driving the real route. Neither would have been found by re-reading the diff.
+
+---
+
+*Moved verbatim from REMEDIATION_PLAN.md lines 886–1011 (commit 6847691) on 2026-09-06.*
+
+## Batch 3.10 — The three the map left unowned (L-55, L-56, L-58)
+
+**Status:** `COMPLETED` · **Opened and completed:** 2026-09-06 · **Findings:** L-55, L-56, L-58 (**label half only**) · **Decisions:** none — the decisions table stays empty.
+
+Batch 3.7's conformity map produced four findings that no batch owned. L-57 was
+taken by 3.8 because it had a clock on it. These three are the remainder, and
+they sit in three places: the annual **archive**, the archive's **notice**, and
+the **ticket**. None needs a migration, which is why they can be one batch —
+**provided the stored per-line HT question is left out**, and it is (below).
+
+**The premise was re-measured against the code before any of it was written, and
+the plan's own line references were wrong.** The plan and the map cite
+`fiscal.ts:634` and `receipt.ts:58`. `src/lib/fiscal.ts` is 220 lines and is the
+pure, DB-free half; the archive lives in **`src/lib/services/fiscal.ts:969`**
+(`ARCHIVE_NOTICE`) and **`:1017`** (`buildAnnualArchive`), and the ticket in
+**`src/lib/services/receipt.ts:58`**. The `services/` prefix is missing from
+every citation. The findings themselves are accurate.
+
+### What is in scope
+
+**L-55 — the archive has no row-level section for cash movements or for a
+refund paid outside its order's exercice.** `buildAnnualArchive` selects
+`orders` by `createdAt` within the trading-year window and includes their
+`refunds`; `CashMovement` (Batch 5.5, two batches after the archive was built
+in 3.3) appears nowhere. The information reaches the archive through
+`MOUVEMENT_CAISSE` and `REMBOURSEMENT` events — the rows do not. And a refund
+**paid in year N+1 against a year-N order** is in no `orders` section of any
+archive: year N's window predates it, and year N+1's has no such order.
+
+Add two sections, both keyed on **the date the money moved**, not on the date of
+the sale it corrects:
+
+- `cashMovements` — `CashMovement` rows whose `createdAt` falls in the exercice,
+  with the shift number and the cashier, the way `orders` already carries them.
+- `refunds` — `Refund` rows whose `createdAt` falls in the exercice, whatever
+  year their order belongs to, carrying the order's number and date so the row
+  says what it corrects.
+
+A refund inside its own order's exercice therefore appears **twice** in one
+archive — once nested under its order, once in the period section. That is the
+point, not a defect: the two answer different questions, and the notice says so.
+Schema `version` **4 → 5**. Both windows come from the same `yearBounds` helper
+the rest of the builder uses, so all four sections agree about the trading-day
+cut-off (DD-24).
+
+**L-56 — the notice claims « date certaine », which a self-generated file
+cannot confer.** `ARCHIVE_NOTICE` says the archive « fige les données
+d'encaissement de l'exercice … et leur donne date certaine ». Date certaine is
+art. 1377 code civil and it needs a third party. Everything else the notice
+states, the code does. Reword it to what is true — the file is frozen at its
+`generatedAt`, timestamped by the till's own clock, and its anteriority is
+demonstrated by the chained `ARCHIVE_GENEREE` entry and the checksum, not by a
+sentence inside the file.
+
+**The same claim is in a second place and it is the worse of the two.**
+`docs/attestation-conformite.md:136-138` — the Archivage bullet of a document
+the éditeur signs under art. 441-1 (3 ans, 45 000 €) — says the export freezes
+the exercice « et lui donnant date certaine ». Correcting the notice and leaving
+the attestation would be the wrong half. Map § 5.3 already says the attestation
+is where L-55 and L-56 have to be reflected, so both are in scope, with a new
+editorial note in the file's own numbered-note convention.
+
+**L-58 — the ticket calls the shift number a caisse number, and the ticket is
+the fiscal document BOFiP § 50 governs.** `receipt.ts:58` prints
+`Caisse #${order.shift?.number}`. On production that counter is at **3** on a
+single-till install, so a reader of the ticket sees a third till whose two
+siblings have no data anywhere. § 50 lists « numéro de la caisse » among the
+data in scope; the ticket has never carried one.
+
+Print both facts, each under its own name: a real **`Caisse N° 1`** in the
+establishment header beside the SIRET and the TVA number, and the shift as
+**`Service N`** where the mislabel used to be. `Service 7` is exactly as wide as
+the `Caisse #7` it replaces, so **L-21** (the renderer centres but never wraps)
+is not made worse at any column count; the caisse line is centred and collides
+with nothing. The number comes from a named constant carrying the reason — one
+database, one till (map § 1) — not from a setting, because no setting exists and
+inventing an operator-facing one is not what the finding asks for.
+
+### Deliberately NOT in scope
+
+1. **The stored per-line HT total — L-58's other half.** `OrderItem` stores
+   `unitPrice` and `lineTotal` TTC and a snapshotted `vatRate`, and no HT line
+   total. Storing one needs a column, therefore a migration, therefore an
+   operator action on production. It is also **not obviously required**: the
+   figure is derivable, and the ticket already prints an HT base per rate. The
+   nuance that makes it a real question rather than a formality is that the HT
+   the ticket shows is computed on the discounted net after a largest-remainder
+   apportionment (`money.ts:120`), so reproducing it from stored columns means
+   re-running that algorithm rather than dividing by the rate. Recorded, not
+   guessed at: L-58's row stays open on this half alone.
+2. **The four other « Caisse #N » labels in the UI** (`topbar.tsx:172`,
+   `reports-view.tsx:212,376`, `shifts-view.tsx:389`). They are the app's own
+   vocabulary for a till session, on screens whose only reader is the operator,
+   and they are not fiscal documents. Safety rule 10.
+3. **`Shift` rows in the archive.** Map § 4.4 notes they are absent; L-55 does
+   not name them and neither does this batch.
+4. **An index on `Refund.createdAt`.** The new query filters on an unindexed
+   column. `Refund` holds zero rows on production and an archive is generated
+   once a year; an index is a migration for nothing.
+
+### Validation Required
+
+- [x] `bun run test`, `bun run typecheck`, `bun run lint`, `bun run build` all clean.
+- [x] **Revert protocol, one property at a time and in both directions**, per
+      *Methods*. Every new test must fail under at least one revert, and the
+      tests that fail under none must be **named** as controls or regression
+      assertions rather than counted as coverage.
+- [x] A refund paid in the exercice **after** its order's own exercice appears
+      in the later archive's `refunds` section — the half of L-55 that no
+      existing section can reach.
+- [x] A cash movement inside the window appears with its shift number; one
+      outside it does not, on the trading-day clock rather than at midnight.
+- [x] Neither the archive notice nor `docs/attestation-conformite.md` claims the
+      archive confers date certaine, and both still say what the code does.
+- [x] The ticket carries `Caisse N° 1` and does **not** present the shift number
+      as a caisse number; the shift number is still on the ticket, correctly
+      labelled. Snapshot updated deliberately.
+- [x] **End-to-end on a scratch copy, driving the real route** — not
+      `buildAnnualArchive` underneath it: `POST /api/fiscal/archive` writes a
+      file; the file on disk contains both new sections and version 5; the
+      notice in the written bytes is the corrected one; `sha256sum -c` verifies.
+      The last two batches each found through the walkthrough what the whole
+      suite had missed.
+- [x] Production `db/custom.db` sha256, mtime and size unchanged; no `-wal` /
+      `-shm` beside it; `db/fiscal-archives/` and `db/backups/` untouched.
+
+### Status record
+
+**Status:** `COMPLETED` for L-55, L-56 and L-58's label half; **L-58's stored-line-HT half deliberately left open**
+**Completed:** 2026-09-06
+**Commit:** `8d5e156`
+**Findings:** L-55 (**closed**), L-56 (**closed, in both places**), L-58 (**◐ label closed, stored line HT open**)
+**Decisions:** none. The table stays empty.
+
+**Changes.** Three documents stopped saying things that are not true. **(1) L-55** — `buildAnnualArchive` gained two row-level sections, both keyed on **the date the money moved** rather than on the sale they correct: `refunds` (`Refund.createdAt` in the trading-year window, joined to its order's number and date and to the cashier) and `cashMovements` (`CashMovement.createdAt`, joined to the shift number and the cashier, exactly as `orders` already joins them). Both windows come from the same `yearBounds(year, cutoffHour)` the rest of the builder uses, so all six sections agree about the trading-day cut-off. A same-exercice refund is now listed **twice** — nested under its order and in the period section, same `id` — deliberately, and the notice explains it in a new « Contenu » paragraph. Schema `version` **4 → 5**. **(2) L-56** — `ARCHIVE_NOTICE` no longer claims the archive « leur donne date certaine ». It says what is true instead: the file is frozen at its `generatedAt`, on the till's own clock, and its anteriority rests on the chained `ARCHIVE_GENEREE` entry and the reproducible checksum, naming art. 1377 rather than borrowing it. **The same sentence was in `docs/attestation-conformite.md` § Archivage** — the document the éditeur signs under art. 441-1 — and was corrected there too, with editorial note 6 recording the withdrawal in the file's own convention. **(3) L-58** — the ticket prints `Caisse N° 1` in the establishment block, from a literal carrying the one-database-one-till reasoning, and the shift number keeps its place under the truthful label `Service N`. No migration; no new setting; no production write.
+
+**Files.** `src/lib/services/fiscal.ts` (two queries, two payload keys, the version bump, the notice), `src/lib/services/receipt.ts` (`CAISSE_NUMBER`, the header line, the relabel), `docs/attestation-conformite.md` (§ Archivage, editorial note 6), `docs/conformite-isca-map.md` (§ 4.4, § 4.6, § 5.3, § 6.2, the header note and the findings table), `src/lib/services/archive.test.ts` (+9), `src/lib/services/receipt.test.ts` (+4), `src/lib/services/__snapshots__/receipt.test.ts.snap`.
+
+**Tests.** **891 pass, 0 fail** (879 before). Thirteen new cases; **every one fails under at least one of sixteen one-property reverts, and none is a control**. The reverts, in both directions: R1 version 5→4; R2/R3 drop each new section from the payload with its query kept; R4 key `refunds` on the *order's* exercice; R5 midnight bounds instead of the cut-off; R5b/R5c drop each join; R9 drop the « Contenu » paragraph; R10 *deduplicate* the two refund views — the "improvement" a later batch would reach for; R6 restore the date-certaine claim and **R6b go silent about it instead**; R7 restore it in the signed declaration and **R7b drop only the pointer to note 6**; R8a remove the caisse line, R8b put the shift back under `Caisse #N`, R8c move the caisse onto the cashier line and drop the shift. **R7b passed everything, and that was the batch's one real gap**: removing the declaration's pointer to note 6 left a signatory meeting no warning at all, so `Voir note 6` is now pinned. Two existing assertions were amended deliberately, not to go green: the L-53 schema-version pin (4→5) and the receipt snapshot. `typecheck`, `lint`, `build` clean.
+
+**Notes.**
+
+1. **The plan's own citations were wrong, and the code is the authority.** Both the plan and the map cite `fiscal.ts:634` and `receipt.ts:58`. `src/lib/fiscal.ts` is 220 lines of pure, DB-free helpers and contains neither; the archive is `src/lib/services/fiscal.ts` and the renderer `src/lib/services/receipt.ts`. Every citation was missing the `services/` prefix. The findings themselves were accurate — measured before anything was written.
+
+2. **L-56 was in two places and the second is the one that matters.** 3.7 edited the notice for L-53 and left the date-certaine line, which is how L-56 came to exist; correcting only the notice would have repeated that. `docs/attestation-conformite.md` carries the same claim in a document signed under art. 441-1 (3 ans, 45 000 €), and map § 5.3 already said the attestation is where L-55 and L-56 have to be reflected. Both are corrected and both are pinned — **the attestation's assertion runs on the *declaration* only**, from `## Volet 1` down, because the editorial notes say of themselves that they « ne font pas partie de la déclaration » and note 6 deliberately quotes the withdrawn sentence. A whole-file assertion would have forbidden the file from recording its own correction.
+
+3. **The walkthrough is what proves L-55, and the service underneath would not have.** `POST /api/fiscal/archive` was driven twice on a scratch copy of production, and the **written files** were read back, not the responses. `hibapos-archive-2026.json`: 21 orders, 1 cash movement (with `shift.number` 9001 and its cashier), `refunds` **empty**. `hibapos-archive-2027.json`: **0 orders and 1 refund** — the 400-cent refund paid in March 2027 against an order rung in June 2026, carrying `order.number` 9001 so it says what it corrects. That row is the finding: before this batch it was in no `orders` section of any archive. Both files pass `sha256sum -c`; the duplicate-year guard still answers `409`; `GET /api/fiscal/verify` reports all four chains `ok`.
+
+4. **The ticket was proved on the number the finding names.** A real sale rung through `POST /api/orders` on the scratch copy — caisse session **3**, the production shift counter — printed `Caisse N° 1` in the establishment block and `Service 3` on the cashier line. Widest line 56 characters, which is the restaurant's address and is **L-21**, unchanged by this batch: every line this batch touched is 48 or under, and `Service 7` is exactly as wide as the `Caisse #7` it replaces, asserted at the narrowest supported width.
+
+5. **`Caisse N° 1` is a literal on purpose.** One SQLite file, a singleton `GrandTotal`, a singleton `FiscalCounter`, one `Shift` sequence — there is no second till for a number to distinguish this one from (map § 1, and DD-11 was answered on the same fact). A setting would have been an operator-facing value nobody could answer differently. **If a second till ever exists this must become per-install**, and so must the counters it sits beside.
+
+6. **The double listing is a decision, and it is defended by a test.** A refund inside its own order's exercice appears in `orders[].refunds` and in `refunds`, under the same `id`. R10 shows how easily a later batch would "fix" that; the test refuses, and the notice explains the two questions the sections answer. Nothing is removed from `orders`, so no reader of the old shape loses anything.
+
+7. **What this batch deliberately did not do.** The **stored per-line HT total** (L-58's other half) — it needs an `OrderItem` column, therefore a migration, therefore an operator action, and it is a real question rather than a formality: the HT the ticket prints is computed on the discounted net after a largest-remainder apportionment (`money.ts:120`), so reproducing it from stored columns means re-running that algorithm rather than dividing by the rate. The **four other « Caisse #N » labels** in the UI (`topbar.tsx:172`, `reports-view.tsx:212,376`, `shifts-view.tsx:389`) — the app's own vocabulary for a till session, on screens no fiscal reader sees. **`Shift` rows in the archive** — noted by map § 4.4, named by no finding. An **index on `Refund.createdAt`** — a migration for a table with zero rows read once a year. The **day-close slip** (`services/day-close-ticket.ts`) was checked and carries no mislabel: its only uses of *caisse* are « Entrées / Sorties de caisse », which mean the drawer.
+
+8. **Production untouched.** `db/custom.db` sha256 `c9f265163691c93e3402354616b1902f5898006657d47eb8da999e1c6813dceb`, 704 512 bytes, mtime 2026-09-06 17:49:32 — identical before and after. No `-wal`/`-shm` appeared. `db/fiscal-archives/` still does not exist in the repo tree: the walkthrough's archives were written under `HIBAPOS_DATA_DIR` in the scratchpad, which is what overriding **both** variables buys. `db/backups/` still holds its nine files. The prep script refuses any path outside the session scratchpad, demonstrated against `db/custom.db` before use. The server Claude started on port **3070** was killed with `taskkill //PID 16608 //T //F`.
+
 
 ---
 
@@ -3503,6 +3666,7 @@ curl -s http://127.0.0.1:3000/api/auth/me
 | 3.7 | COMPLETED (L-52 left open) | 2026-09-06 | `203848e`, `c3ce9e9`, and the closing commit | L-53, L-54; L-52 searched and left open. **The software states its version** on every ticket, in the archive, on the fiscal screen and in `GET /api/fiscal/verify` — a `package.json` import passed every test and shipped the dependency list to the browser, measured and replaced. **The seven research questions answered from official sources** (`docs/conformite-isca-recherche.md` § 9): the attestation route is valid to 31 Dec 2026 and then depends on an unpublished décret; no restitution format exists; « prévoir » means provide; BOFiP § 170 says the perpetual total must be *recorded* at each close and it is not (**L-57**, before the first real close). **The ISCA map** (`docs/conformite-isca-map.md`) maps every sub-requirement to `file:line` and found L-55–L-58. 803 → **820/0**; fifteen reverts, all caught after one assertion was corrected. Stage 3 closed again. |
 | 3.8 | COMPLETED (migration NOT applied) | 2026-09-06 | (this commit) | DD-23, DD-24, L-54's second half and **L-57**. **A sealed `Clôture du jour`** on a trading-day clock that governs the month and the exercice too, so a service past midnight sits in one day and one month and no two sealed documents disagree; the till still refuses nothing, which the operator chose. **L-57**: BOFiP § 170 requires every close to record the perpetual total and none did. **Twenty reverts, nineteen caught — R11 SURVIVED and found that the Z report had been missed**, so L-57 was three-quarters asserted; fixing it turned seven unrelated cases red on an `onDelete: Restrict` the reset helper ignored. Seven tests in five other files amended deliberately, and the two timing ones found a refusal message that named the day where the truth was the hour. Migration rehearsed: **12 fingerprint lines differ, all schema, not one data row**. Walkthrough on the production build: eight trading days sealed, **the day closes sum to the Z reports exactly** (47 880 / 20 / 4 370) and August equals the sum of its days. 820 → **857/0**. |
 | 3.9 | COMPLETED (key armed at 8.0, not now) | 2026-09-06 | (this commit) | DD-25. The fiscal chain can be **keyed** (HMAC-SHA-256), and unkeyed stays byte-for-byte what it was, so the existing journal still verifies. **The centre is the arming guard**: a key configured over a journal that already holds unkeyed events refuses the append, proved from evidence rather than a flag. **The walkthrough found what the tests missed** — the refusal reached the server log and answered the operator with a bare 500 and an EMPTY BODY; it is now a typed error mapped to `503` with the French message in `withAuth`, where `ScryptBusyError` set the precedent, plus two tests. Both halves rehearsed on a scratch copy: refused over history, free on an empty journal, and the event recomputes keyed and not unkeyed. A build with a sentinel key put **zero** occurrences of it anywhere under `.next`. **Twelve reverts, all twelve caught; nothing passed under no revert.** 857 → **879/0**. **Closes Stage 3 again**, and empties the decisions table. |
+| 3.10 | COMPLETED (L-58 half open) | 2026-09-06 | `8d5e156` | L-55, L-56 and **L-58's label half** — the three the ISCA map turned up and no batch owned. The annual archive gains `refunds` and `cashMovements` as ROWS, both keyed on **the date the money moved**: a refund paid in year N+1 against a year-N order was in no `orders` section of any archive and reached the file only as an event. Schema 4 → 5, and a same-exercice refund is listed twice on purpose, pinned by a test against the “deduplication” a later batch would reach for. The notice stops claiming « date certaine », **and so does `docs/attestation-conformite.md`, which is signed under art. 441-1** — correcting one and leaving the other is how L-56 came to exist in the first place. The ticket prints a real `Caisse N° 1` and relabels the shift `Service N`, proved end-to-end on caisse session **3**, the very counter the finding names. **Sixteen one-property reverts, all thirteen new tests failing under at least one, no controls to disclaim** — and R7b, which nothing caught, added the missing assertion. **The stored per-line HT was deliberately not built**: it needs a migration, and the ticket's HT comes from an apportionment rather than a division. 891/891; production byte-identical.
 
 # RESOLVED FINDINGS
 
@@ -3510,6 +3674,8 @@ curl -s http://127.0.0.1:3000/api/auth/me
 
 | ID | Date | Found during | Description | Severity | Assigned to batch |
 |---|---|---|---|---|---|
+| **L-56** ✅ **RESOLVED in Batch 3.10** (2026-09-06) | 2026-09-06 | Batch 3.7 (the ISCA map) | **The annual archive's notice claims the archive « leur donne date certaine », which a self-generated file cannot confer.** `fiscal.ts:634`. « Date certaine » is a legal term (art. 1377 code civil — registration, death, or an authentic act); a JSON file timestamped by the till's clock and hashed by the till has no date certaine in that sense. Everything else the notice states — open format, reproducible checksum, chaining, six years — the code does. One phrase in a fiscal document overstates; reword it. Recorded, not fixed, under safety rule 10: 3.7 edited the notice for L-53 and deliberately did not touch this line, which is a separate claim. | LOW (documentation truth in a fiscal document) | **NO BATCH OWNS THIS** — found by the map; a one-line rewording of `ARCHIVE_NOTICE` for the next batch that touches `fiscal.ts` |
+| **L-55** ✅ **RESOLVED in Batch 3.10** (2026-09-06) | 2026-09-06 | Batch 3.7 (the ISCA map) | **The annual archive has no row-level section for cash movements, nor for a refund paid after its order's year; both reach it only through journal events.** `buildAnnualArchive` (`fiscal.ts:674-699`) selects `orders` by `createdAt` in the year, with their `refunds`, and has no `cashMovements` section at all — `CashMovement` was added by Batch 5.5, two batches after the archive was built in 3.3. The `MOUVEMENT_CAISSE` event carries every field but the row id (`cash-movement.ts:208-221`), and the `REMBOURSEMENT` event carries the refund's amount, reason, method, cashier and approver, so the **information** is archived; the **rows** are not, and a refund paid in year N+1 for a year-N order appears in no `orders` section of any archive (year N's predates it; year N+1's has no such order). Zero archives exist anywhere, so nothing generated is affected. | LOW (information present via events; no row-level section) | **NO BATCH OWNS THIS** — found by the map; add `cashMovements` and a `refunds`-by-period section to the archive, bumping its schema version, in the next batch that touches the archive |
 | **L-54** ✅ **RESOLVED in Batch 3.7** (2026-09-06 — as a mislabel and a missing notice; the refusal is DD-23) | 2026-09-06 | French-law gap check | **The Z close is per SHIFT, and the code calls it the « clôture journalière » — they are not the same thing.** BOI-TVA-DECLA-30-10-30 (25/03/2026) requires that the software provide "obligatoirement une clôture journalière et une clôture mensuelle et annuelle […] **Ces trois échéances sont cumulatives et impératives**". HibaPOS has all three, and the monthly and annual ones are genuinely calendar-keyed. The daily one is not: `generateZReport(shiftId, …)` seals a **shift**, and `reports.ts:226` labels that seal *"clôture journalière scellée (ISCA conservation)"*. Measured 2026-09-06: **nothing anywhere keys a close to a calendar day**, and nothing prompts or records a day that ended without one. Three realistic divergences: a service running past midnight produces **one Z covering two calendar days**; a day worked under two shifts produces two (harmless, arguably better); and **a trading day where the till is simply never closed produces none at all**, with nothing to surface the omission. Whether "prévoir" is satisfied by providing the mechanism, or requires the software to ensure the day is closed, is a question for a fiscal professional — but the code comment asserting the two are equivalent is a claim the code does not support, which is exactly the class Batch 7.1 existed to clear. | MEDIUM (a mandatory close may be missing or mis-scoped; latent while one shift = one day) | **3.7** — **fixed 2026-09-06 as far as the research allows**: « prévoir » means provide, not force, and no source accepts or rejects a per-shift close (research § 9.5), so the mislabel is corrected, the operator is told on the shifts screen, and a till that crossed midnight is flagged; **refusing sales after midnight is DD-23**. *Measured on production: Z #2 covers five calendar days (08-21, 23, 24, 27, 28).* Row moves to the record when the batch completes |
 | **L-53** ✅ **RESOLVED in Batch 3.7** (2026-09-06) | 2026-09-06 | French-law gap check | **The software never states which version it is — not on the ticket, not in the UI, not in the archive — and the entire attestation regime is version-matched.** BOFiP: the attestation is individual and nominative, and the assujetti must hold the one "correspondant à **la version** du logiciel ou système de caisse qu'il utilise"; BOI-CF-COM-20-60 says a control verifies exactly that correspondence between versions held and attestations held. Measured 2026-09-06: `package.json` declares `0.2.1` and **nothing in `src/` reads it**. `renderReceipt` prints the restaurant's name, address, phone, SIRET and TVA number and **no software identification at all** — `receipt.ts:49` uses `"HibaPOS France"` only as a fallback for a missing `restaurantName`, so on this install, where the name is set, the software is never named on a ticket. The annual archive carries `format: "hibapos-fiscal-archive", version: 2`, which is the **archive schema** version, not the software's. Consequence: at a control the operator cannot demonstrate which version is running, and after an update nobody can tell whether the attestation on file still corresponds. Note V-03 already listed "software identification" as an open question about receipt contents; this is the measurement behind it. Cheap to fix and worth doing before any attestation is signed. | MEDIUM–HIGH for the attestation route (the operator cannot evidence version correspondence, which is the one thing a control checks) | **3.7** — **fixed 2026-09-06**: ticket, archive, `GET /api/fiscal/verify` and the fiscal screen all state `HibaPOS France v0.2.1`; row moves to the record when the batch completes |
 | **L-57** ✅ **RESOLVED in Batch 3.8** (2026-09-06 — the perpetual total is now recorded in the Z, the day, the month and the exercice; the revert protocol found that the Z had been missed) | 2026-09-06 | Batch 3.7 (the research) | **The perpetual total is written into no close, and BOFiP says it must be.** BOI-TVA-DECLA-30-10-30 § 170 (25/03/2026), verbatim: « Pour chaque clôture, des données cumulatives et récapitulatives, intègres et inaltérables, doivent être **calculées et enregistrées** par le logiciel ou système de caisse, comme le cumul du grand total de la période et **le total perpétuel** pour la période. » (research § 9.5; the LNE referential's Exigence 7 says the same). Measured 2026-09-06: the `CLOTURE_Z` payload (`reports.ts:247-271`), the `ZReport` row, and the `MonthlyClose` / `AnnualClose` `dataJson` (`fiscal.ts` `PeriodAgg`) carry the **period's** figures only; `GrandTotal` is a live singleton (`schema.prisma:659`, `fiscal.ts:109-136`) snapshotted **only into the annual archive** (`fiscal.ts:714`). So no sealed document records what the perpetual total was when the period closed. Fix: seal `GrandTotal`'s figures (sales, orders, VAT, per tender, refunded) into the Z, monthly and annual payloads and rows. **Do it BEFORE the first real close** — DD-20's reasoning: zero monthly/annual closes exist and P-04 resets the two test Z reports, so today it costs nothing; after the first real close it is a second payload vintage in a document that cannot be corrected. `close-timing.test.ts` pins the key list and must be amended deliberately. Not fixed in 3.7 (safety rule 10: a change to a sealed payload is not a version-label batch's business). | MEDIUM (a stated BOFiP requirement, unmet; cheap now, permanent later) | ****3.8** — opened 2026-09-06 for exactly this, beside the day close, because both change the same sealed payloads and a second change after the first real close would be a second vintage. **Must precede Batch 8.0's reset and the first real Z** |
@@ -3628,6 +3794,12 @@ curl -s http://127.0.0.1:3000/api/auth/me
 
 
 # RETIRED OPEN-THREAD ROWS AND SUPERSEDED FRONT-MATTER LINES
+
+**RETIRED 2026-09-06 (Batch 3.10) — the production-database lineage detail from *OPEN THREADS → G***, for the same front-matter room. Verbatim: *“Before it: `96b48ad0…` (mtime 2026-09-05 17:48, same size) — Batch 5.7a’s migration, also predicted with zero differing lines. Before that: `7287640e…` (mtime 15:41, same size) — moved by the operator applying Batch 5.5’s migration on 2026-09-05 14:41:21, the first change since the 2026-09-04 PIN change (`7839db18…`, 696 320 bytes). **The rehearsal predicted this state exactly**: a fiscal fingerprint of production taken afterwards is byte-for-byte identical to the one taken from the rehearsal copy — zero differing lines (record → Batch 5.5, appended note). Both sealed Z reports survived the `ZReport` table rebuild unchanged, with the three new columns at 0. Earlier lineage (`7cc3367b…` → `a66bc96c…` → `e40735ca…` → `7839db18…`) is in the record.”* Every hash and every rehearsal note in it is in that batch’s own record section; the row now names the chain and points here. **The CURRENT hash, size and mtime stay in the front matter** — that is the part a session has to check before trusting anything.
+
+**RETIRED 2026-09-06 (Batch 3.10) — session 16’s three carry-forward lessons**, replaced by session 17’s in the same slot. Verbatim: *“Carry forward: (1) **Measure the artifact, not the message.** The first L-53 implementation read `package.json` and passed every test; `grep` of the built client chunks showed the whole file — dependency list included — shipped to the browser. Replaced by a pinned literal. (2) **A new assertion can weaken an old one**: once every ticket names the software, `toContain(“HibaPOS France”)` proves nothing about the restaurant-name fallback. Pinned to the header line, and shown to fail only in the new form. (3) **The map found what the plan’s prose had not** — L-55, L-56, the chain covering the payload only, the perpetual total written into no close. Verify against the code.”* All three were used again in Batch 3.10 and none is lost: (1) is why 3.10 read the WRITTEN archive files rather than the route’s responses; (2) is why the attestation assertion runs on the declaration alone; (3) is why 3.10 opened by re-measuring the plan’s own citations, and found every one of them missing the `services/` prefix.
+
+**RETIRED 2026-09-06 (Batch 3.10) — the *DESIGN DECISIONS REQUIRED* retirement history**, to buy front-matter room for 3.10's status. The sentence retired, verbatim: *“Twenty-five answered decisions have been retired from this table (DD-23, DD-24 and DD-25 on 2026-09-06, as Batches 3.8 and 3.9 completed them). **The table is now empty, and that is the honest state: no batch in this plan is waiting on a decision.** (eighteen on 2026-09-05; **DD-20, DD-21, DD-22 and DD-04 on 2026-09-06**, when DD-23 needed the room), each closed with its batch `COMPLETED` and no forward link. Full rows: `REMEDIATION_RECORD.md` → *Answered design decisions*; the retired one-line pointers: → *Retired open-thread rows*.”* What replaced it says the same load-bearing thing — the table is empty and nothing waits on a decision — and points here for the dates. Nothing is lost: the eighteen of 2026-09-05 and the four of 2026-09-06 are already itemised in this section, and every full row is in *Answered design decisions*.
 
 **APPENDED 2026-09-05 (Batch 5.7d).** The OPEN THREADS preamble had re-accumulated into a chain of "updated through X… before that Y… before that Z" for the second time in one session, and was collapsed to the current state again. The rule it now states explicitly — *this thread records the CURRENT state, not its history* — is the durable fix; each batch's account of what it moved belongs in that batch's record section, which is where it already is. *Last Completed Batch* was trimmed of its restatements in the same pass. Nothing operative was dropped: no thread row changed, and A, B, C, D and E are untouched by 5.7b, 5.7c and 5.7d.
 

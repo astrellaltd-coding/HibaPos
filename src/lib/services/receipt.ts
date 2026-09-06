@@ -32,6 +32,23 @@ function rateLabel(key: string): string {
   return `${key.replace(".", ",")} %`;
 }
 
+/**
+ * L-58 (Batch 3.10) — the « numéro de la caisse » BOFiP § 50 lists among the
+ * data in scope for the fonctionnalité de caisse.
+ *
+ * A LITERAL, and deliberately not a setting. This installation is one
+ * restaurant, one till: a single SQLite file, a singleton `GrandTotal`, a
+ * singleton `FiscalCounter` and one `Shift` sequence — there is no second till
+ * for a number to distinguish it from (`docs/conformite-isca-map.md` § 1).
+ * Inventing an operator-facing setting to hold the constant `1` would be a
+ * value nobody could ever answer differently, and the finding asks for a
+ * correct label, not a configuration surface.
+ *
+ * If a second till ever exists this must become per-install, and so must the
+ * counters it sits beside — the number is the smallest part of that change.
+ */
+const CAISSE_NUMBER = 1;
+
 export function renderReceipt(order: OrderDto, settings?: Partial<SettingsDto>): string {
   const s = settings ?? {};
   const lines: string[] = [];
@@ -53,9 +70,21 @@ export function renderReceipt(order: OrderDto, settings?: Partial<SettingsDto>):
   if (s.restaurantSiret) lines.push(center(`SIRET : ${s.restaurantSiret}`));
   // M-06: the TVA number was a stored setting that no document ever printed.
   if (s.restaurantTva) lines.push(center(`TVA : ${s.restaurantTva}`));
+  // L-58 (Batch 3.10): the till identifies itself, in the block that identifies
+  // the establishment. Centred, so it collides with nothing at any column count
+  // — which is why it goes here rather than onto the cashier line below (L-21:
+  // this renderer centres but never wraps).
+  lines.push(center(`Caisse N° ${CAISSE_NUMBER}`));
   lines.push("-".repeat(w));
   lines.push(leftRight(`Ticket N° ${order.number}`, formatDateTime(order.createdAt)));
-  lines.push(leftRight(`Caissier : ${order.cashier?.name ?? "-"}`, `Caisse #${order.shift?.number ?? "-"}`));
+  // L-58 (Batch 3.10): this field used to read `Caisse #${shift.number}`, which
+  // is the SHIFT counter — 3 on production, on a single-till install, so a
+  // reader of the ticket saw a third till whose two siblings have no data
+  // anywhere. The number is worth keeping (it ties the ticket to the Z report
+  // that rolls it up); only its name was wrong. `Service N` is exactly as wide
+  // as the `Caisse #N` it replaces, so no ticket gets closer to overflowing
+  // than it already was.
+  lines.push(leftRight(`Caissier : ${order.cashier?.name ?? "-"}`, `Service ${order.shift?.number ?? "-"}`));
   const typeLabel = order.orderType === "DINE_IN" ? "Sur place" : order.orderType === "TAKEAWAY" ? "À emporter" : "Livraison";
   lines.push(leftRight(`Type : ${typeLabel}`, order.tableLabel ? `Table : ${order.tableLabel}` : ""));
   lines.push("-".repeat(w));

@@ -82,6 +82,24 @@ les pièces comptables pour présentation lors d'un contrôle fiscal.
 > aucune machine** : la chaîne est aujourd'hui un condensat SHA-256 simple, et
 > l'armement est une étape de la mise en service (lot 8.0). Ne pas décrire le
 > logiciel comme « à clé » dans une attestation signée avant cet armement.
+>
+> **6. Une phrase RETIRÉE le 2026-09-06 (lot 3.10, L-56) : « date certaine ».**
+> La ligne **Archivage** ci-dessous disait que l'export annuel fige l'exercice
+> « et lui donne date certaine », et la notice en français placée dans l'archive
+> elle-même disait la même chose. **C'était faux, et dans les deux cas.** La
+> « date certaine » est celle de l'article 1377 du code civil : elle suppose
+> l'intervention d'un tiers — enregistrement, acte authentique, décès d'un
+> signataire. Un fichier écrit par la caisse, horodaté par l'horloge de la
+> caisse et condensé par la caisse n'en confère aucune, quoi qu'il écrive sur
+> lui-même. Ce que l'archive a réellement — et ce n'est pas rien — est désormais
+> ce qu'elle dit : sa génération est une entrée du journal fiscal chaîné
+> (`ARCHIVE_GENEREE`), et son condensat SHA-256 est reproductible par un tiers
+> avec `sha256sum`. **Ne pas réintroduire l'expression dans une attestation
+> signée** : l'établissement d'une fausse attestation relève de l'article 441-1
+> du code pénal, rappelé en tête de ce document.
+> *Le même lot a ajouté à l'archive les remboursements et les mouvements de
+> caisse comme lignes (L-55) ; ils n'y figuraient que sous forme d'événements
+> du journal. Schéma de l'archive : version 5.*
 
 ---
 
@@ -133,8 +151,12 @@ pour la liste établie à partir du code, couvertes et exclues.*
   données élémentaires et des preuves d'intégrité pendant la durée légale
   (6 ans). *(Voir note 4 pour ce que cette phrase ne dit pas.)*
 - **Archivage** : export annuel au format ouvert (JSON + SHA-256 + notice en
-  français) via `POST /api/fiscal/archive`, figeant l'exercice et lui donnant
-  date certaine. Lisible indépendamment du logiciel.
+  français) via `POST /api/fiscal/archive`, figeant les données de l'exercice à
+  sa date de génération, horodatée par l'horloge de la caisse et consignée dans
+  le journal fiscal chaîné (événement `ARCHIVE_GENEREE`). L'archive retient les
+  ventes, les remboursements, les mouvements de caisse, les rapports Z, les
+  clôtures et le grand total perpétuel. Lisible indépendamment du logiciel.
+  *(Voir note 6 : ce n'est pas une « date certaine ».)*
 
 Fait à `……… Ville ………`, le `……… Date ………`
 

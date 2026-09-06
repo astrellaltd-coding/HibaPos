@@ -978,7 +978,19 @@ const ARCHIVE_NOTICE = (year: number) =>
     `Ce document est une archive fiscale au format ouvert (JSON) produite conformément`,
     `à l'article 286-I-3° bis du CGI (conditions ISCA : Inaltérabilité, Sécurisation,`,
     `Conservation, Archivage). Elle fige les données d'encaissement de l'exercice ${year}`,
-    `et leur donne date certaine.`,
+    // L-56 (Batch 3.10): these four lines said « et leur donne date certaine ».
+    // « Date certaine » is art. 1377 du code civil and it is conferred by a
+    // third party — un enregistrement, un acte authentique, le décès d'un
+    // signataire. A file written by the till, timestamped by the till's own
+    // clock and hashed by the till confers none of that, whatever it says about
+    // itself. What the file DOES have is stated instead, and it is not nothing:
+    // the generation is an entry in the chained journal, and the checksum is
+    // reproducible by anyone.
+    `à la date portée par son champ « generatedAt », horodatée par l'horloge du système`,
+    `de caisse. Ce fichier ne confère pas par lui-même de « date certaine » au sens de`,
+    `l'article 1377 du code civil, qui suppose l'intervention d'un tiers. L'antériorité`,
+    `de l'archive se démontre par l'entrée ARCHIVE_GENEREE du journal fiscal chaîné et`,
+    `par le condensat ci-dessous, non par une mention portée dans le fichier lui-même.`,
     ``,
     `Intégrité : le condensat SHA-256 de ce fichier est calculé sur ses octets exacts,`,
     `tels qu'ils ont été écrits. Il est reproductible par un tiers avec un outil standard :`,
@@ -996,6 +1008,18 @@ const ARCHIVE_NOTICE = (year: number) =>
     `chaque entrée contient le hash (SHA-256) de la précédente. Les "dailyCloses", les`,
     `"monthlyCloses" et le présent exercice ("annualClose" si scellé) forment leurs`,
     `propres chaînes de clôtures.`,
+    ``,
+    // L-55 (Batch 3.10). Two sections are keyed on a different date from
+    // "orders", and a reader who assumes otherwise would count a refund twice
+    // or miss one entirely. The file says so itself rather than relying on a
+    // reader having this source code.
+    `Contenu : la section "orders" retient les ventes selon leur propre date. Les sections`,
+    `"refunds" et "cashMovements" retiennent en revanche les opérations selon la date à`,
+    `laquelle l'argent a effectivement bougé — un remboursement portant sur une vente d'un`,
+    `exercice antérieur figure donc dans l'exercice où il a été payé, et non dans celui de`,
+    `la vente. Un remboursement dont la vente appartient au présent exercice apparaît deux`,
+    `fois : sous sa commande dans "orders", et dans "refunds". Ce sont les mêmes lignes,`,
+    `identifiées par le même "id" ; elles répondent à deux questions différentes.`,
     ``,
     `Lisibilité : ce fichier reste exploitable indépendamment du logiciel HibaPOS.`,
     `Conservation légale : 6 ans (7 si exercice décalé).`,
@@ -1029,42 +1053,90 @@ export async function buildAnnualArchive(year: number) {
   // same bounds from the same helper as `closeYear`.
   const cutoffHour = (await getSettings()).businessDayCutoffHour;
   const { from, to } = yearBounds(year, cutoffHour);
-  const [fiscalEvents, orders, zReports, dailyCloses, monthlyCloses, annualClose, grandTotal] =
-    await Promise.all([
-      db.fiscalEvent.findMany({
-        where: { timestamp: { gte: from, lt: to } },
-        orderBy: { sequence: "asc" },
-      }),
-      db.order.findMany({
-        where: { createdAt: { gte: from, lt: to } },
-        include: {
-          items: true,
-          payments: true,
-          refunds: true,
-          receipt: true,
-          cashier: { select: { name: true, username: true } },
-          shift: { select: { number: true } },
-        },
-        orderBy: { number: "asc" },
-      }),
-      db.zReport.findMany({ where: { generatedAt: { gte: from, lt: to } }, orderBy: { number: "asc" } }),
-      // DD-23 (Batch 3.8): the day closes belong in the archive beside the
-      // monthly ones. Omitting them would put a whole class of sealed fiscal
-      // document outside the only export an inspector is given.
-      db.dailyClose.findMany({ where: { year }, orderBy: { period: "asc" } }),
-      db.monthlyClose.findMany({ where: { year }, orderBy: { period: "asc" } }),
-      db.annualClose.findUnique({ where: { period: String(year) } }),
-      db.grandTotal.findUnique({ where: { id: "singleton" } }),
-    ]);
+  const [
+    fiscalEvents,
+    orders,
+    refunds,
+    cashMovements,
+    zReports,
+    dailyCloses,
+    monthlyCloses,
+    annualClose,
+    grandTotal,
+  ] = await Promise.all([
+    db.fiscalEvent.findMany({
+      where: { timestamp: { gte: from, lt: to } },
+      orderBy: { sequence: "asc" },
+    }),
+    db.order.findMany({
+      where: { createdAt: { gte: from, lt: to } },
+      include: {
+        items: true,
+        payments: true,
+        refunds: true,
+        receipt: true,
+        cashier: { select: { name: true, username: true } },
+        shift: { select: { number: true } },
+      },
+      orderBy: { number: "asc" },
+    }),
+    // L-55 (Batch 3.10). Refunds keyed on THEIR OWN date, not on the date of
+    // the sale they correct — which is a different set from the `refunds`
+    // nested under `orders` above, and that difference is the finding. A
+    // refund paid in year N+1 against a year-N order was in no `orders`
+    // section of any archive: year N's window closed before it happened, and
+    // year N+1's window contains no such order. It reached the archive only
+    // as a REMBOURSEMENT event, i.e. as information rather than as a row.
+    //
+    // Deliberately NOT deduplicated against the nested copy. A refund inside
+    // its own order's exercice appears in both, under the same `id`, and the
+    // notice says so: one answers "what happened to this sale", the other
+    // "what money moved in this exercice".
+    //
+    // `Refund.createdAt` is not indexed and no index is added: the table
+    // holds zero rows on production, an archive is built once a year, and an
+    // index would cost a migration for nothing.
+    db.refund.findMany({
+      where: { createdAt: { gte: from, lt: to } },
+      include: {
+        order: { select: { number: true, createdAt: true } },
+        cashier: { select: { name: true, username: true } },
+      },
+      orderBy: { createdAt: "asc" },
+    }),
+    // L-55 (Batch 3.10). `CashMovement` arrived in Batch 5.5, two batches
+    // after the archive was built in 3.3, and nothing added it here — so a
+    // float top-up, a drop to the safe or a counting correction reached the
+    // archive only through its MOUVEMENT_CAISSE event. The shift and cashier
+    // are joined the same way `orders` joins them, so a row is readable
+    // without resolving ids against another section.
+    db.cashMovement.findMany({
+      where: { createdAt: { gte: from, lt: to } },
+      include: {
+        shift: { select: { number: true } },
+        cashier: { select: { name: true, username: true } },
+      },
+      orderBy: { createdAt: "asc" },
+    }),
+    db.zReport.findMany({ where: { generatedAt: { gte: from, lt: to } }, orderBy: { number: "asc" } }),
+    // DD-23 (Batch 3.8): the day closes belong in the archive beside the
+    // monthly ones. Omitting them would put a whole class of sealed fiscal
+    // document outside the only export an inspector is given.
+    db.dailyClose.findMany({ where: { year }, orderBy: { period: "asc" } }),
+    db.monthlyClose.findMany({ where: { year }, orderBy: { period: "asc" } }),
+    db.annualClose.findUnique({ where: { period: String(year) } }),
+    db.grandTotal.findUnique({ where: { id: "singleton" } }),
+  ]);
 
   const payload = {
     format: "hibapos-fiscal-archive",
     // Schema version of THIS FILE. 2 → 3 in Batch 3.7 (L-53), when `software`
-    // was added; 3 → 4 in Batch 3.8 (DD-23), when `dailyCloses` was. A reader
-    // keyed on this number must not expect either key in a 2, and none exists
-    // to be confused — zero archives had ever been generated on production
-    // when both numbers moved (verified read-only, 2026-09-06).
-    version: 4,
+    // was added; 3 → 4 in Batch 3.8 (DD-23), when `dailyCloses` was; 4 → 5 in
+    // Batch 3.10 (L-55), when `refunds` and `cashMovements` were. A reader
+    // keyed on this number must not expect any of those keys in a 2, and none
+    // exists to be confused — zero archives had ever been generated on
+    // production when all three numbers moved (verified read-only, 2026-09-06).
+    version: 5,
     year,
     generatedAt: new Date().toISOString(),
     // L-53 (Batch 3.7): which software, at which version, wrote this archive.
@@ -1074,6 +1146,10 @@ export async function buildAnnualArchive(year: number) {
     annualClose: annualClose,
     fiscalEvents,
     orders,
+    // L-55 (Batch 3.10). Both keyed on the date the money moved; see the
+    // queries above and the "Contenu" paragraph of the notice.
+    refunds,
+    cashMovements,
     zReports,
     dailyCloses,
     monthlyCloses,
