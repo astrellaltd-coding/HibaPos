@@ -345,6 +345,32 @@ the work is done and claims it is outstanding. Nothing here establishes which.
 this is the only pointer to it — so it should be treated as **lost** until
 somebody produces it. It is the only copy of the history before the reset.
 
+**LEGAL REFERENCES — CORRECTED AND EXTENDED 2026-09-06.** Appendix C above was
+accurate as far as it went and is now incomplete. Three corrections, from
+official sources consulted on 2026-09-06 (Legifrance, BOFiP):
+
+- **The false-attestation offence is art. 441-7 du code pénal**, not (only)
+  441-1. 441-7 covers establishing or using a false *attestation* — 1 year and
+  €15,000, raised to **3 years and €45,000** when done "en vue de porter
+  préjudice au Trésor public", which is this case. The headline figure in
+  Appendix C is right; the article is imprecise.
+- **`LOI n° 2026-534 du 25 juin 2026, art. 87`** added a second paragraph to
+  art. 286-I-3° bis: archived data must be "restituées dans un format répondant
+  aux normes établies par l'administration". In force 27 June 2026. The
+  implementing text was not located. **This is a live obligation and HibaPOS's
+  archive is a bespoke schema** — recorded as **L-52**.
+- **`Ordonnance n° 2026-671 du 27 juillet 2026`** moves the obligation into the
+  CIBS from **1 January 2027**. The 2027 text of art. 1770 duodecies and LPF
+  art. L. 80 O both refer only to *"le certificat"*. Whether the éditeur's
+  *attestation* survives the recodification **was not verified**.
+
+Also worth recording against Appendix C's "Accredited certifiers" line: the
+éditeur's self-attestation was **abolished** by the 2025 finance law (loi
+n° 2025-127, art. 43) and **restored** by loi n° 2026-103 art. 125 on
+21 February 2026. Much of the public commentary still describes accredited
+certification as compulsory; as of that date it is one of two routes, not the
+only one.
+
 **9. A ninth, found while writing this note and not in the original audit:
 `:140` (item 6a) describes a Zod enum of `COMPLETED`/`REFUNDED`/`CANCELLED`/
 `PENDING`.** `CANCELLED` and `PENDING` were removed from `OrderStatus` in
