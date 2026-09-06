@@ -2,7 +2,7 @@
 // No database access here: these helpers are split out so they can be unit-tested
 // without a Prisma client. The DB-bound appendFiscalEvent/verifyFiscalChain live
 // in src/lib/services/fiscal.ts and import from this module.
-import { createHash } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 
 export type FiscalEventType =
   | "VENTE"
@@ -68,31 +68,49 @@ export function canonicalize(value: unknown): string {
   return "null";
 }
 
-/** SHA-256 of the canonical event fields. `previousHash` chains this event to
- *  its predecessor; `sequence` guarantees ordering even under clock skew. */
+/**
+ * The fingerprint of one journal entry. `previousHash` chains this event to its
+ * predecessor; `sequence` guarantees ordering even under clock skew.
+ *
+ * DD-25 (Batch 3.9) added `key`. With it the fingerprint is HMAC-SHA-256 and
+ * cannot be reproduced from the source code alone; without it the function is
+ * byte-for-byte what it always was, so **every event written before the key was
+ * armed still verifies unchanged**. That is not a courtesy: the journal in
+ * existence today was written unkeyed, and a change that silently invalidated
+ * it would destroy the very thing the chain exists to prove.
+ *
+ * The key is never defaulted here. `services/fiscal.ts` reads it from the
+ * environment and passes it in, so this module stays pure and a test can pin
+ * both modes without touching `process.env`.
+ */
 export function computeEventHash(
   previousHash: string | null,
   sequence: number,
   type: FiscalEventType,
   timestamp: Date,
   dataJson: string,
+  key?: string | null,
 ): string {
-  return createHash("sha256")
-    .update(`${previousHash ?? ""}|${sequence}|${type}|${timestamp.toISOString()}|${dataJson}`)
-    .digest("hex");
+  const material = `${previousHash ?? ""}|${sequence}|${type}|${timestamp.toISOString()}|${dataJson}`;
+  return key
+    ? createHmac("sha256", key).update(material).digest("hex")
+    : createHash("sha256").update(material).digest("hex");
 }
 
-/** SHA-256 of a sealed clôture (monthly/annual). Chained off the previous close
- *  of the same kind so the clôture sequence is independently verifiable. */
+/** The fingerprint of a sealed clôture (daily/monthly/annual). Chained off the
+ *  previous close of the same kind so each clôture sequence is independently
+ *  verifiable. Keyed on the same terms as `computeEventHash` (DD-25). */
 export function computeCloseHash(
   previousHash: string | null,
   period: string,
   timestamp: Date,
   dataJson: string,
+  key?: string | null,
 ): string {
-  return createHash("sha256")
-    .update(`${previousHash ?? ""}|${period}|${timestamp.toISOString()}|${dataJson}`)
-    .digest("hex");
+  const material = `${previousHash ?? ""}|${period}|${timestamp.toISOString()}|${dataJson}`;
+  return key
+    ? createHmac("sha256", key).update(material).digest("hex")
+    : createHash("sha256").update(material).digest("hex");
 }
 
 export type ChainVerifyResult = {
@@ -126,6 +144,7 @@ export type ChainEventRow = {
 export function verifyEventsChunk(
   events: ChainEventRow[],
   previousHash: string | null,
+  key?: string | null,
 ): {
   ok: boolean;
   checked: number;
@@ -148,6 +167,7 @@ export function verifyEventsChunk(
       e.type as FiscalEventType,
       e.timestamp,
       e.dataJson,
+      key,
     );
     if (recomputed !== e.hash) {
       return { ok: false, checked: i, firstBreakAt: e.sequence, lastHash: prev, lastSequence };
@@ -165,10 +185,10 @@ export function verifyEventsChunk(
   };
 }
 
-export function verifyEvents(events: ChainEventRow[]): ChainVerifyResult {
+export function verifyEvents(events: ChainEventRow[], key?: string | null): ChainVerifyResult {
   const sorted = [...events].sort((a, b) => a.sequence - b.sequence);
   const lastSequence = sorted.length ? sorted[sorted.length - 1].sequence : 0;
-  const result = verifyEventsChunk(sorted, null);
+  const result = verifyEventsChunk(sorted, null, key);
   return {
     ok: result.ok,
     eventsChecked: result.checked,
@@ -181,6 +201,7 @@ export function verifyEvents(events: ChainEventRow[]): ChainVerifyResult {
 /** Pure verification of a clôture (close) sequence — monthly or annual. */
 export function verifyCloses(
   closes: { period: string; timestamp: Date; dataJson: string; previousHash: string | null; hash: string }[],
+  key?: string | null,
 ): ChainVerifyResult {
   const sorted = [...closes].sort((a, b) => a.period.localeCompare(b.period));
   const lastSequence = sorted.length ? sorted.length : 0;
@@ -190,7 +211,7 @@ export function verifyCloses(
     if (c.previousHash !== expectedPrev) {
       return { ok: false, eventsChecked: i, firstBreakAt: i + 1, lastSequence };
     }
-    const recomputed = computeCloseHash(c.previousHash, c.period, c.timestamp, c.dataJson);
+    const recomputed = computeCloseHash(c.previousHash, c.period, c.timestamp, c.dataJson, key);
     if (recomputed !== c.hash) {
       return { ok: false, eventsChecked: i, firstBreakAt: i + 1, lastSequence };
     }

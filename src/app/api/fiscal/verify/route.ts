@@ -5,7 +5,9 @@ import {
   verifyDailyCloses,
   verifyMonthlyCloses,
   verifyAnnualCloses,
+  diagnoseChainKey,
 } from "@/lib/services/fiscal";
+import { isChainKeyed } from "@/lib/fiscal-key";
 import { db } from "@/lib/db";
 import { SOFTWARE_NAME, SOFTWARE_VERSION } from "@/lib/version";
 
@@ -27,9 +29,17 @@ export const GET = withAuth(
       db.grandTotal.findUnique({ where: { id: "singleton" } }),
       db.fiscalEvent.count(),
     ]);
+    // DD-25 (Batch 3.9): when the journal does not verify, say whether the key
+    // explains it. A missing key and a rewritten record look identical here,
+    // and reporting the first as the second sends someone hunting a fraud that
+    // did not happen. `keyed` reports only WHETHER a key is configured — never
+    // the key, and never a fragment of it.
+    const keyDiagnosis = events.ok ? null : await diagnoseChainKey();
     return NextResponse.json({
       software: { name: SOFTWARE_NAME, version: SOFTWARE_VERSION },
+      chainKeyed: isChainKeyed(),
       fiscalEvents: { ...events, total: eventCount },
+      ...(keyDiagnosis ? { keyDiagnosis } : {}),
       dailyCloses: daily,
       monthlyCloses: monthly,
       annualCloses: annual,

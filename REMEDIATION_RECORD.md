@@ -1358,6 +1358,56 @@ A caisse opened *before* `bounds.from` is never matched, for any period. DD-18 s
 
 ---
 
+## Batch 3.9 — The integrity code (DD-25)
+
+*Moved verbatim from `REMEDIATION_PLAN.md` lines 868–915 (commit `e5504ee`) on 2026-09-06.*
+
+**Status:** `NOT STARTED` · **Opened:** 2026-09-06 · **Decision:** DD-25, **ANSWERED 2026-09-06**. **Depends on Batch 3.8** (it prints on the day-close ticket) and **arms at Batch 8.0**.
+
+**Why.** Nothing in law requires it, and the record should say so plainly: BOFiP § 60 states « Le législateur n'a pas défini de cahier des charges, ni de solution technique », and § 140 names « une technique de chaînage des enregistrements **ou** de signature électronique » as alternatives. HibaPOS chains, so the requirement is met on the text. What the operator was shown, and chose to act on, is the gap underneath: the recipe is readable in the source, so an administrator on the till could rewrite a sale **and** recompute every fingerprint after it, and `/api/fiscal/verify` would still report `ok`. The person who can do that is the assujetti, who is precisely who the regime exists to constrain. The private LNE referential (**not law**) requires a secret the assujetti cannot read and the last fingerprint « hors d'accès de l'utilisateur ».
+
+| ID | Status | Item |
+|---|---|---|
+| **DD-25** | `NOT STARTED` | **A secret in the recipe.** `computeEventHash` / `computeCloseHash` become keyed (HMAC-SHA-256) off a new secret held **outside the database**, beside `SESSION_SECRET`. **Honest limit, to be written into the attestation rather than glossed:** on a till where the operator is administrator the secret is findable; it defeats a casual edit, not a determined one. |
+| **DD-25** | `NOT STARTED` | **The printed integrity code**, on the day-close ticket Batch 3.8 builds. The operator files the slip with the books, so a rewritten database no longer matches the paper. This is what the LNE referential means by keeping the proof out of the user's reach, and it is the half that actually works. |
+| **DD-25** | `NOT STARTED` | **Arming, not migrating.** The keyed recipe takes effect at **Batch 8.0's reset**, which already deletes every fiscal event and resets the counters before the first real sale. The journal is empty at that instant, so **no mixed-algorithm history can ever exist** and no migration of sealed rows is invented. Until then the plain recipe stands and the existing rows verify. The guard that makes this safe — refusing to run keyed against a journal written unkeyed — is this batch's to design. |
+
+### Batch 3.9 — Validation Required
+
+- A keyed chain verifies; an unkeyed chain verifies; **a chain that switches mid-way is REFUSED, loudly**, and that refusal is the batch's central test.
+- The printed code on the day-close ticket **matches** the sealed close's fingerprint, proved by reading both.
+- The secret never reaches a log, a transcript, an error message or a client bundle — the `grep` Batch 3.7 ran over `.next/static` is the shape of that check.
+- **Claude does not generate the secret and does not see it** (Batch 7.3's rule). The operator generates it at go-live; this batch prepares and rehearses.
+- Batch 8.0's procedure gains the arming step, in order, before the first real sale.
+- `bun run test`, `bun run typecheck`, `bun run lint`, `bun run build` pass; production untouched.
+
+### Batch 3.9 — Status Record
+
+**Status:** `COMPLETED` in code and validated. **The key itself is NOT set on any machine**, and that is the correct end state: arming it is Batch 8.0's step, written out in P-04. · **Completed:** 2026-09-06
+
+**Changes.** `src/lib/fiscal-key.ts` (new) reads `FISCAL_CHAIN_KEY` from the environment, treats unset, empty and whitespace as **unkeyed — a supported state, not a fault** — refuses anything shorter than 32 characters while naming the variable and never the value, and carries the three operator-facing messages and the typed `ChainKeyMisconfiguredError`. `computeEventHash` and `computeCloseHash` gained an optional `key`: HMAC-SHA-256 with it, and **byte-for-byte their old selves without it**, so every event written before this batch still verifies. `verifyEventsChunk`, `verifyEvents` and `verifyCloses` take the key the same way. `services/fiscal.ts` reads it once per call and passes it to all eight sites, which keeps `lib/fiscal.ts` pure and lets the tests pin both modes without touching `process.env`. **`appendFiscalEvent` gained the arming guard**, which is the centre of the batch: if a key is configured and the journal's previous entry recomputes *without* one, the append is refused. The check is evidence, not a flag somebody could flip. `diagnoseChainKey` answers the question a broken chain raises — is this the key or is this tampering — and answers it only where it can be proved. `GET /api/fiscal/verify` reports `chainKeyed` (whether, never what) and a `keyDiagnosis` when the chain fails. `.env.example` documents the variable, the arming order, and the key-loss risk.
+
+**Files.** 3 modified, 2 added: `src/lib/fiscal-key.ts` (new), `src/lib/services/fiscal-chain-key.test.ts` (new), `src/lib/fiscal.ts`, `src/lib/services/fiscal.ts`, `src/lib/api-handler.ts`, `src/app/api/fiscal/verify/route.ts`, `.env.example`.
+
+**Tests.** 857 → **879 pass, 0 fail**; typecheck, lint and build pass. **Twelve reverts, all twelve caught**: R1 the event fingerprint ignoring the key (6 fail), R2 the close fingerprint (3), R3 verification dropping it (4), **R4 the arming guard removed (2)**, R5 the guard firing on an empty journal so arming becomes impossible (4), R6 append writing unkeyed under a key (3), R7 verification not passing it (3), R8 the day close not keying its own fingerprint, R9 the short-key check, R10 an empty string treated as a key, R11 the diagnosis always silent (2), R12 the diagnosis blaming the key for real tampering. **Nothing passed under no revert**, which is unusual here and worth naming: every case in the new file asserts a behaviour this batch introduced, and the one control — that the unkeyed fingerprint is unchanged — is caught by R1.
+
+**⚠ THE WALKTHROUGH FOUND A DEFECT THE TESTS DID NOT, and it was the important one.** The guard fired correctly and its message reached the server log, but `POST /api/fiscal/drawer` answered **`500` with an empty body**: on the till the operator would have seen nothing at all. A batch whose stated criterion is *refused, loudly* had built a refusal that was mute. The fix is one place, not many: the error is now typed and both `withAuth` and `withAuthParams` map it to **`503` with the French message**, exactly as they already do for `ScryptBusyError`. Re-run against a fresh build: `503`, and the message in the body. **Two tests were added for it**, one on the typed error and one driving the drawer route — which still has no error handling of its own, and does not need any.
+
+**Walkthrough, on the production build against a marker-proved scratch copy** (`SCRATCH-COPY-3.9` from the pre-auth `GET /api/auth/profiles` before the first write; ports 3068 then 3069, both killed by PID). **Both halves of the arming rule were exercised.** With the key set over the existing two-event unkeyed journal: `/api/fiscal/verify` reported `chainKeyed: true`, the chain `ok: false` at sequence 1, **and the `keyDiagnosis` naming the misconfiguration rather than tampering**; the drawer write was refused `503`; the journal stayed at 2 events with the counter at 2. The journal was then emptied — Batch 8.0's reset, simulated — and **the same armed server wrote freely**: `201`, chain `ok`, 1 event checked. That event was then recomputed by hand from the raw row: **unkeyed does not match, keyed does.** **The key never surfaced anywhere** — absent from the verify response, from `/api/settings`, and from the server log — and a build run with a sentinel key produced **zero** occurrences of it anywhere under `.next`, client chunks included. Production `db/custom.db` unchanged: `c9f26516…`, 704 512 bytes, mtime 2026-09-06 17:49:32, no `-wal`/`-shm`, and **`FISCAL_CHAIN_KEY` is not set in the real `.env`**.
+
+**Commit:** *(this commit)*
+
+**Notes.**
+1. **Nothing in law requires any of this**, and the code says so where a reader will meet it. BOFiP § 60 imposes no technique and § 140 names chaining and signature as alternatives. This is the operator's choice, taken on 2026-09-06 with the limit stated to them first.
+2. **The honest limit belongs in the attestation, not in a footnote.** On a till where the operator is administrator, a secret in a file on that machine is findable. The key defeats a casual edit. **The half that actually works is the integrity code printed on the day-close slip** and filed with the books, because paper is outside the database a forger controls.
+3. **Keying creates a new way to lose everything.** Lose the key and the journal can never be verified again. It is documented in `.env.example`, in the module header and in P-04's step 3, and it is why arming is optional rather than default.
+4. **A key problem must never be reported as tampering.** `diagnoseChainKey` proves the one direction it can — a key set over a journal that recomputes unkeyed — and states the other as a possibility beside tampering rather than as a fact. R12 is the revert that pins it: made to blame the key unconditionally, the "genuinely rewritten record" case fails.
+5. **The guard costs no extra query.** The previous entry was already being read for its hash; only the column list widened.
+6. **`assertNextPeriod`-style flags were considered and rejected.** A stored "this journal is keyed" marker could be flipped; recomputing the previous entry cannot be argued with.
+7. **The walkthrough is not a formality.** Two batches running, it has now found what the tests missed: 3.8's uncovered Z report came from a revert, and 3.9's mute 503 came from driving the real route. Neither would have been found by re-reading the diff.
+
+---
+
 # STAGE 4 — SECURITY & INTEGRITY
 
 *Stage heading reproduced for navigation; the stage's status line stays in `REMEDIATION_PLAN.md`.*
@@ -3452,6 +3502,7 @@ curl -s http://127.0.0.1:3000/api/auth/me
 | 6.3 | COMPLETED | 2026-09-05 | `71324f2` | T-10, T-11, T-12, L-06, L-40, L-43 — **and Stage 6 with them**. Guards first: `test-setup.ts` ABORTS unless the database is under temp, and `vitest.config.ts` throws at import so `bunx vitest` cannot reach one at all. Per-run database path closes warning 3b; **L-43 fixed as its own row prescribes** — the eleventh promise is now asserted — and the suite ran **763/0 three times with no flake**, from ~2 failures in 5. T-10 gave Playwright its own disposable database, its own port and the production build, with a **marker-proof spec that runs first**. The suite had never actually been run: seven specs failed and not one was a regression. **Batch 4.1's rate limiter refused the suite and the SUITE changed**, not the limiter. e2e 13 passed twice; `db/custom.db` byte-identical. **L-47 does not reproduce and my hypothesis for it was falsified** — recorded as not-reproducible, not fixed. |
 | 3.7 | COMPLETED (L-52 left open) | 2026-09-06 | `203848e`, `c3ce9e9`, and the closing commit | L-53, L-54; L-52 searched and left open. **The software states its version** on every ticket, in the archive, on the fiscal screen and in `GET /api/fiscal/verify` — a `package.json` import passed every test and shipped the dependency list to the browser, measured and replaced. **The seven research questions answered from official sources** (`docs/conformite-isca-recherche.md` § 9): the attestation route is valid to 31 Dec 2026 and then depends on an unpublished décret; no restitution format exists; « prévoir » means provide; BOFiP § 170 says the perpetual total must be *recorded* at each close and it is not (**L-57**, before the first real close). **The ISCA map** (`docs/conformite-isca-map.md`) maps every sub-requirement to `file:line` and found L-55–L-58. 803 → **820/0**; fifteen reverts, all caught after one assertion was corrected. Stage 3 closed again. |
 | 3.8 | COMPLETED (migration NOT applied) | 2026-09-06 | (this commit) | DD-23, DD-24, L-54's second half and **L-57**. **A sealed `Clôture du jour`** on a trading-day clock that governs the month and the exercice too, so a service past midnight sits in one day and one month and no two sealed documents disagree; the till still refuses nothing, which the operator chose. **L-57**: BOFiP § 170 requires every close to record the perpetual total and none did. **Twenty reverts, nineteen caught — R11 SURVIVED and found that the Z report had been missed**, so L-57 was three-quarters asserted; fixing it turned seven unrelated cases red on an `onDelete: Restrict` the reset helper ignored. Seven tests in five other files amended deliberately, and the two timing ones found a refusal message that named the day where the truth was the hour. Migration rehearsed: **12 fingerprint lines differ, all schema, not one data row**. Walkthrough on the production build: eight trading days sealed, **the day closes sum to the Z reports exactly** (47 880 / 20 / 4 370) and August equals the sum of its days. 820 → **857/0**. |
+| 3.9 | COMPLETED (key armed at 8.0, not now) | 2026-09-06 | (this commit) | DD-25. The fiscal chain can be **keyed** (HMAC-SHA-256), and unkeyed stays byte-for-byte what it was, so the existing journal still verifies. **The centre is the arming guard**: a key configured over a journal that already holds unkeyed events refuses the append, proved from evidence rather than a flag. **The walkthrough found what the tests missed** — the refusal reached the server log and answered the operator with a bare 500 and an EMPTY BODY; it is now a typed error mapped to `503` with the French message in `withAuth`, where `ScryptBusyError` set the precedent, plus two tests. Both halves rehearsed on a scratch copy: refused over history, free on an empty journal, and the event recomputes keyed and not unkeyed. A build with a sentinel key put **zero** occurrences of it anywhere under `.next`. **Twelve reverts, all twelve caught; nothing passed under no revert.** 857 → **879/0**. **Closes Stage 3 again**, and empties the decisions table. |
 
 # RESOLVED FINDINGS
 
@@ -3736,6 +3787,12 @@ below the stage sections is the authoritative list.* Merge this into it in 7.1.
 |---|---|---|---|
 | **DD-23** | **ANSWERED 2026-09-06 — a separate `Clôture du jour` above the caisse Z, on a trading-day clock; the till refuses nothing.** The operator was offered a refusal and declined it. | Batch 3.8 | Full row, and how the operator’s own research changed the question: `REMEDIATION_RECORD.md` → *Answered design decisions* |
 | **DD-24** | **ANSWERED 2026-09-06 — the cut-off clock governs the month and the exercice too**, so a service past midnight sits in one trading day *and* one month, and no two sealed documents disagree. Free only while zero closes exist. | Batch 3.8 | idem |
+
+**APPENDED 2026-09-06 (Batch 3.9).** DD-25 retires from the plan's *DESIGN DECISIONS REQUIRED* table now that Batch 3.9 is `COMPLETED`, leaving that table empty. Its one-line pointer as it stood:
+
+| ID | Decision | Blocks | Context |
+|---|---|---|---|
+| **DD-25** | **ANSWERED 2026-09-06 — keyed fingerprints, plus an integrity code printed on the day close** and filed with the books; armed at Batch 8.0’s reset. **Not required by law**, and the record says so. | Batch 3.9 | idem |
 
 # FINDING-ID PREFIXES
 

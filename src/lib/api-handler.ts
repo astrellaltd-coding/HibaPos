@@ -9,6 +9,7 @@ import {
   PIN_HASH_BUSY_MESSAGE,
   PIN_HASH_BUSY_RETRY_AFTER_SEC,
 } from "@/lib/pin-hash-queue";
+import { isChainKeyMisconfigured } from "@/lib/fiscal-key";
 
 export type RequestContext = { params: Promise<Record<string, string | string[]>> };
 
@@ -84,6 +85,19 @@ function maintenanceResponse(): NextResponse | null {
  * returns it, so a caller flooding the till with PIN guesses is told to come
  * back rather than being allowed to queue unbounded 128 MiB derivations.
  */
+/**
+ * DD-25 (Batch 3.9) — the fiscal chain key is misconfigured, so nothing may be
+ * written to the journal.
+ *
+ * 503, not 500: the request is fine and the caller can do nothing about it; the
+ * service is configured wrongly and must not trade until it is fixed. The
+ * message is the operator-facing one, in French, because a bare 500 with an
+ * empty body is what the walkthrough actually produced and it told them nothing.
+ */
+export function chainKeyMisconfiguredResponse(message: string): NextResponse {
+  return NextResponse.json({ error: message }, { status: 503 });
+}
+
 export function scryptBusyResponse(): NextResponse {
   return NextResponse.json(
     { error: PIN_HASH_BUSY_MESSAGE, busy: true },
@@ -116,6 +130,7 @@ export function withAuth<T>(
       return await handler(req, { session, user });
     } catch (e) {
       if (isScryptBusyError(e)) return scryptBusyResponse();
+      if (isChainKeyMisconfigured(e)) return chainKeyMisconfiguredResponse(e.message);
       throw e;
     }
   }, options?.roles);
@@ -146,6 +161,7 @@ export function withAuthParams<T>(
       return await handler(req, { session, user, params });
     } catch (e) {
       if (isScryptBusyError(e)) return scryptBusyResponse();
+      if (isChainKeyMisconfigured(e)) return chainKeyMisconfiguredResponse(e.message);
       throw e;
     }
   }, options?.roles);

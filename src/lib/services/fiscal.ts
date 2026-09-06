@@ -24,6 +24,12 @@ import {
   type PeriodBounds,
 } from "@/lib/period";
 import { getSettings } from "@/lib/services/settings";
+import {
+  fiscalChainKey,
+  ChainKeyMisconfiguredError,
+  CHAIN_KEY_DIAGNOSIS_KEYED_JOURNAL,
+  CHAIN_KEY_DIAGNOSIS_UNKEYED_JOURNAL,
+} from "@/lib/fiscal-key";
 import { type VatBreakdown } from "@/lib/money";
 import {
   aggregateOrders,
@@ -59,17 +65,53 @@ type AppendOpts = {
  *  consistent. */
 export async function appendFiscalEvent(tx: Tx, opts: AppendOpts) {
   const sequence = await nextFiscalEventSequence(tx);
+  // DD-25 (Batch 3.9): the previous row is fetched WHOLE rather than just its
+  // hash, so the arming guard below costs no extra query. It was already being
+  // read; only the column list widened.
   const previous =
     sequence > 1
       ? await tx.fiscalEvent.findUnique({
           where: { sequence: sequence - 1 },
-          select: { hash: true },
+          select: {
+            hash: true,
+            sequence: true,
+            type: true,
+            timestamp: true,
+            dataJson: true,
+            previousHash: true,
+          },
         })
       : null;
+
+  // DD-25 — THE ARMING GUARD, and it is the centre of this batch.
+  //
+  // A chain half-written without the key and half with it verifies under
+  // neither mode, and the failure would read as tampering rather than as the
+  // misconfiguration it is. So: if a key is configured and the journal ALREADY
+  // HOLDS an event that verifies WITHOUT one, refuse to append. The check is
+  // evidence, not a flag somebody could flip — recomputing the previous entry
+  // unkeyed and finding it matches is proof that the journal is unkeyed.
+  //
+  // An EMPTY journal is the one state where arming is correct, which is exactly
+  // the state Batch 8.0 leaves behind: reset, then set the key, then the first
+  // real sale. That ordering is written into P-04.
+  const key = fiscalChainKey();
+  if (key && previous) {
+    const unkeyed = computeEventHash(
+      previous.previousHash,
+      previous.sequence,
+      previous.type as FiscalEventType,
+      previous.timestamp,
+      previous.dataJson,
+      null,
+    );
+    if (unkeyed === previous.hash) throw new ChainKeyMisconfiguredError();
+  }
+
   const previousHash = previous?.hash ?? null;
   const timestamp = new Date();
   const dataJson = canonicalize(opts.data);
-  const hash = computeEventHash(previousHash, sequence, opts.type, timestamp, dataJson);
+  const hash = computeEventHash(previousHash, sequence, opts.type, timestamp, dataJson, key);
   return tx.fiscalEvent.create({
     data: {
       sequence,
@@ -211,7 +253,7 @@ export async function verifyFiscalChain(chunkSize = 1000): Promise<ChainVerifyRe
     });
     if (page.length === 0) break;
 
-    const result = verifyEventsChunk(page, previousHash);
+    const result = verifyEventsChunk(page, previousHash, fiscalChainKey());
     eventsChecked += result.checked;
     if (result.lastSequence) lastSequence = result.lastSequence;
 
@@ -251,6 +293,7 @@ export async function verifyMonthlyCloses(): Promise<ChainVerifyResult> {
       previousHash: c.previousHash,
       hash: c.hash,
     })),
+    fiscalChainKey(),
   );
 }
 
@@ -267,6 +310,7 @@ export async function verifyAnnualCloses(): Promise<ChainVerifyResult> {
       previousHash: c.previousHash,
       hash: c.hash,
     })),
+    fiscalChainKey(),
   );
 }
 
@@ -583,7 +627,7 @@ export async function closeDay(
     const perpetual = await perpetualSnapshot(tx); // L-57
     const dataPayload = { period: day, year, month, day: dayOfMonth, cutoffHour, perpetual, ...agg };
     const dataJson = canonicalize(dataPayload);
-    const hash = computeCloseHash(previousHash, day, timestamp, dataJson);
+    const hash = computeCloseHash(previousHash, day, timestamp, dataJson, fiscalChainKey());
 
     const close = await tx.dailyClose.create({
       data: {
@@ -638,6 +682,68 @@ export async function closeDay(
 
 /** Pure verification of the DAILY close chain, alongside the monthly and annual
  *  ones. Same algorithm, same `verifyCloses` — there is deliberately one. */
+/**
+ * DD-25 (Batch 3.9) — why the chain does not verify, when the answer is the key
+ * rather than tampering.
+ *
+ * A broken chain and a missing key look identical to `verifyFiscalChain`: every
+ * hash fails. Reporting a key problem as tampering would be the worse of the
+ * two errors, because it invites someone to go looking for a fraud that did not
+ * happen. So when the journal does not verify under the configured mode, this
+ * asks one narrow question with a definite answer: does the FIRST event verify
+ * under the other mode?
+ *
+ * Only one direction can be proved. If a key is configured and event 1 verifies
+ * without it, the journal is unkeyed and the key was armed too late — that is
+ * certain. The reverse cannot be proved, because checking it would need the key
+ * that is missing; it is reported as the likelihood it is, alongside tampering,
+ * and never as a diagnosis dressed up as a fact.
+ *
+ * Returns `null` when the chain verifies, or when nothing about the key
+ * explains the break.
+ */
+export async function diagnoseChainKey(): Promise<string | null> {
+  const first = await db.fiscalEvent.findFirst({
+    orderBy: { sequence: "asc" },
+    select: {
+      sequence: true,
+      type: true,
+      timestamp: true,
+      dataJson: true,
+      previousHash: true,
+      hash: true,
+    },
+  });
+  if (!first) return null;
+
+  const key = fiscalChainKey();
+  const asConfigured = computeEventHash(
+    first.previousHash,
+    first.sequence,
+    first.type as FiscalEventType,
+    first.timestamp,
+    first.dataJson,
+    key,
+  );
+  if (asConfigured === first.hash) return null; // the mode is right; any break is elsewhere
+
+  if (key) {
+    const unkeyed = computeEventHash(
+      first.previousHash,
+      first.sequence,
+      first.type as FiscalEventType,
+      first.timestamp,
+      first.dataJson,
+      null,
+    );
+    if (unkeyed === first.hash) return CHAIN_KEY_DIAGNOSIS_UNKEYED_JOURNAL;
+    return null; // a key is set and neither mode fits: this is not a key problem
+  }
+  // No key here, and the journal does not verify unkeyed. Cannot be proved
+  // without the key, so it is stated as one of two possibilities, not as fact.
+  return CHAIN_KEY_DIAGNOSIS_KEYED_JOURNAL;
+}
+
 export async function verifyDailyCloses(): Promise<ChainVerifyResult> {
   const closes = await db.dailyClose.findMany({
     orderBy: { period: "asc" },
@@ -651,6 +757,7 @@ export async function verifyDailyCloses(): Promise<ChainVerifyResult> {
       previousHash: c.previousHash,
       hash: c.hash,
     })),
+    fiscalChainKey(),
   );
 }
 
@@ -710,7 +817,7 @@ export async function closeMonth(
       ...agg,
     };
     const dataJson = canonicalize(dataPayload);
-    const hash = computeCloseHash(previousHash, period, timestamp, dataJson);
+    const hash = computeCloseHash(previousHash, period, timestamp, dataJson, fiscalChainKey());
 
     const close = await tx.monthlyClose.create({
       data: {
@@ -810,7 +917,7 @@ export async function closeYear(
     const perpetual = await perpetualSnapshot(tx); // L-57
     const dataPayload = { period, year, cutoffHour, perpetual, ...agg };
     const dataJson = canonicalize(dataPayload);
-    const hash = computeCloseHash(previousHash, period, timestamp, dataJson);
+    const hash = computeCloseHash(previousHash, period, timestamp, dataJson, fiscalChainKey());
 
     const close = await tx.annualClose.create({
       data: {
