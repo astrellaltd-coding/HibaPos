@@ -11,19 +11,19 @@ Detailed audit record: https://claude.ai/code/artifact/329316b0-3a6b-48b0-9d27-d
 
 **Overall:** NOT READY FOR PRODUCTION
 
-**Current Stage:** **Stage 7 is COMPLETED** — 7.1, 7.2, 7.4a, 7.4b, 7.4c and 7.3, all 2026-09-05, though **7.3's rotation itself is an operator action not yet done** (*Open Threads → B*). **Stages 5 and 6 are COMPLETED** too, the same day. **The next unstarted stage is 8 (FINAL VALIDATION)**, and most of it waits on hardware. **Stage 4 is COMPLETED** (4.1 through 4.4, 4.4b, 4.4c, 4.5, 4.6 and 4.7, all 2026-09-04). **Stage 3 is COMPLETED** (twelve batches; **3.6c** reopened it 2026-09-05 for L-27 and closed it the same day). C-22's chain-design half stays carried forward as `REQUIRES EXTERNAL VERIFICATION`, and V-03 is open. Stage 1 is **partly done**: 1.1 and 1.2 COMPLETED, 1.3 `IMPLEMENTED — TESTING REQUIRED` on hardware, 1.4 deferred. Stage 2 is COMPLETED.
+**Current Stage:** **Stages 0 and 2 through 7 are all COMPLETED.** Stage 1 is partly done — 1.1 and 1.2 COMPLETED, **1.3 `IMPLEMENTED — TESTING REQUIRED`** on hardware, **1.4 `NOT STARTED`**. **Stage 8 is `NOT STARTED`** and mostly waits on 1.3 and 1.4; 8.1 does not. C-22's chain-design half stays `REQUIRES EXTERNAL VERIFICATION` (V-01) and V-03 is open. Per-batch dates: the completion history in `REMEDIATION_RECORD.md`.
 
 **Current Batch:** none. **Stages 5, 6 and 7 are all finished**, and every batch this repository can complete without hardware is complete. What remains: **Batch 1.3's `[HW]` sign-off and 1.4**, both blocked on the POS machine; **Batch 8.0's pre-go-live fiscal reset**, which must run after them; **8.1 and 8.2**; C-22's chain-design half and V-01…V-03, which need a qualified external party; and **7.3's secret rotation**, which is prepared, rehearsed and waiting on the operator.
 
-**Last Completed Batch:** Batch 7.3 — secret rotation prepared, rehearsed and **handed over**, which **completes Stage 7**. L-04's leaked standalone tree was already gone (removed in 2.4) and never entered git; a sweep found the live values in `.env` and nowhere else. **The rotation itself is NOT done** — it is the operator's, in *Open Threads → B*. The rehearsal proves all three criteria, and **took three attempts because the first two measured the wrong thing**: `GET /api/auth/me` answers 200-with-null, and `/api/auth/profiles` never imports `auth.ts`. *Assert the thing the finding is about, not the thing that is easy to read.* **798 tests, 0 fail.** *(Before it: 7.4c, 7.4b, 7.4a, 7.2, 7.1, Stage 6.)*
+**Last Completed Batch:** Batch 7.3 — secret rotation prepared, rehearsed and **handed over**, completing Stage 7. **The rotation itself is NOT done**; it is the operator's (*Open Threads → B*). Full account, and the three lessons this session ends on, in `REMEDIATION_RECORD.md` → *Batch 7.3* and *Last Updated* below.
 
 **Next Batch:** **Stage 8 — final validation**, and read its ordering first: **8.0's pre-go-live fiscal reset must run AFTER Batches 1.3 and 1.4**, both blocked on hardware, because commissioning would otherwise put fresh test sales into the journal that was just reset. **8.1's review work is what can start now.** Before any of it, the two operator actions in *Open Threads → B* — the secret rotation (7.3) and the `printerName` correction — and the seven findings still open, none of which is orphaned.
 
-**Blocked:** Batch 1.3 `[HW]` sign-off and Batch 1.4 — both need the app running on the restaurant's POS machine, which is in a different country from the developer and has no copy of the app installed (decision of 2026-09-03).
+**Blocked:** Batch 1.3's `[HW]` sign-off and Batch 1.4. **The blocker CHANGED on 2026-09-06 and is no longer access.** The operator confirmed that **remote access to the restaurant's POS machine is available on request** — AnyDesk, Windows Remote or similar, granted by the owner on demand. What remains is that the app is **not installed there yet**, and the operator has chosen the order deliberately: finish this plan, then a separate audit, then package it as a Windows application, then install remotely, and only then commission the printer and drawer. **That sequencing work is OUTSIDE this plan by the operator's instruction** — this file stays a fix-the-app plan — so 1.3 and 1.4 wait on it rather than on hardware being unreachable.
 
 **Awaiting decision:** **nothing — every design decision in this plan is answered**, DD-20, DD-21 and DD-22 last, on 2026-09-05 (they are Batch 7.4's, and each was put to the operator before a line was written). No batch is blocked on a decision and nothing waits on the operator; what remains blocked is blocked on hardware. The answers and the measurements behind them: `REMEDIATION_RECORD.md` → *Answered design decisions*.
 
-**Last Updated:** 2026-09-05 (session 15 — **Stages 5, 6 AND 7 all completed**: 5.6, the 5.7 split, 5.7a–5.7d, 6.1–6.3, 7.1, 7.2, the 7.4 split, 7.4a–7.4c and 7.3). Three things to carry forward. (1) **Assert the thing the finding is about, not the thing that is easy to read.** Three assertions this session measured a status where the body carried the answer (`/api/auth/me` answers 200-with-null), or a clock where a status code did — and one of them PASSED under its own revert. **Run the revert.** (2) **A test that passes locally is not a test that passes.** `bun test` compiles nothing, so a file can pass and not typecheck; and a partial wipe passes until the file order changes — CI caught both, which is what 6.3 added it for. (3) **The list a batch is handed is evidence, not instruction**: two of L-07's ten entries were wrong, `src/lib/db.ts`'s stale citation did not exist, and `http-rate-limit.ts`'s rationale was correct. Verify before deleting, and say so when the plan is the thing that was wrong. **Front matter: retire before you add, and measure at the END of a session.**
+**Last Updated:** 2026-09-06 (session 15 — **Stages 5, 6 AND 7 all completed**, then a French-law gap check). Four things to carry forward. (1) **Assert the thing the finding is about, not the thing that is easy to read.** Three assertions this session measured a status where the body carried the answer (`/api/auth/me` answers 200-with-null), or a clock where a status code did — and one PASSED under its own revert. **Run the revert.** (2) **A test that passes locally is not a test that passes**: `bun test` compiles nothing, and a partial wipe passes until the file order changes — CI caught both. (3) **The list a batch is handed is evidence, not instruction** — two of L-07's ten entries were wrong and one stale citation did not exist. (4) **The law moved and nothing here knew** — two 2026 texts post-date the assistant's knowledge cutoff; `docs/conformite-isca-recherche.md` carries them with sources. **Front matter: retire before you add, and `plan-freshness.test.ts` now fails the build if an open finding names a COMPLETED batch.**
 
 ### OPEN THREADS — read this before starting a batch
 
@@ -71,12 +71,9 @@ Batch 1.4, and Batch 8.2.
   index maps `C-10 → 3.2`, `C-16 → 3.3` and so on.
 - **Batch 1.4 carries the deployment step** that activates WAL,
   `BACKUP_LOCATION` and `HIBAPOS_DATA_DIR` — the inert items in A.
-- ~~**Batch 7.1** should re-check **DOC-01**…~~ **Done 2026-09-05 (Batch
-  7.1), and this bullet is kept only for the one instruction that outlived
-  it**: `IMPLEMENTATION_PLAN.md` is a historical record, so a claim that was
-  false when written but is true today is recorded as **both** — never
-  silently "fixed". That is Appendix D's rule, and it applies to anything else
-  found in that file.
+- **`IMPLEMENTATION_PLAN.md` is a historical record**: nothing above its
+  Appendix D may be edited, and a claim that was false when written but is true
+  today is recorded as **both** (Batch 7.1).
 - **Batch 7.3 / DD-04** (secret rotation) is informed by L-05: the live
   `.env` sits in a OneDrive-synced folder, so the secrets are very likely
   already in cloud storage.
@@ -94,13 +91,16 @@ Batch 1.4, and Batch 8.2.
   boundary (proved on a copy of production). Anything reading a payload — an
   archive reader, an inspection export, Batch 3.6's document work — must
   tolerate both. **Batches 4.4c, 4.7, 5.3 and 5.5 added no third vintage.**
-- **Two payloads have GROWN twice each, and both are safe only while nothing is
-  sealed.** `CLOTURE_Z` gained `refundsTotal` / `refundsCount` (3.6, M-07) and
-  then `cashInTotal` / `cashOutTotal` / `cashMovementsCount` (5.5, M-05). The
-  sealed *close* `dataJson` — a different thing — gained `refundsCount` (3.6b,
-  L-26) and the same three cash fields (5.5). Free of the vintage problem
-  **only because zero closes exist**, re-verified 2026-09-05; the first sealed
-  close fixes that shape for good. `close-timing.test.ts` pins the key list and
+- **Two payloads have GROWN — `CLOTURE_Z` twice, the sealed close THREE times —
+  and both are safe only while nothing is sealed.** `CLOTURE_Z` gained
+  `refundsTotal` / `refundsCount` (3.6, M-07) and then `cashInTotal` /
+  `cashOutTotal` / `cashMovementsCount` (5.5, M-05). The sealed *close*
+  `dataJson` — a different thing — gained `refundsCount` (3.6b, L-26), the same
+  three cash fields (5.5), and **`givenAwayCount` / `givenAwayProducts`
+  (7.4a, DD-20)** — the third, and the first an operator asked for rather than a
+  defect forcing. Free of the vintage problem **only because zero closes
+  exist**, re-verified 2026-09-05; the first sealed close fixes that shape for
+  good. `close-timing.test.ts` pins the key list and
   caught 5.5's change rather than letting it through — edit it deliberately,
   never to make a run go green. **`CLOTURE_M` and `CLOTURE_A` EVENT payloads
   have never been touched.**
@@ -134,7 +134,7 @@ Batch 1.4, and Batch 8.2.
 
 ### Hardware-dependent validation (policy set 2026-09-03)
 
-The developer is in a different country from the restaurant, and the restaurant's POS machine has **no copy of the app** — deployment is deliberately on hold until the software is fit to ship. Remote access to that machine is available in principle.
+The developer is in a different country from the restaurant, and the restaurant's POS machine has **no copy of the app** — deployment is deliberately on hold until the software is fit to ship. **Remote access to that machine is available on request** — confirmed by the operator 2026-09-06; the restaurant's owner grants it on demand. So the deferral below is about the app not being installed and about deliberate sequencing, **not** about the machine being unreachable.
 
 **Reaffirmed by the operator 2026-09-04** — the order is settled: **the software is finished before it is deployed**, not in parallel.
 
@@ -1630,6 +1630,8 @@ Revisit the compliance question with a certification body and a qualified French
 
 # EXTERNAL / LEGAL / FISCAL VERIFICATION
 
+**📎 `docs/conformite-isca-recherche.md` (2026-09-06) is the sourced research behind the annotations in this section** — the four ISCA conditions as BOFiP words them, the attestation rules, the penalties, what a control actually inspects, and the seven questions still owed to a fiscal professional. It reports what published sources say and **asserts no compliance**. Read it before re-litigating anything here.
+
 **Nothing in this plan, and no test result produced by it, constitutes evidence of French fiscal or legal compliance.** The audit deliberately did not offer a compliance opinion, and neither does this document.
 
 The repository ships `docs/attestation-conformite.md`, a fill-in-and-sign editor's attestation. It cites art. 441-1 of the code pénal, which makes a false attestation a criminal offence. The accuracy of its ISCA section should be settled by a qualified party **before anyone signs it**.
@@ -1656,6 +1658,8 @@ The repository ships `docs/attestation-conformite.md`, a fill-in-and-sign editor
 Record anything found *during* remediation that is outside the current batch's scope. Do not fix it in that batch (safety rule 10).
 
 Open rows only. A row resolved by a batch moves, unchanged, to `REMEDIATION_RECORD.md` → *Resolved findings* when that batch completes (seven rows moved there on 2026-09-04: L-13, L-15, L-16, L-17, L-18, L-20, L-23; since then L-27, L-41, L-42, L-40, L-43, and on 2026-09-05 **L-49** and **L-28**).
+
+**⚠ SIX ROWS HERE SAY *NO BATCH OWNS THIS*, and that is the plan's honest state**: Stages 0–7 are finished and these outlived them. Three (L-52, L-53, L-54) are French-law gaps found on 2026-09-06 and are app fixes, so they belong in this plan — they simply have no open batch. Giving them one is a scoping decision for the operator, not something to assume.
 
 **⚠ THE LAST COLUMN HAS A SHAPE, and `plan-freshness.test.ts` reads it:** `<assignment> — <anything>`. The assignment is a batch number, **Operator action**, or **NO BATCH OWNS THIS**; everything after the first em dash is prose the test ignores, which is where the history of who completed without it belongs.
 
