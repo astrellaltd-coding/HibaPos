@@ -46,6 +46,20 @@ les pièces comptables pour présentation lors d'un contrôle fiscal.
 > des « constatations matérielles » et **ne testent pas le logiciel**. Ils
 > vérifient l'existence de l'attestation pour chaque logiciel et chaque version
 > détenue. L'examen des données relève d'une autre procédure.
+>
+> **4. Deux points que la section « Mise en œuvre » ci-dessous ne doit pas
+> surestimer (recherche du 2026-09-06, `docs/conformite-isca-recherche.md` § 9).**
+> *(a)* La clôture Z scelle **une caisse**, pas une journée calendaire : rien ne
+> rattache une clôture à un jour, et sur la base de production le Z n° 2 couvre
+> cinq journées d'essai. Le BOFiP (§ 170) exige que le logiciel « prévoie » une
+> clôture journalière ; aucune source trouvée ne dit si une clôture par caisse
+> en tient lieu. L'écran des caisses indique désormais à l'opérateur qu'il lui
+> appartient de clôturer à chaque journée d'exploitation (L-54). *(b)* Le
+> BOFiP (§ 170) demande que « pour chaque clôture » soient « calculées et
+> enregistrées » des données cumulatives « comme le cumul du grand total de la
+> période et le total perpétuel » : HibaPOS tient le total perpétuel mais **ne
+> l'enregistre dans aucune clôture** (L-57, non corrigé à ce jour). Ne pas
+> écrire « cumulatives » sans cette réserve.
 
 ---
 
@@ -71,8 +85,9 @@ toute version majeure.
 
 Le périmètre couvert par cette attestation concerne les fonctionnalités
 suivantes : **caisse / encaissement** (prise de commande, encaissement, tickets,
-remboursements, clôtures journalière/mensuelle/annuelle, journal des événements
-fiscal, archivage annuel).
+remboursements, clôtures de caisse (Z) / mensuelle / annuelle, journal des
+événements fiscal, archivage annuel). *Voir `docs/conformite-isca-map.md` § 8
+pour la liste établie à partir du code, couvertes et exclues.*
 
 ### Mise en œuvre des conditions ISCA dans HibaPOS France
 
@@ -85,9 +100,11 @@ fiscal, archivage annuel).
   incluant le hash de l'événement précédent. Toute altération rétrosactive est
   détectable par `GET /api/fiscal/verify`. Les opérateurs sont identifiés
   (userId) sur chaque événement.
-- **Conservation** : clôtures journalière (Z), mensuelle et annuelle, cumulatives
-  et scellées ; un **grand total perpétuel** (`GrandTotal`) qui ne revient jamais
-  à zéro, y compris lors des mises à jour du logiciel. Conservation des données
+- **Conservation** : clôtures de caisse (Z — une par caisse ouverte, à réaliser
+  par l'utilisateur à chaque journée d'exploitation, voir note 4a), mensuelle et
+  annuelle, scellées et chaînées ; un **grand total perpétuel** (`GrandTotal`)
+  qui ne revient jamais à zéro, y compris lors des mises à jour du logiciel
+  (note 4b : il n'est pas enregistré dans chaque clôture). Conservation des données
   élémentaires et des preuves d'intégrité pendant la durée légale (6 ans).
 - **Archivage** : export annuel au format ouvert (JSON + SHA-256 + notice en
   français) via `POST /api/fiscal/archive`, figeant l'exercice et lui donnant

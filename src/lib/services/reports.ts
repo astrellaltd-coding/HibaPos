@@ -223,7 +223,21 @@ export async function generateZReport(shiftId: string, closingFloat: number, clo
       },
     });
 
-    // --- Fiscal journal (JFP) — clôture journalière scellée (ISCA conservation) ---
+    // --- Fiscal journal (JFP) — the sealed close of a SHIFT (ISCA conservation) ---
+    //
+    // L-54 (Batch 3.7). This line used to call the seal the « clôture
+    // journalière ». It is not one by construction: a Z seals a shift, and a
+    // shift is opened and closed by the operator with no reference to a
+    // calendar day — on the production database Z #2 covers five calendar
+    // days of test trading. BOFiP (BOI-TVA-DECLA-30-10-30 § 170) requires the
+    // software to « prévoir obligatoirement une clôture journalière »; the
+    // research of 2026-09-06 found « prévoir » means provide, not force, and
+    // found NO source that accepts or rejects a per-shift close as the daily
+    // one or that defines « journée ». So the software provides the close,
+    // the shifts screen tells the operator it is theirs to run at the end of
+    // every trading day and flags a till that has crossed midnight
+    // (`openedOnEarlierLocalDay`), and whether a till may stay open into the
+    // next day is DD-23 — a business decision, not a comment.
     const ev = await appendFiscalEvent(tx, {
       type: "CLOTURE_Z",
       userId: closedById,

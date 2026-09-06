@@ -7,6 +7,7 @@ import { Kpi, VatBreakdownTable, TopProductsList } from "@/components/shared/rep
 import { api, ApiError } from "@/lib/api-client";
 import type { ShiftDto, XReportDto } from "@/types/api";
 import { formatDateTime, formatVariance } from "@/lib/format";
+import { openedOnEarlierLocalDay } from "@/lib/period";
 import { Money } from "@/components/shared/money";
 import { EmptyState, PageHeader } from "@/components/shared/empty-state";
 import { cashVarianceCents } from "./z-close";
@@ -393,6 +394,27 @@ function OpenShiftCard({
               <Money amount={shift.openingFloat} className="font-medium text-foreground" />
               {shift.notes ? <span className="ml-2 italic">« {shift.notes} »</span> : null}
             </p>
+            {/* L-54 (Batch 3.7). The Z seals THIS till, not a calendar day.
+                The regulation requires a daily close and the software provides
+                it; running it at the end of every trading day is the
+                operator's. Says so here, where the till is closed, and turns
+                amber once the till has crossed local midnight. Refusing sales
+                on such a till would be a business decision (DD-23), not a
+                notice — nothing here blocks anything. */}
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              La clôture (Z) scelle cette caisse. La réglementation exige une clôture
+              journalière : il vous appartient de clôturer la caisse à la fin de chaque
+              journée d&apos;exploitation.
+            </p>
+            {openedOnEarlierLocalDay(new Date(shift.openedAt), now) ? (
+              <p
+                className="mt-1.5 rounded-md border border-amber-500/60 bg-amber-500/10 px-2.5 py-1.5 text-xs font-medium text-amber-800"
+                data-testid="till-crossed-midnight"
+              >
+                Cette caisse a été ouverte un jour antérieur ({formatDateTime(shift.openedAt)}) et
+                n&apos;a pas été clôturée : son rapport Z couvrira plusieurs journées.
+              </p>
+            ) : null}
           </div>
         </div>
         <div className="flex flex-wrap gap-2">

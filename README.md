@@ -88,7 +88,7 @@ bun run test:e2e     # Playwright — 13 tests (auth, encaissement, caisse, cata
 ## Fonctionnalités clés
 
 - **Caisse** : Prise de commande sur place / à emporter / livraison, paiements multiples (espèces, carte, bon), remises avec approbation manager
-- **Fiscalité (ISCA)** : Tickets immuables (snapshot textuel), numérotation séquentielle atomique, journal fiscal chaîné (JFP), grand total perpétuel, clôtures Z (journalière) + M (mensuelle) + A (annuelle), mode FACTICE, archive annuelle ouverte (JSON + SHA-256 + notice FR)
+- **Fiscalité (ISCA)** : Tickets immuables (snapshot textuel), numérotation séquentielle atomique, journal fiscal chaîné (JFP), grand total perpétuel, clôtures Z (par caisse — à réaliser par l'opérateur à chaque journée d'exploitation, voir L-54) + M (mensuelle) + A (annuelle), mode FACTICE, archive annuelle ouverte (JSON + SHA-256 + notice FR)
 - **Sécurité** : Verrouillage après 30 min d'inactivité, brute-force protection (lockout 5 essais / 15 min), approbation manager pour remises et remboursements, révocation de session par session
 - **Gestion** : Produits, options, suppléments, catégories (soft-delete), clients, médiathèque
 - **Rapports** : X-Report (caisse ouverte, temps réel), Z-Report (clôture immuable), ventes par période avec top produits, ventilation TVA à l'intérieur des rapports X et Z. *Les endpoints `/api/reports/vat` et `/api/reports/cashiers` existent mais n'ont aucune interface — vérifié 2026-09-05, aucun appelant dans `src/`.*
