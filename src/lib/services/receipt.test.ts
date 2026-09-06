@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { renderReceipt } from "@/lib/services/receipt";
+import { SOFTWARE_IDENTITY } from "@/lib/version";
 import type { OrderDto, OrderItemDto, SettingsDto } from "@/types/api";
 
 type TestRefund = { id: string; amount: number; reason: string; createdAt: string };
@@ -222,7 +223,33 @@ describe("renderReceipt", () => {
 
   it("falls back to defaults when settings are absent", () => {
     const text = renderReceipt(baseOrder);
-    expect(text).toContain("HibaPOS France");
+    // L-53 (Batch 3.7) STRENGTHENED this. It read `toContain("HibaPOS
+    // France")` over the whole ticket, and once the software names itself on
+    // the last line those words appear on EVERY ticket — so the fallback for a
+    // missing restaurant name could be deleted and this would still pass.
+    // Demonstrated under revert before the line was pinned to the header.
+    expect(text.split("\n")[0]).toContain("HibaPOS France");
+  });
+
+  // L-53 (Batch 3.7) — the ticket names the software and its version.
+  //
+  // The attestation regime is version-matched (BOI-LETTRE-000242) and a
+  // control compares the version in use with the attestations held
+  // (BOI-CF-COM-20-60). Until this batch a ticket on this install — where the
+  // restaurant name is set — never named the software at all.
+  it("names the software and its version on the last line of every ticket (L-53)", () => {
+    const text = renderReceipt(baseOrder, baseSettings);
+    const lines = text.split("\n");
+    expect(lines[lines.length - 1].trim()).toBe(SOFTWARE_IDENTITY);
+    // Not vacuous: the identity is a real dotted release, not a placeholder.
+    expect(text).toMatch(/HibaPOS France v\d+\.\d+\.\d+/);
+  });
+
+  it("keeps the operator's footer note ABOVE the software line", () => {
+    const text = renderReceipt(baseOrder, { ...baseSettings, footerNote: "À bientôt !" });
+    const lines = text.split("\n").map((l) => l.trim());
+    expect(lines.indexOf("À bientôt !")).toBe(lines.length - 2);
+    expect(lines[lines.length - 1]).toBe(SOFTWARE_IDENTITY);
   });
 
   it("handles malformed optionsJson without throwing", () => {

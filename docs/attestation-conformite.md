@@ -22,8 +22,15 @@ les pièces comptables pour présentation lors d'un contrôle fiscal.
 > « correspondant à **la version** du logiciel ou système de caisse qu'il
 > utilise ». Un PDF générique ne suffit pas. C'est aussi ce que l'administration
 > vérifie en contrôle : la correspondance entre les versions détenues et les
-> attestations détenues. **HibaPOS n'affiche aujourd'hui sa version nulle part**
-> — voir L-53 dans `REMEDIATION_PLAN.md`.
+> attestations détenues. **Depuis le lot 3.7 (2026-09-06, L-53), HibaPOS énonce
+> sa version** — `HibaPOS France v0.2.1` — en dernière ligne de chaque ticket,
+> sur l'écran Fiscal (JFP), dans la réponse de `GET /api/fiscal/verify` et dans
+> la notice et le champ `software` de l'archive annuelle. Les tickets et archives
+> produits avant ce lot n'en portent pas et ne sont pas réécrits. La valeur est
+> celle de `src/lib/version.ts`, tenue égale à `package.json` par un test.
+> **La carte des exigences, ligne par ligne, est dans
+> `docs/conformite-isca-map.md`** ; la section « Mise en œuvre » ci-dessous
+> doit être relue contre elle avant signature.
 >
 > **2. Une échéance à surveiller : le 1er janvier 2027.** L'ordonnance
 > n° 2026-671 du 27 juillet 2026 transfère la matière dans le code des

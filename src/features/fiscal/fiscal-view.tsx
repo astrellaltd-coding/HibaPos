@@ -25,6 +25,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Money } from "@/components/shared/money";
+import { SoftwareIdentity, type SoftwareIdentityDto } from "@/components/shared/software-identity";
 import { toast } from "sonner";
 import { formatDateTime } from "@/lib/format";
 import { lastCompletedMonth, lastCompletedYear } from "@/lib/period";
@@ -43,6 +44,8 @@ import {
 
 type ChainResult = { ok: boolean; checked?: number; eventsChecked?: number; firstBreakAt: number | string | null; total?: number };
 type VerifyResult = {
+  /** L-53 (Batch 3.7): what the SERVER says it is running. */
+  software?: SoftwareIdentityDto;
   fiscalEvents: ChainResult;
   monthlyCloses: ChainResult;
   annualCloses: ChainResult;
@@ -244,6 +247,8 @@ export function FiscalView() {
             <Skeleton className="h-24 w-full rounded-lg" />
           ) : (
             <>
+              {/* L-53 (Batch 3.7): the version a control asks for, first. */}
+              <SoftwareIdentity software={verify.data?.software} />
               <ChainBadge label="Journal fiscal (JFP)" result={verify.data?.fiscalEvents} />
               <ChainBadge label="Clôtures mensuelles" result={verify.data?.monthlyCloses} />
               <ChainBadge label="Clôtures annuelles" result={verify.data?.annualCloses} />

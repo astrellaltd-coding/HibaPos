@@ -3,6 +3,7 @@ import type { OrderDto, SettingsDto } from "@/types/api";
 import { formatDateTime, formatEuro } from "@/lib/format";
 import { addToVatBreakdown, apportion, type VatBreakdown } from "@/lib/money";
 import { PAYMENT_LABELS_FULL } from "@/lib/order-labels";
+import { SOFTWARE_IDENTITY } from "@/lib/version";
 
 /**
  * M-06 (Batch 3.6) — the per-rate VAT block.
@@ -119,6 +120,13 @@ export function renderReceipt(order: OrderDto, settings?: Partial<SettingsDto>):
   lines.push("-".repeat(w));
   lines.push(center(`${order.itemCount} article${order.itemCount > 1 ? "s" : ""}`));
   lines.push(center(s.footerNote ?? "Merci de votre visite !"));
+  // L-53 (Batch 3.7): the software identifies itself on every ticket. Until
+  // this line the ticket named the restaurant and never the software — the
+  // "HibaPOS France" above is only a fallback for a MISSING restaurant name —
+  // while the attestation regime is version-matched and a control compares
+  // the version in use with the attestations held. Last line, after the
+  // footer, so the operator's own closing words keep their place.
+  lines.push(center(SOFTWARE_IDENTITY));
 
   return lines.join("\n");
 }

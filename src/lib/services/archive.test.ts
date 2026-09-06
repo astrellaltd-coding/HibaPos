@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { canonicalize, computeEventHash } from "@/lib/fiscal";
 import { buildAnnualArchive, recordAnnualArchive, appendFiscalEvent, verifyFiscalChain } from "@/lib/services/fiscal";
 import { ensureFiscalCounter } from "@/lib/services/sequence";
+import { SOFTWARE_NAME, SOFTWARE_VERSION } from "@/lib/version";
 
 // Batch 3.3 — C-04 (archive checksum) and M-02 (archive row before file).
 //
@@ -158,6 +159,19 @@ describe("the archive checksum is reproducible from the file (C-04)", () => {
     expect(parsed).toHaveProperty("fiscalEvents");
     expect(parsed).toHaveProperty("zReports");
     expect(parsed).toHaveProperty("monthlyCloses");
+  });
+
+  // L-53 (Batch 3.7) — the archive says which software, at which version,
+  // wrote it. `version` below is the SCHEMA version of the file and moved
+  // 2 → 3 when `software` was added; the two had been confused for each other.
+  it("names the software and its version, in the payload and in the notice (L-53)", async () => {
+    const built = await buildAnnualArchive(2026);
+    const parsed = JSON.parse(built.json);
+    expect(parsed.software).toEqual({ name: SOFTWARE_NAME, version: SOFTWARE_VERSION });
+    expect(parsed.version).toBe(3);
+    expect(parsed.notice).toContain(`Logiciel : ${SOFTWARE_NAME}, version ${SOFTWARE_VERSION}`);
+    // Not vacuous: a real dotted release, not a placeholder.
+    expect(parsed.software.version).toMatch(/^\d+\.\d+\.\d+$/);
   });
 });
 

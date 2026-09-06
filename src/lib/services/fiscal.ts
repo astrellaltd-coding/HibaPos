@@ -31,6 +31,7 @@ import {
   periodCashMovementsWhere,
 } from "@/lib/services/aggregate";
 import { TX_FISCAL } from "@/lib/tx-options";
+import { SOFTWARE_NAME, SOFTWARE_VERSION } from "@/lib/version";
 
 type Tx = Prisma.TransactionClient;
 
@@ -622,6 +623,10 @@ const ARCHIVE_NOTICE = (year: number) =>
   [
     `Archive fiscale annuelle — HibaPOS France`,
     `Exercice : ${year}`,
+    // L-53 (Batch 3.7): the archive says which software, at which version,
+    // produced it — the archive's own `version` field below is the SCHEMA
+    // version of this file, not the software's, and the two were confused.
+    `Logiciel : ${SOFTWARE_NAME}, version ${SOFTWARE_VERSION}`,
     ``,
     `Ce document est une archive fiscale au format ouvert (JSON) produite conformément`,
     `à l'article 286-I-3° bis du CGI (conditions ISCA : Inaltérabilité, Sécurisation,`,
@@ -695,9 +700,16 @@ export async function buildAnnualArchive(year: number) {
 
   const payload = {
     format: "hibapos-fiscal-archive",
-    version: 2,
+    // Schema version of THIS FILE. 2 → 3 in Batch 3.7 (L-53), when `software`
+    // was added: a reader keyed on this number must not expect the key in a
+    // 2, and none exists to be confused — zero archives had ever been
+    // generated on production when the number moved (verified read-only,
+    // 2026-09-06).
+    version: 3,
     year,
     generatedAt: new Date().toISOString(),
+    // L-53 (Batch 3.7): which software, at which version, wrote this archive.
+    software: { name: SOFTWARE_NAME, version: SOFTWARE_VERSION },
     notice: ARCHIVE_NOTICE(year),
     grandTotalSnapshot: grandTotal,
     annualClose: annualClose,
