@@ -1,0 +1,244 @@
+# Commissioning runbook — HibaPOS France
+
+**The single ordered sequence for putting HibaPOS on the restaurant's till.** It
+closes Batch 1.3's `[HW]` criteria, Batch 1.4's `[MACHINE]` criteria and Batch
+8.0 (P-04) in one session, in the only order that works.
+
+Written for the developer driving over remote access, with the owner physically
+at the till. Everything the owner has to *see* or *touch* is marked **[OWNER]**.
+
+> ## The one step that cannot be undone
+>
+> **§ 6 empties the fiscal journal. It runs once, before the restaurant's first
+> real sale, and never after one.** From that sale onwards the journal is
+> append-only and clearing it is precisely the deletion
+> `docs/attestation-conformite.md` states is impossible.
+>
+> Everything rung up before § 6 — every demo, every test print — **must have
+> FACTICE on** (§ 4). FACTICE does *not* keep a sale out of the journal; nothing
+> can, and a mode that could would be a fraud tool. It stamps the ticket
+> *FACTICE — SIMULATION / TICKET NON VALABLE* and flags the journal row, so § 6
+> deletes it cleanly and no test ticket can ever be mistaken for a real one.
+
+---
+
+## 0. Before the session
+
+| | Why |
+|---|---|
+| **Bun installed machine-wide** — not under a user profile | The server task runs as `SYSTEM`, which cannot see `%USERPROFILE%\.bun` or `%APPDATA%\npm`. The installer warns, but fixing it afterwards means another reboot. |
+| The printer's **IP address**, fixed not DHCP | § 3 needs it, and a DHCP lease that moves silently breaks printing weeks later. |
+| The printer on the **same network** as the till, powered, with paper | |
+| A **second volume** for `BACKUP_LOCATION` — USB drive, NAS share, anything not the system disk | A backup on the same disk as the database is not a backup (C-06). |
+| The repository on the machine, and a `.env` from `.env.example` | |
+| **[OWNER]** available at the till for §§ 3 and 7 | Somebody has to watch paper come out and a drawer open. |
+
+**Not needed yet:** `FISCAL_CHAIN_KEY`. It is generated in § 6, after the reset, and never before.
+
+---
+
+## 1. Install
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .zscripts\install-windows.ps1
+powershell -ExecutionPolicy Bypass -File .zscripts\install-windows.ps1 -Apply
+```
+
+Run the dry run first and read it. The `-Apply` run creates `C:\HibaPOS\data`,
+copies the database, backups, archives and product images there — **verifying
+the database by SHA-256 and the directories by file count** — renames the
+sources aside rather than deleting them, and registers two Scheduled Tasks.
+
+Then edit `.env`:
+
+```ini
+HIBAPOS_DATA_DIR=C:\HibaPOS\data
+DATABASE_URL=file:C:\HibaPOS\data\db\custom.db?_fk=1&_busy_timeout=5000
+BACKUP_LOCATION=<the second volume>
+```
+
+**Do not delete the `*.moved-<timestamp>` sources yet.** They are the way back
+if § 2 goes wrong. Remove them after § 7.
+
+---
+
+## 2. Prove it starts on its own
+
+```powershell
+Restart-Computer
+```
+
+**[OWNER]** After the reboot, without anyone typing anything, the till should
+be showing HibaPOS full-screen.
+
+Then check, in this order:
+
+1. `C:\HibaPOS\data\logs\server.log` — the launcher's own log. If bun was installed per-user this is where it says so.
+2. `Get-ScheduledTaskInfo -TaskName "HibaPOS Server"` — `LastTaskResult` should be `0`.
+3. `http://localhost:3000/api` answers `200`.
+4. **WAL is now on**: byte 18 of `C:\HibaPOS\data\db\custom.db` should be `02`, not `01`. It was `01` on the old path because the WAL guard refuses cloud-synced folders; the move is what turns it on.
+   ```powershell
+   $f=[System.IO.File]::OpenRead("C:\HibaPOS\data\db\custom.db"); $b=New-Object byte[] 19; $f.Read($b,0,19)|Out-Null; $f.Close(); $b[18]
+   ```
+5. Kill the server process and confirm Task Scheduler restarts it within a minute. *(Batch 1.4 `[MACHINE]` criterion.)*
+
+**Install the app properly:** open it, then Edge menu → **Installer HibaPOS**.
+That gives a desktop icon, a Start Menu entry and a window with no address bar.
+
+**[OWNER]** Optional but recommended — auto-login, so a power cut needs nobody:
+run `netplwiz` and untick *Users must enter a user name and password*. **Do not
+use the `AutoAdminLogon` registry key: it stores the password in clear text.**
+This only skips the *Windows* sign-in; the HibaPOS staff PIN is unaffected and
+still required, which is what puts a `userId` on every fiscal event.
+
+---
+
+## 3. FACTICE on — before anything is rung up
+
+**Réglages → mode simulation → ON.** Confirm a ticket prints
+*FACTICE — SIMULATION / TICKET NON VALABLE* at the top.
+
+Everything from here to § 6 is test data. This switch is what makes it
+unmistakable and safely deletable.
+
+---
+
+## 4. Commission the printer and the drawer — Batch 1.3 `[HW]`
+
+**Réglages:** printer IP, port `9100`, `printerEnabled` on, `receiptWidth` 48,
+`openDrawerOnCash` on. Correct `printerName` to the real model while you are
+there — the stored value still says "Epson TM-m30" (DOC-15).
+
+Then `POST /api/print/test`, or the test button in Réglages.
+
+**[OWNER] must confirm, out loud, one at a time:**
+
+- [ ] Paper comes out, and the ruler line is exactly **48 characters** wide on the roll
+- [ ] `é è ê à ç ù û î ô` and `€` are all legible — not `?` or mojibake
+- [ ] The cash drawer **opens** on the test
+- [ ] The physical printer is a **Sunso WTP-801** (settles DOC-15)
+
+Then a FACTICE cash sale end to end:
+
+- [ ] The ticket prints, and carries `Caisse N° 1` and `Service 1`
+- [ ] The drawer opens on the cash tender
+- [ ] `Réglages → Fiscal` shows the `VENTE`; a manual drawer open shows `OUVERTURE_TIROIR`; a reprint shows `REIMPRESSION`
+- [ ] **Turn the printer off, ring another sale**: the sale still completes and the operator sees *"Imprimante injoignable…"* rather than a lost sale
+
+**L-21, expect it:** the restaurant's address is 56 characters and the renderer
+does not wrap, so it will wrap mid-address on 48-column paper. Known, recorded,
+not fixed. Note whether it is acceptable to the owner.
+
+---
+
+## 5. Demo to the owner
+
+**[OWNER]** Walk the whole till: orders, discounts with PIN, refunds, X report,
+Z close, the day close and its integrity code. Still in FACTICE.
+
+Everything rung here is deleted in § 6. That is the point of doing it now.
+
+---
+
+## 6. THE POINT OF NO RETURN — P-04 / Batch 8.0
+
+### 6a. Back up first, and get the backup off the machine
+
+```powershell
+# In the app: Réglages -> Sauvegardes -> créer une sauvegarde
+bun scripts/decrypt-backup.ts --list
+bun scripts/decrypt-backup.ts <fichier.dbenc> C:\HibaPOS\verify-backup.db
+```
+
+The decrypt must succeed and report **"Format SQLite valide"**. Then copy the
+`.dbenc` and `.uploads.enc` **off this machine**, and delete
+`C:\HibaPOS\verify-backup.db`.
+
+> **This backup matters more than usual.** The three backups already on the
+> machine are **not restorable** — they predate seven fiscal tables and
+> `assertCompatibleSchema` refuses them, correctly (L-46). Until this one
+> exists, the install has no working restore point at all.
+
+### 6b. Stop the application
+
+```powershell
+Stop-ScheduledTask -TaskName "HibaPOS Server"
+```
+
+The reset script refuses to run while the app answers on 3000.
+
+### 6c. The reset
+
+```powershell
+bun scripts/pre-golive-reset.ts            # dry run - read it
+bun scripts/pre-golive-reset.ts --apply    # asks for EFFACER, then oui
+```
+
+**Copy the before/after tables it prints into `REMEDIATION_PLAN.md` under
+P-04** — hard constraint 4.
+
+Rehearsed 2026-09-06 on a copy of production: 152 rows and 2 archive files
+deleted, counters to `0/0/0/0`, **catalogue intact across all 14 preserved
+tables**, and the resulting database passes all 28 of Batch 8.1's checks with
+an empty chain reporting `ok` at `lastSequence: 0`.
+
+**The audit log is deliberately kept.** P-04 does not list it, and deleting an
+audit trail is the exact thing this application forbids everywhere else. It is
+not fiscal data; the fiscal journal is, and that is what was just reset.
+
+### 6d. Arm the chain key — **in this order, or not at all**
+
+1. **[OWNER or you]** `openssl rand -hex 32`
+2. Paste it into `.env` as `FISCAL_CHAIN_KEY`
+3. **Back it up somewhere that is not this machine.** ⚠ **Lose it and the journal can never be verified again** — every hash is computed with it. Treat it exactly like `BACKUP_ENCRYPTION_KEY`.
+4. `Start-ScheduledTask -TaskName "HibaPOS Server"`
+5. `GET /api/fiscal/verify` must answer **`"chainKeyed": true`**, chain `ok`, `lastSequence: 0`
+
+If step 5 answers `ok: false` with a `keyDiagnosis`, the order was wrong — the
+key was armed over a journal that already had unkeyed events. **Stop.** Do not
+trade. Re-read P-04.
+
+*Claude does not generate this key and must never see it.*
+
+### 6e. FACTICE off
+
+**Réglages → mode simulation → OFF.** From this moment every sale is real.
+
+---
+
+## 7. First real trading day — Batch 8.2 V-07
+
+- [ ] Open the caisse. It should be **Caisse #1** and the first ticket **N° 1**
+- [ ] Mixed order types, split payments, a discount with approval, a refund, a reprint, a manual drawer open
+- [ ] `GET /api/fiscal/verify` — all four chains `ok` at the end of the day
+- [ ] X report, then the **Z close**, then the **Clôture du jour**
+- [ ] **[OWNER]** The Z reconciles to the counted drawer, with a variance they can explain
+- [ ] The day-close slip prints, and the **integrity code is filed with the books** — that is the half of the integrity story that works, because paper is outside the database
+- [ ] A backup was created automatically at the Z close, and it appears in Réglages
+
+**Power-cut simulation, at the end of the day rather than the middle:** pull the
+plug, restart, and confirm the app returns, the shift state is intact and no
+partial order exists.
+
+---
+
+## 8. Afterwards
+
+- [ ] Delete the `*.moved-<timestamp>` directories from the old install path
+- [ ] Rotate `SESSION_SECRET` and `BACKUP_ENCRYPTION_KEY` — Batch 7.3, prepared and rehearsed, still not done. **Do it after 6a's backup, or that backup becomes unreadable.**
+- [ ] Record everything in `REMEDIATION_PLAN.md`: P-04's counts, 1.3's `[HW]` results, 1.4's `[MACHINE]` results, 8.2's V-07
+- [ ] **Re-triage every open finding whose severity was discounted for want of an audience.** The plan says to do this the moment an install date exists. L-21 is the first one.
+- [ ] The attestation (`docs/attestation-conformite.md`) still needs L-52, L-54, V-01 and V-13 reflected or excluded before anyone signs it
+
+---
+
+## If something goes wrong
+
+| Symptom | What it is |
+|---|---|
+| Till does not come up after reboot | `C:\HibaPOS\data\logs\server.log`. Most likely bun is per-user and `SYSTEM` cannot see it. |
+| Launcher refuses: *"Base de données introuvable"* | `HIBAPOS_DATA_DIR` or `DATABASE_URL` is wrong. **It will not create a database** — that refusal is deliberate (L-59): a new one would be empty, numbered from 1, with the PINs published in this repository. |
+| Launcher refuses: pending migrations | `.zscripts\update.ps1 -Apply`. |
+| `/api/fiscal/verify` says the chain is broken | If it names a `keyDiagnosis`, it is the key, not tampering — Batch 3.9 built it to say so. Restore `FISCAL_CHAIN_KEY`. |
+| Restore needed | It works now (Batch 2.5). If the app will not start at all, recover by hand: stop everything, `scripts/decrypt-backup.ts`, put the file in place, delete `-wal` and `-shm`, restart. |
+| Printing fails mid-service | The sale is never lost — printing happens after the sale commits. Reprint from the order. |
