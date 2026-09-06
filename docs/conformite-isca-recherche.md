@@ -140,8 +140,20 @@ https://bofip.impots.gouv.fr/bofip/10692-PGP.html/identifiant=BOI-LETTRE-000242-
   body, and accreditation is an EU/COFRAC matter — so the attestation is the
   route open to a non-EU éditeur.)* BOFiP also anticipates foreign éditeurs
   being sanctioned, which confirms it expects them to issue.
-  **Caveat:** BOFiP never says « pays tiers » or addresses post-Brexit UK
-  expressly. Permissive by inference, not by statement.
+  **Caveat, and it is sharper than it looks.** BOFiP says « à l'étranger »
+  without qualification and never uses « pays tiers » or « hors Union
+  européenne ». The permission is therefore **inferred from an unqualified
+  word plus BOFiP's explicit anticipation of foreign éditeurs being
+  sanctioned** — not stated. *The éditeur here is established in **Tunisia**
+  (corrected 2026-09-06; an earlier draft of this file said the UK).* Tunisia
+  is outside the EU and the EEA, so nothing about EU freedom of establishment,
+  EU accreditation or intra-EU mutual recognition assists — the argument rests
+  entirely on « à l'étranger » being read literally. Two further angles a
+  professional should cover that do not arise for an EU éditeur: whether DGFiP
+  in practice accepts an attestation from a third-country entity with no
+  French presence, and whether the restaurant's own risk (it holds the €7 500
+  exposure, not the éditeur) argues for a French representative or a
+  countersignature.
 
 ---
 
@@ -214,9 +226,13 @@ turns on, which is why **L-53** matters more than its size suggests.
    and is the implementing arrêté published?
 3. Is an **unkeyed SHA-256 chain** accepted in DGFiP practice for inaltérabilité
    and sécurisation, or is keying / signing / anchoring expected?
-4. Can a **UK-established company with no French or EU establishment** validly
-   issue the attestation, and would it be accepted in a control? Is a French
-   representative or a countersigning accountant advisable?
+4. Can a **Tunisian-established company with no French, EU or EEA
+   establishment** validly issue the attestation, and would DGFiP accept it in
+   a control? BOFiP admits « un éditeur établi à l'étranger » without
+   qualification — does that extend to a third country outside the EEA in
+   practice, and does anything (a French representative, a countersigning
+   French accountant, a French subsidiary) materially reduce the restaurant's
+   risk? **The restaurant, not the éditeur, carries the €7 500 exposure.**
 5. Is a **per-shift Z** accepted as the « clôture journalière », including where
    a service runs past midnight, or must a close be keyed to the calendar day?
 6. How should the attestation's **« fonctionnalités exclues »** section be worded
