@@ -21,6 +21,10 @@ export const DEFAULT_SETTINGS: SettingsInput = {
   discountApprovalThreshold: 20,
   autoPrint: false,
   factice: false,
+  // DD-24 (Batch 3.8): 05:00, chosen with the operator. The restaurant
+  // normally closes before midnight but not always, and a cut-off costs
+  // nothing on the nights it does.
+  businessDayCutoffHour: 5,
 };
 
 export async function getSettings(): Promise<SettingsInput> {

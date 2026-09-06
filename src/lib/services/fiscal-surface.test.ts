@@ -127,7 +127,9 @@ describe("the journal records what the new UI does", () => {
       data: { username: `cl-${Date.now()}`, name: "CL", role: "SUPER_ADMIN", pinHash: "x:y" },
     });
     // L-25 (Batch 3.6b): clock pinned past the period being sealed.
-    const close = await closeMonth(2026, 5, user.id, false, new Date(2026, 5, 1));
+    // AMENDED 2026-09-06 (Batch 3.8, DD-24): the month now ends at the
+    // trading-day cut-off, so midnight on the 1st is five hours early.
+    const close = await closeMonth(2026, 5, user.id, false, new Date(2026, 5, 1, 6, 0));
     expect(close.period).toBe("2026-05");
     expect(close.hash).toHaveLength(64);
 

@@ -5,9 +5,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Kpi, VatBreakdownTable, TopProductsList } from "@/components/shared/report-widgets";
 import { api, ApiError } from "@/lib/api-client";
-import type { ShiftDto, XReportDto } from "@/types/api";
+import type { SettingsDto, ShiftDto, XReportDto } from "@/types/api";
 import { formatDateTime, formatVariance } from "@/lib/format";
-import { openedOnEarlierLocalDay } from "@/lib/period";
+import { openedOnEarlierBusinessDay } from "@/lib/period";
 import { Money } from "@/components/shared/money";
 import { EmptyState, PageHeader } from "@/components/shared/empty-state";
 import { cashVarianceCents } from "./z-close";
@@ -91,6 +91,11 @@ export function ShiftsView() {
   }, []);
 
   // --- Queries ---
+  // DD-24 (Batch 3.8): the trading-day cut-off governs the notice below.
+  const { data: settings } = useQuery({
+    queryKey: ["settings"],
+    queryFn: () => api.get<SettingsDto>("/api/settings"),
+  });
   const { data: current, isLoading: currentLoading } = useQuery({
     queryKey: ["shift", "current"],
     queryFn: () => api.get<ShiftDto | null>("/api/shifts/current"),
@@ -194,6 +199,7 @@ export function ShiftsView() {
         <OpenShiftCard
           shift={current}
           now={now}
+          cutoffHour={settings?.businessDayCutoffHour ?? 5}
           xReport={xReport ?? null}
           xError={xError}
           onShowX={() => setXDialog(true)}
@@ -352,6 +358,7 @@ type ZReportSummary = {
 function OpenShiftCard({
   shift,
   now,
+  cutoffHour,
   xReport,
   xError,
   onShowX,
@@ -360,6 +367,9 @@ function OpenShiftCard({
 }: {
   shift: ShiftDto;
   now: Date;
+  /** DD-24 (Batch 3.8): the trading-day cut-off, so the notice below fires on a
+   *  crossed TRADING day and not on every service that runs past midnight. */
+  cutoffHour: number;
   xReport: XReportDto | null;
   xError: boolean;
   onShowX: () => void;
@@ -402,11 +412,12 @@ function OpenShiftCard({
                 on such a till would be a business decision (DD-23), not a
                 notice — nothing here blocks anything. */}
             <p className="mt-1.5 text-xs text-muted-foreground">
-              La clôture (Z) scelle cette caisse. La réglementation exige une clôture
-              journalière : il vous appartient de clôturer la caisse à la fin de chaque
-              journée d&apos;exploitation.
+              La clôture (Z) scelle cette caisse, pas la journée. Clôturez la caisse à la fin
+              de chaque journée d&apos;exploitation, puis scellez la{" "}
+              <span className="font-medium text-foreground">clôture du jour</span> depuis
+              l&apos;écran Fiscal.
             </p>
-            {openedOnEarlierLocalDay(new Date(shift.openedAt), now) ? (
+            {openedOnEarlierBusinessDay(new Date(shift.openedAt), now, cutoffHour) ? (
               <p
                 className="mt-1.5 rounded-md border border-amber-500/60 bg-amber-500/10 px-2.5 py-1.5 text-xs font-medium text-amber-800"
                 data-testid="till-crossed-midnight"

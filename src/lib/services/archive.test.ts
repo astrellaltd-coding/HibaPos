@@ -168,7 +168,11 @@ describe("the archive checksum is reproducible from the file (C-04)", () => {
     const built = await buildAnnualArchive(2026);
     const parsed = JSON.parse(built.json);
     expect(parsed.software).toEqual({ name: SOFTWARE_NAME, version: SOFTWARE_VERSION });
-    expect(parsed.version).toBe(3);
+    // AMENDED 2026-09-06 (Batch 3.8, DD-23): 3 → 4, when `dailyCloses` was
+    // added to the payload. The number is the SCHEMA version of the archive
+    // file, and it moves whenever the file's shape does.
+    expect(parsed.version).toBe(4);
+    expect(parsed).toHaveProperty("dailyCloses");
     expect(parsed.notice).toContain(`Logiciel : ${SOFTWARE_NAME}, version ${SOFTWARE_VERSION}`);
     // Not vacuous: a real dotted release, not a placeholder.
     expect(parsed.software.version).toMatch(/^\d+\.\d+\.\d+$/);

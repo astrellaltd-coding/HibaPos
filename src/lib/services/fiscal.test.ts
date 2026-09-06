@@ -236,7 +236,9 @@ describe("fiscal journal (JFP) integration", () => {
       where: { id: shift.id },
       data: { status: "CLOSED", closedById: user.id, closedAt: new Date() },
     });
-    const afterMonthEnd = new Date(year, month, 1);
+    // AMENDED 2026-09-06 (Batch 3.8, DD-24): the month now ends at the
+    // trading-day cut-off, so midnight on the 1st is five hours early.
+    const afterMonthEnd = new Date(year, month, 1, 6, 0);
 
     const close = await closeMonth(year, month, user.id, false, afterMonthEnd);
     expect(close.salesTotal).toBe(1500);

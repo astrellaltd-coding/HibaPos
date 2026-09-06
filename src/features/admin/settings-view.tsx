@@ -204,6 +204,28 @@ function SettingsForm({ initial }: { initial: SettingsDto }) {
                     10 % alimentaire, 20 % boissons, 5,5 % certaines boissons.
                   </p>
                 </div>
+                {/* DD-24 (Batch 3.8). Written in the operator's terms, not the
+                    code's: this is "when does my day end", and the consequence
+                    it controls is which day a late ticket lands in. */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="s-cutoff">Fin de la journée d&apos;exploitation</Label>
+                  <Input
+                    id="s-cutoff"
+                    type="number"
+                    min="0"
+                    max="23"
+                    value={form.businessDayCutoffHour ?? 5}
+                    onChange={(e) =>
+                      update("businessDayCutoffHour", Number(e.target.value) || 0)
+                    }
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Heure à laquelle une journée d&apos;exploitation se termine et la suivante
+                    commence. Avec 5, un service qui finit à 1h30 reste dans la journée de la
+                    veille. Mettez 0 pour suivre le calendrier. Détermine aussi les bornes des
+                    clôtures mensuelle et annuelle.
+                  </p>
+                </div>
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="s-width">Largeur du ticket</Label>
                   <Select

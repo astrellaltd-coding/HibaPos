@@ -232,5 +232,12 @@ export const settingsSchema = z.object({
   discountApprovalThreshold: z.number().min(0).max(100).default(20),
   autoPrint: z.boolean().default(false),
   factice: z.boolean().default(false),
+  // DD-23 / DD-24 (Batch 3.8). The hour a TRADING day starts and ends, so a
+  // service running to 01:30 belongs to the day it started rather than to the
+  // next one. It governs the day close, the monthly close and the exercice
+  // alike, which is what stops two sealed documents disagreeing about the same
+  // tickets. `0` means calendar days and is a supported setting, not a
+  // disabled feature. Bounded 0..23 by the hour it names, not by policy.
+  businessDayCutoffHour: z.number().int().min(0).max(23).default(5),
 });
 export type SettingsInput = z.infer<typeof settingsSchema>;

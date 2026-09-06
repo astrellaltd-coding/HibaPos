@@ -12,7 +12,7 @@ import {
   shiftCashMovementsWhere,
 } from "@/lib/services/aggregate";
 import { nextZReportNumber } from "@/lib/services/sequence";
-import { appendFiscalEvent } from "@/lib/services/fiscal";
+import { appendFiscalEvent, perpetualSnapshot } from "@/lib/services/fiscal";
 import { getSettings } from "@/lib/services/settings";
 import { TX_Z_CLOSE } from "@/lib/tx-options";
 
@@ -184,6 +184,12 @@ export async function generateZReport(shiftId: string, closingFloat: number, clo
     const report = await computeShiftReport(shiftId, tx);
     const cashVariance = closingFloat - report.expectedCash;
 
+    // L-57 (Batch 3.8). BOFiP § 170 requires that **for each close** the
+    // software calculate and record the perpetual total, and this one recorded
+    // none. Read inside the transaction that seals the Z, so the figure is the
+    // one that was true at the instant of sealing and not a moment either side.
+    const perpetual = await perpetualSnapshot(tx);
+
     const number = await nextZReportNumber(tx);
     const zReport = await tx.zReport.create({
       data: {
@@ -205,6 +211,9 @@ export async function generateZReport(shiftId: string, closingFloat: number, clo
         expectedCash: report.expectedCash,
         closingFloat,
         cashVariance,
+        // L-57 (Batch 3.8).
+        perpetualSalesTotal: perpetual.totalSales,
+        perpetualTotalsJson: JSON.stringify(perpetual),
         topProductsJson: JSON.stringify(report.topProducts),
         vatBreakdownJson: JSON.stringify(report.vatBreakdown),
       },
@@ -268,6 +277,12 @@ export async function generateZReport(shiftId: string, closingFloat: number, clo
         expectedCash: report.expectedCash,
         closingFloat,
         cashVariance,
+        // L-57 (Batch 3.8): the perpetual total travels in the sealed journal
+        // entry as well as in the row, so the chain covers it. This is the
+        // THIRD growth of the `CLOTURE_Z` payload — see *Open Threads → D* —
+        // and it is free only because no `CLOTURE_Z` has ever been written on
+        // production (two events exist, both `VENTE`, verified 2026-09-06).
+        perpetualSalesTotal: perpetual.totalSales,
       },
     });
     await tx.zReport.update({ where: { id: zReport.id }, data: { fiscalEventId: ev.id } });

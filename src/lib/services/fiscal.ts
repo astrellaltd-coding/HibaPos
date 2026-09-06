@@ -17,10 +17,13 @@ import {
   monthlyPeriod,
   monthBounds,
   yearBounds,
+  businessDayOf,
+  businessDayBounds,
   hasPeriodEnded,
-  localDay,
+  localBoundary,
   type PeriodBounds,
 } from "@/lib/period";
+import { getSettings } from "@/lib/services/settings";
 import { type VatBreakdown } from "@/lib/money";
 import {
   aggregateOrders,
@@ -123,6 +126,45 @@ export async function incrementGrandTotal(
       lastUpdatedAt: new Date(),
     },
   });
+}
+
+/**
+ * L-57 (Batch 3.8) — the perpetual total as it stands, for sealing into a close.
+ *
+ * BOFiP § 170: « Pour chaque clôture, des données cumulatives et
+ * récapitulatives, intègres et inaltérables, doivent être calculées et
+ * enregistrées par le logiciel ou système de caisse, comme le cumul du grand
+ * total de la période et **le total perpétuel** pour la période. » HibaPOS
+ * maintained `GrandTotal` from the first sale and wrote it into no close at
+ * all, so no sealed document ever recorded what the running total was when the
+ * period ended. That is the finding.
+ *
+ * A MISSING `GrandTotal` row yields zeros rather than null, and the difference
+ * matters: the row is created by the first sale, so its absence means nothing
+ * has ever been sold, and zero is then the measured truth. Null is reserved for
+ * the rows sealed before this batch existed, where the figure was never taken.
+ */
+export type PerpetualSnapshot = {
+  totalSales: number;
+  totalOrders: number;
+  totalVat: number;
+  totalCash: number;
+  totalCard: number;
+  totalVoucher: number;
+  totalRefunded: number;
+};
+
+export async function perpetualSnapshot(tx: Tx): Promise<PerpetualSnapshot> {
+  const gt = await tx.grandTotal.findUnique({ where: { id: "singleton" } });
+  return {
+    totalSales: gt?.totalSales ?? 0,
+    totalOrders: gt?.totalOrders ?? 0,
+    totalVat: gt?.totalVat ?? 0,
+    totalCash: gt?.totalCash ?? 0,
+    totalCard: gt?.totalCard ?? 0,
+    totalVoucher: gt?.totalVoucher ?? 0,
+    totalRefunded: gt?.totalRefunded ?? 0,
+  };
 }
 
 /** Record a refund against the perpetual grand total (tracked separately, does
@@ -323,7 +365,20 @@ async function aggregatePeriod(from: Date, to: Date): Promise<PeriodAgg> {
 }
 
 // ---------------------------------------------------------------------------
-// Monthly / annual clôtures (sealed + chained)
+// Daily / monthly / annual clôtures (sealed + chained)
+//
+// DD-23 (Batch 3.8) added the DAILY one. Until then the software had no daily
+// close: `generateZReport` sealed a CAISSE and a comment called it the
+// « clôture journalière », while on the production test data Z #2 covered five
+// calendar days. BOFiP § 170 requires all three and calls them « cumulatives et
+// impératives »; the operator chose to build the missing one rather than keep
+// arguing that a per-caisse Z is a daily close.
+//
+// DD-24 put every boundary here on the TRADING-DAY clock, month and exercice
+// included, so a service ending at 01:30 belongs to one day and one month and
+// no two sealed documents disagree. The cut-off is read from settings, once,
+// at the top of each close, and STORED on the sealed row: a later change to the
+// setting must never make an existing document ambiguous about its own edges.
 // ---------------------------------------------------------------------------
 
 /**
@@ -383,7 +438,7 @@ function assertPeriodEnded(bounds: PeriodBounds, period: string, label: string, 
   if (hasPeriodEnded(bounds, now)) return;
   throw new Error(
     `Clôture prématurée : ${label} ${period} n'est pas terminé. ` +
-      `Il ne pourra être clôturé qu'à partir du ${localDay(bounds.to)}. ` +
+      `Il ne pourra être clôturé qu'à partir du ${localBoundary(bounds.to)}. ` +
       `Une clôture scellée ne peut être ni modifiée ni supprimée.`,
   );
 }
@@ -435,6 +490,170 @@ export function nextMonthlyPeriod(period: string): string {
   return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
 }
 
+/**
+ * DD-23 (Batch 3.8) — the day sequencing rule, and it is deliberately NOT
+ * `assertNextPeriod`.
+ *
+ * The monthly rule demands *exactly* the next period, because a gap in months
+ * can never be filled and would leave a month unsealable forever (M-01, DD-05).
+ * Days are different in the way that matters: a restaurant closed on Mondays
+ * produces a calendar gap every week, and a rule demanding the next day would
+ * refuse Tuesday for the life of the business.
+ *
+ * So the rule is the property M-01 actually protects, stated directly: a day
+ * may not be sealed **before** one already sealed, and may not be sealed while
+ * an **earlier day that actually traded** is still open. A day with no sale and
+ * no cash movement may be skipped — there is nothing to seal and nothing lost.
+ *
+ * "Traded" is deliberately orders **or** cash movements, not orders alone: a
+ * day whose only event was a payout from the drawer still has something the
+ * close would have recorded.
+ */
+async function assertDaySequence(period: string, cutoffHour: number, bounds: PeriodBounds) {
+  const latest = await db.dailyClose.findFirst({
+    orderBy: { period: "desc" },
+    select: { period: true },
+  });
+  if (latest && period <= latest.period) {
+    throw new Error(
+      `Clôture hors séquence : la journée ${latest.period} est déjà clôturée. ` +
+        `Une journée ne peut être clôturée qu'après la dernière journée scellée.`,
+    );
+  }
+
+  // `period` sorts lexicographically as "YYYY-MM-DD", which is chronological.
+  const searchFrom = latest ? businessDayBounds(latest.period, cutoffHour).to : new Date(0);
+  const [earlierOrder, earlierMovement] = await Promise.all([
+    db.order.findFirst({
+      where: { createdAt: { gte: searchFrom, lt: bounds.from } },
+      orderBy: { createdAt: "asc" },
+      select: { createdAt: true },
+    }),
+    db.cashMovement.findFirst({
+      where: { createdAt: { gte: searchFrom, lt: bounds.from } },
+      orderBy: { createdAt: "asc" },
+      select: { createdAt: true },
+    }),
+  ]);
+  const earliest = [earlierOrder?.createdAt, earlierMovement?.createdAt]
+    .filter((d): d is Date => d != null)
+    .sort((a, b) => a.getTime() - b.getTime())[0];
+  if (earliest) {
+    throw new Error(
+      `Clôture hors séquence : la journée ${businessDayOf(earliest, cutoffHour)} a enregistré ` +
+        `des opérations et n'est pas clôturée. Clôturez-la avant ${period}.`,
+    );
+  }
+}
+
+/**
+ * Seal a trading day (DD-23). `day` is `"YYYY-MM-DD"` on the cut-off clock —
+ * `businessDayOf` is what decides which day a ticket belongs to, and
+ * `businessDayBounds` gives this function the same window the aggregation uses.
+ */
+export async function closeDay(
+  day: string,
+  sealedById: string,
+  factice = false,
+  now: Date = new Date(),
+) {
+  const settings = await getSettings();
+  const cutoffHour = settings.businessDayCutoffHour;
+
+  const existing = await db.dailyClose.findUnique({ where: { period: day } });
+  if (existing) throw new Error(`Clôture journalière déjà effectuée pour ${day}`);
+
+  const bounds = businessDayBounds(day, cutoffHour);
+  // Same order as the month: sequencing and timing before the aggregation, so
+  // a refused attempt costs nothing and writes nothing (M-01's convention).
+  await assertDaySequence(day, cutoffHour, bounds);
+  assertPeriodEnded(bounds, day, "la journée", now);
+  await assertNoOpenShift(day, "la journée");
+
+  const agg = await aggregatePeriod(bounds.from, bounds.to);
+  const [year, month, dayOfMonth] = day.split("-").map(Number);
+
+  return db.$transaction(async (tx) => {
+    const prev = await tx.dailyClose.findFirst({
+      orderBy: { period: "desc" },
+      select: { hash: true },
+    });
+    const previousHash = prev?.hash ?? null;
+    const timestamp = new Date();
+    const perpetual = await perpetualSnapshot(tx); // L-57
+    const dataPayload = { period: day, year, month, day: dayOfMonth, cutoffHour, perpetual, ...agg };
+    const dataJson = canonicalize(dataPayload);
+    const hash = computeCloseHash(previousHash, day, timestamp, dataJson);
+
+    const close = await tx.dailyClose.create({
+      data: {
+        period: day,
+        year,
+        month,
+        day: dayOfMonth,
+        cutoffHour,
+        salesTotal: agg.salesTotal,
+        salesCount: agg.salesCount,
+        vatTotal: agg.vatTotal,
+        cashTotal: agg.cashTotal,
+        cardTotal: agg.cardTotal,
+        voucherTotal: agg.voucherTotal,
+        discountsTotal: agg.discountsTotal,
+        refundsTotal: agg.totalRefunded,
+        refundsCount: agg.refundsCount,
+        cashInTotal: agg.cashInTotal,
+        cashOutTotal: agg.cashOutTotal,
+        cashMovementsCount: agg.cashMovementsCount,
+        perpetualSalesTotal: perpetual.totalSales,
+        perpetualTotalsJson: JSON.stringify(perpetual),
+        vatBreakdownJson: JSON.stringify(agg.vatBreakdown),
+        topProductsJson: JSON.stringify(agg.topProducts),
+        dataJson,
+        sealedAt: timestamp,
+        sealedById,
+        previousHash,
+        hash,
+      },
+    });
+
+    const ev = await appendFiscalEvent(tx, {
+      type: "CLOTURE_J",
+      userId: sealedById,
+      factice,
+      data: {
+        period: day,
+        closeId: close.id,
+        cutoffHour,
+        salesTotal: agg.salesTotal,
+        salesCount: agg.salesCount,
+        vatTotal: agg.vatTotal,
+        perpetualSalesTotal: perpetual.totalSales,
+      },
+      closeId: close.id,
+    });
+    await tx.dailyClose.update({ where: { id: close.id }, data: { fiscalEventId: ev.id } });
+    return tx.dailyClose.findUniqueOrThrow({ where: { id: close.id } });
+  }, TX_FISCAL);
+}
+
+/** Pure verification of the DAILY close chain, alongside the monthly and annual
+ *  ones. Same algorithm, same `verifyCloses` — there is deliberately one. */
+export async function verifyDailyCloses(): Promise<ChainVerifyResult> {
+  const closes = await db.dailyClose.findMany({
+    orderBy: { period: "asc" },
+    select: { period: true, sealedAt: true, dataJson: true, previousHash: true, hash: true },
+  });
+  return verifyCloses(
+    closes.map((c) => ({
+      period: c.period,
+      timestamp: c.sealedAt,
+      dataJson: c.dataJson,
+      previousHash: c.previousHash,
+      hash: c.hash,
+    })),
+  );
+}
+
 export async function closeMonth(
   year: number,
   month: number,
@@ -461,7 +680,13 @@ export async function closeMonth(
 
   // L-25: and refuse anything the calendar has not finished with. Both guards
   // sit before the aggregation, for the same reason M-01's does.
-  const bounds = monthBounds(year, month);
+  //
+  // DD-24 (Batch 3.8): the month now runs on the trading-day clock, so June
+  // ends at the cut-off on 1 July. A Friday service finishing at 01:00 on 1
+  // July therefore sits in Friday's day close AND in June's monthly close,
+  // instead of the two disagreeing.
+  const cutoffHour = (await getSettings()).businessDayCutoffHour;
+  const bounds = monthBounds(year, month, cutoffHour);
   assertPeriodEnded(bounds, period, "le mois", now);
   await assertNoOpenShift(period, "le mois");
 
@@ -475,10 +700,13 @@ export async function closeMonth(
     });
     const previousHash = prev?.hash ?? null;
     const timestamp = new Date();
+    const perpetual = await perpetualSnapshot(tx); // L-57
     const dataPayload = {
       period,
       year,
       month,
+      cutoffHour,
+      perpetual,
       ...agg,
     };
     const dataJson = canonicalize(dataPayload);
@@ -505,6 +733,10 @@ export async function closeMonth(
         cashInTotal: agg.cashInTotal,
         cashOutTotal: agg.cashOutTotal,
         cashMovementsCount: agg.cashMovementsCount,
+        // L-57 and DD-24 (Batch 3.8).
+        perpetualSalesTotal: perpetual.totalSales,
+        perpetualTotalsJson: JSON.stringify(perpetual),
+        cutoffHour,
         vatBreakdownJson: JSON.stringify(agg.vatBreakdown),
         topProductsJson: JSON.stringify(agg.topProducts),
         dataJson,
@@ -558,7 +790,10 @@ export async function closeYear(
   );
 
   // L-25: same two timing rules as the month, same place in the sequence.
-  const bounds = yearBounds(year);
+  // DD-24 (Batch 3.8): and the same trading-day clock, so the exercice ends at
+  // the cut-off on 1 January rather than at midnight.
+  const cutoffHour = (await getSettings()).businessDayCutoffHour;
+  const bounds = yearBounds(year, cutoffHour);
   assertPeriodEnded(bounds, period, "l'exercice", now);
   await assertNoOpenShift(period, "l'exercice");
 
@@ -572,7 +807,8 @@ export async function closeYear(
     });
     const previousHash = prev?.hash ?? null;
     const timestamp = new Date();
-    const dataPayload = { period, year, ...agg };
+    const perpetual = await perpetualSnapshot(tx); // L-57
+    const dataPayload = { period, year, cutoffHour, perpetual, ...agg };
     const dataJson = canonicalize(dataPayload);
     const hash = computeCloseHash(previousHash, period, timestamp, dataJson);
 
@@ -593,6 +829,10 @@ export async function closeYear(
         cashInTotal: agg.cashInTotal,
         cashOutTotal: agg.cashOutTotal,
         cashMovementsCount: agg.cashMovementsCount,
+        // L-57 and DD-24 (Batch 3.8), as on the month.
+        perpetualSalesTotal: perpetual.totalSales,
+        perpetualTotalsJson: JSON.stringify(perpetual),
+        cutoffHour,
         vatBreakdownJson: JSON.stringify(agg.vatBreakdown),
         topProductsJson: JSON.stringify(agg.topProducts),
         dataJson,
@@ -646,8 +886,9 @@ const ARCHIVE_NOTICE = (year: number) =>
     `à l'intérieur des octets qu'il couvre ne peut pas être vérifié directement.`,
     ``,
     `Chaînage : les enregistrements "fiscalEvents" forment un journal inaltérable dont`,
-    `chaque entrée contient le hash (SHA-256) de la précédente. Les "monthlyCloses" et le`,
-    `présent exercice ("annualClose" si scellé) forment leurs propres chaînes de clôtures.`,
+    `chaque entrée contient le hash (SHA-256) de la précédente. Les "dailyCloses", les`,
+    `"monthlyCloses" et le présent exercice ("annualClose" si scellé) forment leurs`,
+    `propres chaînes de clôtures.`,
     ``,
     `Lisibilité : ce fichier reste exploitable indépendamment du logiciel HibaPOS.`,
     `Conservation légale : 6 ans (7 si exercice décalé).`,
@@ -672,9 +913,16 @@ const ARCHIVE_NOTICE = (year: number) =>
  * embedded in the JSON) was not reproducible by a third party at all.
  */
 export async function buildAnnualArchive(year: number) {
-  const from = new Date(year, 0, 1);
-  const to = new Date(year + 1, 0, 1);
-  const [fiscalEvents, orders, zReports, monthlyCloses, annualClose, grandTotal] =
+  // DD-24 (Batch 3.8). These bounds used to be derived inline at midnight,
+  // deliberately, because an archive is a read and not a close. Once the
+  // exercice itself runs on the trading-day clock that reasoning inverts: an
+  // archive whose window differed from the close it archives would disagree
+  // with it about the handful of tickets either side of 1 January, which is
+  // exactly the disagreement DD-24 was answered to prevent. It now derives the
+  // same bounds from the same helper as `closeYear`.
+  const cutoffHour = (await getSettings()).businessDayCutoffHour;
+  const { from, to } = yearBounds(year, cutoffHour);
+  const [fiscalEvents, orders, zReports, dailyCloses, monthlyCloses, annualClose, grandTotal] =
     await Promise.all([
       db.fiscalEvent.findMany({
         where: { timestamp: { gte: from, lt: to } },
@@ -693,6 +941,10 @@ export async function buildAnnualArchive(year: number) {
         orderBy: { number: "asc" },
       }),
       db.zReport.findMany({ where: { generatedAt: { gte: from, lt: to } }, orderBy: { number: "asc" } }),
+      // DD-23 (Batch 3.8): the day closes belong in the archive beside the
+      // monthly ones. Omitting them would put a whole class of sealed fiscal
+      // document outside the only export an inspector is given.
+      db.dailyClose.findMany({ where: { year }, orderBy: { period: "asc" } }),
       db.monthlyClose.findMany({ where: { year }, orderBy: { period: "asc" } }),
       db.annualClose.findUnique({ where: { period: String(year) } }),
       db.grandTotal.findUnique({ where: { id: "singleton" } }),
@@ -701,11 +953,11 @@ export async function buildAnnualArchive(year: number) {
   const payload = {
     format: "hibapos-fiscal-archive",
     // Schema version of THIS FILE. 2 → 3 in Batch 3.7 (L-53), when `software`
-    // was added: a reader keyed on this number must not expect the key in a
-    // 2, and none exists to be confused — zero archives had ever been
-    // generated on production when the number moved (verified read-only,
-    // 2026-09-06).
-    version: 3,
+    // was added; 3 → 4 in Batch 3.8 (DD-23), when `dailyCloses` was. A reader
+    // keyed on this number must not expect either key in a 2, and none exists
+    // to be confused — zero archives had ever been generated on production
+    // when both numbers moved (verified read-only, 2026-09-06).
+    version: 4,
     year,
     generatedAt: new Date().toISOString(),
     // L-53 (Batch 3.7): which software, at which version, wrote this archive.
@@ -716,6 +968,7 @@ export async function buildAnnualArchive(year: number) {
     fiscalEvents,
     orders,
     zReports,
+    dailyCloses,
     monthlyCloses,
   };
 

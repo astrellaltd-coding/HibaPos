@@ -213,20 +213,20 @@ model CategoryAddOn {
 // ---------------------------------------------------------------------------
 
 model Customer {
-  id         String   @id @default(cuid())
-  name       String
-  phone      String?
-  email      String?
-  address    String?
+  id        String   @id @default(cuid())
+  name      String
+  phone     String?
+  email     String?
+  address   String?
   // DD-15 (Batch 5.7a): `postalCode` was here, with a comment calling it a
   // French delivery requirement and ZERO references in `src/` — not in
   // `customerSchema`, not in `CustomerDto`, not in the delivery form. The
   // delivery rule at `orders/route.ts` requires name + phone + address and
   // has never asked for a postcode. 0 of the 2 customers had one.
-  notes      String?
-  active     Boolean  @default(true)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  notes     String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   orders Order[]
 
@@ -523,22 +523,22 @@ model Receipt {
 // ---------------------------------------------------------------------------
 
 model ZReport {
-  id                 String   @id @default(cuid())
-  shiftId            String   @unique
-  number             Int      @unique
-  generatedAt        DateTime @default(now())
-  salesTotal         Int
-  salesCount         Int
-  vatTotal           Int
-  cashTotal          Int
-  cardTotal          Int
-  voucherTotal       Int
-  discountsTotal     Int
+  id                  String   @id @default(cuid())
+  shiftId             String   @unique
+  number              Int      @unique
+  generatedAt         DateTime @default(now())
+  salesTotal          Int
+  salesCount          Int
+  vatTotal            Int
+  cashTotal           Int
+  cardTotal           Int
+  voucherTotal        Int
+  discountsTotal      Int
   // M-07 (Batch 3.6): the period's corrections. Defaulted so the two existing
   // rows migrate without a rewrite — both predate any refund (there are none
   // in the database at all), so 0 is the true value for them, not a guess.
-  refundsTotal       Int      @default(0)
-  refundsCount       Int      @default(0)
+  refundsTotal        Int      @default(0)
+  refundsCount        Int      @default(0)
   // M-05 (Batch 5.5): the drawer's other movements. `expectedCash` below now
   // accounts for them, so without these an inspector could see that the figure
   // does not equal float + cash − refunds and have nothing to explain it —
@@ -546,16 +546,31 @@ model ZReport {
   // amounts are split into two totals here because a sealed document should
   // state what went in and what went out, not their difference. Defaulted 0:
   // both existing rows predate the feature, so 0 is their true value.
-  cashInTotal        Int      @default(0)
-  cashOutTotal       Int      @default(0)
-  cashMovementsCount Int      @default(0)
-  openingFloat       Int
-  expectedCash       Int
-  closingFloat       Int
-  cashVariance       Int
-  topProductsJson    String? // JSON snapshot
-  vatBreakdownJson   String? // {rate: {base, vat, ttc}}
-  fiscalEventId      String? // link to the FiscalEvent (CLOTURE_Z) journal entry (plain id, no FK)
+  cashInTotal         Int      @default(0)
+  cashOutTotal        Int      @default(0)
+  cashMovementsCount  Int      @default(0)
+  openingFloat        Int
+  expectedCash        Int
+  closingFloat        Int
+  cashVariance        Int
+  // L-57 (Batch 3.8). BOFiP § 170: « Pour chaque clôture, des données
+  // cumulatives et récapitulatives, intègres et inaltérables, doivent être
+  // calculées et enregistrées … comme le cumul du grand total de la période et
+  // le total perpétuel pour la période. » The period's own total is
+  // `salesTotal` above; this is the perpetual one, snapshotted at the instant
+  // of sealing. HibaPOS maintained `GrandTotal` and recorded it in no close,
+  // which is the whole of the finding.
+  //
+  // NULLABLE, and null means "sealed before Batch 3.8" — deliberately NOT the
+  // `NOT NULL DEFAULT 0` convention M-07 used for the refund columns. There, 0
+  // was the true value for the existing rows. Here 0 would assert that the
+  // business had never taken a euro, which is false, and a fiscal document must
+  // not carry a figure that was never measured. A missing figure reads missing.
+  perpetualSalesTotal Int? // cents — GrandTotal.totalSales at the seal
+  perpetualTotalsJson String? // the whole GrandTotal snapshot, as sealed
+  topProductsJson     String? // JSON snapshot
+  vatBreakdownJson    String? // {rate: {base, vat, ttc}}
+  fiscalEventId       String? // link to the FiscalEvent (CLOTURE_Z) journal entry (plain id, no FK)
 
   shift Shift @relation(fields: [shiftId], references: [id], onDelete: Restrict)
 }
@@ -668,69 +683,123 @@ model GrandTotal {
   lastUpdatedAt DateTime @default(now())
 }
 
+// Sealed daily clôture (DD-23, Batch 3.8) — the « clôture journalière » BOFiP
+// § 170 requires, on the TRADING-DAY clock DD-24 chose. One per "YYYY-MM-DD".
+//
+// DISTINCT FROM `ZReport`, which seals one CAISSE and keeps exactly that job.
+// A trading day may contain several caisses, and before this model the software
+// had no daily close at all: the Z was called one, and on the production test
+// data Z #2 covered five calendar days. The operator was shown that and chose
+// to build a real one rather than keep managing the ambiguity.
+model DailyClose {
+  id                  String   @id @default(cuid())
+  period              String   @unique // "YYYY-MM-DD" — the trading day, not the calendar day
+  year                Int
+  month               Int // 1-12, of the trading day's own date
+  day                 Int // 1-31
+  salesTotal          Int
+  salesCount          Int
+  vatTotal            Int
+  cashTotal           Int
+  cardTotal           Int
+  voucherTotal        Int
+  discountsTotal      Int
+  refundsTotal        Int      @default(0)
+  refundsCount        Int      @default(0)
+  cashInTotal         Int      @default(0)
+  cashOutTotal        Int      @default(0)
+  cashMovementsCount  Int      @default(0)
+  // The cut-off this day was sealed under. Stored, not looked up, so that
+  // changing the setting later can never make a sealed document ambiguous
+  // about which hours it covered.
+  cutoffHour          Int
+  // L-57 (Batch 3.8), as on every other close — see the note on `ZReport`.
+  perpetualSalesTotal Int?
+  perpetualTotalsJson String?
+  vatBreakdownJson    String
+  topProductsJson     String
+  dataJson            String // canonical payload used to compute the hash
+  sealedAt            DateTime @default(now())
+  sealedById          String
+  previousHash        String?
+  hash                String
+  fiscalEventId       String? // link to the FiscalEvent (CLOTURE_J) journal entry
+
+  @@index([year, month])
+}
+
 // Sealed monthly clôture (C = conservation). One per "YYYY-MM" period.
 model MonthlyClose {
-  id                 String   @id @default(cuid())
-  period             String   @unique // "YYYY-MM"
-  year               Int
-  month              Int // 1-12
-  salesTotal         Int
-  salesCount         Int
-  vatTotal           Int
-  cashTotal          Int
-  cardTotal          Int
-  voucherTotal       Int
-  discountsTotal     Int
+  id                  String   @id @default(cuid())
+  period              String   @unique // "YYYY-MM"
+  year                Int
+  month               Int // 1-12
+  salesTotal          Int
+  salesCount          Int
+  vatTotal            Int
+  cashTotal           Int
+  cardTotal           Int
+  voucherTotal        Int
+  discountsTotal      Int
   // L-26 (Batch 3.6b): the aggregation has always produced these; the close
   // hashed them inside dataJson and had nowhere to put them, so no query,
   // report or screen could read them. NOT NULL + default 0, the M-07
   // convention on ZReport.
-  refundsTotal       Int      @default(0)
-  refundsCount       Int      @default(0)
+  refundsTotal        Int      @default(0)
+  refundsCount        Int      @default(0)
   // M-05 (Batch 5.5), the same three as on ZReport and for the same reason:
   // Batch 3.2's rule is that a period close equals the sum of its Z reports,
   // and a Z that shows a 200 € payout while the close containing it does not
   // is the C-10 shape in a new column.
-  cashInTotal        Int      @default(0)
-  cashOutTotal       Int      @default(0)
-  cashMovementsCount Int      @default(0)
-  vatBreakdownJson   String
-  topProductsJson    String
-  dataJson           String // canonical payload used to compute the hash (for chain verification)
-  sealedAt           DateTime @default(now())
-  sealedById         String
-  previousHash       String?
-  hash               String
-  fiscalEventId      String? // link to the FiscalEvent (CLOTURE_M) journal entry
+  cashInTotal         Int      @default(0)
+  cashOutTotal        Int      @default(0)
+  cashMovementsCount  Int      @default(0)
+  // L-57 (Batch 3.8), as on `ZReport` and for the same reason.
+  perpetualSalesTotal Int?
+  perpetualTotalsJson String?
+  // DD-24 (Batch 3.8): the cut-off this month was sealed under, so a later
+  // change to the setting cannot make a sealed month ambiguous about its edges.
+  cutoffHour          Int      @default(0)
+  vatBreakdownJson    String
+  topProductsJson     String
+  dataJson            String // canonical payload used to compute the hash (for chain verification)
+  sealedAt            DateTime @default(now())
+  sealedById          String
+  previousHash        String?
+  hash                String
+  fiscalEventId       String? // link to the FiscalEvent (CLOTURE_M) journal entry
 
   @@index([year])
 }
 
 // Sealed annual clôture (A = archivage). One per "YYYY" period.
 model AnnualClose {
-  id                 String   @id @default(cuid())
-  period             String   @unique // "YYYY"
-  year               Int
-  salesTotal         Int
-  salesCount         Int
-  vatTotal           Int
-  cashTotal          Int
-  cardTotal          Int
-  voucherTotal       Int
-  discountsTotal     Int
-  refundsTotal       Int      @default(0) // L-26 (Batch 3.6b), as on MonthlyClose
-  refundsCount       Int      @default(0)
-  cashInTotal        Int      @default(0) // M-05 (Batch 5.5), as on MonthlyClose
-  cashOutTotal       Int      @default(0)
-  cashMovementsCount Int      @default(0)
-  vatBreakdownJson   String
-  topProductsJson    String
-  dataJson           String // canonical payload used to compute the hash (for chain verification)
-  sealedAt           DateTime @default(now())
-  sealedById         String
-  previousHash       String?
-  hash               String
-  fiscalEventId      String? // link to the FiscalEvent (CLOTURE_A) journal entry
+  id                  String   @id @default(cuid())
+  period              String   @unique // "YYYY"
+  year                Int
+  salesTotal          Int
+  salesCount          Int
+  vatTotal            Int
+  cashTotal           Int
+  cardTotal           Int
+  voucherTotal        Int
+  discountsTotal      Int
+  refundsTotal        Int      @default(0) // L-26 (Batch 3.6b), as on MonthlyClose
+  refundsCount        Int      @default(0)
+  cashInTotal         Int      @default(0) // M-05 (Batch 5.5), as on MonthlyClose
+  cashOutTotal        Int      @default(0)
+  cashMovementsCount  Int      @default(0)
+  perpetualSalesTotal Int? // L-57 (Batch 3.8), as on MonthlyClose
+  perpetualTotalsJson String?
+  cutoffHour          Int      @default(0) // DD-24 (Batch 3.8), as on MonthlyClose
+  vatBreakdownJson    String
+  topProductsJson     String
+  dataJson            String // canonical payload used to compute the hash (for chain verification)
+  sealedAt            DateTime @default(now())
+  sealedById          String
+  previousHash        String?
+  hash                String
+  fiscalEventId       String? // link to the FiscalEvent (CLOTURE_A) journal entry
 }
 
 // Record of a generated annual fiscal archive (open format + SHA-256 + FR notice).

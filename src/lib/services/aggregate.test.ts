@@ -252,7 +252,9 @@ describe("a sealed MonthlyClose equals the sum of its ZReports (C-10)", () => {
 
     // L-25 (Batch 3.6b): a month is only sealable once it has ended, so the
     // clock is pinned just past April rather than left to the real one.
-    const close = await closeMonth(2026, 4, user.id, false, new Date(2026, 4, 1));
+    // AMENDED 2026-09-06 (Batch 3.8, DD-24): the month now ends at the
+    // trading-day cut-off, so midnight on the 1st is five hours early.
+    const close = await closeMonth(2026, 4, user.id, false, new Date(2026, 4, 1, 6, 0));
 
     // The whole point: field by field, the close equals the sum of its Zs.
     const zSum = (pick: (z: (typeof zReports)[number]) => number) =>

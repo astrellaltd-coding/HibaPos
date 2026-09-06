@@ -14,6 +14,10 @@ export type FiscalEventType =
   // it touches no revenue, no VAT and not the perpetual GrandTotal.
   | "MOUVEMENT_CAISSE"
   | "CLOTURE_Z"
+  // DD-23 (Batch 3.8): the sealed TRADING-DAY close. `CLOTURE_Z` seals one
+  // caisse and keeps that job; this seals the day above it, on the cut-off
+  // clock, beside the monthly and annual closes that already exist.
+  | "CLOTURE_J"
   | "CLOTURE_M"
   | "CLOTURE_A"
   | "OUVERTURE_TIROIR"

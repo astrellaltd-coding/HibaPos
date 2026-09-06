@@ -390,7 +390,9 @@ describe("M-05 — a month equals the sum of its Z reports (Batch 3.2)", () => {
     await generateZReport(may.id, 10000 - 3000, userId);
 
     const aprilClose = await closeMonth(2026, 4, userId, false, MAY(1));
-    const mayClose = await closeMonth(2026, 5, userId, false, new Date(2026, 5, 1));
+    // AMENDED 2026-09-06 (Batch 3.8, DD-24): the month now ends at the
+    // trading-day cut-off, so midnight on the 1st is five hours early.
+    const mayClose = await closeMonth(2026, 5, userId, false, new Date(2026, 5, 1, 6, 0));
 
     expect(aprilClose.cashOutTotal).toBe(0);
     expect(aprilClose.cashMovementsCount).toBe(0);

@@ -319,6 +319,9 @@ export type SettingsDto = {
   discountApprovalThreshold: number; // percent (e.g. 20 = 20%)
   autoPrint: boolean;
   factice: boolean; // FACTICE / SIMULATION mode — stamps receipts + fiscal events
+  // DD-23 / DD-24 (Batch 3.8): the hour a trading day starts and ends. Governs
+  // the day close, the month and the exercice alike. 0 = calendar days.
+  businessDayCutoffHour: number;
 };
 
 export type BackupDto = {
@@ -365,6 +368,10 @@ export type FiscalEventType =
   // to type against it. Recorded as dead code under L-07 in Batch 7.2.
   | "MOUVEMENT_CAISSE"
   | "CLOTURE_Z"
+  // DD-23 (Batch 3.8): the sealed TRADING-DAY close, distinct from CLOTURE_Z,
+  // which seals one caisse. Added to both unions in the same commit, which is
+  // the whole lesson of M-05's note above.
+  | "CLOTURE_J"
   | "CLOTURE_M"
   | "CLOTURE_A"
   | "OUVERTURE_TIROIR"

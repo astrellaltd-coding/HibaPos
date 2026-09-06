@@ -254,6 +254,10 @@ describe("T-03 — every API route declares an authorization gate", () => {
   "fiscal/archive:GET": "BOTH",
   "fiscal/archive:POST": "SUPER_ADMIN",
   "fiscal/archive/[year]:GET": "BOTH",
+  // DD-23 (Batch 3.8). `BOTH`, matching `close-month` and not `close-year`:
+  // sealing the trading day is the operator's daily work, and gating it to the
+  // developer's account would put a mandatory close behind an absent person.
+  "fiscal/close-day:POST": "BOTH",
   "fiscal/close-month:POST": "BOTH",
   "fiscal/close-year:POST": "SUPER_ADMIN",
   "fiscal/closes:GET": "BOTH",
@@ -347,7 +351,11 @@ describe("T-03 — every API route declares an authorization gate", () => {
       acc[v] = (acc[v] ?? 0) + 1;
       return acc;
     }, {});
-    expect(counts).toEqual({ BOTH: 29, ANY: 26, INLINE: 14, SUPER_ADMIN: 7 });
+    // AMENDED 2026-09-06 (Batch 3.8, DD-23): BOTH 29 → 30, the one new route
+    // `fiscal/close-day`. Every other number is unmoved, which is the whole
+    // point of stating them: a batch that added a route AND quietly widened an
+    // existing gate would show up here as two changes, not one.
+    expect(counts).toEqual({ BOTH: 30, ANY: 26, INLINE: 14, SUPER_ADMIN: 7 });
   });
 
   it("matches the expected gate wherever one is pinned", async () => {

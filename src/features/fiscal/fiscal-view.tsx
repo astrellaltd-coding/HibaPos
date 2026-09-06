@@ -28,7 +28,9 @@ import { Money } from "@/components/shared/money";
 import { SoftwareIdentity, type SoftwareIdentityDto } from "@/components/shared/software-identity";
 import { toast } from "sonner";
 import { formatDateTime } from "@/lib/format";
-import { lastCompletedMonth, lastCompletedYear } from "@/lib/period";
+import { lastCompletedMonth, lastCompletedYear, lastCompletedBusinessDay } from "@/lib/period";
+import { renderDayCloseTicket } from "@/lib/services/day-close-ticket";
+import type { SettingsDto } from "@/types/api";
 import {
   ShieldCheck,
   ShieldAlert,
@@ -47,6 +49,8 @@ type VerifyResult = {
   /** L-53 (Batch 3.7): what the SERVER says it is running. */
   software?: SoftwareIdentityDto;
   fiscalEvents: ChainResult;
+  /** DD-23 (Batch 3.8): the trading-day close chain. */
+  dailyCloses?: ChainResult;
   monthlyCloses: ChainResult;
   annualCloses: ChainResult;
   grandTotal: GrandTotalDto | null;
@@ -72,6 +76,19 @@ type CloseRow = {
   sealedAt: string;
   hash: string;
   previousHash: string | null;
+};
+type DailyCloseRow = CloseRow & {
+  cutoffHour: number;
+  salesCount: number;
+  cashTotal: number;
+  cardTotal: number;
+  voucherTotal: number;
+  discountsTotal: number;
+  cashInTotal: number;
+  cashOutTotal: number;
+  cashMovementsCount: number;
+  perpetualSalesTotal: number | null;
+  vatBreakdownJson: string | null;
 };
 type ArchiveRow = {
   id: string;
@@ -126,13 +143,38 @@ export function FiscalView() {
   const isSuperAdmin = user?.role === "SUPER_ADMIN";
   const now = new Date();
 
+  // DD-24 (Batch 3.8): every proposal below is derived from the trading-day
+  // cut-off, never stored at first render. Storing them was safe while the
+  // clock was midnight and the value was known synchronously; once the cut-off
+  // arrives from the server, a stored initial value would be computed on the
+  // wrong clock and the screen would propose a period the server refuses —
+  // which is exactly what L-25 was. An override holds only what the operator
+  // has actually typed.
+  const settings = useQuery({
+    queryKey: ["settings"],
+    queryFn: () => api.get<SettingsDto>("/api/settings"),
+  });
+  const cutoffHour = settings.data?.businessDayCutoffHour ?? 5;
+
   // L-25 (Batch 3.6b): the month field used to propose the CURRENT month —
   // the one period the server now refuses, and the one whose premature seal
   // is unrepairable. Both close fields propose the last completed period.
-  const proposedMonth = lastCompletedMonth(now);
-  const [closeYearInput, setCloseYearInput] = useState(proposedMonth.year);
-  const [closeMonthInput, setCloseMonthInput] = useState(proposedMonth.month);
-  const [annualYearInput, setAnnualYearInput] = useState(lastCompletedYear(now));
+  const proposedMonth = lastCompletedMonth(now, cutoffHour);
+  const [monthOverride, setMonthOverride] = useState<{ year?: number; month?: number }>({});
+  const closeYearInput = monthOverride.year ?? proposedMonth.year;
+  const closeMonthInput = monthOverride.month ?? proposedMonth.month;
+  const setCloseYearInput = (year: number) => setMonthOverride((o) => ({ ...o, year }));
+  const setCloseMonthInput = (month: number) => setMonthOverride((o) => ({ ...o, month }));
+  const [annualOverride, setAnnualOverride] = useState<number | null>(null);
+  const annualYearInput = annualOverride ?? lastCompletedYear(now, cutoffHour);
+  const setAnnualYearInput = (y: number) => setAnnualOverride(y);
+
+  // DD-23 (Batch 3.8): the trading day on offer is the last one that has
+  // actually finished — at 03:00 with a 05:00 cut-off, yesterday is still
+  // running, so the day before it is what may be sealed.
+  const [dayOverride, setDayOverride] = useState<string | null>(null);
+  const closeDayInput = dayOverride ?? lastCompletedBusinessDay(now, cutoffHour);
+  const [ticketFor, setTicketFor] = useState<DailyCloseRow | null>(null);
   const [archiveYearInput, setArchiveYearInput] = useState(now.getFullYear() - 1);
   const [drawerReason, setDrawerReason] = useState("");
 
@@ -146,7 +188,10 @@ export function FiscalView() {
   });
   const closes = useQuery({
     queryKey: ["fiscal", "closes"],
-    queryFn: () => api.get<{ monthly: CloseRow[]; annual: CloseRow[] }>("/api/fiscal/closes"),
+    queryFn: () =>
+      api.get<{ daily: DailyCloseRow[]; monthly: CloseRow[]; annual: CloseRow[] }>(
+        "/api/fiscal/closes",
+      ),
   });
   const archives = useQuery({
     queryKey: ["fiscal", "archives"],
@@ -168,6 +213,19 @@ export function FiscalView() {
       qc.invalidateQueries({ queryKey: ["fiscal"] });
     },
     onError: (e) => fail(e, "Échec de la clôture mensuelle"),
+  });
+
+  const closeDay = useMutation({
+    mutationFn: () => api.post<DailyCloseRow>("/api/fiscal/close-day", { day: closeDayInput }),
+    onSuccess: (row) => {
+      toast.success(`Clôture du jour scellée — ${row.period}`);
+      // Straight to the slip: the operator has to file it, so the software
+      // puts it in front of them rather than making them go and find it.
+      setTicketFor(row);
+      setDayOverride(null);
+      qc.invalidateQueries({ queryKey: ["fiscal"] });
+    },
+    onError: (e) => fail(e, "Échec de la clôture du jour"),
   });
 
   const closeYear = useMutation({
@@ -206,7 +264,10 @@ export function FiscalView() {
   });
 
   const chainsOk =
-    verify.data?.fiscalEvents.ok && verify.data?.monthlyCloses.ok && verify.data?.annualCloses.ok;
+    verify.data?.fiscalEvents.ok &&
+    (verify.data?.dailyCloses?.ok ?? true) &&
+    verify.data?.monthlyCloses.ok &&
+    verify.data?.annualCloses.ok;
 
   return (
     <div className="flex h-full flex-col gap-5 overflow-y-auto p-5 lg:p-6">
@@ -250,6 +311,7 @@ export function FiscalView() {
               {/* L-53 (Batch 3.7): the version a control asks for, first. */}
               <SoftwareIdentity software={verify.data?.software} />
               <ChainBadge label="Journal fiscal (JFP)" result={verify.data?.fiscalEvents} />
+              <ChainBadge label="Clôtures journalières" result={verify.data?.dailyCloses} />
               <ChainBadge label="Clôtures mensuelles" result={verify.data?.monthlyCloses} />
               <ChainBadge label="Clôtures annuelles" result={verify.data?.annualCloses} />
               <p className="text-xs text-muted-foreground">
@@ -318,6 +380,31 @@ export function FiscalView() {
           </CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
+          {/* DD-23 (Batch 3.8): the clôture journalière BOFiP § 170 requires.
+              The caisse Z above it seals ONE till; this seals the trading day. */}
+          <div className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-muted/20 p-3">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="cd-day">Journée</Label>
+              <Input
+                id="cd-day"
+                type="date"
+                className="w-44"
+                value={closeDayInput}
+                onChange={(e) => setDayOverride(e.target.value)}
+              />
+            </div>
+            <Button type="button" onClick={() => closeDay.mutate()} disabled={closeDay.isPending}>
+              {closeDay.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
+              Clôturer la journée
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              La journée d&apos;exploitation court de {String(cutoffHour).padStart(2, "0")}:00 à
+              {" "}{String(cutoffHour).padStart(2, "0")}:00 le lendemain, donc un service qui se
+              termine après minuit reste dans la même journée. Irréversible ; toutes les caisses
+              doivent être clôturées.
+            </p>
+          </div>
+
           <div className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-muted/20 p-3">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="cm-year">Année</Label>
@@ -378,7 +465,10 @@ export function FiscalView() {
 
           {closes.isLoading ? (
             <Skeleton className="h-20 w-full rounded-lg" />
-          ) : (closes.data?.monthly.length ?? 0) + (closes.data?.annual.length ?? 0) === 0 ? (
+          ) : (closes.data?.daily.length ?? 0) +
+              (closes.data?.monthly.length ?? 0) +
+              (closes.data?.annual.length ?? 0) ===
+            0 ? (
             <p className="rounded-lg border border-dashed border-border bg-muted/30 px-3 py-4 text-center text-xs text-muted-foreground">
               Aucune clôture scellée pour le moment.
             </p>
@@ -393,6 +483,7 @@ export function FiscalView() {
                     <th className="py-2 pr-3 text-right">Remboursements</th>
                     <th className="py-2 pr-3">Scellée le</th>
                     <th className="py-2">Condensat</th>
+                    <th className="py-2" />
                   </tr>
                 </thead>
                 <tbody>
@@ -407,12 +498,62 @@ export function FiscalView() {
                       </td>
                       <td className="py-2 pr-3 text-xs text-muted-foreground">{formatDateTime(c.sealedAt)}</td>
                       <td className="py-2 font-mono text-[11px] text-muted-foreground">{c.hash.slice(0, 16)}…</td>
+                      <td />
+                    </tr>
+                  ))}
+                  {(closes.data?.daily ?? []).map((c) => (
+                    <tr key={c.id} className="border-b border-border/60">
+                      <td className="py-2 pr-3 font-medium">{c.period}</td>
+                      <td className="py-2 pr-3 text-right tabular-nums"><Money amount={c.salesTotal} /></td>
+                      <td className="py-2 pr-3 text-right tabular-nums"><Money amount={c.vatTotal} /></td>
+                      <td className="py-2 pr-3 text-right tabular-nums">
+                        <Money amount={c.refundsTotal} />
+                        <span className="ml-1 text-xs text-muted-foreground">× {c.refundsCount}</span>
+                      </td>
+                      <td className="py-2 pr-3 text-xs text-muted-foreground">{formatDateTime(c.sealedAt)}</td>
+                      <td className="py-2 font-mono text-[11px] text-muted-foreground">{c.hash.slice(0, 16)}…</td>
+                      <td className="py-2 text-right">
+                        <Button type="button" variant="outline" size="sm" onClick={() => setTicketFor(c)}>
+                          Ticket
+                        </Button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           )}
+
+          {/* DD-25 (Batch 3.8): the slip the operator files with the books.
+              Rendered from the SEALED ROW by the same pure function the server
+              would use, so a reprint reproduces what was sealed rather than a
+              fresh aggregation of data that may have moved since. */}
+          {ticketFor ? (
+            <div className="rounded-lg border border-border bg-muted/20 p-3">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <p className="text-sm font-medium text-foreground">
+                  Ticket de clôture — {ticketFor.period}
+                </p>
+                <Button type="button" variant="outline" size="sm" onClick={() => setTicketFor(null)}>
+                  Fermer
+                </Button>
+              </div>
+              <pre className="overflow-x-auto rounded bg-background p-3 font-mono text-[11px] leading-tight text-foreground">
+                {renderDayCloseTicket(
+                  { ...ticketFor, sealedAt: ticketFor.sealedAt },
+                  {
+                    restaurantName: settings.data?.restaurantName,
+                    receiptWidth: settings.data?.receiptWidth,
+                    factice: settings.data?.factice,
+                  },
+                )}
+              </pre>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Conservez ce ticket avec la comptabilité : son code d&apos;intégrité permet de
+                vérifier que la clôture enregistrée n&apos;a pas été modifiée depuis.
+              </p>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 

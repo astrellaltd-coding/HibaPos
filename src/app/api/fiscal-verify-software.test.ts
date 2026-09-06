@@ -43,6 +43,22 @@ describe("L-53 — GET /api/fiscal/verify names the software and its version", (
     expect(res.body.software).toEqual({ name: "HibaPOS France", version: pkg.version });
   });
 
+  it("reports the trading-day close chain beside the other three (DD-23)", async () => {
+    // The control an inspector may ask for has to walk every sealed chain. The
+    // day close is one, and a chain the verification does not visit is a chain
+    // nobody checks.
+    const res = await callJson<{
+      fiscalEvents: { ok: boolean };
+      dailyCloses?: { ok: boolean; eventsChecked: number };
+      monthlyCloses: { ok: boolean };
+      annualCloses: { ok: boolean };
+    }>(verify, { url: "http://localhost/api/fiscal/verify" });
+    expect(res.status).toBe(200);
+    expect(res.body.dailyCloses).toBeDefined();
+    expect(res.body.dailyCloses!.ok).toBe(true);
+    expect(res.body.dailyCloses!.eventsChecked).toBe(0);
+  });
+
   it("the liveness probe still says nothing about the version (C-27)", async () => {
     const { GET: probe } = await import("@/app/api/route");
     const res = await probe();

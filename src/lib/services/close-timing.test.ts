@@ -64,17 +64,27 @@ async function closedShift(userId: string, number: number, openedAt: Date) {
 
 // --------------------------------------------------------------- pure part --
 
+// DD-24 (Batch 3.8) gave every function in this block a REQUIRED `cutoffHour`,
+// so that no caller can silently take midnight boundaries while the closes
+// around it run on the trading-day clock. These cases are L-25's, and L-25's
+// semantics ARE the cut-off-0 case, so they are passed 0 explicitly and assert
+// exactly what they always did. The cut-off's own behaviour — a service past
+// midnight, a month that ends at 05:00 — is `period-daily-close.test.ts`, which
+// is where the new clock belongs. The last case here is the one 3.8
+// strengthened rather than merely repaired.
+const MIDNIGHT = 0;
+
 describe("period boundaries (L-25)", () => {
   it("uses the same half-open local-time bounds as aggregatePeriod", () => {
-    const { from, to } = monthBounds(2026, 9);
+    const { from, to } = monthBounds(2026, 9, MIDNIGHT);
     expect(from).toEqual(new Date(2026, 8, 1));
     expect(to).toEqual(new Date(2026, 9, 1));
-    expect(yearBounds(2026)).toEqual({ from: new Date(2026, 0, 1), to: new Date(2027, 0, 1) });
+    expect(yearBounds(2026, MIDNIGHT)).toEqual({ from: new Date(2026, 0, 1), to: new Date(2027, 0, 1) });
     expect(monthlyPeriod(2026, 9)).toBe("2026-09");
   });
 
   it("treats a period as ended only once its exclusive bound is reached", () => {
-    const sept = monthBounds(2026, 9);
+    const sept = monthBounds(2026, 9, MIDNIGHT);
     // 23:30 on the last day is still inside the period — DD-18 accepts this.
     expect(hasPeriodEnded(sept, new Date(2026, 8, 30, 23, 30))).toBe(false);
     expect(hasPeriodEnded(sept, new Date(2026, 8, 30, 23, 59, 59, 999))).toBe(false);
@@ -83,13 +93,13 @@ describe("period boundaries (L-25)", () => {
 
   it("proposes the last completed month and exercice, never the current one", () => {
     // The defect L-25 names: the screen defaulted to the month in progress.
-    expect(lastCompletedMonth(new Date(2026, 8, 4))).toEqual({ year: 2026, month: 8 });
-    expect(lastCompletedMonth(new Date(2026, 8, 30, 23, 59))).toEqual({ year: 2026, month: 8 });
-    expect(lastCompletedMonth(new Date(2026, 9, 1))).toEqual({ year: 2026, month: 9 });
+    expect(lastCompletedMonth(new Date(2026, 8, 4), MIDNIGHT)).toEqual({ year: 2026, month: 8 });
+    expect(lastCompletedMonth(new Date(2026, 8, 30, 23, 59), MIDNIGHT)).toEqual({ year: 2026, month: 8 });
+    expect(lastCompletedMonth(new Date(2026, 9, 1), MIDNIGHT)).toEqual({ year: 2026, month: 9 });
     // January rolls back to the previous December.
-    expect(lastCompletedMonth(new Date(2027, 0, 1))).toEqual({ year: 2026, month: 12 });
-    expect(lastCompletedYear(new Date(2026, 8, 4))).toBe(2025);
-    expect(lastCompletedYear(new Date(2027, 0, 1))).toBe(2026);
+    expect(lastCompletedMonth(new Date(2027, 0, 1), MIDNIGHT)).toEqual({ year: 2026, month: 12 });
+    expect(lastCompletedYear(new Date(2026, 8, 4), MIDNIGHT)).toBe(2025);
+    expect(lastCompletedYear(new Date(2027, 0, 1), MIDNIGHT)).toBe(2026);
   });
 
   it("names the day a period becomes sealable in local time", () => {
@@ -105,20 +115,33 @@ describe("period boundaries (L-25)", () => {
     // offer, on a control whose result is irreversible.
     const now = new Date(2026, 8, 4);
     const oldDefault = { year: now.getFullYear(), month: now.getMonth() + 1 };
-    expect(hasPeriodEnded(monthBounds(oldDefault.year, oldDefault.month), now)).toBe(false);
+    expect(hasPeriodEnded(monthBounds(oldDefault.year, oldDefault.month, MIDNIGHT), now)).toBe(false);
 
-    const newDefault = lastCompletedMonth(now);
+    const newDefault = lastCompletedMonth(now, MIDNIGHT);
     expect(newDefault).not.toEqual(oldDefault);
-    expect(hasPeriodEnded(monthBounds(newDefault.year, newDefault.month), now)).toBe(true);
+    expect(hasPeriodEnded(monthBounds(newDefault.year, newDefault.month, MIDNIGHT), now)).toBe(true);
   });
 
-  it("proposes a period the server would accept", () => {
+  it("proposes a period the server would accept, ON ANY CUT-OFF", () => {
     // The screen's default and the server's guard must not disagree — that
     // disagreement is precisely what L-25 was.
-    for (const now of [new Date(2026, 8, 4), new Date(2027, 0, 1), new Date(2026, 11, 31, 23, 59)]) {
-      const { year, month } = lastCompletedMonth(now);
-      expect(hasPeriodEnded(monthBounds(year, month), now)).toBe(true);
-      expect(hasPeriodEnded(yearBounds(lastCompletedYear(now)), now)).toBe(true);
+    //
+    // WIDENED by Batch 3.8: the loop now runs at several cut-offs, and the two
+    // 03:00 instants are the cases that only exist once the clock moved. At
+    // 03:00 on 1 January with a 05:00 cut-off, the previous year has NOT ended,
+    // and a screen that offered it would be L-25 all over again in a new place.
+    for (const cutoff of [0, 5, 23]) {
+      for (const now of [
+        new Date(2026, 8, 4),
+        new Date(2027, 0, 1),
+        new Date(2027, 0, 1, 3, 0),
+        new Date(2026, 11, 31, 23, 59),
+        new Date(2026, 6, 1, 3, 0),
+      ]) {
+        const { year, month } = lastCompletedMonth(now, cutoff);
+        expect(hasPeriodEnded(monthBounds(year, month, cutoff), now)).toBe(true);
+        expect(hasPeriodEnded(yearBounds(lastCompletedYear(now, cutoff), cutoff), now)).toBe(true);
+      }
     }
   });
 });
@@ -144,14 +167,30 @@ describe("a month cannot be sealed before it has ended (L-25)", () => {
     expect(counter.lastFiscalEventSequence).toBe(0);
   });
 
-  it("REFUSES on the last day and ACCEPTS on the first day of the next month", async () => {
-    // The boundary, both directions.
+  it("REFUSES on the last day and ACCEPTS once the month has ended ON THE CUT-OFF CLOCK", async () => {
+    // AMENDED 2026-09-06 (Batch 3.8, DD-24). This case read:
+    //
+    //     const close = await closeMonth(2026, 9, userId, false, new Date(2026, 9, 1, 0, 0, 0));
+    //
+    // and it was right while a month ended at midnight. The operator chose a
+    // trading-day clock for the month as well as the day, so September now ends
+    // at 05:00 on 1 October and midnight is still five hours early. That is a
+    // REAL behaviour change, not a test to relax: the month may no longer be
+    // sealed the instant the calendar turns over.
+    //
+    // It also found a message defect, fixed in the same batch: the refusal said
+    // « à partir du 2026-10-01 », which would have sent the operator back at a
+    // time that was itself refused. It now names the hour.
     await expect(
       closeMonth(2026, 9, userId, false, new Date(2026, 8, 30, 23, 59, 59)),
     ).rejects.toThrow(/prématurée/);
+    // NEW, and the point of the amendment: midnight is refused too.
+    await expect(
+      closeMonth(2026, 9, userId, false, new Date(2026, 9, 1, 0, 0, 0)),
+    ).rejects.toThrow(/2026-10-01 à 05:00/);
     expect(await db.monthlyClose.count()).toBe(0);
 
-    const close = await closeMonth(2026, 9, userId, false, new Date(2026, 9, 1, 0, 0, 0));
+    const close = await closeMonth(2026, 9, userId, false, new Date(2026, 9, 1, 5, 0, 0));
     expect(close.period).toBe("2026-09");
     expect((await verifyMonthlyCloses()).ok).toBe(true);
   });
@@ -343,11 +382,17 @@ describe("an exercice obeys both timing rules (L-25)", () => {
     expect(await db.fiscalEvent.count()).toBe(0);
   });
 
-  it("REFUSES on 31 December and ACCEPTS on 1 January", async () => {
+  it("REFUSES on 31 December and ACCEPTS once the exercice has ended ON THE CUT-OFF CLOCK", async () => {
+    // AMENDED 2026-09-06 (Batch 3.8, DD-24), for the reason given on the
+    // monthly case above: the exercice ends at 05:00 on 1 January now, so
+    // `new Date(2027, 0, 1)` — which this case used to accept — is early.
     await expect(closeYear(2026, userId, false, new Date(2026, 11, 31, 23, 59))).rejects.toThrow(
       /prématurée/,
     );
-    const close = await closeYear(2026, userId, false, new Date(2027, 0, 1));
+    await expect(closeYear(2026, userId, false, new Date(2027, 0, 1))).rejects.toThrow(
+      /2027-01-01 à 05:00/,
+    );
+    const close = await closeYear(2026, userId, false, new Date(2027, 0, 1, 5, 0));
     expect(close.period).toBe("2026");
     expect((await verifyAnnualCloses()).ok).toBe(true);
   });
@@ -494,12 +539,29 @@ describe("period closes carry their refunds (L-26)", () => {
     await seedApril(userId);
     const close = await closeMonth(2026, 4, userId, false, new Date(2026, 4, 2));
     const payload = JSON.parse(close.dataJson);
+    // AMENDED 2026-09-06 (Batch 3.8, L-57 and DD-24). A FOURTH time, and the
+    // last one that is free: the payload gains `perpetual` — the whole
+    // `GrandTotal` snapshot at the seal, which BOFiP § 170 requires every close
+    // to record and which no close recorded — and `cutoffHour`, so a sealed
+    // month states the clock it was sealed on and a later change to the setting
+    // cannot make it ambiguous. Safe for exactly the same reason and no other,
+    // re-verified below rather than assumed: both tables still hold ZERO rows.
+    // The key list is edited deliberately, per batch, and never adjusted to
+    // make a run go green.
     expect(Object.keys(payload).sort()).toEqual([
       "cardTotal", "cashInTotal", "cashMovementsCount", "cashOutTotal", "cashTotal",
-      "discountsTotal", "givenAwayCount", "givenAwayProducts", "month", "period",
-      "refundsCount", "salesCount", "salesTotal", "topProducts", "totalRefunded",
-      "vatBreakdown", "vatTotal", "voucherTotal", "year",
+      "cutoffHour", "discountsTotal", "givenAwayCount", "givenAwayProducts", "month",
+      "period", "perpetual", "refundsCount", "salesCount", "salesTotal", "topProducts",
+      "totalRefunded", "vatBreakdown", "vatTotal", "voucherTotal", "year",
     ]);
+    // L-57's figure is the one BOFiP names, and it must be the measured
+    // perpetual total rather than the period's own.
+    expect(payload.perpetual).toEqual({
+      totalSales: 0, totalOrders: 0, totalVat: 0,
+      totalCash: 0, totalCard: 0, totalVoucher: 0, totalRefunded: 0,
+    });
+    expect(close.perpetualSalesTotal).toBe(0);
+    expect(payload.cutoffHour).toBe(5);
 
     // And the chain over the row as sealed still recomputes.
     const rows = await db.monthlyClose.findMany({ orderBy: { period: "asc" } });
