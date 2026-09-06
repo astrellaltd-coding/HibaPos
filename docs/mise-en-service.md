@@ -167,8 +167,15 @@ $b = New-Object byte[] 32; (New-Object System.Security.Cryptography.RNGCryptoSer
 > Not `Get-Random`. It looks like it would do and is **not** cryptographically
 > secure — fine for picking a test row, wrong for a signing secret.
 
-Copy `.env` somewhere outside the repository and outside OneDrive first, replace
-those two lines only, then:
+Or let the script do all of it — it generates both values here, never prints
+them, copies `.env` aside first, and replaces only those two lines:
+
+```bash
+bun scripts/rotate-secrets.ts            # dry run
+bun scripts/rotate-secrets.ts --apply
+```
+
+Either way, then:
 
 ```powershell
 Restart-ScheduledTask -TaskName "HibaPOS Server"
