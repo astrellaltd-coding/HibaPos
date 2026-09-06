@@ -4084,6 +4084,42 @@ Each original is shown with what replaced it.)*
 
 # RETIRED OPEN-THREAD ROWS AND SUPERSEDED FRONT-MATTER LINES
 
+**RETIRED 2026-09-07 (session 18) — *Immediate warnings* 9, compressed.** The three rules it carries are unchanged; what went is the narrative of how each was learned (4.4b's PID 24188, the phantom that cost sessions 3–7 hours, and the two push commit ranges). Verbatim:
+
+> 9. **Claude cannot do two things in this project** — the permission classifier refuses them, and each refusal is correct: `prisma migrate deploy` against production, and writes to real menu data. Prepare, rehearse and verify; then hand the operator the exact command.
+> 
+>    **Killing processes was listed here as a third and needs one distinction (Batch 4.4b, 2026-09-04).** Claude does not kill **the operator's** processes. A server **Claude started in the same session** is a different matter: 4.4b's `bunx next start -p 3026` (PID 24188) survived `TaskStop` — which killed only the `bunx` parent — and was terminated with `taskkill //PID <pid> //T //F`, after which `bunx prisma generate` succeeded. **Do this every time.** A leftover `next start` holds `node_modules/.prisma/client/query_engine-windows.dll.node` and makes `bunx prisma generate` fail `EPERM` in another session — that phantom cost sessions 3 through 7 hours, and the environment item recording it was retired to the record in Batch 4.7 once the habit above replaced it. **`bun run dev` stays untried here** (it loads the real `.env` and would open the production database); use `bunx next start` on a spare port — 3021–3026, 3033/3034, 3040–3043, 3050–3052, 3060/3061, 3062–3065 and **3070–3078** (2026-09-06/07) are spoken for.
+> 
+>    **`git push` is another case and behaves differently.** Earlier sessions recorded it as prohibited; that was wrong. It is an *explicit-permission* action — it goes through when the user asks for it in the session, which they did on 2026-09-04 (`3f31779..8a311dc`, and again for `7449683..1856cd7`). Do not push unprompted, and do not tell the user it is impossible.
+> 
+
+**RETIRED 2026-09-07 (session 18) — *Immediate warnings* 2, the lifted e2e warning**, compressed for front-matter room. A warning that has been LIFTED should not cost a paragraph. Verbatim:
+
+> 2. **`bun run test:e2e` is SAFE since Batch 6.3, and this warning is lifted.** It used to start `bun run dev` against the real `.env`, writing orders, refunds and sealed Z reports into the **production** database and its append-only chain. It now prepares its own disposable database under the system temp directory, **refuses to start if that path is not disposable**, runs the production build on port **3100**, and its first spec proves the server opened that database before any other spec writes. Production was byte-identical across two full runs. **`bunx vitest` is still forbidden — see warning 3.**
+
+**RETIRED 2026-09-07 (session 18) — *OPEN THREADS → D*'s field-by-field history of the sealed close payloads**, 1 482 bytes, for front-matter room. The rule it carried is kept in the plan in three sentences; what follows is the detail of which batch added which field, verbatim:
+
+- **Two payloads have GROWN — `CLOTURE_Z` twice, the sealed close THREE times —
+  and both are safe only while nothing is sealed.** `CLOTURE_Z` gained
+  `refundsTotal` / `refundsCount` (3.6, M-07) and then `cashInTotal` /
+  `cashOutTotal` / `cashMovementsCount` (5.5, M-05). The sealed *close*
+  `dataJson` — a different thing — gained `refundsCount` (3.6b, L-26), the same
+  three cash fields (5.5), and **`givenAwayCount` / `givenAwayProducts`
+  (7.4a, DD-20)** — the third, and the first an operator asked for rather than a
+  defect forcing. Free of the vintage problem **only because zero closes
+  exist**, re-verified 2026-09-05; the first sealed close fixes that shape for
+  good. `close-timing.test.ts` pins the key list and
+  caught 5.5's change rather than letting it through — edit it deliberately,
+  never to make a run go green. **`CLOTURE_M` and `CLOTURE_A` EVENT payloads
+  have never been touched.** **Batch 3.8 makes the FOURTH change to the sealed
+  close and the THIRD to `CLOTURE_Z`** — L-57's perpetual totals — and adds a
+  whole new sealed document, `DailyClose`, with a `CLOTURE_J` event type.
+  **Still free only because zero closes are sealed, and 3.8 WAS the last time
+  that is true — it landed on 2026-09-06.** `DailyClose` is a fifth sealed shape
+  and `CLOTURE_J` a new event type; `close-timing.test.ts`'s key list was
+  amended for the fourth time. **From the first real close onward every one of
+  these shapes is fixed for good.**
+
 **RETIRED 2026-09-06 (Batch 8.2) — *OPEN THREADS → E*'s restatement of V-13 and V-02**, for front-matter room. Verbatim: *“**V-13** (must the JFP journal the *automatic* drawer kick, or only the traced manual open?) and **V-02** (does the annual archive format satisfy the archiving obligation?) are fiscal questions, flagged not decided. Both are stated in full in *External / Legal / Fiscal Verification* below — this thread exists only so a session planning work knows they are open.”* The thread said of itself that it duplicates the register below it; both questions are there in full, unchanged, and the heading still points at them.
 
 **RETIRED 2026-09-06 (Batch 1.4) — the *Blocked* paragraph's sequencing narrative**, overtaken by the operator's decision the same evening. Verbatim: *“Blocked: Batch 1.3's `[HW]` sign-off and Batch 1.4. The blocker CHANGED on 2026-09-06 and is no longer access. The operator confirmed that remote access to the restaurant's POS machine is available on request — AnyDesk, Windows Remote or similar, granted by the owner on demand. What remains is that the app is not installed there yet, and the operator has chosen the order deliberately: finish this plan, then a separate audit, then package it as a Windows application, then install remotely, and only then commission the printer and drawer. That sequencing work is OUTSIDE this plan by the operator's instruction — this file stays a fix-the-app plan — so 1.3 and 1.4 wait on it rather than on hardware being unreachable.”* What changed: the operator was shown what a Tauri package would cost here (a broken `output: "standalone"` to fix first — L-05 — and Prisma's query engine to ship as a sidecar, the file this project has already lost hours to) and chose **Task Scheduler plus an installable PWA now, Tauri later**, on the ground that nothing in 1.4 is wasted under Tauri: the update procedure, the data move, the migration step and the commissioning checklist all carry over. So 1.4 stopped being outside the plan and became this batch.
