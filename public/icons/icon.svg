@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- HibaPOS France application mark.
+       Amber #f59e0b is the app's themeColor and the colour of the "Food" half
+       of the HibaFood wordmark. The wordmark itself is NOT used as the app
+       icon: it is a wide lockup that becomes an illegible smudge at the 48 px
+       a Windows taskbar renders. This is the same mark the browser tab has
+       carried since the app was built, so tab, taskbar and Start Menu agree.
+       To rebrand, edit this file and re-render the PNGs beside it. -->
+  <rect width="512" height="512" rx="112" ry="112" fill="#f59e0b"/>
+  <g fill="#ffffff">
+    <rect x="150" y="140" width="60" height="232" rx="12"/>
+    <rect x="302" y="140" width="60" height="232" rx="12"/>
+    <rect x="150" y="226" width="212" height="60" rx="12"/>
+  </g>
+</svg>

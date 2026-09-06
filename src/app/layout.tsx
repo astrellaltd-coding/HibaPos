@@ -18,8 +18,18 @@ const caveat = Caveat({
 export const metadata: Metadata = {
   title: "HibaPOS France — Caisse",
   description: "Système de point de vente pour restaurant — HibaPOS France",
+  // C-07 (Batch 1.4). This was an inline SVG data URI drawing the mark with a
+  // `<text>` element — which renders in whatever font the machine happens to
+  // have, and renders as nothing at all in a context that blocks data: URIs.
+  // The same mark is now real files under `public/icons/`, drawn as paths so
+  // it needs no font, and shared with the web manifest so the browser tab, the
+  // taskbar and the Start Menu all show one icon.
   icons: {
-    icon: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%23f59e0b'/%3E%3Ctext x='50' y='68' font-size='56' font-family='Arial' font-weight='bold' text-anchor='middle' fill='white'%3EH%3C/text%3E%3C/svg%3E",
+    icon: [
+      { url: "/icons/favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
+    apple: "/icons/apple-touch-icon.png",
   },
 };
 

@@ -1,4 +1,4 @@
-# HibaFood POS — Build Pipeline for Windows (PowerShell)
+﻿# HibaFood POS -- Build Pipeline for Windows (PowerShell)
 $ErrorActionPreference = "Stop"
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -10,12 +10,12 @@ Write-Host "==========================================" -ForegroundColor Cyan
 
 Set-Location -Path $ProjectDir
 
-Write-Host "1️⃣ Generating Prisma Client..." -ForegroundColor Yellow
+Write-Host "1. Generating Prisma Client..." -ForegroundColor Yellow
 bun run db:generate
 
-Write-Host "2️⃣ Running Next.js Production Build..." -ForegroundColor Yellow
+Write-Host "2. Running Next.js Production Build..." -ForegroundColor Yellow
 bun run build
 
 Write-Host "==========================================" -ForegroundColor Green
-Write-Host "✅ Build completed successfully!" -ForegroundColor Green
+Write-Host "OK - build completed successfully!" -ForegroundColor Green
 Write-Host "==========================================" -ForegroundColor Green
