@@ -33,7 +33,7 @@ at the till. Everything the owner has to *see* or *touch* is marked **[OWNER]**.
 | The repository on the machine, and a `.env` from `.env.example` | |
 | **[OWNER]** available at the till for §§ 3 and 7 | Somebody has to watch paper come out and a drawer open. |
 
-**Not needed yet:** `FISCAL_CHAIN_KEY`. It is generated in § 6, after the reset, and never before.
+**Not needed yet:** `FISCAL_CHAIN_KEY`. It is generated in § 6e, after the reset, and never before — and it is **not** one of the secrets § 6a rotates.
 
 ---
 
@@ -142,7 +142,38 @@ Everything rung here is deleted in § 6. That is the point of doing it now.
 
 ## 6. THE POINT OF NO RETURN — P-04 / Batch 8.0
 
-### 6a. Back up first, and get the backup off the machine
+### 6a. Rotate the secrets — **before** the backup, not after
+
+Batch 7.3, prepared and rehearsed, still not done. It goes here and not in § 8,
+and the reason is the order: the backup in § 6b is the **first genuinely
+restorable backup this installation will ever have**, and if it is written under
+the old key and the key is then rotated, it becomes unreadable. Rotate first and
+§ 6b is written under the new key.
+
+**[OWNER or you]** — Claude never generates or sees these values.
+
+```bash
+openssl rand -hex 32        # once for SESSION_SECRET
+openssl rand -hex 32        # again for BACKUP_ENCRYPTION_KEY - a different value
+```
+
+Copy `.env` somewhere outside the repository and outside OneDrive first, replace
+those two lines only, then:
+
+```powershell
+Restart-ScheduledTask -TaskName "HibaPOS Server"
+```
+
+- [ ] `GET /api/auth/me` answers `{"user":null}` — including in a tab that was signed in before. That is the old session being refused.
+- [ ] Signing in with the **usual PIN** works. No PIN changes; nobody is locked out.
+
+> **Do NOT rotate `FISCAL_CHAIN_KEY` here.** It does not exist yet — it is
+> generated in § 6e, after the reset, and armed once. Rotating it after arming
+> makes the whole journal permanently unverifiable.
+
+Full procedure and its 2026-09-06 correction: `REMEDIATION_RECORD.md` → *Batch 7.3*.
+
+### 6b. Back up, and get the backup off the machine
 
 ```powershell
 # In the app: Réglages -> Sauvegardes -> créer une sauvegarde
@@ -159,7 +190,7 @@ The decrypt must succeed and report **"Format SQLite valide"**. Then copy the
 > `assertCompatibleSchema` refuses them, correctly (L-46). Until this one
 > exists, the install has no working restore point at all.
 
-### 6b. Stop the application
+### 6c. Stop the application
 
 ```powershell
 Stop-ScheduledTask -TaskName "HibaPOS Server"
@@ -167,7 +198,7 @@ Stop-ScheduledTask -TaskName "HibaPOS Server"
 
 The reset script refuses to run while the app answers on 3000.
 
-### 6c. The reset
+### 6d. The reset
 
 ```powershell
 bun scripts/pre-golive-reset.ts            # dry run - read it
@@ -186,7 +217,7 @@ an empty chain reporting `ok` at `lastSequence: 0`.
 audit trail is the exact thing this application forbids everywhere else. It is
 not fiscal data; the fiscal journal is, and that is what was just reset.
 
-### 6d. Arm the chain key — **in this order, or not at all**
+### 6e. Arm the chain key — **in this order, or not at all**
 
 1. **[OWNER or you]** `openssl rand -hex 32`
 2. Paste it into `.env` as `FISCAL_CHAIN_KEY`
@@ -200,7 +231,7 @@ trade. Re-read P-04.
 
 *Claude does not generate this key and must never see it.*
 
-### 6e. FACTICE off
+### 6f. FACTICE off
 
 **Réglages → mode simulation → OFF.** From this moment every sale is real.
 
@@ -225,7 +256,7 @@ partial order exists.
 ## 8. Afterwards
 
 - [ ] Delete the `*.moved-<timestamp>` directories from the old install path
-- [ ] Rotate `SESSION_SECRET` and `BACKUP_ENCRYPTION_KEY` — Batch 7.3, prepared and rehearsed, still not done. **Do it after 6a's backup, or that backup becomes unreadable.**
+- [x] ~~Rotate `SESSION_SECRET` and `BACKUP_ENCRYPTION_KEY` here~~ — **moved to § 6a**, where the ordering works. This line first said to rotate *after* the backup, which is exactly backwards: the backup would then be encrypted with the key about to be discarded. Corrected 2026-09-06.
 - [ ] Record everything in `REMEDIATION_PLAN.md`: P-04's counts, 1.3's `[HW]` results, 1.4's `[MACHINE]` results, 8.2's V-07
 - [ ] **Re-triage every open finding whose severity was discounted for want of an audience.** The plan says to do this the moment an install date exists. L-21 is the first one.
 - [ ] The attestation (`docs/attestation-conformite.md`) still needs L-52, L-54, V-01 and V-13 reflected or excluded before anyone signs it

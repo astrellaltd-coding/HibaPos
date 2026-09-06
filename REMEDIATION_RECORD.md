@@ -3686,6 +3686,79 @@ curl -s http://127.0.0.1:3000/api/auth/me
 
 **If something goes wrong**, put the copy from step 2 back and restart; the old secret starts working again immediately, because nothing about it is stored anywhere else.
 
+### Batch 7.3 — CORRECTION to the hand-over, 2026-09-06
+
+*Appended, not rewritten: the record is append-only. The procedure above is
+still correct in its mechanics; four things around it changed in the day after
+it was written, and one of them reverses an ordering claim.*
+
+**(1) `FISCAL_CHAIN_KEY` did not exist when this was written, and must NOT be
+rotated with the other two.** Batch 3.9 added it on 2026-09-06. It is **armed
+once**, at Batch 8.0, immediately after the fiscal reset — and **rotating it
+after arming makes the entire journal permanently unverifiable**, because every
+hash was computed with it. It is not in `.env` today (verified: `.env` holds
+`DATABASE_URL`, `SESSION_SECRET`, `BACKUP_ENCRYPTION_KEY` and nothing else) and
+must not appear there until P-04 step 2. **Step 1's "generate the two values"
+stays two.** A later reader told to "rotate the secrets" could reasonably have
+included the third; this note is here so they do not.
+
+**(2) Step 4's "whatever normally starts it" now has an answer.** Batch 1.4
+built the launcher:
+
+```powershell
+Restart-ScheduledTask -TaskName "HibaPOS Server"
+```
+
+And `.zscripts/hibapos-server.ps1` now **refuses to start without
+`SESSION_SECRET`**, in French, with a log line and exit 1 — so a botched edit
+fails loudly at boot instead of as a stack trace from a Next build that throws
+at import time. On a machine where 1.4 has not been installed yet, the old
+"whatever normally starts it" still applies.
+
+**(3) ⚠ THE ORDERING CLAIM IS NOW CONDITIONAL, AND THE CONDITION IS ABOUT TO
+CHANGE.** The note above says *"nothing has to precede the rotation"*, resting
+on L-46: no backup was restorable, so the backup key protected nothing anyone
+could reach. **That is still true of the three existing files** — Batch 8.2
+established they predate seven fiscal tables and `assertCompatibleSchema`
+refuses them regardless of the key, so the reasoning holds for them.
+
+**But two things landed on 2026-09-06.** Batch 2.5 fixed L-61, so a restore can
+now actually complete; and the commissioning runbook (`docs/mise-en-service.md`
+§ 6) takes a **fresh backup against the current schema** before the fiscal
+reset — the first genuinely restorable backup this installation will ever have.
+**From that backup onward, rotating `BACKUP_ENCRYPTION_KEY` destroys the only
+working restore point.**
+
+So the rule is now:
+
+> **Rotate BEFORE the commissioning backup**, so that backup is written under
+> the new key — or, if the rotation happens later, **take a fresh backup
+> immediately afterwards and verify it with `scripts/decrypt-backup.ts`**
+> before the old key is discarded.
+
+`docs/mise-en-service.md` was corrected the same day: it briefly said to rotate
+*after* § 6a's backup, which is exactly backwards.
+
+**(4) This hand-over's own verification step was unperformable when it was
+written.** It ends *"take a new backup after rotating, then restore it, before
+the old key is discarded."* Until Batch 2.5 fixed L-61 on 2026-09-06, **no
+restore could complete on Windows at all** — the swap failed with `EPERM` every
+time, because two PrismaClients held the database file. The step was right and
+could not have been carried out. It is now, for the first time, actually
+runnable, and it is the one check that proves the new key works end to end
+rather than merely being present.
+
+**Re-verified 2026-09-06, against the code rather than this text:**
+`src/lib/secret-rotation.test.ts` still passes (5/5) and still pins the four
+properties the rotation turns on — old session tokens refused, old approval
+tokens refused, new tokens verifying, and **no PIN touched**. The secret surface
+was re-measured: `SESSION_SECRET` is read by `auth.ts`, `approvals.ts` and the
+new launcher; `BACKUP_ENCRYPTION_KEY` by `backup.ts` and `decrypt-backup.ts`.
+Nothing else reads either.
+
+**Still the operator's act, and still: do not send the values.**
+
+
 ---
 
 ---

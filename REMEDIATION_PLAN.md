@@ -56,7 +56,7 @@ real till until an action below is taken. Do not report them as delivered.
 
 | Action | Why it matters | Related |
 |---|---|---|
-| **Rotate `SESSION_SECRET` and `BACKUP_ENCRYPTION_KEY`** | **Batch 7.3, prepared and rehearsed 2026-09-05 — NOT yet done.** The exact commands, what it costs and why it is safe: `REMEDIATION_RECORD.md` → *Batch 7.3*, and the hand-over below it. Everyone signed in is signed out; no PIN changes; nothing restorable is lost (L-46). | SEC-ROT, L-04, DD-04 |
+| **Rotate `SESSION_SECRET` and `BACKUP_ENCRYPTION_KEY`** | **7.3, prepared 2026-09-05, hand-over CORRECTED 2026-09-06 — still NOT done.** It now has a place: **`docs/mise-en-service.md` § 6a, BEFORE the commissioning backup**, which is the first restorable one this install will have. **Two secrets, not three — `FISCAL_CHAIN_KEY` is armed at 8.0 and must never be rotated.** Commands and the four corrections: record → *Batch 7.3*. | SEC-ROT, L-04, DD-04 |
 | Correct `printerName` in Réglages | Stored value is `"Epson TM-m30"`; the physical printer is the **Sunso WTP-801** (Ethernet). Cosmetic — nothing reads it. **This was impossible until Batch 3.1d**; the settings form now saves. | DOC-15 |
 | Choose a second volume for backups | See A. | C-06 |
 | Turn FACTICE on for any pre-go-live testing | See A. | L-18 |
@@ -1691,7 +1691,7 @@ Audit section J, step 8. Correct the false statements, remove the dead weight, t
 - **Rotating the backup key loses nothing**, and L-46's premise was re-verified read-only rather than assumed: 0 `Backup` rows, 9 files on disk. *(record, note 5)*
 - `output: "standalone"` stays removed. Batch 1.4 may bring it back — **deliberately, with the secret handling designed rather than inherited**. *(`next.config.ts`)*
 
-**Left open:** the rotation itself.
+**Left open:** the rotation itself — **and its hand-over was corrected on 2026-09-06** (record → *Batch 7.3*, appended note). Four things moved under it: `FISCAL_CHAIN_KEY` now exists and must **not** be rotated; the restart command is `Restart-ScheduledTask -TaskName "HibaPOS Server"` (1.4); the claim that nothing need precede the rotation **reverses** once the commissioning backup exists, so it belongs at `docs/mise-en-service.md` § 6a, before it; and the hand-over's own verification step — restore a backup taken after rotating — **could not have been carried out until Batch 2.5 fixed L-61**.
 
 ---
 
