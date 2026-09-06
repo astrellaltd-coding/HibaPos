@@ -13,7 +13,7 @@ Detailed audit record: https://claude.ai/code/artifact/329316b0-3a6b-48b0-9d27-d
 
 **Current Stage:** **Stages 0 and 2 through 7 are all COMPLETED** — Stage 3 reopened three times on 2026-09-06 (3.7, then 3.8/3.9, then 3.10) and closed the same day each time. Stage 1 is partly done — 1.1 and 1.2 COMPLETED, **1.3 and 1.4 both `IMPLEMENTED — TESTING REQUIRED`**, waiting only on the till. **Stage 8 is `IN PROGRESS` — 8.1 `COMPLETED` 2026-09-06**; 8.0 and 8.2 wait on the commissioning session, 8.3 is external. C-22's chain-design half stays `REQUIRES EXTERNAL VERIFICATION` (V-01) and V-03 is open. Per-batch dates: the completion history in `REMEDIATION_RECORD.md`.
 
-**Current Batch:** none. **2.5 completed 2026-09-06**, closing L-61 and L-62 and unblocking 8.2's V-06. What remains: **1.3's `[HW]` sign-off and 1.4's four `[MACHINE]` criteria**, both one commissioning session away; **8.0's pre-go-live reset** after them, which also **arms the fiscal chain key** (P-04, rehearsed); **8.2**'s full trading day and **8.3** (external); V-01…V-03; **7.3's secret rotation**; **L-58's stored per-line HT**, which needs a migration and has no batch; and **L-52**, which waits on a format the administration has not published.
+**Current Batch:** none. **2.5 completed 2026-09-06**, closing L-61 and L-62 and unblocking 8.2's V-06. What remains: **1.3's `[HW]` sign-off and 1.4's four `[MACHINE]` criteria**, both one commissioning session away; **8.0's pre-go-live reset** after them, which also **arms the fiscal chain key** (P-04, rehearsed); **8.2**'s full trading day and **8.3** (external); V-01…V-03; **L-58's stored per-line HT**, which needs a migration and has no batch; and **L-52**, which waits on a format the administration has not published.
 
 **Last Batch:** **2.5 — the restore now works.** 8.2's rehearsal failed with `EPERM`, and the cause was **not** what that batch inferred: measured, `$disconnect()` releases the handle in 4–9 ms in every mode. The server had **two PrismaClients** — `db.ts` cached on `globalThis` only outside production, and Next bundles per entry point — so one was disconnected and the other held the file. Counted on the real build: one process, two constructions. Cache made unconditional, plus a bounded `EPERM`/`EACCES`/`EBUSY` retry and cleanup of the staged artifacts (**L-61**, **L-62**, both closed). The same rehearsal now returns `ok` in **2,6 s**: events 3 → 2 + `RESTAURATION`, grand total 6530 → 5480, four chains `ok`, a deleted image back at its exact byte size, nothing left on disk. Record → *Batch 2.5*. Before it: **8.2**, which found it, established **L-46**'s cause and measured **L-51** at 510 MB peak; **8.1**, 27 checks passing with the Batch 0.2 baseline figures unmoved; **1.4**, the launcher, installer and update path, plus **L-59**; **3.10**, the archive's missing rows and « date certaine » withdrawn from the notice *and* the signed attestation.
 
@@ -56,7 +56,7 @@ real till until an action below is taken. Do not report them as delivered.
 
 | Action | Why it matters | Related |
 |---|---|---|
-| **Rotate `SESSION_SECRET` and `BACKUP_ENCRYPTION_KEY`** | **7.3, prepared 2026-09-05, hand-over CORRECTED 2026-09-06 — still NOT done.** It now has a place: **`docs/mise-en-service.md` § 6a, BEFORE the commissioning backup**, which is the first restorable one this install will have. **Two secrets, not three — `FISCAL_CHAIN_KEY` is armed at 8.0 and must never be rotated.** Commands and the four corrections: record → *Batch 7.3*. | SEC-ROT, L-04, DD-04 |
+| ~~Rotate `SESSION_SECRET` and `BACKUP_ENCRYPTION_KEY`~~ | **✅ DONE 2026-09-07**, by the operator with `scripts/rotate-secrets.ts`. **Verified**: both values are now 64 hex chars, the app signs in under the new secret, and the 2026-08-28 backup that decrypted hours earlier now **fails** — which is the proof. `FISCAL_CHAIN_KEY` untouched. The pre-rotation `.env` at `C:HibaPOS-secrets-backup` is **the only way the three old backups will ever open**. Record → *Batch 7.3*. | SEC-ROT, L-04, DD-04 |
 | Correct `printerName` in Réglages | Stored value is `"Epson TM-m30"`; the physical printer is the **Sunso WTP-801** (Ethernet). Cosmetic — nothing reads it. **This was impossible until Batch 3.1d**; the settings form now saves. | DOC-15 |
 | Choose a second volume for backups | See A. | C-06 |
 | Turn FACTICE on for any pre-go-live testing | See A. | L-18 |
@@ -76,9 +76,7 @@ Batch 1.4, and Batch 8.2.
 - **`IMPLEMENTATION_PLAN.md` is a historical record**: nothing above its
   Appendix D may be edited, and a claim that was false when written but is true
   today is recorded as **both** (Batch 7.1).
-- **Batch 7.3 / DD-04** (secret rotation) is informed by L-05: the live
-  `.env` sits in a OneDrive-synced folder, so the secrets are very likely
-  already in cloud storage.
+- **Batch 7.3 / DD-04** (secret rotation) was **done 2026-09-07 and verified**. L-05 is why it mattered — the old values very likely sit in OneDrive still. **The new `.env` must be the one carried to the till.**
 - **Batch 8.0 / P-04** (pre-go-live fiscal reset) must run **after** 1.3 and
   1.4 — otherwise commissioning puts fresh test sales into the journal that
   was just reset. Its scope grew in session 3: the journal now also contains
@@ -279,7 +277,7 @@ half open**, split across two batches. Audit IDs are never renamed.
 | C-08 ✅ | 4.1 | M-08 ✅ | 5.6 | L-01 ✅ | 7.2 |
 | C-09 ✅ | 4.2 | M-09 ✅ | 5.7a | L-02 ✅ | 6.2 |
 | C-10 ✅ | 3.2 | M-10 ✅ | 5.7a | L-03 ✅ | 7.2 |
-| C-11 ✅ | 3.2 | M-11 ✅ | 5.7b | L-04 ◐ | 2.4 ✅ / 7.3 ⏳ |
+| C-11 ✅ | 3.2 | M-11 ✅ | 5.7b | L-04 ✅ | 2.4 + 7.3 |
 | C-12 ✅ | 3.1 | M-12 ✅ | 5.7c | L-05 | 2.4 (deferred) |
 | C-13 ✅ | 3.5 | M-13 ✅ | 3.2 | L-06 ✅ | 6.3 |
 | C-14 ✅ | 5.3 | M-14 ✅ | 3.2 | L-07 ✅ | 7.2 |
@@ -300,7 +298,7 @@ half open**, split across two batches. Audit IDs are never renamed.
 | L-59 ✅ | 1.4 | L-60 | 8.0 | L-61 ✅, L-62 ✅ | 2.5 |
 | DD-25 ✅ | 3.9 | | | | |
 
-**L-04's open half is the operator's rotation, not a batch's work** — 2.4 removed the standalone tree, 7.3 rehearsed and handed over the rotation, and it is not yet done (*Open Threads → B*). **The two remaining ◐ items**, whose open halves are: **C-22** whether an unkeyed chain suffices (`REQUIRES EXTERNAL VERIFICATION`, V-01; restore journalling done in 2.1), and **L-04** rotating the secrets the deleted `.next/standalone/` tree exposed (Batch 7.3 / DD-04). **C-15 closed in Batch 4.7** — both halves are done, and its row is ticked above.
+**L-04 is CLOSED — both halves.** 2.4 removed the standalone tree; 7.3 rehearsed and handed over the rotation, and **the operator ran it on 2026-09-07** (verified: the pre-rotation backups no longer decrypt). **The two remaining ◐ items**, whose open halves are: **C-22** whether an unkeyed chain suffices (`REQUIRES EXTERNAL VERIFICATION`, V-01; restore journalling done in 2.1), and **L-04** rotating the secrets the deleted `.next/standalone/` tree exposed (Batch 7.3 / DD-04). **C-15 closed in Batch 4.7** — both halves are done, and its row is ticked above.
 
 ---
 
@@ -1691,7 +1689,7 @@ Audit section J, step 8. Correct the false statements, remove the dead weight, t
 - **Rotating the backup key loses nothing**, and L-46's premise was re-verified read-only rather than assumed: 0 `Backup` rows, 9 files on disk. *(record, note 5)*
 - `output: "standalone"` stays removed. Batch 1.4 may bring it back — **deliberately, with the secret handling designed rather than inherited**. *(`next.config.ts`)*
 
-**Left open:** the rotation itself — **and its hand-over was corrected on 2026-09-06** (record → *Batch 7.3*, appended note). Four things moved under it: `FISCAL_CHAIN_KEY` now exists and must **not** be rotated; the restart command is `Restart-ScheduledTask -TaskName "HibaPOS Server"` (1.4); the claim that nothing need precede the rotation **reverses** once the commissioning backup exists, so it belongs at `docs/mise-en-service.md` § 6a, before it; and the hand-over's own verification step — restore a backup taken after rotating — **could not have been carried out until Batch 2.5 fixed L-61**.
+**Left open:** nothing — **the rotation was done by the operator on 2026-09-07 and verified** (record → *Batch 7.3*, completion note). Its hand-over had been corrected on 2026-09-06 (record → *Batch 7.3*, appended note). Four things moved under it: `FISCAL_CHAIN_KEY` now exists and must **not** be rotated; the restart command is `Restart-ScheduledTask -TaskName "HibaPOS Server"` (1.4); the claim that nothing need precede the rotation **reverses** once the commissioning backup exists, so it belongs at `docs/mise-en-service.md` § 6a, before it; and the hand-over's own verification step — restore a backup taken after rotating — **could not have been carried out until Batch 2.5 fixed L-61**.
 
 ---
 

@@ -3778,6 +3778,41 @@ commands are now in `docs/mise-en-service.md` § 6a and § 6e and in
 `FISCAL_CHAIN_KEY` — the secret whose generation is furthest away and therefore
 the likeliest to be met by whoever has forgotten this note.
 
+### Batch 7.3 — DONE, 2026-09-07
+
+**The operator rotated both secrets on 2026-09-07** (00:03 local; the
+pre-rotation copy is stamped `2026-09-06T23-03-08Z`), using
+`scripts/rotate-secrets.ts --apply`. SEC-ROT is closed.
+
+**Verified rather than taken on trust, and the first report of “done” was
+checked the same way and turned out not to be.** Four measurements:
+
+1. **Shape.** `SESSION_SECRET` 69 chars non-hex → **64 chars hex**;
+   `BACKUP_ENCRYPTION_KEY` 42 chars non-hex → **64 chars hex**; the two differ.
+   Values never read — lengths and character class only.
+2. **The decisive one.** `hibapos-backup-2026-08-28T01-21-34-082Z.dbenc`
+   decrypted successfully earlier the same day, to sha256 `688886400eb2…`. It
+   now **fails**: *« Déchiffrement impossible : clé incorrecte ou fichier
+   altéré »*. AES-GCM authenticates, so this cannot be a false negative — the
+   backup key really changed.
+3. **Nothing broke.** Started on the production build with the real `.env`'s
+   new `SESSION_SECRET` and a scratch copy of the database: liveness `200`,
+   login with the usual PIN `200`, and `GET /api/auth/me` names the user — so
+   the new secret mints and verifies sessions, and **no PIN changed**, which is
+   what note 4 promised.
+4. **`FISCAL_CHAIN_KEY` is still absent**, as it must be until 8.0.
+
+**The cost was paid, and it is the one the row always named.** The three
+encrypted backups in `db/backups/` are now permanently unreadable except with
+the pre-rotation `.env`, kept at `C:HibaPOS-secrets-backup` — outside the
+repository and outside OneDrive, confirmed. Batch 8.2 had already established
+they were not *restorable* (they predate seven fiscal tables and
+`assertCompatibleSchema` refuses them), so what was lost is their readability
+as evidence, which DD-04 accepted in advance.
+
+**One thing for whoever reads this next:** that backup file now sits on the
+same machine as everything it protects. It should be copied somewhere else.
+
 
 ---
 
