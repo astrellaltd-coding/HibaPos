@@ -556,6 +556,67 @@ async function assertCompatibleSchema(stagedDbPath: string): Promise<void> {
  * restored database: writing it before would put the row in the database the
  * restore is about to destroy.
  */
+/** How long to keep trying the swap before giving up (L-61, Batch 2.5). */
+export const RENAME_RETRY_BUDGET_MS = 5_000;
+const RENAME_RETRY_INTERVAL_MS = 100;
+
+/**
+ * Replace `dest` with `src`, tolerating a destination handle that is on its way
+ * out (L-61, Batch 2.5).
+ *
+ * Windows refuses to rename over a file another handle still has open, and
+ * `PrismaClient.$disconnect()` releases its handle a few milliseconds after it
+ * resolves rather than synchronously. Retrying is safe: `rename` is atomic, so
+ * each attempt either completes or changes nothing.
+ *
+ * Only `EPERM`, `EACCES` and `EBUSY` are retried — the three Windows reports
+ * for "someone else has this file". Anything else (a missing source, a full
+ * disk, a cross-volume move) is a real failure and is raised immediately
+ * rather than after five seconds of pointless waiting.
+ */
+export async function renameWithRetry(
+  src: string,
+  dest: string,
+  deps: {
+    budgetMs?: number;
+    sleep?: (ms: number) => Promise<void>;
+    // Injected so a test can drive THIS function against a simulated Windows
+    // handle. Reimplementing the loop in the test file would let the tests
+    // pass while the shipped code was broken, which is the one thing a
+    // recovery path must not allow.
+    rename?: (from: string, to: string) => Promise<void>;
+  } = {},
+): Promise<{ attempts: number; waitedMs: number }> {
+  const budgetMs = deps.budgetMs ?? RENAME_RETRY_BUDGET_MS;
+  const sleep = deps.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
+  const rename = deps.rename ?? fs.rename;
+  const started = Date.now();
+  let attempts = 0;
+  for (;;) {
+    attempts++;
+    try {
+      await rename(src, dest);
+      return { attempts, waitedMs: Date.now() - started };
+    } catch (e) {
+      const code = (e as NodeJS.ErrnoException).code;
+      const retryable = code === "EPERM" || code === "EACCES" || code === "EBUSY";
+      if (!retryable || Date.now() - started >= budgetMs) {
+        if (retryable) {
+          // Say what actually happened, in the language the operator reads.
+          throw new Error(
+            `La base n'a pas pu être remplacée : le fichier est resté ouvert par un autre ` +
+              `processus pendant ${Math.round((Date.now() - started) / 1000)} s (${code}). ` +
+              `Aucune donnée n'a été modifiée. Arrêtez l'application et restaurez le fichier ` +
+              `à la main : voir scripts/decrypt-backup.ts.`,
+          );
+        }
+        throw e;
+      }
+      await sleep(RENAME_RETRY_INTERVAL_MS);
+    }
+  }
+}
+
 export async function restoreBackup(
   backupId: string,
   userId: string,
@@ -647,8 +708,17 @@ export async function restoreBackup(
     try {
       // rename() is atomic on the same volume: either the old file or the new
       // one is at dbPath, never a partial mixture. On Windows it replaces the
-      // destination (MoveFileEx MOVEFILE_REPLACE_EXISTING).
-      await fs.rename(stagedDbPath, dbPath);
+      // destination (MoveFileEx MOVEFILE_REPLACE_EXISTING) — but ONLY if no
+      // other handle still has the destination open.
+      //
+      // L-61 (Batch 2.5): that is why this used to fail with `EPERM` on every
+      // attempt. The root cause was two PrismaClients (see `lib/db.ts`), and it
+      // is fixed there. The retry below is the belt to that fix's braces: the
+      // handle is released by `$disconnect()` a few milliseconds later rather
+      // than synchronously — measured at 4–9 ms — and a machine under load can
+      // take longer. Retrying a rename is safe because it either happened or it
+      // did not; there is no partial state to re-enter.
+      await renameWithRetry(stagedDbPath, dbPath);
       // Sidecars belong to the PREVIOUS database; replaying a mismatched WAL
       // against the restored file would corrupt it.
       await fs.unlink(`${dbPath}-wal`).catch(() => {});
@@ -664,8 +734,24 @@ export async function restoreBackup(
         backup.imagesPath!.endsWith(".uploads.enc"),
       );
       await fs.unlink(stagedUploadsTar).catch(() => {});
+      stagedUploadsTar = null;
     }
   } finally {
+    // L-62 (Batch 2.5) — clean up whatever the attempt staged, on EVERY exit.
+    //
+    // These unlinks used to live only on the paths that anticipated a failure,
+    // so an unexpected one — L-61's `EPERM` on the swap — left the staged
+    // database beside the live file AND, worse, a **decrypted** copy of the
+    // whole media archive in `db/backups/`: 47,6 MB of every product photo,
+    // unencrypted, on the till, one per failed attempt. Measured, not feared.
+    //
+    // Deliberately in `finally` rather than in a `catch`: the failure that
+    // leaves litter is by definition the one nobody predicted. Both unlinks
+    // swallow their own errors, because a cleanup that throws would mask the
+    // real cause with a housekeeping detail. On the success path both files
+    // are already gone and these are no-ops.
+    await fs.unlink(stagedDbPath).catch(() => {});
+    if (stagedUploadsTar) await fs.unlink(stagedUploadsTar).catch(() => {});
     endRestore();
   }
 
