@@ -19,7 +19,7 @@ Système de point de vente (POS) pour restaurant, **construit selon les exigence
 - **Base de données** : SQLite via Prisma ORM — le mode **WAL est appliqué au démarrage** (`src/lib/db-pragmas.ts`), **sauf** si le fichier se trouve dans un dossier synchronisé (OneDrive, Dropbox, Google Drive, iCloud), où il est délibérément refusé : un agent de synchronisation qui remonte un `-wal` périmé corrompt la base. *L'installation actuelle est sous OneDrive et tourne donc en journal rollback (vérifié 2026-09-05, octet 18 = 1) ; elle passera en WAL au premier démarrage après le déplacement vers `C:\HibaPOS\data`.*
 - **Authentification** : Sessions serveur signées (cookies httpOnly) + PIN (scrypt N=2^17) + révocation par session
 - **Monnaie** : Calculs en **centimes entiers** (Int) bout-en-bout — aucun drift flottant (exigence de calcul pour la TVA)
-- **Fiscalité** : Journal fiscal permanent chaîné par hash (SHA-256), grand total perpétuel, clôtures mensuelles/annuelles, mode FACTICE, archive annuelle ouverte
+- **Fiscalité** : Journal fiscal permanent chaîné par hash (SHA-256), grand total perpétuel enregistré dans chaque clôture, clôtures de caisse / du jour / mensuelles / annuelles, mode FACTICE, archive annuelle ouverte
 
 ## Prérequis
 
@@ -79,7 +79,7 @@ Le serveur démarre sur `http://localhost:3000` (navigateur en plein écran).
 ## Tests
 
 ```bash
-bun run test         # 763 tests unitaires + intégration (mesuré 2026-09-05)
+bun run test         # 879 tests unitaires + intégration (mesuré 2026-09-06)
 bun run typecheck   # tsc --noEmit
 bun run test:e2e     # Playwright — 13 tests (auth, encaissement, caisse, catalogue)
                      # Base de données jetable sous %TEMP%, port 3100 : ne touche jamais la production
@@ -88,7 +88,7 @@ bun run test:e2e     # Playwright — 13 tests (auth, encaissement, caisse, cata
 ## Fonctionnalités clés
 
 - **Caisse** : Prise de commande sur place / à emporter / livraison, paiements multiples (espèces, carte, bon), remises avec approbation manager
-- **Fiscalité (ISCA)** : Tickets immuables (snapshot textuel), numérotation séquentielle atomique, journal fiscal chaîné (JFP), grand total perpétuel, clôtures Z (par caisse — à réaliser par l'opérateur à chaque journée d'exploitation, voir L-54) + M (mensuelle) + A (annuelle), mode FACTICE, archive annuelle ouverte (JSON + SHA-256 + notice FR)
+- **Fiscalité (ISCA)** : Tickets immuables (snapshot textuel), numérotation séquentielle atomique, journal fiscal chaîné (JFP), grand total perpétuel, clôtures Z (par caisse) + J (journée d'exploitation, horaire de bascule paramétrable, ticket avec code d'intégrité) + M (mensuelle) + A (annuelle), mode FACTICE, archive annuelle ouverte (JSON + SHA-256 + notice FR)
 - **Sécurité** : Verrouillage après 30 min d'inactivité, brute-force protection (lockout 5 essais / 15 min), approbation manager pour remises et remboursements, révocation de session par session
 - **Gestion** : Produits, options, suppléments, catégories (soft-delete), clients, médiathèque
 - **Rapports** : X-Report (caisse ouverte, temps réel), Z-Report (clôture immuable), ventes par période avec top produits, ventilation TVA à l'intérieur des rapports X et Z. *Les endpoints `/api/reports/vat` et `/api/reports/cashiers` existent mais n'ont aucune interface — vérifié 2026-09-05, aucun appelant dans `src/`.*

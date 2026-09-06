@@ -37,29 +37,51 @@ les pièces comptables pour présentation lors d'un contrôle fiscal.
 > impositions sur les biens et services (CIBS). Or la version de l'article 1770
 > duodecies applicable au 1er janvier 2027, ainsi que l'article L. 80 O du LPF
 > déjà en vigueur, ne mentionnent plus que **« le certificat »** — le mot
-> *attestation* en est absent. La recodification est annoncée « à droit
-> constant », ce qui plaide pour le maintien de l'attestation, **mais cela n'a
-> pas été vérifié sur le texte du CIBS lui-même.** À faire confirmer par un
-> professionnel avant de fonder une stratégie durable sur l'auto-attestation.
+> *attestation* en est absent. **Le texte du CIBS a depuis été retrouvé et lu**
+> (recherche du 2026-09-06, § 9.1) : les articles L. 216-48 et L. 216-40 sont le
+> **même** article, renuméroté par l'ordonnance n° 2026-671, et il ne dit ni
+> « attestation » ni « certificat » — il dit **« Un décret détermine les
+> caractéristiques … »**. Le régime de preuve à compter du 1er janvier 2027
+> dépend donc d'un **décret non publié à ce jour**. Conclusion pratique :
+> l'attestation est valable **jusqu'au 31 décembre 2026** ; au-delà, rien de
+> publié ne tranche. À faire confirmer par un professionnel avant de fonder une
+> stratégie durable sur l'auto-attestation.
 >
 > **3. Ce que le contrôle vérifie.** BOI-CF-COM-20-60 : les agents procèdent à
 > des « constatations matérielles » et **ne testent pas le logiciel**. Ils
 > vérifient l'existence de l'attestation pour chaque logiciel et chaque version
 > détenue. L'examen des données relève d'une autre procédure.
 >
-> **4. Deux points que la section « Mise en œuvre » ci-dessous ne doit pas
-> surestimer (recherche du 2026-09-06, `docs/conformite-isca-recherche.md` § 9).**
-> *(a)* La clôture Z scelle **une caisse**, pas une journée calendaire : rien ne
-> rattache une clôture à un jour, et sur la base de production le Z n° 2 couvre
-> cinq journées d'essai. Le BOFiP (§ 170) exige que le logiciel « prévoie » une
-> clôture journalière ; aucune source trouvée ne dit si une clôture par caisse
-> en tient lieu. L'écran des caisses indique désormais à l'opérateur qu'il lui
-> appartient de clôturer à chaque journée d'exploitation (L-54). *(b)* Le
-> BOFiP (§ 170) demande que « pour chaque clôture » soient « calculées et
-> enregistrées » des données cumulatives « comme le cumul du grand total de la
-> période et le total perpétuel » : HibaPOS tient le total perpétuel mais **ne
-> l'enregistre dans aucune clôture** (L-57, non corrigé à ce jour). Ne pas
-> écrire « cumulatives » sans cette réserve.
+> **4. Deux réserves LEVÉES le 2026-09-06 (lots 3.8 et 3.9), et ce qui reste.**
+> Cette note signalait deux points que la section « Mise en œuvre » ne devait pas
+> surestimer. Les deux ont été corrigés le jour même ; le texte est conservé
+> pour que le lecteur voie ce qui a changé.
+> *(a)* **CORRIGÉ.** La note disait : « la clôture Z scelle une caisse, pas une
+> journée calendaire ; rien ne rattache une clôture à un jour, et sur la base de
+> production le Z n° 2 couvre cinq journées d'essai ». **HibaPOS dispose
+> désormais d'une clôture du jour scellée et chaînée** (`DailyClose`), distincte
+> de la clôture de caisse, calée sur une **journée d'exploitation** dont l'heure
+> de bascule est paramétrable (5 h par défaut) : un service qui se termine à
+> 1 h 30 reste dans la journée où il a commencé, et le mois et l'exercice
+> suivent la même horloge. **Ce qui reste ouvert n'est pas du code** : aucune
+> source trouvée ne dit si une clôture par caisse aurait suffi (§ 9.5), et la
+> caisse ne bloque aucune vente à aucune heure — choix de l'exploitant.
+> *(b)* **CORRIGÉ.** La note disait que HibaPOS tenait le total perpétuel mais
+> ne l'enregistrait dans aucune clôture, alors que le BOFiP (§ 170) demande que
+> « pour chaque clôture » soient « calculées et enregistrées » des données
+> cumulatives « comme le cumul du grand total de la période et le total
+> perpétuel ». **Le total perpétuel est désormais scellé dans les quatre
+> clôtures** — caisse, jour, mois, exercice — dans la ligne et dans la charge
+> utile hachée. Les clôtures scellées avant le lot 3.8 portent `null` : le
+> chiffre n'avait jamais été relevé et 0 aurait été un chiffre faux.
+>
+> **5. Le chaînage peut être à clé, et ne l'est pas aujourd'hui.** Le lot 3.9 a
+> ajouté un mode HMAC-SHA-256 (`FISCAL_CHAIN_KEY`). **Aucun texte ne l'exige** —
+> le BOFiP § 60 n'impose aucune solution technique et le § 140 cite le chaînage
+> **ou** la signature. C'est un choix de l'exploitant. **La clé n'est armée sur
+> aucune machine** : la chaîne est aujourd'hui un condensat SHA-256 simple, et
+> l'armement est une étape de la mise en service (lot 8.0). Ne pas décrire le
+> logiciel comme « à clé » dans une attestation signée avant cet armement.
 
 ---
 
@@ -85,8 +107,8 @@ toute version majeure.
 
 Le périmètre couvert par cette attestation concerne les fonctionnalités
 suivantes : **caisse / encaissement** (prise de commande, encaissement, tickets,
-remboursements, clôtures de caisse (Z) / mensuelle / annuelle, journal des
-événements fiscal, archivage annuel). *Voir `docs/conformite-isca-map.md` § 8
+remboursements, clôtures de caisse (Z) / **du jour** / mensuelle / annuelle,
+journal des événements fiscal, archivage annuel). *Voir `docs/conformite-isca-map.md` § 8
 pour la liste établie à partir du code, couvertes et exclues.*
 
 ### Mise en œuvre des conditions ISCA dans HibaPOS France
@@ -97,15 +119,19 @@ pour la liste établie à partir du code, couvertes et exclues.*
   réécriture de l'historique.
 - **Sécurisation** : un journal fiscal permanent (`FiscalEvent`) chaîne chaque
   vente, remboursement, clôture et ouverture de tiroir par condensat SHA-256
-  incluant le hash de l'événement précédent. Toute altération rétrosactive est
+  incluant le hash de l'événement précédent. Toute altération rétroactive est
   détectable par `GET /api/fiscal/verify`. Les opérateurs sont identifiés
-  (userId) sur chaque événement.
-- **Conservation** : clôtures de caisse (Z — une par caisse ouverte, à réaliser
-  par l'utilisateur à chaque journée d'exploitation, voir note 4a), mensuelle et
-  annuelle, scellées et chaînées ; un **grand total perpétuel** (`GrandTotal`)
-  qui ne revient jamais à zéro, y compris lors des mises à jour du logiciel
-  (note 4b : il n'est pas enregistré dans chaque clôture). Conservation des données
-  élémentaires et des preuves d'intégrité pendant la durée légale (6 ans).
+  (userId) sur chaque événement. *(Un chaînage à clé HMAC-SHA-256 est disponible
+  mais **non armé** — voir note 5 ; ne pas s'en prévaloir tant qu'il ne l'est
+  pas.)*
+- **Conservation** : **quatre niveaux de clôture, scellés et chaînés** — clôture
+  de caisse (Z, une par caisse ouverte), **clôture du jour** (une par journée
+  d'exploitation, avec ticket et code d'intégrité à conserver), clôture
+  mensuelle et clôture d'exercice ; un **grand total perpétuel** (`GrandTotal`)
+  qui ne revient jamais à zéro, y compris lors des mises à jour du logiciel,
+  **et qui est enregistré dans chacune de ces clôtures**. Conservation des
+  données élémentaires et des preuves d'intégrité pendant la durée légale
+  (6 ans). *(Voir note 4 pour ce que cette phrase ne dit pas.)*
 - **Archivage** : export annuel au format ouvert (JSON + SHA-256 + notice en
   français) via `POST /api/fiscal/archive`, figeant l'exercice et lui donnant
   date certaine. Lisible indépendamment du logiciel.
