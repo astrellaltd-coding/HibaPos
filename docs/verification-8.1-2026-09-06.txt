@@ -1,0 +1,103 @@
+==============================================================================
+BATCH 8.1 — LIVE DATABASE VERIFICATION (read-only)
+file: C:/Users/einer/OneDrive/Desktop/Work/HibaFood/The App/db/custom.db
+run : 2026-09-06T21:04:35.323Z
+==============================================================================
+
+[1] SQLite structural integrity
+  OK   integrity_check: ok
+  OK   foreign_key_check: 0 violation(s)
+  --   journal_mode: delete (rollback expected on the OneDrive path — Batch 1.4)
+
+[2] Fiscal chain continuity (V-04) — recomputed with the app's own verifyEvents()
+  OK   FiscalEvent chain: 2 event(s) checked, firstBreakAt=null, lastSequence=2
+  OK   daily close chain: 0 close(s), firstBreakAt=null
+  OK   monthly close chain: 0 close(s), firstBreakAt=null
+  OK   annual close chain: 0 close(s), firstBreakAt=null
+  OK   FiscalEvent sequence gapless from 1: 1..2 (2 rows)
+
+[3] FiscalCounter alignment (V-04)
+  --   {"id":"singleton","lastReceiptNumber":20,"lastShiftNumber":3,"lastZReportNumber":2,"lastFiscalEventSequence":2}
+  OK   counter >= max issued (receipt / Order.number): counter=20, max=20
+  OK   counter >= max issued (shift / Shift.number): counter=3, max=3
+  OK   counter >= max issued (Z / ZReport.number): counter=2, max=2
+  OK   counter >= max issued (event / FiscalEvent.sequence): counter=2, max=2
+
+[4] Duplicate issued numbers (V-04)
+  OK   Order.number unique: no duplicates
+  OK   Shift.number unique: no duplicates
+  OK   ZReport.number unique: no duplicates
+  OK   FiscalEvent.sequence unique: no duplicates
+  OK   Receipt.orderId unique: no duplicates
+
+[5] Orphan rows (V-04)
+  OK   OrderItem without its Order: 0 row(s)
+  OK   Payment without its Order: 0 row(s)
+  OK   Refund without its Order: 0 row(s)
+  OK   Receipt without its Order: 0 row(s)
+  OK   Order without its Shift: 0 row(s)
+  OK   CashMovement without its Shift: 0 row(s)
+  OK   ZReport without its Shift: 0 row(s)
+  OK   Refund.shiftId pointing nowhere (no FK by design): 0 row(s)
+  OK   Order.fiscalEventId pointing nowhere (no FK by design): 0 row(s)
+  OK   Refund.approvedById pointing nowhere (no FK by design): 0 row(s)
+
+[6] Every completed sale is journalled (V-04)
+  !!   Orders with no fiscalEventId: 18 row(s)
+  --   VENTE events: 2, Order rows: 20
+
+[7] _prisma_migrations vs the migrations directory (V-04)
+  --   9 applied
+       20260829112122_init_integer_cents
+       20260829165200_drop_redundant_indexes
+       20260903203715_category_vat_rates
+       20260903230305_order_discount_approver
+       20260903233731_zreport_refund_totals
+       20260904091947_close_refund_totals
+       20260905150626_cash_movements
+       20260905162220_remove_product_addons_and_postal_code
+       20260906153622_daily_close_and_perpetual_totals
+  OK   all migrations finished, none rolled back: 0 problem row(s)
+
+[8] Row counts (V-05 — compared against the Batch 0.2 baseline)
+  {
+   "User": 2,
+   "Session": 1,
+   "Category": 14,
+   "Product": 78,
+   "ProductAddon": -1,
+   "OptionGroup": 10,
+   "OptionChoice": 49,
+   "AddOn": -1,
+   "CategoryOptionGroup": 8,
+   "CategoryOptionChoice": 39,
+   "CategoryAddOn": 21,
+   "Customer": 2,
+   "Table": 1,
+   "Shift": 3,
+   "Order": 20,
+   "OrderItem": 82,
+   "Payment": 21,
+   "Refund": 0,
+   "Receipt": 20,
+   "ZReport": 2,
+   "FiscalCounter": 1,
+   "AuditLog": 468,
+   "Setting": 12,
+   "Backup": 0,
+   "TechnicalLog": 2,
+   "FiscalEvent": 2,
+   "GrandTotal": 1,
+   "MonthlyClose": 0,
+   "AnnualClose": 0,
+   "FiscalArchive": 0,
+   "DailyClose": 0,
+   "CashMovement": 0
+  }
+
+[9] GrandTotal (V-05)
+  {"id":"singleton","totalSales":5480,"totalOrders":2,"totalVat":502,"totalCash":5480,"totalCard":0,"totalVoucher":0,"totalRefunded":0,"lastUpdatedAt":1788298080313}
+
+==============================================================================
+RESULT: 1 CHECK(S) FAILED — see !! above.
+==============================================================================

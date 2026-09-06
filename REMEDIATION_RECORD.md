@@ -6,7 +6,7 @@ Evidence record for the controlled remediation of HibaPOS France. Companion to `
 
 **Rules.** Append-only. Nothing here is rewritten; a correction is an appended, dated note. When a batch completes, its whole section moves here verbatim from the plan, under its stage heading, and a stub stays in the plan carrying the constraints the batch leaves behind. Sessions slice this file by heading; it is not meant to be read whole.
 
-**Contents.** Batch 0.1 · Batch 0.2 · Batch 1.1 · Batch 1.2 · Batch 2.1 · Batch 2.2 · Batch 2.3 · Batch 2.4 · Batch 3.1 · Batch 3.1b · Batch 3.1d · Batch 3.1c · Batch 3.2 · Batch 3.2b · Batch 3.3 · Batch 3.4 · Batch 3.5 · Batch 3.6 · Batch 3.6b · Batch 4.1 · Batch 4.2 · Batch 4.3 · Batch 4.4 · Batch 4.4b · Batch 4.4c · Batch 4.5 · Batch 4.6 · Batch 4.7 · Batch 3.10 · Completed Remediation History · Resolved findings · Answered design decisions · Retired open-thread rows · Superseded procedure
+**Contents.** Batch 0.1 · Batch 0.2 · Batch 1.1 · Batch 1.2 · Batch 2.1 · Batch 2.2 · Batch 2.3 · Batch 2.4 · Batch 3.1 · Batch 3.1b · Batch 3.1d · Batch 3.1c · Batch 3.2 · Batch 3.2b · Batch 3.3 · Batch 3.4 · Batch 3.5 · Batch 3.6 · Batch 3.6b · Batch 4.1 · Batch 4.2 · Batch 4.3 · Batch 4.4 · Batch 4.4b · Batch 4.4c · Batch 4.5 · Batch 4.6 · Batch 4.7 · Batch 3.10 · Batch 8.1 · Completed Remediation History · Resolved findings · Answered design decisions · Retired open-thread rows · Superseded procedure
 
 ---
 
@@ -3605,6 +3605,78 @@ curl -s http://127.0.0.1:3000/api/auth/me
 
 ---
 
+# STAGE 8 — FINAL VALIDATION
+
+---
+
+*Moved verbatim from REMEDIATION_PLAN.md lines 1726–1789 (commit 59bed5d) on 2026-09-06.*
+
+## Batch 8.1 — Live database verification
+
+**Status:** `COMPLETED` (2026-09-06)
+
+| ID | Status | Task |
+|---|---|---|
+| **V-04** | `COMPLETED` | Verify the live database directly — chain continuity, `FiscalCounter` alignment against `max(number)` of orders/shifts/Z reports, orphan rows, and whether `_prisma_migrations` matches the squashed baseline. Deliberately out of scope for the read-only audit. Note `scripts/fix-fiscal-counter.ts` exists in the tree, which suggests counter drift has occurred before. |
+| **V-05** | `COMPLETED` | Compare the final state against the Batch 0.2 baseline: row counts, chain `lastSequence`, grand-total figures. Every difference must have a recorded explanation. *(Baseline Record: `REMEDIATION_RECORD.md` → Batch 0.2.)* |
+
+### Batch 8.1 — Validation Required
+
+*(Re-derived 2026-09-06, per **Methods**. These were written on 2026-09-03 and
+one is now incomplete rather than wrong: Batch 3.8 added a **fourth** chain.
+Each original is shown with what replaced it.)*
+
+- ~~`/api/fiscal/verify` reports `ok` for events, monthly closes and annual closes.~~ — **WIDENED to all four chains** (3.8 added the daily one), and **verified against the live bytes rather than through the route**. Running the route means starting a server against the production database; *Methods* allows read-only inspection only. The chains were recomputed from the live file with the app's **own** `verifyEvents` / `verifyCloses`, imported rather than reimplemented, so the check cannot pass by agreeing with a copy of the bug.
+- `FiscalCounter` values are ≥ the maximum issued number in every corresponding table, with no duplicates. — **kept, and passes exactly** (equal, not merely ≥, on all four).
+- ~~No orphan `OrderItem`, `Payment`, `Refund` or `Receipt` rows.~~ — **kept and WIDENED.** Those four plus `Order`→`Shift`, `CashMovement`→`Shift`, `ZReport`→`Shift`, and the three **plain-id columns that carry no foreign key by design** (`Refund.shiftId`, `Refund.approvedById`, `Order.fiscalEventId`). The last group is the one a `PRAGMA foreign_key_check` cannot see, which is exactly why it was added.
+- Every difference from the Batch 0.2 baseline is explained in writing. — **kept, and every one is explained below.**
+
+**Added by this batch:** `PRAGMA integrity_check` and `PRAGMA foreign_key_check`; gaplessness of `FiscalEvent.sequence` from 1 (the chain proves ordering, not the absence of holes); duplicate checks on every issued number; and `_prisma_migrations` against the migrations directory in **both** directions — pending and ghost.
+
+### Batch 8.1 — Status Record
+
+**Status:** `COMPLETED`
+**Completed:** 2026-09-06
+**Commit:** *(this commit)*
+**Findings:** V-04 (**closed**), V-05 (**closed**). **L-60 recorded** — 18 of the 20 orders are not in the fiscal journal, and the reason is historical.
+**Method:** `bun:sqlite` with `readonly: true` against the live file, no Prisma, no WAL hook, no server. Full output: `docs/verification-8.1-2026-09-06.txt`.
+
+**Result: 27 checks pass, 1 flagged.** The flagged one is a fact about the development data, not a defect in the code, and Batch 8.0 deletes it.
+
+**V-04 — what was verified.**
+**(1) Structure.** `integrity_check` → `ok`. `foreign_key_check` → 0 violations. `journal_mode` → `delete`, i.e. rollback, which is correct and expected on the OneDrive path (Batch 1.4 measured the other half).
+**(2) Chains.** All four verify: `FiscalEvent` **ok**, 2 events checked, no break, `lastSequence` 2; daily, monthly and annual close chains **ok** and empty. Sequence is gapless, `1..2`.
+**(3) Counters — and V-04's own suspicion is not borne out.** The task note says `scripts/fix-fiscal-counter.ts` "suggests counter drift has occurred before". **There is no drift.** Every counter equals its table's maximum exactly: receipt 20/20, shift 3/3, Z 2/2, event 2/2. No duplicate `Order.number`, `Shift.number`, `ZReport.number`, `FiscalEvent.sequence` or `Receipt.orderId`.
+**(4) Orphans: none, in any of the ten checks** — including the three no-FK columns a `foreign_key_check` is blind to.
+**(5) Migrations.** 9 applied, 9 on disk, **no pending and no ghost**; none unfinished, none rolled back. `prisma migrate status` had already said the schema was up to date; this checks the other direction too.
+
+**V-05 — every difference from the Batch 0.2 baseline (2026-09-03), explained.**
+
+| Table | Baseline | Now | Why |
+|---|---|---|---|
+| `AuditLog` | 457 | 468 | +11 rows of `LOGIN_SUCCESS` and settings activity from the operator's own sessions and from batch validations run against the live app. No fiscal record among them. |
+| `TechnicalLog` | 0 | 2 | Operational noise (the class Batch 2.4 bounded). Not fiscal. |
+| `ProductAddon`, `AddOn` | 0, 0 | **table dropped** | Batch 5.7a (M-09/M-10), migration `20260905162220_remove_product_addons_and_postal_code`. Both held zero rows, confirmed read-only before the drop. |
+| `CashMovement` | — | 0 | New table, Batch 5.5, migration `20260905150626_cash_movements`. |
+| `DailyClose` | — | 0 | New table, Batch 3.8, migration `20260906153622_daily_close_and_perpetual_totals`. |
+| **everything else** | — | **identical** | user 2, session 1, category 14, product 78, optionGroup 10, optionChoice 49, categoryOptionGroup 8, categoryOptionChoice 39, categoryAddOn 21, customer 2, table 1, shift 3, order 20, orderItem 82, payment 21, refund 0, receipt 20, zReport 2, fiscalCounter 1, setting 12, backup 0, fiscalEvent 2, grandTotal 1, monthlyClose 0, annualClose 0, fiscalArchive 0. |
+
+`GrandTotal` is **unchanged from the baseline in every field** — totalSales 5480, totalOrders 2, totalVat 502, totalCash 5480, totalCard 0, totalVoucher 0, totalRefunded 0. `FiscalCounter` unchanged: 20 / 3 / 2 / 2. Chain `lastSequence` unchanged: 2. **Three months of remediation, nine migrations, and not one fiscal figure moved** — which is the property the baseline existed to test.
+
+**Notes.**
+
+1. **L-60: 18 of 20 orders carry no `fiscalEventId`, and only 2 `VENTE` events exist.** Measured, then traced rather than guessed: orders **1–18** were rung between 2026-08-20 and 2026-08-29 01:38; orders **19–20** on 2026-09-01. The fiscal journal entered the checkout path in commit **`d7ceb18`** ("Phase 0+1 … ISCA fiscal journal (hash-chained JFP, grand total …)"), dated **2026-08-29**, the day the repository was re-initialised at `be9113e`. So the eighteen predate the journal's existence. **This is not a defect in today's code** — `checkout.ts:293` appends the `VENTE` inside the same transaction that creates the order and writes the back-link, and `sale-journal.test.ts` covers it — and **Batch 8.0 deletes all twenty rows before the first real sale**, which is what resolves it.
+
+2. **The apparent disagreement between the Z reports and the grand total is arithmetic, not corruption, and it reconciles exactly.** Z#1 = 4230 / 3 / 385 and shift 1 holds precisely 3 orders totalling 4230 with 385 VAT. Z#2 = 32070 / 12 / 2927 and shift 2 holds precisely 12 orders totalling 32070 with 2927 VAT. The Z reports aggregate `Order` rows, so they include the pre-journal sales and are internally correct. `GrandTotal` counts only what was journalled — the two orders in the still-open shift 3 — so 5480 / 2 / 502. **Both numbers are right about different questions.** A reader who compared 36 300 against 5 480 without this paragraph would reasonably suspect the worst.
+
+3. **This is one more reason 8.0 is not optional.** Until the reset, the journal cannot be reconciled against the orders table at all, and no attestation should be signed over a database in that state. After it, the journal is the whole record from event 1.
+
+4. **Shift 3 has been open since 2026-08-28** and holds 5 orders. It is development state, deleted by 8.0 with everything else; noted because a session reading "one caisse open for ten days" without this line would treat it as an incident.
+
+5. **Nothing was written.** `db/custom.db` sha256 `c9f265163691c93e3402354616b1902f5898006657d47eb8da999e1c6813dceb`, 704 512 bytes, mtime 2026-09-06 17:49:32 — byte-identical before and after the whole batch. No `-wal`/`-shm` appeared. The verification script lives in the session scratchpad, not in `scripts/`, and opens the file `readonly: true`.
+
+---
+
 # COMPLETED REMEDIATION HISTORY
 
 *Moved verbatim from `REMEDIATION_PLAN.md` lines 2357–2378 (commit `5f0c2b1`) on 2026-09-04. Nothing in this section has been rewritten; corrections, if any, are appended dated notes.*
@@ -3667,6 +3739,7 @@ curl -s http://127.0.0.1:3000/api/auth/me
 | 3.8 | COMPLETED (migration NOT applied) | 2026-09-06 | (this commit) | DD-23, DD-24, L-54's second half and **L-57**. **A sealed `Clôture du jour`** on a trading-day clock that governs the month and the exercice too, so a service past midnight sits in one day and one month and no two sealed documents disagree; the till still refuses nothing, which the operator chose. **L-57**: BOFiP § 170 requires every close to record the perpetual total and none did. **Twenty reverts, nineteen caught — R11 SURVIVED and found that the Z report had been missed**, so L-57 was three-quarters asserted; fixing it turned seven unrelated cases red on an `onDelete: Restrict` the reset helper ignored. Seven tests in five other files amended deliberately, and the two timing ones found a refusal message that named the day where the truth was the hour. Migration rehearsed: **12 fingerprint lines differ, all schema, not one data row**. Walkthrough on the production build: eight trading days sealed, **the day closes sum to the Z reports exactly** (47 880 / 20 / 4 370) and August equals the sum of its days. 820 → **857/0**. |
 | 3.9 | COMPLETED (key armed at 8.0, not now) | 2026-09-06 | (this commit) | DD-25. The fiscal chain can be **keyed** (HMAC-SHA-256), and unkeyed stays byte-for-byte what it was, so the existing journal still verifies. **The centre is the arming guard**: a key configured over a journal that already holds unkeyed events refuses the append, proved from evidence rather than a flag. **The walkthrough found what the tests missed** — the refusal reached the server log and answered the operator with a bare 500 and an EMPTY BODY; it is now a typed error mapped to `503` with the French message in `withAuth`, where `ScryptBusyError` set the precedent, plus two tests. Both halves rehearsed on a scratch copy: refused over history, free on an empty journal, and the event recomputes keyed and not unkeyed. A build with a sentinel key put **zero** occurrences of it anywhere under `.next`. **Twelve reverts, all twelve caught; nothing passed under no revert.** 857 → **879/0**. **Closes Stage 3 again**, and empties the decisions table. |
 | 3.10 | COMPLETED (L-58 half open) | 2026-09-06 | `28e1fc2` | L-55, L-56 and **L-58's label half** — the three the ISCA map turned up and no batch owned. The annual archive gains `refunds` and `cashMovements` as ROWS, both keyed on **the date the money moved**: a refund paid in year N+1 against a year-N order was in no `orders` section of any archive and reached the file only as an event. Schema 4 → 5, and a same-exercice refund is listed twice on purpose, pinned by a test against the “deduplication” a later batch would reach for. The notice stops claiming « date certaine », **and so does `docs/attestation-conformite.md`, which is signed under art. 441-1** — correcting one and leaving the other is how L-56 came to exist in the first place. The ticket prints a real `Caisse N° 1` and relabels the shift `Service N`, proved end-to-end on caisse session **3**, the very counter the finding names. **Sixteen one-property reverts, all thirteen new tests failing under at least one, no controls to disclaim** — and R7b, which nothing caught, added the missing assertion. **The stored per-line HT was deliberately not built**: it needs a migration, and the ticket's HT comes from an apportionment rather than a division. 891/891; production byte-identical.
+| 8.1 | COMPLETED | 2026-09-06 | (this commit) | V-04 and V-05 — the live database verified read-only (`bun:sqlite`, `readonly: true`, no Prisma, no server), with the four chains recomputed by the app's **own** `verifyEvents`/`verifyCloses` rather than a reimplementation. **27 checks pass, 1 flagged.** No counter drift — V-04's own suspicion, not borne out: every counter equals its maximum exactly (20/3/2/2). No orphans in ten checks, including the three plain-id columns a `foreign_key_check` cannot see. Nine migrations applied, nine on disk, no pending and no ghost. **`GrandTotal`, `FiscalCounter` and the chain's `lastSequence` are unchanged from the Batch 0.2 baseline in every field** — three months and nine migrations later. Every other difference explained: +11 audit rows, +2 technical logs, two tables dropped by 5.7a, two added by 5.5 and 3.8. **L-60 recorded**: 18 of 20 orders predate the fiscal journal (commit `d7ceb18`, 2026-08-29), so the Z reports read 36 300 and the grand total 5 480 and both are right — 8.0 deletes all of it. Production byte-identical throughout.
 
 # RESOLVED FINDINGS
 
