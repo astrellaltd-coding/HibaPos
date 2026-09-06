@@ -614,7 +614,7 @@ Audit section J, step 3: before any real data accumulates. Restore must put imag
 
 ## Batch 2.5 — The restore could not complete on Windows (L-61, L-62)
 
-**Status:** `COMPLETED` · **Completed:** 2026-09-06 · **Commit:** *(this commit)* · **Findings:** **L-61 (HIGH, closed)**, **L-62 (closed)**. **Unblocks Batch 8.2's V-06.**
+**Status:** `COMPLETED` · **Completed:** 2026-09-06 · **Commit:** `52c66c0` · **Findings:** **L-61 (HIGH, closed)**, **L-62 (closed)**. **Unblocks Batch 8.2's V-06.**
 **Record:** `REMEDIATION_RECORD.md` → *Batch 2.5* — specification, validation criteria and status record, moved there verbatim on 2026-09-06.
 
 **Constraints this batch leaves behind** *(sentences copied from the record, not paraphrased)*
