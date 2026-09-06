@@ -886,7 +886,7 @@ Nothing else in the catalogue changes: all 61 non-drink products stay at 10 %.
 
 ## Batch 3.10 — The three the map left unowned (L-55, L-56, L-58)
 
-**Status:** `COMPLETED` for L-55, L-56 and L-58's label half · **Completed:** 2026-09-06 · **Commit:** `8d5e156` · **Findings:** L-55 (**closed**), L-56 (**closed in BOTH places** — the archive notice and the signed attestation), L-58 (**◐ — the label is closed, the stored per-line HT is not**) · **Decisions:** none; the table stays empty.
+**Status:** `COMPLETED` for L-55, L-56 and L-58's label half · **Completed:** 2026-09-06 · **Commit:** `28e1fc2` · **Findings:** L-55 (**closed**), L-56 (**closed in BOTH places** — the archive notice and the signed attestation), L-58 (**◐ — the label is closed, the stored per-line HT is not**) · **Decisions:** none; the table stays empty.
 **Record:** `REMEDIATION_RECORD.md` → *Batch 3.10* — specification, validation criteria and status record, moved there verbatim on 2026-09-06.
 
 **Constraints this batch leaves behind** *(sentences copied from the record, not paraphrased)*
