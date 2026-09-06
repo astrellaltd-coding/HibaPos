@@ -152,10 +152,20 @@ the old key and the key is then rotated, it becomes unreadable. Rotate first and
 
 **[OWNER or you]** — Claude never generates or sees these values.
 
+**`openssl` is not on Windows by default** — use either of these instead. Both
+produce the same thing: 64 hex characters from a cryptographic RNG. Run it
+**twice**, once per secret, and do not reuse one value for both.
+
 ```bash
-openssl rand -hex 32        # once for SESSION_SECRET
-openssl rand -hex 32        # again for BACKUP_ENCRYPTION_KEY - a different value
+bun -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
+
+```powershell
+$b = New-Object byte[] 32; (New-Object System.Security.Cryptography.RNGCryptoServiceProvider).GetBytes($b); ($b | ForEach-Object { $_.ToString('x2') }) -join ''
+```
+
+> Not `Get-Random`. It looks like it would do and is **not** cryptographically
+> secure — fine for picking a test row, wrong for a signing secret.
 
 Copy `.env` somewhere outside the repository and outside OneDrive first, replace
 those two lines only, then:
@@ -219,7 +229,10 @@ not fiscal data; the fiscal journal is, and that is what was just reset.
 
 ### 6e. Arm the chain key — **in this order, or not at all**
 
-1. **[OWNER or you]** `openssl rand -hex 32`
+1. **[OWNER or you]** generate it — same commands as § 6a, `openssl` is not on Windows:
+   ```bash
+   bun -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+   ```
 2. Paste it into `.env` as `FISCAL_CHAIN_KEY`
 3. **Back it up somewhere that is not this machine.** ⚠ **Lose it and the journal can never be verified again** — every hash is computed with it. Treat it exactly like `BACKUP_ENCRYPTION_KEY`.
 4. `Start-ScheduledTask -TaskName "HibaPOS Server"`

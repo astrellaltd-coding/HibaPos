@@ -3758,6 +3758,26 @@ Nothing else reads either.
 
 **Still the operator's act, and still: do not send the values.**
 
+**(5) `openssl` is not on Windows, and the hand-over's fallback was buried in a
+parenthesis.** The operator hit `CommandNotFoundException` on step 1. Both
+replacements were verified on this machine on 2026-09-06 — **by their output's
+shape only, never its value**: 64 hex characters, matching what `openssl rand
+-hex 32` produces.
+
+```bash
+bun -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+```powershell
+$b = New-Object byte[] 32; (New-Object System.Security.Cryptography.RNGCryptoServiceProvider).GetBytes($b); ($b | ForEach-Object { $_.ToString('x2') }) -join ''
+```
+
+**Not `Get-Random`**, which looks like it would do and is not a CSPRNG. Both
+commands are now in `docs/mise-en-service.md` § 6a and § 6e and in
+`.env.example`, where three lines said `openssl` and one of them said it for
+`FISCAL_CHAIN_KEY` — the secret whose generation is furthest away and therefore
+the likeliest to be met by whoever has forgotten this note.
+
 
 ---
 
