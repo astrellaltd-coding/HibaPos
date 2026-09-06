@@ -1725,7 +1725,7 @@ Audit section J, step 9. Nothing here is a code change; all of it is proof — w
 
 ## Batch 8.1 — Live database verification
 
-**Status:** `COMPLETED` · **Completed:** 2026-09-06 · **Commit:** *(this commit)* · **Findings:** V-04 (**closed**), V-05 (**closed**); **L-60 recorded, resolved by 8.0**.
+**Status:** `COMPLETED` · **Completed:** 2026-09-06 · **Commit:** `ce500ac` · **Findings:** V-04 (**closed**), V-05 (**closed**); **L-60 recorded, resolved by 8.0**.
 **Result: 27 checks pass, 1 flagged** — and the flagged one is a fact about the development data, not a defect. Evidence: `docs/verification-8.1-2026-09-06.txt`.
 **Record:** `REMEDIATION_RECORD.md` → *Batch 8.1* — specification, validation criteria and status record, moved there verbatim on 2026-09-06.
 
