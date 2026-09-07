@@ -289,7 +289,7 @@ half open**, split across two batches. Audit IDs are never renamed.
 
 These cannot be resolved from the code. **Claude must not decide them.** Each blocks or reshapes the batch named.
 
-**The table is empty, and that is the honest state: no batch in this plan is waiting on a decision.** Twenty-five answered decisions have been retired from it, the last three (DD-23, DD-24, DD-25) on 2026-09-06. Full rows: `REMEDIATION_RECORD.md` → *Answered design decisions*; the retirement history and the one-line pointers: → *Retired open-thread rows*.
+**The table is empty, and that is the honest state: no batch in this plan is waiting on a decision.** Twenty-five have been retired from it, DD-01 to DD-25. *(**DD-24 and DD-25 only reached the record's register on 2026-09-07** — this line said they had on the 6th; found by counting the register against the claim.)* Full rows: `REMEDIATION_RECORD.md` → *Answered design decisions*; the retirement history and the one-line pointers: → *Retired open-thread rows*.
 
 | ID | Decision | Blocks | Context |
 |---|---|---|---|
