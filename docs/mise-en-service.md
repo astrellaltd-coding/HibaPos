@@ -143,9 +143,9 @@ to correct them** (*Open Threads → B*):
 - [x] ~~**`printerName`** — read `Epson TM-m30`~~ — **done 2026-09-07**, now
       `Sunso WTP-801`. **DOC-15 closed.**
 
-**Réglages:** printer IP, port `9100`, `printerEnabled` on, `receiptWidth` 48,
-`openDrawerOnCash` on. Correct `printerName` to the real model while you are
-there — the stored value still says "Epson TM-m30" (DOC-15).
+**Réglages:** printer IP, port `9100`, `printerEnabled` on, `openDrawerOnCash`
+on. `receiptWidth` and `printerName` are already right — the operator's save of
+2026-09-07 set the width to 48 and the model to `Sunso WTP-801`.
 
 Then `POST /api/print/test`, or the test button in Réglages.
 
