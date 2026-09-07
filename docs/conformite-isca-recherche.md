@@ -414,6 +414,34 @@ obligation is nonetheless in force with no suspensive condition. Could not
 confirm: whether the DGFiP intends to reuse the FEC, the e-reporting format, or
 a new « fichier des écritures de caisse ».
 
+**RE-CHECKED 2026-09-07 (session 19), at source, and NOTHING HAS CHANGED.**
+Three checks, each against a primary document rather than against this file:
+
+1. **The load-bearing citation is verified verbatim.** Legifrance, CGI art. 286,
+   « Version en vigueur depuis le 27/06/2026 », second alinéa of 3° bis present
+   and reading exactly: « Les données archivées mentionnées au premier alinéa du
+   présent 3° bis sont restituées dans un format répondant aux normes établies
+   par l'administration. » (https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000036432356)
+2. **The administration's doctrine on the archive format has NOT moved.**
+   BOI-TVA-DECLA-30-10-30 is still the **25/03/2026** version — i.e. still
+   *earlier* than the law it would have to implement — and its § 230 still reads
+   « les données d'archivage doivent être enregistrées dans un format ouvert.
+   Une notice explicative en langue française doit être jointe au contenu de
+   l'archive. » Nothing about « normes établies par l'administration ».
+3. **No arrêté, décret or BOFiP actualité defining the format was found.**
+
+**The reading this produces, and it is for a professional to confirm, not for
+this file to assert.** The statute requires a format « répondant aux normes
+établies par l'administration ». The only norm the administration has actually
+published about this archive is § 230's *format ouvert* plus a French notice —
+which HibaPOS's annual archive satisfies (JSON + `sha256sum` manifest + notice,
+map § 4.2). So the honest position is not « non-conforme » but « conforme à la
+seule norme publiée, en attendant celle que la loi annonce ». **Do not put that
+in a signed attestation without a fiscal professional's confirmation**
+(safety rule 13; Batch 8.3).
+
+*Next re-check: before signature, and before any attestation is renewed.*
+
 ### 9.3 Question 4 — a Tunisian éditeur with no French, EU or EEA establishment
 
 BOI-TVA-DECLA-30-10-30 (25/03/2026, OFFICIAL,

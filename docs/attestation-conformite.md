@@ -188,6 +188,15 @@ Signature de l'entreprise utilisatrice : `_____________________________`
   loi n° 2026-534 du 25 juin 2026, art. 87** (en vigueur le 27 juin 2026) : les
   données archivées doivent être « restituées dans un format répondant aux
   normes établies par l'administration ».
+  **⚠ Ces normes ne sont toujours pas publiées — vérifié à la source le
+  2026-09-07** : le BOFiP applicable (BOI-TVA-DECLA-30-10-30) est encore la
+  version du **25/03/2026**, antérieure à la loi, et son § 230 n'exige toujours
+  qu'« un format ouvert » assorti d'une notice en français — ce que l'archive
+  annuelle de HibaPOS respecte (JSON + `sha256sum` + notice). **Aucun arrêté ni
+  décret n'a été trouvé.** L'obligation est néanmoins en vigueur, sans condition
+  suspensive. **À faire trancher par un professionnel avant signature** : peut-on
+  se prévaloir de la seule norme publiée ? Voir `docs/conformite-isca-recherche.md`
+  § 9.2 (recherche du 2026-09-06, re-vérifiée le 2026-09-07) et **L-52**.
 - Article 1770 duodecies du CGI — amende de **7 500 € par logiciel**, à la
   charge de **l'assujetti** (le restaurant), pas de l'éditeur, puis **60 jours**
   pour se mettre en conformité avant que l'amende soit à nouveau encourue.
