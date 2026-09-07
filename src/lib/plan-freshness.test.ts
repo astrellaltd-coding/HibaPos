@@ -38,16 +38,31 @@ function batchStatuses(src: string): Map<string, string> {
   return out;
 }
 
-/** The open-findings register: id → the text of its last cell. */
+/**
+ * The open-findings register: id → the text of its last cell.
+ *
+ * **This read `line.startsWith("| **")` until 2026-09-07, and that was a hole
+ * the size of the check.** Four rows in the register are not bolded — `L-14`,
+ * `DOC-13`, `DOC-14`, `DOC-15` — so the parser never saw them, and two of them
+ * (`DOC-13 → 7.1`, `DOC-14 → 7.2`) pointed at COMPLETED batches while the code
+ * they describe was still unchanged. That is precisely the rot this file exists
+ * to catch, sitting inside the register it reads.
+ *
+ * A row is now anything whose first cell is an ID, bold optional. The "parses
+ * the plan at all" test below pins the COUNT rather than `> 0`, because `> 0`
+ * was satisfied by the nine rows the old parser could see.
+ */
+const REGISTER_ROW = /^\| \*{0,2}([A-Z]+-[0-9]+[a-z]?)\b/;
+
 function openFindings(src: string): Map<string, string> {
   const start = src.indexOf("# NEWLY DISCOVERED ISSUES");
   const end = src.indexOf("# DEFERRED / LOW PRIORITY");
   const out = new Map<string, string>();
   for (const line of src.slice(start, end).split("\n")) {
-    if (!line.startsWith("| **")) continue;
-    const id = line.split("**")[1];
+    const m = REGISTER_ROW.exec(line);
+    if (!m) continue;
     const cells = line.split(" | ");
-    out.set(id, cells[cells.length - 1]);
+    out.set(m[1], cells[cells.length - 1]);
   }
   return out;
 }
@@ -82,7 +97,10 @@ describe("plan freshness — an open finding may not point at a finished batch",
     // over an empty set, which is the classic vacuous test.
     const src = plan();
     expect(batchStatuses(src).size).toBeGreaterThan(20);
-    expect(openFindings(src).size).toBeGreaterThan(0);
+    // Pinned, not `> 0`: the old parser skipped the four unbolded rows and
+    // `> 0` was satisfied by the nine it could see. Change this number only
+    // when a row is genuinely added to or retired from the register.
+    expect(openFindings(src).size).toBe(13);
     expect(batchStatuses(src).get("7.1")).toBe("COMPLETED");
   });
 

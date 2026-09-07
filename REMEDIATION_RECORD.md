@@ -4228,6 +4228,20 @@ Each original is shown with what replaced it.)*
 
 # RETIRED OPEN-THREAD ROWS AND SUPERSEDED FRONT-MATTER LINES
 
+**RETIRED 2026-09-07 (session 19, second pass — reconciling `CLAUDE.md` with the plan).** Three more front-matter passages, all of them a second statement of a rule stated in full elsewhere in the same section. Nothing is withdrawn. Verbatim:
+
+### warning 3's detail on the four wiping test files
+
+> 3. **`bunx vitest` now REFUSES to run, and that is enforced rather than asked for.** `vitest.config.ts` throws at import (Batch 6.3, L-06), because vitest does not read `bunfig.toml` and so never loads `test-setup.ts` — the only thing pointing `DATABASE_URL` at a throwaway database, and where the guard lives. Four test files begin by wiping 17 tables. Only `bun test src` is the runner.
+
+### warning 1's restatement of the push rule, which warning 9 states in full
+
+> and every session should leave its own commits pushed — **Claude can push when the user asks in the session** (warning 9). Do not push unprompted.
+
+### warning 3b's restatement of the EPERM interaction, which warning 9 states in full
+
+> and a `next start` in one session holds `query_engine-windows.dll.node`, making `bunx prisma generate` fail `EPERM` in the other (warning 9).
+
 **RETIRED 2026-09-07 (session 19, the de-stale pass after 1.3b and 1.3c) — eleven front-matter passages.** The pass added about 2,3 KB of corrections and put the front matter 1 934 bytes over its ~40 KB ceiling, so `plan-freshness.test.ts` failed, which is what that assertion is for. Everything below was retired to get back under it, and **every one of them is history or a duplicate rather than current state** — the plan's own two rules, *every fact has one home* and *completion retires*. Nothing is withdrawn. Verbatim:
 
 ### the 2026-09-06 batch list from *Last Batch*
