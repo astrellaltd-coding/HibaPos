@@ -1,5 +1,8 @@
 // Shared Zod validation schemas (used by both client forms and API routes).
 import { z } from "zod";
+// L-22 (Batch 7.5): makes every message below French, including the ~70 fields
+// that carry no message of their own. Side-effect import — see the module.
+import "@/lib/zod-locale";
 
 /**
  * The VAT rates this restaurant can select (DD-17, Batch 3.1c).

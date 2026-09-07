@@ -90,7 +90,15 @@ export function ProductOptionsDialog({
   const addonsTotal = Object.entries(chosenAddons)
     .filter(([, v]) => v)
     .reduce((acc, [id]) => acc + (applicableAddOns.find((a) => a.id === id)?.price ?? 0), 0);
-  const lineTotal = Math.round((unitPrice + addonsTotal) * qty * 100) / 100;
+  // DOC-14 (Batch 7.5). This was
+  //     Math.round((unitPrice + addonsTotal) * qty * 100) / 100
+  // and the displayed figure was always RIGHT: `productUnitPrice()` returns
+  // integer cents and add-on prices are cents, so `Math.round(cents × qty ×
+  // 100) / 100` is exactly `cents × qty`. What it was not is readable — it is
+  // vestigial euros-era rounding sitting in a money path, i.e. the exact shape
+  // of the cents/euros confusion that produced C-01 and C-02. Removed rather
+  // than commented, because the arithmetic is the documentation.
+  const lineTotal = (unitPrice + addonsTotal) * qty;
 
   const missingRequired = options.some((g) => g.required && (selected[g.name]?.length ?? 0) === 0);
   const selectedAddonCount = Object.values(chosenAddons).filter(Boolean).length;

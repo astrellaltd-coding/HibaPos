@@ -4,6 +4,14 @@
 // so the application had no way to run anything once at boot — which is why
 // the WAL pragma was left to a shell script that had been deleted, and never
 // ran at all. This is that missing hook.
+//
+// L-22 (Batch 7.5): the zod French locale is configured HERE as well as in
+// `validation.ts`, and both are needed. Thirteen API routes declare inline
+// schemas and never import `validation.ts`; this runs once at startup, before
+// any request, so those are covered too. Static, not inside `register()` — the
+// config must be in place before the first route module parses anything, and
+// it touches nothing runtime-specific.
+import "@/lib/zod-locale";
 
 export async function register() {
   // Runs in both the Node and Edge runtimes; only Node can reach SQLite.

@@ -20,7 +20,20 @@ export type ApprovalAction = "DISCOUNT" | "REFUND" | "CASH_OUT";
 export type ApprovalPayload = {
   approverId: string;
   action: ApprovalAction;
-  amount: number | null; // euros
+  // L-36 / DOC-13 (Batch 7.5) — **CENTS**, and this comment said `euros` from
+  // Batch 1.1 until 2026-09-07. Nothing was ever mis-computed: every caller has
+  // always bound cents — `step-up/route.ts` declares `z.number().int()`,
+  // `refund/route.ts` passes `parsed.data.amount` (cents per `refundSchema`),
+  // and `orders-view.tsx` passes `amountCents` by that name. So the HMAC has
+  // always bound a cent figure while the type said otherwise.
+  //
+  // The row's instruction was **fix the comment, not the code**, and that is
+  // what this is. It matters because Batch 4.4c's step-up binds amounts through
+  // this same field, and the next person to add a caller reads this line.
+  //
+  // Filed TWICE — DOC-13 against Batch 1.1 and L-36 against 4.4c — which is why
+  // it outlived Batch 7.1: each row looked like the other one's problem.
+  amount: number | null; // integer CENTS, never euros
   exp: number; // ms epoch
   nonce: string;
 };
