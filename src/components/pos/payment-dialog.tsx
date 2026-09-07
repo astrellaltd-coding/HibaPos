@@ -407,7 +407,7 @@ export function PaymentDialog({
                           )}
                         </span>
                         <span className="text-sm font-semibold tabular-nums">{formatEuro(l.amount)}</span>
-                        <Button variant="ghost" size="icon" className="h-9 min-h-[48px] w-9 text-muted-foreground hover:text-destructive" aria-label="Supprimer la ligne" onClick={() => removeLine(idx)}>
+                        <Button variant="ghost" size="icon" className="h-12 w-12 min-h-[48px] min-w-[48px] text-muted-foreground hover:text-destructive" aria-label="Supprimer la ligne" onClick={() => removeLine(idx)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>

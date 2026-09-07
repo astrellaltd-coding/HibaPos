@@ -111,6 +111,11 @@ Then check, in this order:
    $f=[System.IO.File]::OpenRead("C:\HibaPOS\data\db\custom.db"); $b=New-Object byte[] 19; $f.Read($b,0,19)|Out-Null; $f.Close(); $b[18]
    ```
 5. Kill the server process and confirm Task Scheduler restarts it within a minute. *(Batch 1.4 `[MACHINE]` criterion.)*
+6. **[OWNER] Look at the screens.** Batch 7.6 raised **eleven** buttons to at
+   least 44 px for touch, and no session could see them render. Check the POS,
+   the cart panel, the category and product editors and the tables screen:
+   nothing overlapping, nothing pushed off a row, nothing clipped. This is the
+   only check that catches a layout the source-level guard cannot see.
 
 **Install the app properly:** open it, then Edge menu → **Installer HibaPOS**.
 That gives a desktop icon, a Start Menu entry and a window with no address bar.

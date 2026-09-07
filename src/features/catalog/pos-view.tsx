@@ -501,7 +501,7 @@ function ShiftHint({ onClick }: { onClick: () => void }) {
       <div className="pointer-events-auto flex items-center gap-3 rounded-full border border-amber-300 bg-amber-50 px-4 py-2 shadow-lg">
         <LockKeyhole className="h-4 w-4 text-amber-600" />
         <span className="text-xs font-medium text-amber-800">Aucune caisse ouverte — l'encaissement est bloqué</span>
-        <Button size="sm" className="h-7" onClick={onClick}>
+        <Button size="sm" className="h-11 min-h-[44px] px-4" onClick={onClick}>
           Ouvrir
         </Button>
       </div>

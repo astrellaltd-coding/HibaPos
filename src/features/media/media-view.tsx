@@ -342,9 +342,9 @@ export function MediaView() {
           </DialogHeader>
           <div className="flex flex-col gap-4 py-4">
             <div className="flex flex-col gap-2">
-              <Label>Dossier de destination</Label>
+              <Label htmlFor="media-dossier-de-destination">Dossier de destination</Label>
               <Select value={uploadFolder} onValueChange={setUploadFolder}>
-                <SelectTrigger>
+                <SelectTrigger id="media-dossier-de-destination">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

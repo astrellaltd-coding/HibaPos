@@ -164,7 +164,7 @@ export function Topbar() {
           variant="ghost"
           onClick={() => setView("shifts")}
           className={cn(
-            "hidden h-8 gap-1.5 rounded-full px-3 text-xs font-semibold text-white/80 hover:bg-white/10 hover:text-white sm:flex",
+            "hidden h-11 min-h-[44px] gap-1.5 rounded-full px-3 text-xs font-semibold text-white/80 hover:bg-white/10 hover:text-white sm:flex",
             shiftOpen && "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30"
           )}
         >

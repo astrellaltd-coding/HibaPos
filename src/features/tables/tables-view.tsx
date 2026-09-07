@@ -279,8 +279,8 @@ export function TablesView() {
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label className="mb-1.5 block text-xs">Nom / N° *</Label>
-              <Input
+              <Label htmlFor="tables-nom-n" className="mb-1.5 block text-xs">Nom / N° *</Label>
+              <Input id="tables-nom-n"
                 value={form.label}
                 onChange={(e) => setForm({ ...form, label: e.target.value })}
                 placeholder="ex. T1, Terrasse 2"
@@ -289,8 +289,8 @@ export function TablesView() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="mb-1.5 block text-xs">Couverts</Label>
-                <Input
+                <Label htmlFor="tables-couverts" className="mb-1.5 block text-xs">Couverts</Label>
+                <Input id="tables-couverts"
                   type="number"
                   min={1}
                   max={20}
@@ -299,8 +299,8 @@ export function TablesView() {
                 />
               </div>
               <div>
-                <Label className="mb-1.5 block text-xs">Zone</Label>
-                <Input
+                <Label htmlFor="tables-zone" className="mb-1.5 block text-xs">Zone</Label>
+                <Input id="tables-zone"
                   value={form.zone}
                   onChange={(e) => setForm({ ...form, zone: e.target.value })}
                   placeholder="Salle, Terrasse…"

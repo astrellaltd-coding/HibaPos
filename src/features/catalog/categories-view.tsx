@@ -488,8 +488,8 @@ export function CategoriesView() {
               </div>
 
               <div className="grid gap-2">
-                <Label>Couleur</Label>
-                <div className="flex flex-wrap gap-2">
+                <Label id="lbl-categories-couleur">Couleur</Label>
+                <div role="group" aria-labelledby="lbl-categories-couleur" className="flex flex-wrap gap-2">
                   {COLOR_PRESETS.map((c) => (
                     <button
                       key={c}
@@ -749,6 +749,7 @@ export function CategoriesView() {
                             type="number"
                             step="0.1"
                             min="0"
+                            aria-label="Prix à emporter pour cette taille"
                             value={s.pickupPrice}
                             onChange={(e) =>
                               setSizes((ss) => ss.map((x, idx) => (idx === i ? { ...x, pickupPrice: Number(e.target.value) || 0 } : x)))
@@ -762,6 +763,7 @@ export function CategoriesView() {
                             type="number"
                             step="0.1"
                             min="0"
+                            aria-label="Prix en livraison pour cette taille"
                             value={s.deliveryPrice}
                             onChange={(e) =>
                               setSizes((ss) => ss.map((x, idx) => (idx === i ? { ...x, deliveryPrice: Number(e.target.value) || 0 } : x)))
@@ -785,7 +787,7 @@ export function CategoriesView() {
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="h-7 gap-1 text-xs"
+                      className="h-11 min-h-[44px] gap-1 text-xs"
                       onClick={() => setSizes((ss) => [...ss, { name: "", pickupPrice: 0, deliveryPrice: 0 }])}
                     >
                       <Plus className="h-3 w-3" /> Ajouter une taille
@@ -805,7 +807,7 @@ export function CategoriesView() {
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="h-8 gap-1 text-xs"
+                    className="h-11 min-h-[44px] gap-1 text-xs"
                     onClick={() =>
                         setForm((f) => ({
                           ...f,
@@ -1001,7 +1003,7 @@ export function CategoriesView() {
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="h-7 gap-1 text-xs"
+                        className="h-11 min-h-[44px] gap-1 text-xs"
                         onClick={() =>
                           setForm((f) => {
                             const next = [...f.optionGroups];
@@ -1028,7 +1030,7 @@ export function CategoriesView() {
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="h-8 gap-1 text-xs"
+                    className="h-11 min-h-[44px] gap-1 text-xs"
                     onClick={() =>
                       setForm((f) => ({
                         ...f,
@@ -1264,7 +1266,7 @@ function CategoryCard({
               variant="ghost"
               size="sm"
               onClick={onCreateSub}
-              className="h-8 gap-1 text-xs text-muted-foreground hover:text-primary"
+              className="h-11 min-h-[44px] gap-1 text-xs text-muted-foreground hover:text-primary"
             >
               <PlusCircle className="h-3.5 w-3.5" />
               Sous-catégorie

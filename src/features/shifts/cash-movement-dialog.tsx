@@ -115,8 +115,8 @@ export function CashMovementDialog({
 
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Motif</Label>
-              <div className="grid grid-cols-2 gap-2">
+              <Label id="lbl-cash-movement-motif">Motif</Label>
+              <div role="group" aria-labelledby="lbl-cash-movement-motif" className="grid grid-cols-2 gap-2">
                 {(Object.keys(DIRECTION) as Category[]).map((c) => (
                   <Button
                     key={c}
@@ -139,8 +139,8 @@ export function CashMovementDialog({
 
             {category === "ERREUR_DE_CAISSE" && (
               <div className="space-y-2">
-                <Label>Sens de la correction</Label>
-                <div className="flex gap-2">
+                <Label id="lbl-cash-movement-sens-de-la-correction">Sens de la correction</Label>
+                <div role="group" aria-labelledby="lbl-cash-movement-sens-de-la-correction" className="flex gap-2">
                   <Button
                     type="button"
                     variant={correctionAdds ? "default" : "outline"}

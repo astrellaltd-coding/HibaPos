@@ -506,10 +506,10 @@ function ProductFormDialog({
 
             {/* ── 1. Catégorie ── */}
             <div className="space-y-2">
-              <Label className="mb-2 block text-xs">Catégorie *</Label>
+              <Label id="lbl-products-categorie" className="mb-2 block text-xs">Catégorie *</Label>
 
               {/* Parent category cards */}
-              <div className="flex flex-wrap gap-3">
+              <div role="group" aria-labelledby="lbl-products-categorie" className="flex flex-wrap gap-3">
                 {(() => {
                   const roots = categories
                     .filter((c) => !c.parentId)
@@ -629,15 +629,15 @@ function ProductFormDialog({
             <div className="grid grid-cols-2 items-start gap-5">
               <div className="flex flex-col gap-4">
                 <div>
-                  <Label className="mb-1.5 block text-xs">Nom *</Label>
-                  <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex. Margherita" />
+                  <Label htmlFor="products-nom" className="mb-1.5 block text-xs">Nom *</Label>
+                  <Input id="products-nom" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex. Margherita" />
                 </div>
                 
                 <div className="flex items-end gap-3">
                   <div className="flex-1 grid grid-cols-2 gap-2">
                     <div>
-                      <Label className="mb-1.5 block text-xs">À emporter (€) *</Label>
-                      <Input
+                      <Label htmlFor="products-emporter" className="mb-1.5 block text-xs">À emporter (€) *</Label>
+                      <Input id="products-emporter"
                         type="number"
                         step="0.1"
                         min="0"
@@ -648,8 +648,8 @@ function ProductFormDialog({
                       />
                     </div>
                     <div>
-                      <Label className="mb-1.5 block text-xs">Livraison (€) *</Label>
-                      <Input
+                      <Label htmlFor="products-livraison" className="mb-1.5 block text-xs">Livraison (€) *</Label>
+                      <Input id="products-livraison"
                         type="number"
                         step="0.1"
                         min="0"
@@ -661,8 +661,8 @@ function ProductFormDialog({
                     </div>
                   </div>
                   <div className="flex shrink-0 flex-col items-center justify-end pb-2 gap-1.5">
-                    <Label className="text-[10px] text-muted-foreground">Tailles multiples</Label>
-                    <Switch
+                    <Label htmlFor="products-tailles-multiples" className="text-[10px] text-muted-foreground">Tailles multiples</Label>
+                    <Switch id="products-tailles-multiples"
                       checked={sizesEnabled}
                       onCheckedChange={(v) => {
                         setSizesEnabled(v);
@@ -677,9 +677,9 @@ function ProductFormDialog({
 
               {/* right column: photo */}
               <div className="flex flex-col gap-1.5">
-                <Label className="text-[10px] text-muted-foreground">Photo</Label>
+                <Label id="lbl-products-photo" className="text-[10px] text-muted-foreground">Photo</Label>
                 {image && (image.startsWith("/") || image.startsWith("http")) ? (
-                  <div className="relative h-24 w-full overflow-hidden rounded-xl border border-border bg-muted/30">
+                  <div role="group" aria-labelledby="lbl-products-photo" className="relative h-24 w-full overflow-hidden rounded-xl border border-border bg-muted/30">
                     <img src={image} alt={name} className="h-full w-full object-cover" />
                     <button
                       type="button"
@@ -789,7 +789,7 @@ function ProductFormDialog({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="mt-1 h-7 gap-1 text-xs text-muted-foreground"
+                    className="mt-1 h-11 min-h-[44px] gap-1 text-xs text-muted-foreground"
                     onClick={addSize}
                   >
                     <Plus className="h-3 w-3" /> Ajouter une taille
@@ -961,7 +961,7 @@ function ProductFormDialog({
                             </Button>
                           </div>
                         ))}
-                        <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs text-muted-foreground" onClick={() => addChoice(gi)}>
+                        <Button variant="ghost" size="sm" className="h-11 min-h-[44px] gap-1 text-xs text-muted-foreground" onClick={() => addChoice(gi)}>
                           <Plus className="h-3 w-3" /> Ajouter un choix
                         </Button>
                       </div>

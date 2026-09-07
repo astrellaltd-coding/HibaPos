@@ -111,7 +111,7 @@ describe("plan freshness — an open finding may not point at a finished batch",
     // Pinned, not `> 0`: the old parser skipped the four unbolded rows and
     // `> 0` was satisfied by the nine it could see. Change this number only
     // when a row is genuinely added to or retired from the register.
-    expect(openFindings(src).size).toBe(7); // 13 → 12 (L-58) → 11 (DOC-15) → 7 (L-22, L-36, DOC-13, DOC-14 — Batch 7.5)
+    expect(openFindings(src).size).toBe(8); // 13 → 12 (L-58) → 11 (DOC-15) → 7 (Batch 7.5) → 8 (L-64 opened by 7.6)
     expect(batchStatuses(src).get("7.1")).toBe("COMPLETED");
   });
 

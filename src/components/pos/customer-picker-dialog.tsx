@@ -70,8 +70,8 @@ export function CustomerPickerDialog({
         {creating ? (
           <div className="space-y-4 p-5">
             <div>
-              <Label className="mb-1.5 block text-xs">Nom *</Label>
-              <Input
+              <Label htmlFor="customer-picker-nom" className="mb-1.5 block text-xs">Nom *</Label>
+              <Input id="customer-picker-nom"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 placeholder="Nom du client"
@@ -79,16 +79,16 @@ export function CustomerPickerDialog({
               />
             </div>
             <div>
-              <Label className="mb-1.5 block text-xs">Téléphone</Label>
-              <Input
+              <Label htmlFor="customer-picker-telephone" className="mb-1.5 block text-xs">Téléphone</Label>
+              <Input id="customer-picker-telephone"
                 value={newPhone}
                 onChange={(e) => setNewPhone(e.target.value)}
                 placeholder="06 12 34 56 78"
               />
             </div>
             <div>
-              <Label className="mb-1.5 block text-xs">Adresse * <span className="text-muted-foreground">(requis pour la livraison)</span></Label>
-              <Input
+              <Label htmlFor="customer-picker-adresse-requis-pour-la-livra" className="mb-1.5 block text-xs">Adresse * <span className="text-muted-foreground">(requis pour la livraison)</span></Label>
+              <Input id="customer-picker-adresse-requis-pour-la-livra"
                 value={newAddress}
                 onChange={(e) => setNewAddress(e.target.value)}
                 placeholder="12 rue de Paris, 75001 Paris"

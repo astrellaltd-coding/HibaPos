@@ -722,13 +722,13 @@ export function OrdersView() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label>Moyen de remboursement</Label>
+              <Label htmlFor="orders-moyen-de-remboursement">Moyen de remboursement</Label>
               <Select
                 value={refundMethod}
                 onValueChange={(v: "CASH" | "CARD" | "VOUCHER") => setRefundMethod(v)}
                 disabled={refundMutation.isPending}
               >
-                <SelectTrigger>
+                <SelectTrigger id="orders-moyen-de-remboursement">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

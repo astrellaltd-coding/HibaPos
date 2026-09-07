@@ -267,7 +267,7 @@ export function CartPanel({ onCheckout, onEditItem, onOpenDiscount }: { onChecko
               variant="outline"
               size="sm"
               className={cn(
-                "flex-1 h-9 gap-1.5 text-xs",
+                "flex-1 h-11 min-h-[44px] gap-1.5 text-xs",
                 orderType === "LIVRAISON" && (!customerId || !customer?.address)
                   ? "border-amber-500 text-amber-600 animate-pulse"
                   : customerId && "border-primary text-primary",
