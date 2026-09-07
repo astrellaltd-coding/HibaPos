@@ -27,14 +27,14 @@ at the till. Everything the owner has to *see* or *touch* is marked **[OWNER]**.
 | | Why |
 |---|---|
 | ⚠ **Bun installed machine-wide** — not under a user profile | **The most likely way this session goes wrong**, and **the development machine FAILS this check** — measured 2026-09-07, see below. The server task runs as `SYSTEM`, which cannot see `%USERPROFILE%\.bun` or `%APPDATA%\npm`. **The failure used to be silent**: the task « runs », the launcher never found bun, the till never came up. **Batch 1.4b made it loud** — the launcher now refuses *before* it uses bun, writes a `FATAL` line naming the account and both commands, and prints the three ways out; it also logs which bun it found when it succeeds, so `server.log` answers this question either way. **Check it before travelling** with `where bun`. **What was measured here:** bun resolves to `%APPDATA%\npm\bun.ps1` and `%APPDATA%\npm` sits on the **user** PATH only — the machine PATH has no bun at all — which is exactly the case `SYSTEM` cannot see. The real binary is `%APPDATA%\npm\node_modules\bun\bin\bun.exe`, 98 MB, which is what makes option (c) a two-minute fix. The installer's dry run offers all three: machine-wide install, `-ServerAccount <compte>`, or that `bun.exe` copied into `C:\HibaPOS\bin` with that folder added to the **system** PATH — read that warning, do not scroll past it. |
-| ⚠ **The `.env` you carry must be the ROTATED one** | `SESSION_SECRET` and `BACKUP_ENCRYPTION_KEY` were rotated 2026-09-07. Carrying an older `.env` means the backups written on the till cannot be opened with the keys anyone holds. |
+| ⚠ **The `.env` you carry must be the ROTATED one** | `SESSION_SECRET` and `BACKUP_ENCRYPTION_KEY` were rotated 2026-09-07. Carrying an older `.env` means the backups written on the till cannot be opened with the keys anyone holds. **This one PASSES on the development machine** — verified 2026-09-07 against the pre-rotation copy: both values are 64 characters and both differ from it. § 6a re-checks it at the step that depends on it, and has the command. |
 | The printer's **IP address**, fixed not DHCP | § 3 needs it, and a DHCP lease that moves silently breaks printing weeks later. |
 | The printer on the **same network** as the till, powered, with paper | |
 | A **second volume** for `BACKUP_LOCATION` — USB drive, NAS share, anything not the system disk | A backup on the same disk as the database is not a backup (C-06). |
 | The repository on the machine, and a `.env` from `.env.example` | |
 | **[OWNER]** available at the till for §§ 3 and 7 | Somebody has to watch paper come out and a drawer open. |
 
-**Not needed yet:** `FISCAL_CHAIN_KEY`. It is generated in § 6e, after the reset, and never before — and it is **not** one of the secrets § 6a rotates.
+**Not needed yet:** `FISCAL_CHAIN_KEY`. It is generated in § 6e, after the reset, and never before — and it is **not** one of the two secrets already rotated — § 6a only *checks* those now.
 
 ---
 
