@@ -90,9 +90,9 @@ Le serveur démarre sur `http://localhost:3000` (navigateur en plein écran).
 ## Tests
 
 ```bash
-bun run test         # 963 tests unitaires + intégration (mesuré 2026-09-07)
+bun run test         # 967 tests unitaires + intégration — chiffre épinglé par src/lib/readme-counts.test.ts
 bun run typecheck   # tsc --noEmit
-bun run test:e2e     # Playwright — 12 tests (auth, encaissement, caisse, catalogue)
+bun run test:e2e     # Playwright — 13 tests (auth, encaissement, caisse, catalogue)
                      # Base de données jetable sous %TEMP%, port 3100 : ne touche jamais la production
 ```
 
