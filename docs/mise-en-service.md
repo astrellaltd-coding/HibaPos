@@ -26,7 +26,10 @@ at the till. Everything the owner has to *see* or *touch* is marked **[OWNER]**.
 
 | | Why |
 |---|---|
-| **Bun installed machine-wide** — not under a user profile | The server task runs as `SYSTEM`, which cannot see `%USERPROFILE%\.bun` or `%APPDATA%\npm`. The installer warns, but fixing it afterwards means another reboot. |
+| ⚠ **Bun installed machine-wide** — not under a user profile | **The most likely way this session goes wrong.** The server task runs as `SYSTEM`, which cannot see `%USERPROFILE%\.bun` or `%APPDATA%
+pm` — and **the failure is silent**: the task « runs », the launcher never finds bun, the till never comes up. **Check it before travelling** with `where bun`; on the development machine it sits in `AppData\Roaming
+pm`, which is exactly the case that fails. The installer's dry run warns and offers three ways out (machine-wide install, `-ServerAccount <compte>`, or `bun.exe` in `C:\HibaPOSin` on the system PATH) — read that warning, do not scroll past it. |
+| ⚠ **The `.env` you carry must be the ROTATED one** | `SESSION_SECRET` and `BACKUP_ENCRYPTION_KEY` were rotated 2026-09-07. Carrying an older `.env` means the backups written on the till cannot be opened with the keys anyone holds. |
 | The printer's **IP address**, fixed not DHCP | § 3 needs it, and a DHCP lease that moves silently breaks printing weeks later. |
 | The printer on the **same network** as the till, powered, with paper | |
 | A **second volume** for `BACKUP_LOCATION` — USB drive, NAS share, anything not the system disk | A backup on the same disk as the database is not a backup (C-06). |
@@ -34,6 +37,36 @@ at the till. Everything the owner has to *see* or *touch* is marked **[OWNER]**.
 | **[OWNER]** available at the till for §§ 3 and 7 | Somebody has to watch paper come out and a drawer open. |
 
 **Not needed yet:** `FISCAL_CHAIN_KEY`. It is generated in § 6e, after the reset, and never before — and it is **not** one of the secrets § 6a rotates.
+
+---
+
+## 0a. Rehearse on a spare Windows machine — the evening before
+
+**Optional, and worth more than any other hour spent before delivery.** It closes
+**Batch 1.4's four `[MACHINE]` criteria** — a cold reboot, the supervisor restart,
+the Scheduled Task registration itself, and the till coming up unattended — on a
+machine where getting it wrong costs nothing.
+
+**Do it on a COPY of the repository, never the working tree**: the installer moves
+data *out of* the install directory, and the working tree holds the only copy of
+the restaurant's catalogue.
+
+```powershell
+Copy-Item -Recurse "<repo>" "C:\HibaPOS-rehearsalpp"
+cd C:\HibaPOS-rehearsalpp
+powershell -ExecutionPolicy Bypass -File .zscripts\install-windows.ps1 -DataDir C:\HibaPOS-rehearsal\data
+powershell -ExecutionPolicy Bypass -File .zscripts\install-windows.ps1 -DataDir C:\HibaPOS-rehearsal\data -Apply
+```
+
+- [ ] The dry run's **bun warning** either does not appear, or you act on it
+- [ ] Tasks register, and `Get-ScheduledTaskInfo -TaskName "HibaPOS Server"` returns `0`
+- [ ] **Reboot.** The machine comes up showing HibaPOS with nobody touching it
+- [ ] Kill the server process; Task Scheduler brings it back within a minute
+- [ ] Byte 18 of the rehearsal database is `02` — WAL is on outside OneDrive
+- [ ] **Afterwards unregister both tasks and delete `C:\HibaPOS-rehearsal`**, so the
+      spare machine stops trying to run a till
+
+Whatever this finds is worth knowing tonight rather than in front of the client.
 
 ---
 
