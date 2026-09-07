@@ -105,6 +105,16 @@ unmistakable and safely deletable.
 
 ## 4. Commission the printer and the drawer — Batch 1.3 `[HW]`
 
+**While you are in Réglages, two stored values are wrong and this is the moment
+to correct them** (*Open Threads → B*):
+
+- [ ] **Address** — replace `23 Grande Rue 45210, 45210 Ferrières-en-Gâtinais, France`
+      with `23 Grande Rue, 45210 Ferrières-en-Gâtinais, France`. The postcode is
+      in there twice. Saving also writes `receiptWidth` 48 over the legacy 80.
+- [ ] **`printerName`** — reads `Epson TM-m30`; the box is a Sunso WTP-801
+      (DOC-15). Nothing reads this field, so it is cosmetic — but it is the
+      contradiction the commissioning session exists to settle.
+
 **Réglages:** printer IP, port `9100`, `printerEnabled` on, `receiptWidth` 48,
 `openDrawerOnCash` on. Correct `printerName` to the real model while you are
 there — the stored value still says "Epson TM-m30" (DOC-15).
@@ -125,9 +135,21 @@ Then a FACTICE cash sale end to end:
 - [ ] `Réglages → Fiscal` shows the `VENTE`; a manual drawer open shows `OUVERTURE_TIROIR`; a reprint shows `REIMPRESSION`
 - [ ] **Turn the printer off, ring another sale**: the sale still completes and the operator sees *"Imprimante injoignable…"* rather than a lost sale
 
-**L-21, expect it:** the restaurant's address is 56 characters and the renderer
-does not wrap, so it will wrap mid-address on 48-column paper. Known, recorded,
-not fixed. Note whether it is acceptable to the owner.
+**L-21 and L-63 are FIXED (Batches 1.3b and 1.3c, 2026-09-07)** — this section
+used to warn that the address would wrap mid-address on 48-column paper. It no
+longer can: no line any of the three text renderers emits exceeds the paper, and
+the address is laid out across two centred lines with nothing lost.
+
+**What the print still has to settle, and only paper can:** what this printer
+does with a line it cannot fit — hard wrap, or truncate. The renderer no longer
+offers it the choice, so this is a confirmation rather than a risk. Look at the
+ticket's establishment block and at any long article label and check both read
+whole.
+
+- [ ] The address reads across two lines, complete
+- [ ] No line runs off the edge of the paper
+- [ ] The 48-character ruler on the test page sits on **one** line — if it wraps,
+      `receiptWidth` is wrong for this paper (L-13), not the renderer
 
 ---
 
@@ -278,7 +300,7 @@ partial order exists.
 - [ ] Delete the `*.moved-<timestamp>` directories from the old install path
 - [x] ~~Rotate `SESSION_SECRET` and `BACKUP_ENCRYPTION_KEY` here~~ — **moved to § 6a**, where the ordering works. This line first said to rotate *after* the backup, which is exactly backwards: the backup would then be encrypted with the key about to be discarded. Corrected 2026-09-06.
 - [ ] Record everything in `REMEDIATION_PLAN.md`: P-04's counts, 1.3's `[HW]` results, 1.4's `[MACHINE]` results, 8.2's V-07
-- [ ] **Re-triage every open finding whose severity was discounted for want of an audience.** The plan says to do this the moment an install date exists. L-21 is the first one.
+- [ ] **Re-triage every open finding whose severity was discounted for want of an audience.** The plan says to do this the moment an install date exists. **L-21 and L-63 were the first two and are done** (1.3b, 1.3c, 2026-09-07); the rest of the sweep has not been made.
 - [ ] The attestation (`docs/attestation-conformite.md`) still needs L-52, L-54, V-01 and V-13 reflected or excluded before anyone signs it
 
 ---
