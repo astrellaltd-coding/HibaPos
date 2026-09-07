@@ -427,7 +427,7 @@ Audit section J, step 2: the restaurant cannot open without these. The printing/
 
 ## Batch 1.3b — The receipt renderer never wraps (L-21)
 
-**Status:** `COMPLETED` · **Completed:** 2026-09-07 · **Commit:** `PLACEHOLDER_SHA` · **Findings:** L-21 (**closed** — the code half; the `[HW]` print stays with 1.3) · **Decisions:** none; the table stays empty.
+**Status:** `COMPLETED` · **Completed:** 2026-09-07 · **Commit:** `57f109e` · **Findings:** L-21 (**closed** — the code half; the `[HW]` print stays with 1.3) · **Decisions:** none; the table stays empty.
 **Record:** `REMEDIATION_RECORD.md` → *Batch 1.3b* — specification, validation criteria and status record, moved there verbatim on 2026-09-07.
 
 **Constraints this batch leaves behind** *(sentences copied from the record, not paraphrased)*
