@@ -1734,7 +1734,7 @@ Audit section J, step 8. Correct the false statements, remove the dead weight, t
 **Left open:** **L-14** and **L-47**, both deliberately — **neither is code work**. L-14: an archived receipt is immutable and must not be re-rendered, and Batch 8.0 deletes the affected population, so the finding empties rather than closes. L-47: Batch 6.3 could not reproduce it and falsified its own hypothesis; **re-open on the next occurrence** rather than assigning it to a batch with nothing to reproduce.
 ## Batch 7.6 — Touch targets and label association (L-09, L-10)
 
-**Status:** `COMPLETED` · **Completed:** 2026-09-07 · **Commit:** `PLACEHOLDER_SHA` · **Findings:** L-09 (**closed**), L-10 (**closed** — and its premise substantially corrected) · **Opened:** **L-64** · **Decisions:** none; the table stays empty.
+**Status:** `COMPLETED` · **Completed:** 2026-09-07 · **Commit:** `1439628` · **Findings:** L-09 (**closed**), L-10 (**closed** — and its premise substantially corrected) · **Opened:** **L-64** · **Decisions:** none; the table stays empty.
 **Record:** `REMEDIATION_RECORD.md` → *Batch 7.6* — specification, validation criteria and status record, moved there verbatim on 2026-09-07.
 
 **Constraints this batch leaves behind** *(sentences copied from the record, not paraphrased)*
