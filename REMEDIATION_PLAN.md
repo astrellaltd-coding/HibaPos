@@ -1721,7 +1721,7 @@ Audit section J, step 8. Correct the false statements, remove the dead weight, t
 ---
 ## Batch 7.5 — The three small findings nobody owned (L-22, L-36 / DOC-13, DOC-14)
 
-**Status:** `COMPLETED` · **Completed:** 2026-09-07 · **Commit:** `PLACEHOLDER_SHA` · **Findings:** L-22 (**closed**), L-36 and DOC-13 (**closed — one defect, filed twice**), DOC-14 (**closed**) · **Decisions:** none; the table stays empty.
+**Status:** `COMPLETED` · **Completed:** 2026-09-07 · **Commit:** `6e498e6` · **Findings:** L-22 (**closed**), L-36 and DOC-13 (**closed — one defect, filed twice**), DOC-14 (**closed**) · **Decisions:** none; the table stays empty.
 **Record:** `REMEDIATION_RECORD.md` → *Batch 7.5* — specification, validation criteria and status record, moved there verbatim on 2026-09-07.
 
 **Constraints this batch leaves behind** *(sentences copied from the record, not paraphrased)*
