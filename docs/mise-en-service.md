@@ -26,9 +26,7 @@ at the till. Everything the owner has to *see* or *touch* is marked **[OWNER]**.
 
 | | Why |
 |---|---|
-| ⚠ **Bun installed machine-wide** — not under a user profile | **The most likely way this session goes wrong.** The server task runs as `SYSTEM`, which cannot see `%USERPROFILE%\.bun` or `%APPDATA%
-pm` — and **the failure is silent**: the task « runs », the launcher never finds bun, the till never comes up. **Check it before travelling** with `where bun`; on the development machine it sits in `AppData\Roaming
-pm`, which is exactly the case that fails. The installer's dry run warns and offers three ways out (machine-wide install, `-ServerAccount <compte>`, or `bun.exe` in `C:\HibaPOSin` on the system PATH) — read that warning, do not scroll past it. |
+| ⚠ **Bun installed machine-wide** — not under a user profile | **The most likely way this session goes wrong**, and **the development machine FAILS this check** — measured 2026-09-07, see below. The server task runs as `SYSTEM`, which cannot see `%USERPROFILE%\.bun` or `%APPDATA%\npm`. **The failure used to be silent**: the task « runs », the launcher never found bun, the till never came up. **Batch 1.4b made it loud** — the launcher now refuses *before* it uses bun, writes a `FATAL` line naming the account and both commands, and prints the three ways out; it also logs which bun it found when it succeeds, so `server.log` answers this question either way. **Check it before travelling** with `where bun`. **What was measured here:** bun resolves to `%APPDATA%\npm\bun.ps1` and `%APPDATA%\npm` sits on the **user** PATH only — the machine PATH has no bun at all — which is exactly the case `SYSTEM` cannot see. The real binary is `%APPDATA%\npm\node_modules\bun\bin\bun.exe`, 98 MB, which is what makes option (c) a two-minute fix. The installer's dry run offers all three: machine-wide install, `-ServerAccount <compte>`, or that `bun.exe` copied into `C:\HibaPOS\bin` with that folder added to the **system** PATH — read that warning, do not scroll past it. |
 | ⚠ **The `.env` you carry must be the ROTATED one** | `SESSION_SECRET` and `BACKUP_ENCRYPTION_KEY` were rotated 2026-09-07. Carrying an older `.env` means the backups written on the till cannot be opened with the keys anyone holds. |
 | The printer's **IP address**, fixed not DHCP | § 3 needs it, and a DHCP lease that moves silently breaks printing weeks later. |
 | The printer on the **same network** as the till, powered, with paper | |
@@ -52,8 +50,8 @@ data *out of* the install directory, and the working tree holds the only copy of
 the restaurant's catalogue.
 
 ```powershell
-Copy-Item -Recurse "<repo>" "C:\HibaPOS-rehearsalpp"
-cd C:\HibaPOS-rehearsalpp
+Copy-Item -Recurse "<repo>" "C:\HibaPOS-rehearsal\app"
+cd C:\HibaPOS-rehearsal\app
 powershell -ExecutionPolicy Bypass -File .zscripts\install-windows.ps1 -DataDir C:\HibaPOS-rehearsal\data
 powershell -ExecutionPolicy Bypass -File .zscripts\install-windows.ps1 -DataDir C:\HibaPOS-rehearsal\data -Apply
 ```
@@ -64,7 +62,13 @@ powershell -ExecutionPolicy Bypass -File .zscripts\install-windows.ps1 -DataDir 
 - [ ] Kill the server process; Task Scheduler brings it back within a minute
 - [ ] Byte 18 of the rehearsal database is `02` — WAL is on outside OneDrive
 - [ ] **Afterwards unregister both tasks and delete `C:\HibaPOS-rehearsal`**, so the
-      spare machine stops trying to run a till
+      spare machine stops trying to run a till — a registered task pointing at a
+      deleted directory retries three times a minute, forever:
+      ```powershell
+      Unregister-ScheduledTask -TaskName "HibaPOS Server" -Confirm:$false
+      Unregister-ScheduledTask -TaskName "HibaPOS Kiosk"  -Confirm:$false
+      Remove-Item -Recurse -Force C:\HibaPOS-rehearsal
+      ```
 
 Whatever this finds is worth knowing tonight rather than in front of the client.
 
@@ -136,7 +140,7 @@ be showing HibaPOS full-screen.
 
 Then check, in this order:
 
-1. `C:\HibaPOS\data\logs\server.log` — the launcher's own log. If bun was installed per-user this is where it says so.
+1. `C:\HibaPOS\data\logs\server.log` — the launcher's own log, and since **Batch 1.4b** it answers the bun question either way. On success it names the bun it used (`bun found: …`); if bun is invisible to the account the task runs as, it writes a `FATAL` naming that account, both commands as `INTROUVABLE`, and the three ways out. **Before 1.4b this was the one failure the launcher had that was silent** — it died inside `& bunx` and the log simply stopped after `Checking migration status...`. If you ever see a log that ends on that line, you are running a launcher older than 2026-09-07.
 2. `Get-ScheduledTaskInfo -TaskName "HibaPOS Server"` — `LastTaskResult` should be `0`.
 3. `http://localhost:3000/api` answers `200`.
 4. **WAL is now on**: byte 18 of `C:\HibaPOS\data\db\custom.db` should be `02`, not `01`. It was `01` on the old path because the WAL guard refuses cloud-synced folders; the move is what turns it on.
@@ -230,19 +234,64 @@ Everything rung here is deleted in § 6. That is the point of doing it now.
 
 ## 6. THE POINT OF NO RETURN — P-04 / Batch 8.0
 
-### 6a. Rotate the secrets — **before** the backup, not after
+### 6a. The secrets are ALREADY rotated — verify, and do **not** rotate again
 
-Batch 7.3, prepared and rehearsed, still not done. It goes here and not in § 8,
-and the reason is the order: the backup in § 6b is the **first genuinely
-restorable backup this installation will ever have**, and if it is written under
-the old key and the key is then rotated, it becomes unreadable. Rotate first and
-§ 6b is written under the new key.
+**✅ DONE BY THE OPERATOR 2026-09-07 AND VERIFIED.** `SESSION_SECRET` and
+`BACKUP_ENCRYPTION_KEY` were rotated with `scripts/rotate-secrets.ts --apply`
+at 00:03 local. Both are now 64 hex characters, the app signs in under the new
+secret with no PIN changed, and the 2026-08-28 backup that decrypted hours
+earlier now fails — which is the proof, because AES-GCM authenticates and
+cannot give a false negative. `FISCAL_CHAIN_KEY` was untouched. Record →
+`REMEDIATION_RECORD.md` → *Batch 7.3 — DONE, 2026-09-07*.
 
-**[OWNER or you]** — Claude never generates or sees these values.
+**Why this step still has a number, and why it is still here rather than in
+§ 8.** The ordering it existed to enforce is the reason the § 6b backup is
+sound: that backup is the **first genuinely restorable one this installation
+will ever have**, and a backup written under a key that is then discarded is
+unreadable. Rotating first is what makes § 6b safe — and because the rotation
+already happened, § 6b is written under the current key with nothing to do here.
 
-**`openssl` is not on Windows by default** — use either of these instead. Both
-produce the same thing: 64 hex characters from a cryptographic RNG. Run it
-**twice**, once per secret, and do not reuse one value for both.
+> ## ⚠ Do NOT run `rotate-secrets.ts` on the till
+>
+> Not "no need to" — **do not**. The script copies aside the **pre**-rotation
+> `.env` and never prints the new values, so a second rotation would leave the
+> new `BACKUP_ENCRYPTION_KEY` in exactly one place: the till's own `.env`. The
+> copy the operator carried off the machine on 2026-09-07 would no longer open
+> the § 6b backup, and nobody would find out until they needed to restore it.
+> It would also sign everyone out in the middle of the most delicate sequence
+> in this runbook, for no gain.
+
+**What to check instead — that the `.env` on the till is the ROTATED one.** This
+is § 0's second prerequisite, checked again here because this is the step that
+depends on it. It needs no secret value, only a comparison against the
+pre-rotation copy kept at `C:\HibaPOS-secrets-backup\`:
+
+```powershell
+$preFile = "C:\HibaPOS-secrets-backup\env-before-rotation-2026-09-06T23-03-08-541Z.txt"
+foreach ($k in "SESSION_SECRET","BACKUP_ENCRYPTION_KEY") {
+  $now = (Get-Content .env     | Where-Object { $_ -like "$k=*" } | Select-Object -First 1) -replace "^$k=",""
+  $old = (Get-Content $preFile | Where-Object { $_ -like "$k=*" } | Select-Object -First 1) -replace "^$k=",""
+  if (-not $now) { "{0,-24} ABSENTE DU .env -- STOP" -f $k; continue }
+  $verdict = if ($now -eq $old) { "STILL THE OLD VALUE -- STOP" } else { "differs from the pre-rotation copy -- correct" }
+  "{0,-24} {1} chars, {2}" -f $k, $now.Length, $verdict
+}
+```
+
+- [ ] Both report **64 chars** and **differs from the pre-rotation copy**
+- [ ] If either says `STILL THE OLD VALUE`, the wrong `.env` was carried. Stop and
+      fetch the rotated one before § 6b, or the backup opens with nobody's keys
+
+**Then, whether or not anything changed here:**
+
+```powershell
+Restart-ScheduledTask -TaskName "HibaPOS Server"
+```
+
+- [ ] `GET /api/auth/me` answers `{"user":null}` in a tab that was signed in before, and signing in with the **usual PIN** works. No PIN changed; nobody is locked out
+
+**How a 64-hex secret is generated here — § 6e needs this, for the chain key.**
+`openssl` is not on Windows by default. Either of these produces 64 hex
+characters from a cryptographic RNG:
 
 ```bash
 bun -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
@@ -255,22 +304,7 @@ $b = New-Object byte[] 32; (New-Object System.Security.Cryptography.RNGCryptoSer
 > Not `Get-Random`. It looks like it would do and is **not** cryptographically
 > secure — fine for picking a test row, wrong for a signing secret.
 
-Or let the script do all of it — it generates both values here, never prints
-them, copies `.env` aside first, and replaces only those two lines:
-
-```bash
-bun scripts/rotate-secrets.ts            # dry run
-bun scripts/rotate-secrets.ts --apply
-```
-
-Either way, then:
-
-```powershell
-Restart-ScheduledTask -TaskName "HibaPOS Server"
-```
-
-- [ ] `GET /api/auth/me` answers `{"user":null}` — including in a tab that was signed in before. That is the old session being refused.
-- [ ] Signing in with the **usual PIN** works. No PIN changes; nobody is locked out.
+**[OWNER or you]** — Claude never generates or sees any of these values.
 
 > **Do NOT rotate `FISCAL_CHAIN_KEY` here.** It does not exist yet — it is
 > generated in § 6e, after the reset, and armed once. Rotating it after arming
@@ -375,7 +409,7 @@ partial order exists.
 
 | Symptom | What it is |
 |---|---|
-| Till does not come up after reboot | `C:\HibaPOS\data\logs\server.log`. Most likely bun is per-user and `SYSTEM` cannot see it. |
+| Till does not come up after reboot | `C:\HibaPOS\data\logs\server.log`, and read its **last** line. `FATAL … bun est introuvable` names the account and the fix (§ 0). A log ending on `Checking migration status...` is a pre-1.4b launcher failing the same way silently. Either way `Get-ScheduledTaskInfo -TaskName "HibaPOS Server"` shows `LastTaskResult` 1, never 0. |
 | Launcher refuses: *"Base de données introuvable"* | `HIBAPOS_DATA_DIR` or `DATABASE_URL` is wrong. **It will not create a database** — that refusal is deliberate (L-59): a new one would be empty, numbered from 1, with the PINs published in this repository. |
 | Launcher refuses: pending migrations | `.zscripts\update.ps1 -Apply`. |
 | `/api/fiscal/verify` says the chain is broken | If it names a `keyDiagnosis`, it is the key, not tampering — Batch 3.9 built it to say so. Restore `FISCAL_CHAIN_KEY`. |

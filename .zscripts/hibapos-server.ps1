@@ -32,6 +32,20 @@
 #    because a Next build that throws at import time produces a wall of stack
 #    trace rather than an answer.
 #
+# 4. BUN NOT ON THE PATH OF THE ACCOUNT THIS RUNS AS  ->  refuse.
+#    The SERVER task runs as SYSTEM, which cannot see a bun installed under a
+#    user profile -- and until this refusal existed that failure was the one
+#    thing this script did SILENTLY. `& bunx` on an account that cannot resolve
+#    it throws CommandNotFoundException, and $ErrorActionPreference = "Stop"
+#    makes that terminate the script BEFORE $statusCode is ever assigned, so
+#    refusal 2's Fail is never reached. MEASURED on 2026-09-07 by running this
+#    script with the npm directory removed from PATH: it stopped at the bunx
+#    call, exited 1, and the last line in server.log was "Checking migration
+#    status..." -- naming no cause. The task showed a failure and the log did
+#    not say why, which is the worst combination for a till that will not come
+#    up in front of a customer. Checked FIRST now, and it logs which bun it
+#    found even when it succeeds.
+#
 # A refusal is loud: it writes to the log and exits non-zero, so the Task
 # Scheduler entry shows a failure instead of a green tick over a dead till.
 
@@ -92,6 +106,33 @@ if ($env:HIBAPOS_DATA_DIR) { $DataDir = $env:HIBAPOS_DATA_DIR }
 
 if (-not $env:SESSION_SECRET) { Fail "SESSION_SECRET absente. L'application refuse de demarrer sans elle." }
 if (-not $env:DATABASE_URL)   { Fail "DATABASE_URL absente." }
+
+# --- refusal 4: bun must be on this account's PATH --------------------------
+# Checked before the database and the migrations because nothing below works
+# without it, and because this is the failure the commissioning runbook calls
+# the most likely one: `docs/mise-en-service.md` section 0. The same three ways
+# out are printed by `install-windows.ps1`'s dry run.
+$bunCmd  = Get-Command bun  -ErrorAction SilentlyContinue
+$bunxCmd = Get-Command bunx -ErrorAction SilentlyContinue
+if (-not $bunCmd -or -not $bunxCmd) {
+    $whoami   = [Security.Principal.WindowsIdentity]::GetCurrent().Name
+    $bunWhere  = if ($bunCmd)  { $bunCmd.Source }  else { "INTROUVABLE" }
+    $bunxWhere = if ($bunxCmd) { $bunxCmd.Source } else { "INTROUVABLE" }
+    Fail @"
+bun est introuvable dans le PATH du compte qui execute cette tache.
+    compte : $whoami
+    bun    : $bunWhere
+    bunx   : $bunxWhere
+La caisse NE PEUT PAS demarrer sans bun, et un bun installe SOUS UN PROFIL
+UTILISATEUR est invisible pour SYSTEM. Trois options, au choix :
+  a) installer bun pour toute la machine, hors profil utilisateur ;
+  b) reenregistrer la tache avec -ServerAccount <compte> ;
+  c) copier bun.exe dans C:\HibaPOS\bin et ajouter ce dossier au PATH systeme.
+Voir .zscripts\install-windows.ps1 et docs\mise-en-service.md section 0.
+"@
+}
+Write-Log ("bun found: {0}" -f $bunCmd.Source)
+Write-Log ("bunx found: {0}" -f $bunxCmd.Source)
 
 # --- refusal 1: the database must already exist -----------------------------
 # DATABASE_URL is a file: URL with query parameters; strip both to get a path.

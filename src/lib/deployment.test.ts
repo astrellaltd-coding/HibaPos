@@ -140,6 +140,73 @@ describe("the server launcher refuses a schema it does not match", () => {
   });
 });
 
+describe("the server launcher refuses a bun it cannot see (Batch 1.4b)", () => {
+  const src = read("hibapos-server.ps1");
+  /** Command lines only, so the header comment cannot satisfy any of these. */
+  const commands = src.split("\n").map((l) => l.trim()).filter((l) => !l.startsWith("#"));
+  const firstIndex = (re: RegExp) => commands.findIndex((l) => re.test(l));
+
+  // MEASURED 2026-09-07, not reasoned about. Running this script with the npm
+  // directory removed from PATH — which is exactly what the SERVER task sees,
+  // because it runs as SYSTEM and bun on this machine lives in
+  // %APPDATA%\npm — stopped it at the `& bunx` call with
+  // CommandNotFoundException. `$ErrorActionPreference = "Stop"` makes that
+  // terminating, and it is not caught, so the script died BEFORE $statusCode
+  // existed and refusal 2's `Fail` never ran. The log's last line was
+  // "Checking migration status..." and named no cause; the task showed
+  // LastTaskResult 1. A till that will not come up and a log that does not say
+  // why is the worst pair of facts to have in front of a customer.
+  it("guards bun BEFORE every use of it, which is the whole property", () => {
+    const guard = firstIndex(/Get-Command\s+bun\b/);
+    expect(guard, "no Get-Command bun guard at all").toBeGreaterThanOrEqual(0);
+
+    // Both uses. `bunx` for the migration check, `bun` to start the server.
+    const bunxUse = firstIndex(/&\s*bunx\b/);
+    const bunUse = firstIndex(/&\s*bun\s+run\b/);
+    expect(bunxUse, "nothing calls bunx any more — has this script changed shape?").toBeGreaterThanOrEqual(0);
+    expect(bunUse, "nothing starts the server any more — has this script changed shape?").toBeGreaterThanOrEqual(0);
+
+    // The ordering is the test. A guard placed after the call is no guard: the
+    // throw happens first and the guard's message is never reached.
+    expect(guard, "the bun guard sits AFTER the bunx call — it will never run").toBeLessThan(bunxUse);
+    expect(guard, "the bun guard sits AFTER `bun run start`").toBeLessThan(bunUse);
+  });
+
+  it("refuses rather than warning, so the task cannot go green over a dead till", () => {
+    // `Fail` writes FATAL and exits 1. A Write-Log/WARN here would let the
+    // script carry on into the CommandNotFoundException it exists to prevent.
+    // Located from the `if` itself and read forward a fixed window, NOT sliced
+    // between two landmarks: a position-independent probe keeps this test about
+    // Fail-vs-warn only, so that moving the guard fails the ordering test above
+    // and nothing else. The first version of this assertion sliced to refusal 1
+    // and so failed under R2 as well, which made two reverts indistinguishable.
+    const at = src.indexOf("if (-not $bunCmd");
+    expect(at, "the bun guard's `if` was not found at all").toBeGreaterThanOrEqual(0);
+    const guardBlock = src.slice(at, at + 1200);
+    expect(guardBlock, "the bun guard does not call Fail").toMatch(/Fail @"/);
+  });
+
+  it("names the account, both commands, and the three ways out", () => {
+    // The three options are `install-windows.ps1`'s, word for word in intent:
+    // machine-wide install, -ServerAccount, or bun.exe on the system PATH.
+    // Naming them in the log is what turns a dead till into a five-minute fix.
+    expect(src).toContain("WindowsIdentity");
+    expect(src).toContain("INTROUVABLE");
+    expect(src).toMatch(/-ServerAccount/);
+    expect(src).toMatch(/PATH systeme/);
+    expect(src).toContain("mise-en-service.md");
+  });
+
+  it("logs WHICH bun it found even when it succeeds", () => {
+    // The success line is as diagnostic as the failure one: on this machine it
+    // reads `bun found: C:\Users\einer\AppData\Roaming\npm\bun.ps1`, and a
+    // path under a user profile is the answer to "why did the till not start"
+    // before anyone has to ask.
+    expect(src).toMatch(/Write-Log \("bun found/);
+    expect(src).toMatch(/Write-Log \("bunx found/);
+  });
+});
+
 describe("the update procedure never touches the data (C-05, C-07)", () => {
   const src = read("update.ps1");
   /** Command lines only. A PowerShell comment starts with `#`, and the header

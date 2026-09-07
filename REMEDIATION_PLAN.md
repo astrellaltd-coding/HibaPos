@@ -535,6 +535,101 @@ that reason, on the same terms as Batch 1.3.)*
 
 ---
 
+## Batch 1.4b — The launcher's one silent refusal, and the corruption in the runbook it led to (L-65, DOC-16)
+
+**Status:** `COMPLETED`
+
+**Why it exists.** `docs/mise-en-service.md` § 0a asks for a rehearsal of §§ 1–2 on a spare machine the evening before delivery, and § 0 names two prerequisites as the things most likely to go wrong, "both checkable before travelling". This batch checked them. **One passed, one failed** — and reading `hibapos-server.ps1` to understand what the failure would look like found that **the failure the runbook calls the most likely one was the only one the launcher handled silently**. A scan then found that the commit which added both prerequisites, `4ab1eef`, had corrupted both of them on the way in.
+
+**Batch 1.4 already knew the fact and fixed it in the wrong place.** Its note 6 records that bun is per-user here and that `SYSTEM` would not find it — and it added the detection to `install-windows.ps1`, which runs **once, with a human reading the output**. It did not add it to the launcher, which runs **at every boot, unattended, as `SYSTEM`**. That is the gap this batch closes.
+
+### The two prerequisites, measured 2026-09-07
+
+**(1) bun installed machine-wide — FAILS.** `Get-Command bun -All` resolves only to `C:\Users\einer\AppData\Roaming\npm\bun.ps1`, `bun.cmd` and `bun` — npm shims, not a binary. `%APPDATA%\npm` is on the **user** PATH; the **machine** PATH contains `C:\Program Files\nodejs\` and no bun at all. So the account the server task runs as cannot see it, which is exactly the case the installer warns about. **The real binary does exist** — `%APPDATA%\npm\node_modules\bun\bin\bun.exe`, 98 480 216 bytes, bun 1.3.14 — which is what makes the installer's option (c) a two-minute fix rather than a reinstall, and the runbook now says so.
+
+**(2) The `.env` carried to the till must be the rotated one — PASSES.** `SESSION_SECRET` and `BACKUP_ENCRYPTION_KEY` are both **64 characters**, and both **differ** from the pre-rotation copy at `C:\HibaPOS-secrets-backup\env-before-rotation-2026-09-06T23-03-08-541Z.txt`, where they were **69 and 42** characters. That file is stamped `2026-09-06T23-03-08Z`, one second from `.env`'s own mtime of 2026-09-07 00:03:08 local, which dates the rotation to the moment Batch 7.3's record gives it. **No secret value was read**: the comparison used lengths and sha256 fingerprints, and no fingerprint is recorded here — a truncated hash of a 256-bit secret is not the value, but it is a verifier for a guess, and this project records neither.
+
+### L-65 — the launcher's one silent refusal (new, found and fixed here)
+
+**Severity:** MEDIUM · **Category:** operational / deployment
+
+**Problem.** `hibapos-server.ps1` states its own design rule: *"A refusal is loud: it writes to the log and exits non-zero, so the Task Scheduler entry shows a failure instead of a green tick over a dead till."* Refusals 1, 2 and 3 obey it. A **missing bun** did not, and it is the most likely of the four.
+
+**Cause.** `$ErrorActionPreference = "Stop"` is set at the top. `& bunx prisma migrate status` on an account that cannot resolve `bunx` throws `CommandNotFoundException`, which is terminating and is **not** caught, so the script died **before `$statusCode` was assigned** and refusal 2's `Fail` was never reached. Nothing after `Write-Log "Checking migration status..."` ran.
+
+**Measured, not reasoned about.** The real launcher was run with `Roaming\npm` removed from `PATH` — with `Get-Command bun`/`bunx` first confirmed to resolve to nothing, which is `SYSTEM`'s situation — and `HIBAPOS_DATA_DIR` and `DATABASE_URL` pointed at a scratch copy of production. It stopped at `hibapos-server.ps1:117`, `powershell.exe` exited **1**, and `server.log` ended on `Checking migration status...` **naming no cause**. The error text went to the process's stderr, which a Scheduled Task started `-WindowStyle Hidden` discards.
+
+**What the runbook promised.** § 2's check 1 said the log is where a per-user bun "says so", and the troubleshooting table said to read `server.log`. **Both overstated it**: the log's silence was the whole problem. What *did* catch it was check 2 — `LastTaskResult` is `1`, never `0`.
+
+**Fix.** A fourth refusal, checked **before** the database and the migrations because nothing below works without bun. It `Fail`s with the account name, both commands marked `INTROUVABLE`, and the same three ways out the installer prints; and it logs which bun it found **when it succeeds**, so the log answers the question either way.
+
+### DOC-16 — commit `4ab1eef` corrupted the two warnings it was written to add (new, found and fixed here)
+
+**Severity:** MEDIUM (delivery-blocking for a document read by a human at 07:00) · **Category:** documentation
+
+**Problem.** Backslash escapes in `docs/mise-en-service.md` were interpreted rather than written literally, by whatever channel authored the commit. Three became control characters and two became real newlines. `HEAD~1` is clean, so the damage is exactly one commit old — the commit named *"Prepare for delivery: rehearsal section, and the two prerequisites that can fail silently"*.
+
+**What was broken.**
+
+1. **The § 0 bun row — the runbook's own "most likely way this session goes wrong" — was not a table row at all.** `%APPDATA%\npm` and `AppData\Roaming\npm` each became `…` + newline + `pm`, splitting one Markdown table row across **three physical lines**. Markdown ends a table at the first line that is not a row, and neither orphan contains a `|`, so **the table ended after its first row** and the warning rendered only as far as `%APPDATA%`. Measured after the repair: the section is one contiguous table again, seven rows, two cells each.
+2. **`C:\HibaPOS\bin` contained a literal BACKSPACE** (U+0008) where `\b` had been — inside the sentence naming the installer's third way out, which is the option this batch recommends.
+3. **§ 0a's rehearsal commands contained a literal BEL** (U+0007) where `\a` had been, twice: `C:\HibaPOS-rehearsal\app` in the `Copy-Item` and in the `cd`. **These are commands the operator is meant to paste tonight.**
+4. **`REMEDIATION_PLAN.md`'s *Next Batch* paragraph** carries the same `\n` split, in the sentence describing this very prerequisite.
+
+**A repo-wide sweep found no others.** 263 `.md`/`.ps1`/`.ts`/`.txt` files scanned for BEL, BACKSPACE, FORMFEED, VTAB, ESC and NUL: the three above and nothing else. The `CR`s in `next-env.d.ts` and `src/lib/db.ts` are CRLF line endings, not damage. Two lines matched a lost-path-fragment heuristic and both are ordinary prose.
+
+**Why the existing guards did not catch it.** `deployment.test.ts` pins every `.ps1` as pure ASCII — and **BEL and BACKSPACE are ASCII**, so that assertion would not have caught this class even inside the scripts, and no assertion of any kind reads `docs/`.
+
+### Also corrected: § 6a told the operator to do something already done
+
+Not in this batch's original scope, and corrected rather than filed because it sits at the point of no return in a document being handed over in hours. § 6a still read *"Batch 7.3, prepared and rehearsed, still not done"* and instructed a rotation — but the operator rotated on 2026-09-07 and the record verifies it four ways. It also **contradicted § 0's own second prerequisite** two hundred lines above it.
+
+**Why re-running it would have cost something.** `scripts/rotate-secrets.ts` copies aside the **pre**-rotation `.env` and never prints the new values, so a second rotation would leave the new `BACKUP_ENCRYPTION_KEY` in exactly one place — the till's own `.env`. The copy the operator carried off the machine would no longer open the § 6b backup, which § 6b's own note calls the first genuinely restorable backup this installation will ever have, and nobody would find out until a restore was needed. It would also sign everyone out mid-sequence for no gain. § 6a is now a **check** that the carried `.env` is the rotated one, with a *Do NOT run `rotate-secrets.ts` on the till* block and the reason. The generation commands stay: § 6e cross-references them for the chain key.
+
+### Batch 1.4b — Validation Required
+
+- The reproduction, before the fix: the real launcher, bun made invisible, on a scratch copy — log ends on `Checking migration status...`, exit 1. **DONE.**
+- The refusal, after the fix: same conditions — `FATAL` naming the account and both commands, the three options, exit 1. **DONE.**
+- The ordering, after the fix: with bun visible and `DATABASE_URL` pointed at a database that does not exist, `bun found:` and `bunx found:` are logged **before** refusal 1 fires — which proves the guard runs ahead of every use without ever reaching `bun run start`. **DONE.**
+- `[System.Management.Automation.Language.Parser]::ParseFile` on the edited script — the check that found three broken scripts in 1.4. **687 tokens, no errors.**
+- The BOM survives and the file stays pure ASCII, both pinned by existing tests. **PASS.**
+- Every control character gone from `docs/mise-en-service.md`, and the § 0 table contiguous again. **PASS.**
+- Any PowerShell this batch puts in the runbook must be **executed**, not read. **DONE — and it failed the first time.**
+- `bun run test`, `typecheck`, `lint`. **PASS.**
+- Production `db/custom.db` untouched. **PASS.**
+
+### Batch 1.4b — Status Record
+
+**Status:** `COMPLETED`
+**Completed:** 2026-09-07
+**Commit:** *(this commit)*
+**Findings:** **L-65 (new, fixed here)**, **DOC-16 (new, fixed here)**. 1.4's four `[MACHINE]` criteria are **not** closed by this batch — see note 5.
+**Decisions:** none; the table stays empty.
+
+**Changes.** **(1) `hibapos-server.ps1` gains refusal 4**, placed before the database and migration checks because nothing below it works without bun — the same position refusal 3 already occupies relative to refusal 1, so the header's numbering and the code's order already differed. It `Fail`s with the account from `WindowsIdentity`, both commands marked `INTROUVABLE`, and the installer's three ways out; on success it logs `bun found:` / `bunx found:`, which on this machine prints a path under a user profile and so answers *"why did the till not come up"* before anyone asks. **(2) `docs/mise-en-service.md`:** the § 0 bun row rejoined into one table row and given what was measured here, including where the real `bun.exe` is; § 0a's two corrupted commands repaired and its cleanup step given the exact `Unregister-ScheduledTask` calls, because a task left pointing at a deleted directory retries three times a minute forever; § 2's check 1 and the troubleshooting row rewritten to say what the log now contains and what a log ending on `Checking migration status...` means; **§ 6a rewritten from an instruction into a check.** **(3)** The README's pinned test count.
+
+**Files.** Modified: `.zscripts/hibapos-server.ps1`, `src/lib/deployment.test.ts`, `docs/mise-en-service.md`, `README.md`, `REMEDIATION_PLAN.md`, `REMEDIATION_RECORD.md`.
+
+**Tests.** **997 pass, 0 fail** (993 before). Four new cases in `deployment.test.ts`. **Five one-property reverts, both directions.** **R1** deleted the whole refusal block — all four new cases fail and **the other 32 in the file all pass**, which is the measurement worth keeping: 1.4's own 32 assertions about these scripts caught nothing, because none of them reads the bun guard. **R2** moved the guard *below* the `bunx` call, leaving every word of it present: only the ordering case fails, which is the property that matters — a guard after the throw is not a guard. **R5** is R2's other direction, a `& bun run diagnostics` inserted *above* the guard: same single failure. **R3** turned `Fail` into `Write-Log`: only the refusal case fails. **R4** deleted the two success log lines: only the diagnostic case fails. **The first version of the R3 case also failed under R2**, because it sliced the file between two landmarks and the slice went empty when the block moved; it was rewritten to probe forward from the `if` itself, so each revert now fails exactly one case.
+
+**Notes.**
+
+1. **A success message is not evidence, and the § 6a snippet proved it inside this batch.** The first version reported `SESSION_SECRET 1 chars` — `.Length` on the single-element array PowerShell returns from `-match`, not the string's length. **The verdict line beside it was correct**, so a reader would have believed the whole output. Fixed with `Select-Object -First 1` and re-run: `64 chars, differs from the pre-rotation copy`. Nothing goes into a runbook from here without being executed.
+
+2. **The runbook was wrong about its own diagnostic, and the fix makes the document true rather than the other way round.** § 2's check 1 promised the log names a per-user bun. It did not. Rewriting the document to describe silence would have been accurate and useless; the launcher was changed so the promise holds, and the old symptom is now documented as the signature of a pre-1.4b launcher.
+
+3. **`Get-Command bun` succeeding is not evidence that the task will.** It succeeded here, from a user session, exactly as 1.4's note 6 records. What decides it is whose PATH: the machine PATH has no bun, and `SYSTEM` reads that one. The measurement is the two PATH scopes, not the lookup.
+
+4. **The corruption was invisible to every guard this repo has, and two of the three characters are ASCII.** `deployment.test.ts` asserts the `.ps1` files are pure ASCII and carry a BOM; BEL and BACKSPACE pass that. `plan-freshness.test.ts` reads the plan but not `docs/`. Nothing lints Markdown. This batch adds no guard for it either — the scan is in this record and took one file to write, and a standing test for control characters in `docs/` is a reasonable Stage 8 addition rather than something to bolt on the evening before delivery.
+
+5. **§ 0a was NOT run, and 1.4's four `[MACHINE]` criteria remain open.** There is no spare Windows machine in this session, and § 0a's second command registers two Scheduled Tasks pointing at the copy — on the development machine that is a persistent machine change fighting the operator's own setup, and one of the four criteria is a reboot. What this batch did instead is the part of § 0a that needed no second machine: the prerequisites, and the failure mode itself, reproduced against a scratch copy. `Get-ScheduledTask -TaskName "HibaPOS*"` returns nothing and `C:\HibaPOS` does not exist, both confirmed and both unchanged.
+
+6. **Production untouched, and no server was started.** `db/custom.db` sha256 `d09369c09dd9b4515c78af31118e8dc47516e74c0ab4d41e2bc4d93c5e54b16b`, 704 512 bytes, mtime 2026-09-07 15:33:56 — identical before and after, no `-wal`/`-shm` beside it, `db/backups/` newest file still 2026-08-28. Every launcher run pointed at a copy in the session scratchpad. **No port was bound**: the runs died at refusal 4 or refusal 1, so `bun run start` was never reached and nothing needed killing. The operator's own server on port 3000, PID 13708, was left alone.
+
+7. **What is still unchecked about prerequisite 1, and it needs the till.** That `SYSTEM` cannot see this bun is inferred from the two PATH scopes, which is solid; it was not demonstrated by running the launcher **as** `SYSTEM`, because doing that means registering a Scheduled Task on this machine. The refusal's own message is what will settle it on the till in one line of `server.log`, and § 2's check 1 now says where to look.
+
+---
+
 # STAGE 2 — DATA SURVIVAL
 
 **Stage status:** `COMPLETED` (2026-09-06) — **five batches done. Reopened 2026-09-06 for 2.5** and closed the same day: Batch 8.2's rehearsal found that the restore this stage built could not complete on Windows (**L-61**, HIGH), because `db.ts` cached its PrismaClient only outside production and the server therefore ran two, so `$disconnect()` never closed the file. Fixed, and the restore now completes in 2,6 s. Before it, `COMPLETED` (2026-09-03) with all four earlier batches. Two shipped mechanisms are **not yet in effect on the production install**: WAL waits on the DD-02 move off OneDrive (which **Batch 1.4 built the mover for**), and `BACKUP_LOCATION` still needs a second volume chosen at deployment.
