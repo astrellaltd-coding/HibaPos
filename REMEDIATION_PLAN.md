@@ -1747,7 +1747,7 @@ Audit section J, step 8. Correct the false statements, remove the dead weight, t
 **Left open:** **L-64** — the Button primitive's base sizes, recorded in *Newly Discovered Issues* as a decision rather than taken here.
 ## Batch 7.7 — The Button primitive's base sizes (L-64)
 
-**Status:** `COMPLETED` · **Completed:** 2026-09-07 · **Commit:** `PLACEHOLDER_SHA` · **Findings:** L-64 (**closed**) · **Decisions:** none; taken by the operator.
+**Status:** `COMPLETED` · **Completed:** 2026-09-07 · **Commit:** `1379e93` · **Findings:** L-64 (**closed**) · **Decisions:** none; taken by the operator.
 **Record:** `REMEDIATION_RECORD.md` → *Batch 7.7*.
 
 **Constraints this batch leaves behind** *(sentences copied from the record, not paraphrased)*
