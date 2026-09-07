@@ -4,6 +4,12 @@ import { formatDateTime, formatEuro } from "@/lib/format";
 import { addToVatBreakdown, apportion, type VatBreakdown } from "@/lib/money";
 import { PAYMENT_LABELS_FULL } from "@/lib/order-labels";
 import { SOFTWARE_IDENTITY } from "@/lib/version";
+// L-21 (Batch 1.3b) / L-63 (Batch 1.3c) — the column layout of a printed
+// ticket, shared with `day-close-ticket.ts` and `printer.ts`. Every line this
+// renderer emits goes through one of these, so "no line exceeds the paper" is
+// an invariant of the construction rather than a list of the fields somebody
+// remembered. Each returns a line that already fits BYTE-IDENTICALLY.
+import { centred, leftRight, marked } from "@/lib/services/ticket-layout";
 
 /**
  * M-06 (Batch 3.6) — the per-rate VAT block.
@@ -49,78 +55,16 @@ function rateLabel(key: string): string {
  */
 const CAISSE_NUMBER = 1;
 
-/**
- * L-21 (Batch 1.3b) — break a line that is wider than the paper.
- *
- * `center()` below pads a string towards the middle and returns it untouched
- * when it is already wider than the paper: the `Math.max(0, …)` clamps the
- * PADDING, not the string. So an over-long field reached the printer at full
- * length, and nothing downstream could rescue it — `buildPrintJob()` passes
- * the text through verbatim on purpose (`escpos.ts`), because the printed
- * ticket must equal the archived `Receipt.content` byte for byte. The wrap
- * therefore has to happen here, at render time, before the snapshot is sealed.
- *
- * Measured on the live settings 2026-09-07: the restaurant's address is 56
- * characters against 48 columns of paper.
- *
- * Two properties this must have, and both are pinned by tests:
- *
- * 1. **A string that already fits comes back byte-identical.** Every ticket
- *    whose fields fit renders exactly as it did before this batch — which is
- *    why the receipt snapshot is unchanged by it.
- * 2. **A single token wider than the paper is hard-broken.** Word-wrapping
- *    alone cannot place a 60-character word on 48-column paper, and silently
- *    emitting it would reinstate the defect for the one input that provokes it.
- *
- * Lengths are counted in UTF-16 units, the same unit `center()` and
- * `leftRight()` have always used, so the three agree. For the French
- * repertoire this receipt prints that equals the printed column count; a
- * combining mark would over-count by one and wrap a column early, which errs
- * towards fitting the paper.
- */
-export function wrapToWidth(text: string, width: number): string[] {
-  if (text.length <= width) return [text];
-  const out: string[] = [];
-  let current = "";
-  const flush = () => {
-    if (current.length > 0) out.push(current);
-    current = "";
-  };
-  for (const word of text.split(/\s+/)) {
-    if (word.length === 0) continue;
-    let token = word;
-    while (token.length > width) {
-      flush();
-      out.push(token.slice(0, width));
-      token = token.slice(width);
-    }
-    if (current.length === 0) current = token;
-    else if (current.length + 1 + token.length <= width) current += ` ${token}`;
-    else {
-      flush();
-      current = token;
-    }
-  }
-  flush();
-  // Only reachable from a string that is all whitespace and wider than the
-  // paper. It has no words to lay out, so it collapses to one empty line
-  // rather than to nothing, which would silently drop a line from the ticket.
-  return out.length > 0 ? out : [""];
-}
-
 export function renderReceipt(order: OrderDto, settings?: Partial<SettingsDto>): string {
   const s = settings ?? {};
   const lines: string[] = [];
   const w = Math.max(32, s.receiptWidth ?? 42);
-  const center = (str: string) => " ".repeat(Math.max(0, Math.floor((w - str.length) / 2))) + str;
-  const leftRight = (l: string, r: string) => l + " ".repeat(Math.max(1, w - l.length - r.length)) + r;
-  // L-21 (Batch 1.3b): every centred line goes through here, so the invariant
-  // is "no centred line exceeds the paper" rather than a list of the fields
-  // somebody remembered to wrap. For a string that already fits, `wrapToWidth`
-  // returns it unchanged and this is exactly the centre-and-push it replaces.
-  const pushCentred = (str: string) => {
-    for (const part of wrapToWidth(str, w)) lines.push(center(part));
-  };
+  const pushCentred = (str: string) => lines.push(...centred(str, w));
+  const pushLeftRight = (l: string, r: string) => lines.push(...leftRight(l, r, w));
+  // A marked sub-line under an article: the option's `· `, the add-on's `+ `,
+  // and the change line's plain indent. Continuations line up under the TEXT,
+  // so a wrapped choice cannot be read as a second choice (L-63).
+  const pushMarked = (indent: string, str: string) => lines.push(...marked(indent, str, w));
 
   // FACTICE / SIMULATION stamp — required by ISCA when the caisse runs in
   // school/test mode so demo tickets are never mistaken for real fiscal ones.
@@ -146,7 +90,7 @@ export function renderReceipt(order: OrderDto, settings?: Partial<SettingsDto>):
   // placement stands on its own merits: a centred line has the whole width.
   pushCentred(`Caisse N° ${CAISSE_NUMBER}`);
   lines.push("-".repeat(w));
-  lines.push(leftRight(`Ticket N° ${order.number}`, formatDateTime(order.createdAt)));
+  pushLeftRight(`Ticket N° ${order.number}`, formatDateTime(order.createdAt));
   // L-58 (Batch 3.10): this field used to read `Caisse #${shift.number}`, which
   // is the SHIFT counter — 3 on production, on a single-till install, so a
   // reader of the ticket saw a third till whose two siblings have no data
@@ -154,34 +98,34 @@ export function renderReceipt(order: OrderDto, settings?: Partial<SettingsDto>):
   // that rolls it up); only its name was wrong. `Service N` is exactly as wide
   // as the `Caisse #N` it replaces, so no ticket gets closer to overflowing
   // than it already was.
-  lines.push(leftRight(`Caissier : ${order.cashier?.name ?? "-"}`, `Service ${order.shift?.number ?? "-"}`));
+  pushLeftRight(`Caissier : ${order.cashier?.name ?? "-"}`, `Service ${order.shift?.number ?? "-"}`);
   const typeLabel = order.orderType === "DINE_IN" ? "Sur place" : order.orderType === "TAKEAWAY" ? "À emporter" : "Livraison";
-  lines.push(leftRight(`Type : ${typeLabel}`, order.tableLabel ? `Table : ${order.tableLabel}` : ""));
+  pushLeftRight(`Type : ${typeLabel}`, order.tableLabel ? `Table : ${order.tableLabel}` : "");
   lines.push("-".repeat(w));
 
   for (const item of order.items) {
-    lines.push(leftRight(`${item.quantity}× ${item.productName}`, formatEuro(item.lineTotal)));
+    pushLeftRight(`${item.quantity}× ${item.productName}`, formatEuro(item.lineTotal));
     if (item.optionsJson) {
       try {
         const opts = JSON.parse(item.optionsJson) as { group: string; choice: string }[];
-        for (const o of opts) lines.push(`  · ${o.choice}`);
+        for (const o of opts) pushMarked("  · ", o.choice);
       } catch {
-        lines.push("  · (options illisibles)");
+        pushMarked("  · ", "(options illisibles)");
       }
     }
     if (item.addOnsJson) {
       try {
         const adds = JSON.parse(item.addOnsJson) as { name: string; price: number }[];
-        for (const a of adds) lines.push(`  + ${a.name} (${formatEuro(a.price)})`);
+        for (const a of adds) pushMarked("  + ", `${a.name} (${formatEuro(a.price)})`);
       } catch {
-        lines.push("  + (suppléments illisibles)");
+        pushMarked("  + ", "(suppléments illisibles)");
       }
     }
   }
 
   lines.push("-".repeat(w));
-  lines.push(leftRight("Sous-total", formatEuro(order.subtotal)));
-  if (order.discountTotal > 0) lines.push(leftRight("Remise", `-${formatEuro(order.discountTotal)}`));
+  pushLeftRight("Sous-total", formatEuro(order.subtotal));
+  if (order.discountTotal > 0) pushLeftRight("Remise", `-${formatEuro(order.discountTotal)}`);
 
   // M-06: one line per rate. This restaurant sells at two (10 % and 5,5 %),
   // so the single merged "dont TVA" line hid the split on every ticket.
@@ -193,7 +137,7 @@ export function renderReceipt(order: OrderDto, settings?: Partial<SettingsDto>):
     lines.push("Détail TVA");
     for (const key of rateKeys) {
       const row = breakdown[key];
-      lines.push(leftRight(`TVA ${rateLabel(key)} (HT ${formatEuro(row.ht)})`, formatEuro(row.vat)));
+      pushLeftRight(`TVA ${rateLabel(key)} (HT ${formatEuro(row.ht)})`, formatEuro(row.vat));
     }
   }
 
@@ -201,8 +145,8 @@ export function renderReceipt(order: OrderDto, settings?: Partial<SettingsDto>):
   // sealed figure; the rows above are recomputed. They agree — both run the
   // same apportionment over the same snapshotted rates — but the ticket shows
   // the stored one, because that is the number the fiscal record holds.
-  lines.push(leftRight("dont TVA", formatEuro(order.vatTotal)));
-  lines.push(leftRight("TOTAL", formatEuro(order.total)));
+  pushLeftRight("dont TVA", formatEuro(order.vatTotal));
+  pushLeftRight("TOTAL", formatEuro(order.total));
   lines.push("-".repeat(w));
   lines.push("Paiements");
   for (const p of order.payments) {
@@ -211,9 +155,9 @@ export function renderReceipt(order: OrderDto, settings?: Partial<SettingsDto>):
     // name onto an immutable fiscal snapshot. It now reads the shared table
     // and falls back to the raw value rather than to a specific tender.
     const methodLabel = PAYMENT_LABELS_FULL[p.method] ?? p.method;
-    lines.push(leftRight(methodLabel, formatEuro(p.amount)));
+    pushLeftRight(methodLabel, formatEuro(p.amount));
     if (p.method === "CASH" && (p.tendered ?? 0) > 0) {
-      lines.push(`  Reçu ${formatEuro(p.tendered ?? 0)} — Rendu ${formatEuro(p.change ?? 0)}`);
+      pushMarked("  ", `Reçu ${formatEuro(p.tendered ?? 0)} — Rendu ${formatEuro(p.change ?? 0)}`);
     }
   }
   lines.push("-".repeat(w));

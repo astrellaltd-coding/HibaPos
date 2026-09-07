@@ -133,4 +133,34 @@ describe("renderTestPage", () => {
   it("names the restaurant so the operator knows which till printed it", () => {
     expect(renderTestPage(48, "HIBA FOOD")).toContain("HIBA FOOD");
   });
+
+  // L-63 (Batch 1.3c). "fits the configured width on both paper sizes" above
+  // has asserted every line since Batch 1.3 — with `"HIBA FOOD"`, nine
+  // characters, which fits at 32. The assertion was real and the INPUT never
+  // reached the defect: this file carried its own copy of the receipt's
+  // `center()`, so a long restaurant name ran off the edge of the very page
+  // whose job is proving the paper width is right. Measured 2026-09-07: 42
+  // columns on 32-column paper.
+  it("lays out a restaurant name wider than the paper (L-63)", () => {
+    const long = "Restaurant HIBA FOOD Ferrières-en-Gâtinais";
+    expect(long.length).toBeGreaterThan(32);
+    for (const columns of [32, 48]) {
+      const lines = renderTestPage(columns, long).split("\n");
+      expect({ columns, over: lines.filter((l) => l.length > columns) })
+        .toEqual({ columns, over: [] });
+      // Wrapped, not truncated — the operator must be able to read the name.
+      expect(lines.map((l) => l.trim()).join(" ")).toContain(long);
+    }
+  });
+
+  it("does NOT wrap the ruler, whatever else it lays out (L-13)", () => {
+    // The ruler exists so that a wrapped ruler tells the operator the column
+    // count is wrong for this paper. Laying it out would hide the one thing
+    // this page is for.
+    for (const columns of [32, 48]) {
+      const page = renderTestPage(columns, "Restaurant HIBA FOOD Ferrières-en-Gâtinais");
+      const ruler = page.split("\n").find((l) => l.startsWith("123456789"));
+      expect(ruler).toHaveLength(columns);
+    }
+  });
 });

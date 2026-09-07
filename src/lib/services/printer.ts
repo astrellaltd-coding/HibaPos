@@ -8,6 +8,7 @@
 
 import { getSettings } from "@/lib/services/settings";
 import { buildPrintJob, drawerKick, init, normalizeReceiptColumns } from "@/lib/services/escpos";
+import { centred } from "@/lib/services/ticket-layout";
 import {
   PrinterError,
   createTcpTransport,
@@ -146,15 +147,20 @@ export async function printTestPage(
 
 /** The self-test ticket body. Pure, so its layout is unit-testable. */
 export function renderTestPage(columns: number, restaurantName = "HibaPOS"): string {
-  const center = (s: string) =>
-    " ".repeat(Math.max(0, Math.floor((columns - s.length) / 2))) + s;
+  // L-63 (Batch 1.3c): this file carried its own copy of the receipt's
+  // `center()`, so a restaurant name wider than the paper ran off the edge of
+  // the very page whose job is proving the paper width is right.
+  const center = (s: string) => centred(s, columns);
   // A ruler the operator can read: if the digits wrap, the column count is
   // wrong for this paper and receiptWidth needs correcting (L-13).
   const ruler = Array.from({ length: columns }, (_, i) => String((i + 1) % 10)).join("");
 
+  // The RULER IS NOT LAID OUT, deliberately: it is `columns` characters wide
+  // and a ruler that wrapped would hide the very thing it exists to reveal
+  // (L-13). Same for the two fixed sample lines below it.
   return [
-    center("*** TEST IMPRIMANTE ***"),
-    center(restaurantName),
+    ...center("*** TEST IMPRIMANTE ***"),
+    ...center(restaurantName),
     "-".repeat(columns),
     `Largeur configuree : ${columns} colonnes`,
     ruler,
@@ -162,8 +168,8 @@ export function renderTestPage(columns: number, restaurantName = "HibaPOS"): str
     "Accents : é è ê à ç ù û î ô œ °",
     "Euro    : 12,50 € — 1 234,56 €",
     "-".repeat(columns),
-    center("Si la regle ci-dessus tient"),
-    center("sur une ligne, c'est bon."),
+    ...center("Si la regle ci-dessus tient"),
+    ...center("sur une ligne, c'est bon."),
     "",
   ].join("\n");
 }

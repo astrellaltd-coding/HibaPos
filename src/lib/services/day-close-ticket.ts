@@ -15,6 +15,11 @@
 import { formatDateTime, formatEuro } from "@/lib/format";
 import type { VatBreakdown } from "@/lib/money";
 import { SOFTWARE_IDENTITY } from "@/lib/version";
+// L-63 (Batch 1.3c): this file carried its own copy of the receipt's three-line
+// `center()` — and therefore its defect. The slip is a fiscal document the
+// operator files with the books, so it gets the same guarantee: no line wider
+// than the paper, and a line that already fits emitted byte-identically.
+import { centred, leftRight as layoutLeftRight } from "@/lib/services/ticket-layout";
 
 /** The columns of the sealed row this ticket needs. Deliberately structural
  *  rather than the Prisma type: the renderer must not drift into needing a
@@ -73,33 +78,31 @@ export function renderDayCloseTicket(
   const s = settings ?? {};
   const w = Math.max(32, s.receiptWidth ?? 42);
   const lines: string[] = [];
-  const center = (str: string) =>
-    " ".repeat(Math.max(0, Math.floor((w - str.length) / 2))) + str;
-  const leftRight = (l: string, r: string) =>
-    l + " ".repeat(Math.max(1, w - l.length - r.length)) + r;
+  const center = (str: string) => lines.push(...centred(str, w));
+  const leftRight = (l: string, r: string) => lines.push(...layoutLeftRight(l, r, w));
   const rule = () => lines.push("-".repeat(w));
 
   // The FACTICE stamp, on the same terms as the receipt's: a simulated close
   // must never be mistaken for a real one on paper.
   if (s.factice) {
-    lines.push(center("*** FACTICE — SIMULATION ***"));
-    lines.push(center("DOCUMENT NON VALABLE"));
+    center("*** FACTICE — SIMULATION ***");
+    center("DOCUMENT NON VALABLE");
     lines.push("");
   }
 
-  lines.push(center(s.restaurantName ?? "HibaPOS France"));
-  lines.push(center("CLÔTURE DU JOUR"));
-  lines.push(center(`Journée du ${frenchDay(close.period)}`));
+  center(s.restaurantName ?? "HibaPOS France");
+  center("CLÔTURE DU JOUR");
+  center(`Journée du ${frenchDay(close.period)}`);
   // The hours the day actually covered, from the value SEALED on the row, so a
   // later change to the setting cannot make this slip say something else.
   const h = String(close.cutoffHour).padStart(2, "0");
-  lines.push(center(`(${h}:00 → ${h}:00 le lendemain)`));
+  center(`(${h}:00 → ${h}:00 le lendemain)`);
   rule();
 
-  lines.push(leftRight("Tickets", String(close.salesCount)));
-  lines.push(leftRight("Ventes TTC", formatEuro(close.salesTotal)));
+  leftRight("Tickets", String(close.salesCount));
+  leftRight("Ventes TTC", formatEuro(close.salesTotal));
   if (close.discountsTotal > 0) {
-    lines.push(leftRight("dont remises", `-${formatEuro(close.discountsTotal)}`));
+    leftRight("dont remises", `-${formatEuro(close.discountsTotal)}`);
   }
 
   // Per rate, sorted numerically: "10" sorts before "5.5" as text, which would
@@ -115,44 +118,40 @@ export function renderDayCloseTicket(
     lines.push("Détail TVA");
     for (const key of rateKeys) {
       const row = breakdown[key];
-      lines.push(leftRight(`TVA ${rateLabel(key)} (HT ${formatEuro(row.ht)})`, formatEuro(row.vat)));
+      leftRight(`TVA ${rateLabel(key)} (HT ${formatEuro(row.ht)})`, formatEuro(row.vat));
     }
   }
-  lines.push(leftRight("dont TVA", formatEuro(close.vatTotal)));
+  leftRight("dont TVA", formatEuro(close.vatTotal));
   rule();
 
   lines.push("Encaissements");
-  lines.push(leftRight("  Espèces", formatEuro(close.cashTotal)));
-  lines.push(leftRight("  Carte", formatEuro(close.cardTotal)));
-  lines.push(leftRight("  Titre-restaurant", formatEuro(close.voucherTotal)));
+  leftRight("  Espèces", formatEuro(close.cashTotal));
+  leftRight("  Carte", formatEuro(close.cardTotal));
+  leftRight("  Titre-restaurant", formatEuro(close.voucherTotal));
   if (close.refundsCount > 0) {
-    lines.push(
-      leftRight(`Remboursements (${close.refundsCount})`, `-${formatEuro(close.refundsTotal)}`),
-    );
+    leftRight(`Remboursements (${close.refundsCount})`, `-${formatEuro(close.refundsTotal)}`);
   }
   if (close.cashMovementsCount > 0) {
-    lines.push(leftRight("Entrées de caisse", formatEuro(close.cashInTotal)));
-    lines.push(leftRight("Sorties de caisse", `-${formatEuro(close.cashOutTotal)}`));
+    leftRight("Entrées de caisse", formatEuro(close.cashInTotal));
+    leftRight("Sorties de caisse", `-${formatEuro(close.cashOutTotal)}`);
   }
   rule();
 
   // L-57: the perpetual total, on the document rather than only in the row.
   // Null means the close predates Batch 3.8 and the figure was never taken —
   // it says so rather than printing a zero it cannot stand behind.
-  lines.push(
-    leftRight(
-      "Total perpétuel",
-      close.perpetualSalesTotal === null ? "non enregistré" : formatEuro(close.perpetualSalesTotal),
-    ),
+  leftRight(
+    "Total perpétuel",
+    close.perpetualSalesTotal === null ? "non enregistré" : formatEuro(close.perpetualSalesTotal),
   );
   rule();
 
-  lines.push(leftRight("Scellée le", formatDateTime(close.sealedAt)));
+  leftRight("Scellée le", formatDateTime(close.sealedAt));
   lines.push("Code d'intégrité :");
-  lines.push(center(formatIntegrityCode(close.hash)));
-  lines.push(center("À conserver avec la comptabilité"));
+  center(formatIntegrityCode(close.hash));
+  center("À conserver avec la comptabilité");
   rule();
-  lines.push(center(SOFTWARE_IDENTITY));
+  center(SOFTWARE_IDENTITY);
 
   return lines.join("\n");
 }

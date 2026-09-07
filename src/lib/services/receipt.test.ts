@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { renderReceipt, wrapToWidth } from "@/lib/services/receipt";
+import { renderReceipt } from "@/lib/services/receipt";
 import { SOFTWARE_IDENTITY } from "@/lib/version";
 import type { OrderDto, OrderItemDto, SettingsDto } from "@/types/api";
 
@@ -377,40 +377,6 @@ describe("FACTICE simulation stamp (L-18)", () => {
 /** The live `restaurantAddress`, read from the production `Setting` row. */
 const LIVE_ADDRESS = "23 Grande Rue 45210, 45210 Ferrières-en-Gâtinais, France";
 
-describe("wrapToWidth (L-21)", () => {
-  it("returns a string that already fits byte-identical", () => {
-    // This is what makes the receipt snapshot above the proof that this batch
-    // cannot have changed a ticket that was already correct. Includes the
-    // boundary: exactly `width` characters is a fit, not an overflow.
-    for (const s of ["", "x", "12 Rue Test, 75001 Paris", "a".repeat(48)]) {
-      expect(wrapToWidth(s, 48)).toEqual([s]);
-    }
-  });
-
-  it("breaks an over-long line on spaces, never mid-word", () => {
-    expect(LIVE_ADDRESS.length).toBe(56);
-    const parts = wrapToWidth(LIVE_ADDRESS, 48);
-    expect(parts).toEqual(["23 Grande Rue 45210, 45210", "Ferrières-en-Gâtinais, France"]);
-    // Nothing lost and nothing invented — the address reads back whole.
-    expect(parts.join(" ")).toBe(LIVE_ADDRESS);
-    expect(parts.every((p) => p.length <= 48)).toBe(true);
-  });
-
-  it("hard-breaks a single token wider than the paper", () => {
-    // Word-wrapping alone cannot place a token longer than the line. Emitting
-    // it whole would reinstate the defect for the one input that provokes it.
-    expect(wrapToWidth("A".repeat(60), 48)).toEqual(["A".repeat(48), "A".repeat(12)]);
-    expect(wrapToWidth("A".repeat(100), 48).every((p) => p.length <= 48)).toBe(true);
-    // The token's neighbours keep their own lines rather than being absorbed.
-    expect(wrapToWidth(`ab ${"C".repeat(10)} de`, 6)).toEqual(["ab", "CCCCCC", "CCCC", "de"]);
-  });
-
-  it("terminates on whitespace-only input without dropping or inventing a line", () => {
-    expect(wrapToWidth(" ".repeat(60), 48)).toEqual([""]);
-    expect(wrapToWidth("", 48)).toEqual([""]);
-  });
-});
-
 describe("renderReceipt wraps over-long settings fields (L-21)", () => {
   const live: Partial<SettingsDto> = {
     ...baseSettings,
@@ -486,3 +452,114 @@ describe("renderReceipt wraps over-long settings fields (L-21)", () => {
     expect(lines.filter((l) => l.trim() === "HibaPOS Test")).toHaveLength(1);
   });
 });
+
+// L-63 (Batch 1.3c) — the SECOND way this renderer overflowed the paper.
+//
+// 1.3b fixed the centred lines. `leftRight()` clamped the GAP to one space, so
+// an over-wide pair went out as `left + " " + right` with the amount past the
+// edge; and the option, add-on and change sub-lines were raw pushes with no
+// width arithmetic near them.
+//
+// Measured 2026-09-07 from the schema's own maxima, at 48 columns: the cashier
+// line reached 62, the item line 69, an option 52 and an add-on 49. Latent on
+// today's catalogue — the longest product name is 21 characters — and one
+// operator edit away, because `productSchema.name` allows 80, `userSchema.name`
+// 60, and `categoryOptionGroupSchema.choices[].name` has NO maximum at all.
+describe("renderReceipt lays out every line, not only the centred ones (L-63)", () => {
+  const LONG_PRODUCT = "Menu Maxi Best Of Double Cheeseburger Bacon Frites Boisson";
+  const LONG_CHOICE = "Sauce blanche maison à l'ail et aux fines herbes";
+  const LONG_ADDON = "Supplément galette de pomme de terre";
+  const LONG_OPERATOR_NAME = "Jean-Baptiste de la Tour du Pin Verclause";
+
+  const heavy: TestOrder = {
+    ...baseOrder,
+    tableLabel: "Terrasse côté jardin 12",
+    itemCount: 2,
+    cashier: { name: LONG_OPERATOR_NAME, username: "jb" },
+    items: [
+      {
+        ...baseOrder.items[0],
+        productName: LONG_PRODUCT,
+        optionsJson: JSON.stringify([{ group: "Sauce", choice: LONG_CHOICE }]),
+        addOnsJson: JSON.stringify([{ id: "a1", name: LONG_ADDON, price: 150 }]),
+      },
+    ] as OrderItemDto[],
+  };
+
+  it("puts no line over the paper at any supported width", () => {
+    for (let w = 32; w <= 48; w++) {
+      const over = renderReceipt(heavy, { ...baseSettings, receiptWidth: w })
+        .split("\n")
+        .filter((l) => l.length > w);
+      expect({ w, over }).toEqual({ w, over: [] });
+    }
+  });
+
+  it("wraps an over-long article label and keeps ONE amount, on its last line", () => {
+    const lines = renderReceipt(heavy, { ...baseSettings, receiptWidth: 48 }).split("\n");
+    const price = norm(formatEuroLike(1980));
+    const withPrice = lines.map(norm).filter((l) => l.endsWith(price));
+    // Exactly one line carries the article's amount — which is what keeps a
+    // wrapped label distinguishable from the start of a new article.
+    expect(withPrice).toHaveLength(1);
+    // …and the whole label survives, across however many lines it took. No
+    // ellipsis: BOFiP § 50 lists the article's libellé among the data in scope.
+    const start = lines.findIndex((l) => l.startsWith("2× "));
+    // The article's block runs from its first line to the one carrying the
+    // amount — which is exactly the property being asserted above.
+    const endsAt = lines.findIndex((l, i) => i >= start && norm(l).endsWith(price));
+    expect(endsAt).toBeGreaterThan(start);
+    const label = lines
+      .slice(start, endsAt + 1)
+      .map(norm)
+      .join(" ")
+      .replace(price, "")
+      .split(/\s+/)
+      .filter(Boolean)
+      .join(" ");
+    expect(label).toBe(`2× ${LONG_PRODUCT}`);
+  });
+
+  it("indents a wrapped option or add-on past its marker", () => {
+    const lines = renderReceipt(heavy, { ...baseSettings, receiptWidth: 48 }).split("\n");
+    const optStart = lines.findIndex((l) => l.startsWith("  · "));
+    expect(optStart).toBeGreaterThan(-1);
+    const optLines: string[] = [lines[optStart]];
+    for (let i = optStart + 1; i < lines.length && lines[i].startsWith("    "); i++) {
+      optLines.push(lines[i]);
+    }
+    expect(optLines.length).toBeGreaterThan(1);
+    // A continuation must not read as a second choice.
+    for (const l of optLines.slice(1)) expect(l.trimStart().startsWith("· ")).toBe(false);
+    expect(optLines.map((l) => l.trim()).join(" ")).toBe(`· ${LONG_CHOICE}`);
+    expect(lines.join("\n")).toContain(LONG_ADDON.slice(0, 20));
+  });
+
+  it("wraps the cashier line without losing the name or the service number", () => {
+    const lines = renderReceipt(heavy, { ...baseSettings, receiptWidth: 48 }).split("\n");
+    const start = lines.findIndex((l) => l.startsWith("Caissier : "));
+    const block = lines.slice(start, start + 2).join(" ");
+    expect(block).toContain(LONG_OPERATOR_NAME);
+    expect(block).toContain("Service 7");
+    expect(lines.slice(start, start + 2).every((l) => l.length <= 48)).toBe(true);
+  });
+
+  it("wraps the change line, which was a raw push too", () => {
+    // "  Reçu 1 234,56 € — Rendu 1 234,56 €" is 36 columns on 32-column paper,
+    // with no long name involved anywhere.
+    const big: TestOrder = {
+      ...baseOrder,
+      payments: [{ ...baseOrder.payments[0], tendered: 123456, change: 121206 }],
+    };
+    const lines = renderReceipt(big, { ...baseSettings, receiptWidth: 32 }).split("\n");
+    expect(lines.every((l) => l.length <= 32)).toBe(true);
+    expect(lines.map((l) => l.trim()).join(" ")).toContain("Reçu");
+    expect(lines.map((l) => l.trim()).join(" ")).toContain("Rendu");
+  });
+});
+
+/** `formatEuro`'s output, without importing the module into a test that is
+ *  about layout rather than money. */
+function formatEuroLike(cents: number): string {
+  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(cents / 100);
+}

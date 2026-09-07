@@ -444,6 +444,32 @@ describe("the closing slip (DD-25's paper half)", () => {
     expect(text).toContain("DOCUMENT NON VALABLE");
   });
 
+  // L-63 (Batch 1.3c) — this file carried its own copy of the receipt's
+  // `center()` AND its `leftRight()`, so the slip the operator files with the
+  // books had both of the receipt's overflows. Measured 2026-09-07: a
+  // 61-character `restaurantName` at 48 columns, and — with no long name
+  // anywhere — `TVA 10 % (HT 1 127,73 €)` plus its amount reaching 33 columns
+  // on 32-column paper, which four-figure daily takings produce on their own.
+  it("puts no line of the slip over the paper, at any supported width (L-63)", async () => {
+    const userId = await reset();
+    const shift = await closedShift(userId, 1, new Date(2026, 5, 12, 10, 0));
+    await sale(userId, shift.id, new Date(2026, 5, 12, 12, 0), 124050);
+    const day = await closeDay("2026-06-12", userId, false, new Date(2026, 5, 20));
+    const long = "Restaurant HIBA FOOD Ferrières-en-Gâtinais SARL au capital de";
+    expect(long.length).toBeGreaterThan(48);
+    for (let w = 32; w <= 48; w++) {
+      const over = renderDayCloseTicket(day, { restaurantName: long, receiptWidth: w })
+        .split("\n")
+        .filter((l) => l.length > w);
+      expect({ w, over }).toEqual({ w, over: [] });
+    }
+    // Wrapped, not truncated: the establishment still names itself, and the
+    // integrity code — the thing the operator transcribes — is intact.
+    const text = renderDayCloseTicket(day, { restaurantName: long, receiptWidth: 32 });
+    expect(text.split("\n").map((l) => l.trim()).join(" ")).toContain(long);
+    expect(text).toContain(formatIntegrityCode(day.hash));
+  });
+
   it("says so rather than printing a zero when the perpetual total was never taken", async () => {
     // A close sealed before Batch 3.8 carries null. The slip must not invent 0.
     const userId = await reset();
