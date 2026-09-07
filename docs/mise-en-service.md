@@ -62,7 +62,13 @@ if § 2 goes wrong. Remove them after § 7.
 
 ### 1b. Apply Batch 3.11's migration — L-58, « total HT de la ligne »
 
-**After `.env` points at the new location, and before anything is rung up.**
+**✅ APPLIED BY THE OPERATOR 2026-09-07 AND VERIFIED** — before the install,
+as it happened, on the database still in its old location. All four checks
+below passed and the fingerprint diff was one line, the `_prisma_migrations`
+row. Kept here for the record and in case the till is ever rebuilt.
+
+*(Originally: after `.env` points at the new location, and before anything is
+rung up.)*
 
 ```powershell
 bunx prisma migrate status     # expect: 1 pending — order_item_line_ht
@@ -78,10 +84,10 @@ Rehearsed on a copy of the live database on 2026-09-07: a 305-line fiscal
 fingerprint taken before and after differed by **one line, the
 `_prisma_migrations` row**. Nothing else in the database moves.
 
-- [ ] `migrate status` says up to date, and reports **10** migrations
-- [ ] The counters are unmoved: **20 / 3 / 2 / 2** (receipt / shift / Z / event)
-- [ ] `GET /api/fiscal/verify` still reports all four chains `ok`
-- [ ] The 82 existing order lines read `NULL` in both new columns — they are
+- [x] `migrate status` says up to date, and reports **10** migrations
+- [x] The counters are unmoved: **20 / 3 / 2 / 2** (receipt / shift / Z / event)
+- [x] All four chains `ok` — recomputed read-only with the app's own verifier
+- [x] The 82 existing order lines read `NULL` in both new columns — they are
       **not** backfilled, on purpose, and § 6's reset deletes them anyway
 
 ---
