@@ -85,6 +85,25 @@ describe("L-09 — every touch target is at least 44px", () => {
     expect(offenders, offenders.join("\n")).toEqual([]);
   });
 
+  it("the Button primitive's own size variants are all at least 44px (L-64)", () => {
+    // The check above reads CALL SITES, and 103 of 144 Buttons declare no
+    // height at all — they take the variant's. So until Batch 7.7 raised these,
+    // the guard above could pass while most of the application was undersized.
+    // That gap is why L-64 existed and why this assertion sits beside it.
+    const src = readFileSync(path.join(REPO_ROOT, "src/components/ui/button.tsx"), "utf8");
+    const block = src.slice(src.indexOf("size: {"), src.indexOf("}", src.indexOf("size: {")));
+    const offenders: string[] = [];
+    for (const m of block.matchAll(/(\w+):\s*"([^"]*)"/g)) {
+      const [, variant, classes] = m;
+      const size = /\b(?:h|size)-(\d+)\b/.exec(classes);
+      if (!size) { offenders.push(`${variant}: declares no height`); continue; }
+      if (Number(size[1]) * PX_PER_STEP < 44) {
+        offenders.push(`${variant}: ${size[0]} is ${Number(size[1]) * PX_PER_STEP}px`);
+      }
+    }
+    expect(offenders, offenders.join("\n")).toEqual([]);
+  });
+
   it("parses enough Buttons for the check above to mean something", () => {
     // Without this the loop could pass over an empty set — the vacuous shape
     // `plan-freshness.test.ts` had to close twice.
