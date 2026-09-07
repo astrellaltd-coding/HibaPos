@@ -60,6 +60,30 @@ BACKUP_LOCATION=<the second volume>
 **Do not delete the `*.moved-<timestamp>` sources yet.** They are the way back
 if § 2 goes wrong. Remove them after § 7.
 
+### 1b. Apply Batch 3.11's migration — L-58, « total HT de la ligne »
+
+**After `.env` points at the new location, and before anything is rung up.**
+
+```powershell
+bunx prisma migrate status     # expect: 1 pending — order_item_line_ht
+bunx prisma migrate deploy
+bunx prisma migrate status     # expect: Database schema is up to date
+```
+
+It adds two nullable columns to `OrderItem` — `lineNetTotal` and `lineHt` — so
+the per-line HT BOFiP § 50 lists is **stored** rather than only reproducible by
+re-running the discount apportionment. Two `ADD COLUMN`s, no table rebuild.
+
+Rehearsed on a copy of the live database on 2026-09-07: a 305-line fiscal
+fingerprint taken before and after differed by **one line, the
+`_prisma_migrations` row**. Nothing else in the database moves.
+
+- [ ] `migrate status` says up to date, and reports **10** migrations
+- [ ] The counters are unmoved: **20 / 3 / 2 / 2** (receipt / shift / Z / event)
+- [ ] `GET /api/fiscal/verify` still reports all four chains `ok`
+- [ ] The 82 existing order lines read `NULL` in both new columns — they are
+      **not** backfilled, on purpose, and § 6's reset deletes them anyway
+
 ---
 
 ## 2. Prove it starts on its own
@@ -108,12 +132,10 @@ unmistakable and safely deletable.
 **While you are in Réglages, two stored values are wrong and this is the moment
 to correct them** (*Open Threads → B*):
 
-- [ ] **Address** — replace `23 Grande Rue 45210, 45210 Ferrières-en-Gâtinais, France`
-      with `23 Grande Rue, 45210 Ferrières-en-Gâtinais, France`. The postcode is
-      in there twice. Saving also writes `receiptWidth` 48 over the legacy 80.
-- [ ] **`printerName`** — reads `Epson TM-m30`; the box is a Sunso WTP-801
-      (DOC-15). Nothing reads this field, so it is cosmetic — but it is the
-      contradiction the commissioning session exists to settle.
+- [x] ~~**Address** — the postcode was in there twice~~ — **done 2026-09-07**;
+      the save also wrote `receiptWidth` 48 over the legacy 80, as predicted.
+- [x] ~~**`printerName`** — read `Epson TM-m30`~~ — **done 2026-09-07**, now
+      `Sunso WTP-801`. **DOC-15 closed.**
 
 **Réglages:** printer IP, port `9100`, `printerEnabled` on, `receiptWidth` 48,
 `openDrawerOnCash` on. Correct `printerName` to the real model while you are

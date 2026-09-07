@@ -22,7 +22,7 @@ import { db } from "@/lib/db";
 import { nextReceiptNumber } from "@/lib/services/sequence";
 import { renderReceipt } from "@/lib/services/receipt";
 import { appendFiscalEvent, incrementGrandTotal } from "@/lib/services/fiscal";
-import { sum2, addToVatBreakdown, apportion, type VatBreakdown } from "@/lib/money";
+import { sum2, addToVatBreakdown, apportion, splitVat, type VatBreakdown } from "@/lib/money";
 import { buildVentePayload, buildOrderAuditDetails } from "@/lib/services/sale-journal";
 import { TX_CHECKOUT, isTransactionBusyError } from "@/lib/tx-options";
 import type { OrderDto, SettingsDto } from "@/types/api";
@@ -195,7 +195,15 @@ export async function createOrderInTransaction(input: CheckoutInput): Promise<Or
         },
       });
 
-      for (const item of items) {
+      // L-58 (Batch 3.11): the line's net and its HT are stored, not recomputed
+      // later. Both come from the numbers this transaction has already produced
+      // — `lineNets[idx]` is the apportioned net above, and the HT uses the same
+      // `splitVat` the VAT breakdown uses — so the stored figure cannot drift
+      // from the `vatTotal` sealed on this order. A second implementation of the
+      // split is exactly what `Σ (lineNetTotal − lineHt) === order.vatTotal`
+      // exists to catch.
+      for (const [idx, item] of items.entries()) {
+        const lineNetTotal = lineNets[idx];
         await tx.orderItem.create({
           data: {
             orderId: created.id,
@@ -205,6 +213,8 @@ export async function createOrderInTransaction(input: CheckoutInput): Promise<Or
             quantity: item.quantity,
             lineTotal: item.lineTotal,
             vatRate: item.vatRate,
+            lineNetTotal,
+            lineHt: splitVat(lineNetTotal, item.vatRate).ht,
             optionsJson: item.optionsJson,
             addOnsJson: item.addOnsJson,
             notes: item.notes,

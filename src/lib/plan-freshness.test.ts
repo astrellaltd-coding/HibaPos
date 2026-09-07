@@ -86,9 +86,20 @@ function isUnassigned(assignment: string): boolean {
   return /NO BATCH OWNS THIS|Operator action/i.test(assignment);
 }
 
-/** Batch ids named in an assignment — "7.4c", "6.1 or 7.2", "**1.3**". */
+/**
+ * Batch ids named in an assignment — "7.4c", "6.1 or 7.2", "**1.3**", "3.11".
+ *
+ * **The minor version is `[0-9]+`, not `[0-9]`, and that was a hole.** The
+ * original `\b([0-9]\.[0-9][a-z]?)\b` cannot match a two-digit minor: in
+ * "3.11" it matches "3.1" and then fails the trailing `\b` against the second
+ * "1". So **Batches 3.10 and 3.11 were invisible to this whole file** — a row
+ * assigned to either read as "names no batch". Latent until 2026-09-07, when
+ * L-58 was re-assigned from "NO BATCH OWNS THIS" to 3.11 and the check finally
+ * had one to look at. Same shape as the bolded-rows-only hole closed the same
+ * day: the guard's parser was narrower than the data it guards.
+ */
 function batchesNamedIn(assignment: string): string[] {
-  return [...assignment.matchAll(/\b([0-9]\.[0-9][a-z]?)\b/g)].map((m) => m[1]);
+  return [...assignment.matchAll(/\b([0-9]+\.[0-9]+[a-z]?)\b/g)].map((m) => m[1]);
 }
 
 describe("plan freshness — an open finding may not point at a finished batch", () => {

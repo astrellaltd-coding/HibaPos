@@ -4,6 +4,7 @@ import { promises as fs, readFileSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { db } from "@/lib/db";
+import { splitVat } from "@/lib/money";
 import { canonicalize, computeEventHash } from "@/lib/fiscal";
 import { buildAnnualArchive, recordAnnualArchive, appendFiscalEvent, verifyFiscalChain } from "@/lib/services/fiscal";
 import { ensureFiscalCounter } from "@/lib/services/sequence";
@@ -175,7 +176,12 @@ describe("the archive checksum is reproducible from the file (C-04)", () => {
     // `cashMovements` were added. Amended because the shape genuinely moved,
     // not to make a run go green — the assertion that the number IS pinned is
     // what this line is for, and it did its job both times.
-    expect(parsed.version).toBe(5);
+    // AMENDED A THIRD TIME 2026-09-07 (Batch 3.11, L-58): 5 → 6, when
+    // `OrderItem` gained `lineNetTotal` and `lineHt`. The orders section
+    // selects `items: true`, so the columns reach the file without the archive
+    // code naming them — which is precisely the kind of silent shape change
+    // this pin exists to surface, and it surfaced it.
+    expect(parsed.version).toBe(6);
     expect(parsed).toHaveProperty("dailyCloses");
     expect(parsed.notice).toContain(`Logiciel : ${SOFTWARE_NAME}, version ${SOFTWARE_VERSION}`);
     // Not vacuous: a real dotted release, not a placeholder.
@@ -356,12 +362,50 @@ describe("the annual archive carries refunds and cash movements as ROWS (L-55)",
     expect(parsed.notice).toContain("apparaît deux");
   });
 
-  it("bumps the schema version to 5, because the file's shape moved", async () => {
+  it("bumps the schema version to 6, because the file's shape moved", async () => {
     await resetForArchive();
     const parsed = JSON.parse((await buildAnnualArchive(2026)).json);
-    expect(parsed.version).toBe(5);
+    expect(parsed.version).toBe(6);
     expect(parsed).toHaveProperty("refunds");
     expect(parsed).toHaveProperty("cashMovements");
+  });
+
+  // L-58 (Batch 3.11) — the per-line HT reaches the archive.
+  //
+  // BOFiP § 50 lists « total HT de la ligne » among the data in scope, and the
+  // archive is what an inspector is handed. The orders section selects
+  // `items: true`, so this holds without the archive naming the columns — and
+  // that is exactly why it is asserted here rather than assumed.
+  it("carries the stored per-line net and HT on every archived order line (L-58)", async () => {
+    // Seeds its own line: `anOrder` above creates orders with no `OrderItem`
+    // rows at all, so until this test the archive suite had never exercised an
+    // archived order LINE — which is why the columns could have been absent
+    // from the file with nothing here noticing.
+    const user = await resetForArchive();
+    const shift = await aShift(user.id, 1, new Date(2026, 5, 1, 10));
+    const order = await anOrder(shift.id, user.id, 1, new Date(2026, 5, 1, 12));
+    await db.orderItem.create({
+      data: {
+        orderId: order.id,
+        productName: "Menu",
+        unitPrice: 1000,
+        quantity: 1,
+        lineTotal: 1000,
+        vatRate: 10,
+        lineNetTotal: 1000,
+        lineHt: splitVat(1000, 10).ht,
+      },
+    });
+    const parsed = JSON.parse((await buildAnnualArchive(2026)).json);
+    const lines = parsed.orders.flatMap((o: { items: unknown[] }) => o.items);
+    expect(lines.length).toBeGreaterThan(0);
+    for (const l of lines as { lineNetTotal: number; lineHt: number; vatRate: number }[]) {
+      expect(l).toHaveProperty("lineNetTotal");
+      expect(l).toHaveProperty("lineHt");
+      // Self-verifying by division, which is the point of storing the net
+      // beside the HT: no reader has to re-run the apportionment.
+      expect(l.lineHt).toBe(Math.round(l.lineNetTotal / (1 + l.vatRate / 100)));
+    }
   });
 });
 

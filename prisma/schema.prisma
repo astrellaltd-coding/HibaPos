@@ -415,8 +415,29 @@ model OrderItem {
   productName String
   unitPrice   Int // TTC cents unit price (base + options)
   quantity    Int
-  lineTotal   Int // cents
+  lineTotal   Int // cents, TTC, BEFORE the order's discount
   vatRate     Float? // snapshot of VAT rate at time of sale
+
+  // L-58 (Batch 3.11) — BOFiP § 50 lists « total HT de la ligne » among the
+  // data in scope for the fonctionnalité de caisse, and it was stored nowhere.
+  //
+  // NOT derivable from the columns above, which is the whole finding: the HT is
+  // taken on the line's net AFTER the order's discount has been apportioned
+  // across the lines by largest remainder (`money.ts` `apportion`), so dividing
+  // `lineTotal` by `1 + vatRate/100` does not give the figure the till used.
+  //
+  // `lineNetTotal` is stored beside it so the row is self-verifying: a reader
+  // can check `lineHt = round(lineNetTotal / (1 + vatRate/100))` with a
+  // calculator instead of re-implementing the apportionment. The line's VAT is
+  // `lineNetTotal - lineHt` and is deliberately not stored — subtraction is not
+  // an algorithm.
+  //
+  // NULLABLE, and existing rows are NOT backfilled: null means "recorded before
+  // the till kept this figure". Computing it now for completed sales would be
+  // writing invented figures into the fiscal record. Same treatment and same
+  // reason as L-57's `perpetualSalesTotal`.
+  lineNetTotal Int? // cents, TTC, AFTER the apportioned discount
+  lineHt       Int? // cents, HT, taken on lineNetTotal at vatRate
   optionsJson String? // JSON snapshot of chosen options
   addOnsJson  String? // JSON snapshot of chosen add-ons
   notes       String?

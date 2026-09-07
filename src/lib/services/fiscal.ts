@@ -1132,11 +1132,15 @@ export async function buildAnnualArchive(year: number) {
     format: "hibapos-fiscal-archive",
     // Schema version of THIS FILE. 2 → 3 in Batch 3.7 (L-53), when `software`
     // was added; 3 → 4 in Batch 3.8 (DD-23), when `dailyCloses` was; 4 → 5 in
-    // Batch 3.10 (L-55), when `refunds` and `cashMovements` were. A reader
-    // keyed on this number must not expect any of those keys in a 2, and none
-    // exists to be confused — zero archives had ever been generated on
-    // production when all three numbers moved (verified read-only, 2026-09-06).
-    version: 5,
+    // Batch 3.10 (L-55), when `refunds` and `cashMovements` were; **5 → 6 in
+    // Batch 3.11 (L-58)**, when `OrderItem` gained `lineNetTotal` and `lineHt`
+    // — the orders section selects `items: true`, so the columns reach this
+    // file without anything here naming them. A reader keyed on this number
+    // must not expect any of those keys in a lower one, and none exists to be
+    // confused — **zero archives had ever been generated on production when
+    // all four numbers moved** (verified read-only, 2026-09-06 and again
+    // 2026-09-07).
+    version: 6,
     year,
     generatedAt: new Date().toISOString(),
     // L-53 (Batch 3.7): which software, at which version, wrote this archive.
