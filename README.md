@@ -16,7 +16,7 @@ Système de point de vente (POS) pour restaurant, **construit selon les exigence
 - **Framework** : Next.js 16 (App Router, single-route SPA)
 - **UI** : React 19 + Tailwind CSS 4 + shadcn/shadcn-ui
 - **État** : Zustand (persisté) + TanStack Query
-- **Base de données** : SQLite via Prisma ORM — le mode **WAL est appliqué au démarrage** (`src/lib/db-pragmas.ts`), **sauf** si le fichier se trouve dans un dossier synchronisé (OneDrive, Dropbox, Google Drive, iCloud), où il est délibérément refusé : un agent de synchronisation qui remonte un `-wal` périmé corrompt la base. *L'installation actuelle est sous OneDrive et tourne donc en journal rollback (vérifié 2026-09-05, octet 18 = 1) ; elle passera en WAL au premier démarrage après le déplacement vers `C:\HibaPOS\data`.*
+- **Base de données** : SQLite via Prisma ORM — le mode **WAL est appliqué au démarrage** (`src/lib/db-pragmas.ts`), **sauf** si le fichier se trouve dans un dossier synchronisé (OneDrive, Dropbox, Google Drive, iCloud), où il est délibérément refusé : un agent de synchronisation qui remonte un `-wal` périmé corrompt la base. *L'installation actuelle est sous OneDrive et tourne donc en journal rollback (re-vérifié 2026-09-07, octet 18 = 1) ; elle passera en WAL au premier démarrage après le déplacement vers `C:\HibaPOS\data`.*
 - **Authentification** : Sessions serveur signées (cookies httpOnly) + PIN (scrypt N=2^17) + révocation par session
 - **Monnaie** : Calculs en **centimes entiers** (Int) bout-en-bout — aucun drift flottant (exigence de calcul pour la TVA)
 - **Fiscalité** : Journal fiscal permanent chaîné par hash (SHA-256), grand total perpétuel enregistré dans chaque clôture, clôtures de caisse / du jour / mensuelles / annuelles, mode FACTICE, archive annuelle ouverte
@@ -66,11 +66,22 @@ L'application est disponible sur http://localhost:3000.
 
 ## Production (Windows)
 
+**Pour une vraie installation sur la caisse, ne partez pas d'ici** :
+`.zscripts/README-windows.md` est le guide complet (lot 1.4 — installeur,
+service supervisé, chemin de mise à jour) et `docs/mise-en-service.md` est la
+séance de mise en service, pas à pas, dans l'ordre où elle doit se dérouler.
+L'ordre importe : le lot 8.0 vide le journal fiscal du commerce de
+développement et **ne peut tourner qu'avant la première vente réelle**.
+
 ```powershell
+# Installation / mise à jour de la caisse (lot 1.4) — commencez par un essai à blanc
+powershell -ExecutionPolicy Bypass -File .zscripts/install-windows.ps1
+powershell -ExecutionPolicy Bypass -File .zscripts/update.ps1
+
 # Build production
 powershell -ExecutionPolicy Bypass -File .zscripts/build.ps1
 
-# Lancer le serveur production
+# Lancer le serveur production (ne crée JAMAIS de base absente — L-59)
 powershell -ExecutionPolicy Bypass -File .zscripts/start.ps1
 ```
 
@@ -79,9 +90,9 @@ Le serveur démarre sur `http://localhost:3000` (navigateur en plein écran).
 ## Tests
 
 ```bash
-bun run test         # 879 tests unitaires + intégration (mesuré 2026-09-06)
+bun run test         # 963 tests unitaires + intégration (mesuré 2026-09-07)
 bun run typecheck   # tsc --noEmit
-bun run test:e2e     # Playwright — 13 tests (auth, encaissement, caisse, catalogue)
+bun run test:e2e     # Playwright — 12 tests (auth, encaissement, caisse, catalogue)
                      # Base de données jetable sous %TEMP%, port 3100 : ne touche jamais la production
 ```
 
@@ -126,7 +137,13 @@ public/
                     Décision DD-16 du 2026-09-05 : git en est aujourd'hui la seule copie
                     versionnée, et aucune sauvegarde restaurable n'existe (L-46).
 docs/
-  attestation-conformite.md  → Attestation ISCA (BOI-LETTRE-000242)
+  attestation-conformite.md    → Attestation ISCA (BOI-LETTRE-000242) — NON SIGNÉE
+  mise-en-service.md           → Séance de mise en service, pas à pas
+  conformite-isca-map.md       → Chaque exigence ISCA → le code qui l'implémente
+  conformite-isca-recherche.md → Les sources (BOFiP, CGI, LNE) derrière la carte
+  SQLITE_WAL.md                → Pourquoi le WAL est refusé sur un dossier synchronisé
+.zscripts/
+  README-windows.md            → Guide de déploiement Windows (lot 1.4)
 ```
 
 ## Licence

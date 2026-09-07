@@ -1951,7 +1951,7 @@ Kept per the instruction not to drop a finding because of disagreement. None was
 | **M-12** | Latent only. The UI sends `AMOUNT`, never `PERCENT`. Real risk is to any future client that follows the comment. |
 | **M-15**, **M-16** | Theoretical until someone crafts the input. Both are cheap to fix; neither is urgent. |
 | **M-27** | The replay window after a restart is documented and consciously accepted in `approvals.ts:22-28`. Only the unbounded set growth is unambiguously a defect. |
-| **DOC-04** | The README undercounts tests (105 vs 136). Stale, not inflated — the direction of the error is worth noting. |
+| **DOC-04** | The README undercounts tests. Stale, not inflated — the direction of the error is worth noting. **Corrected twice and drifted again both times**: 105 vs 136 when recorded, then 879 vs 963 on 2026-09-07. A number a human has to retype after every batch will keep drifting; either pin it with a test, as `version.test.ts` does for the software version, or stop printing it. |
 | **Audit section I generally** | The git history **cannot** answer whether files were accidentally deleted: the repo was re-initialised at `be9113e` and the claimed pre-v0 archive path does not exist. All "possibly missing" items are inferences from orphaned code, not from deletion evidence. Compare against the historical 3 GB project before acting on any of them. |
 
 ---
