@@ -479,6 +479,8 @@ Not in this batch's original scope, and corrected rather than filed because it s
 
 7. **What is still unchecked about prerequisite 1, and it needs the till.** That `SYSTEM` cannot see this bun is inferred from the two PATH scopes, which is solid; it was not demonstrated by running the launcher **as** `SYSTEM`, because doing that means registering a Scheduled Task on this machine. The refusal's own message is what will settle it on the till in one line of `server.log`, and § 2's check 1 now says where to look.
 
+
+*Appended 2026-09-07, after the move, as the record's own rule requires — the section above is not rewritten.* **The `Commit` field reads `(this commit)`** because the status record was written before the commit existed. It resolves to **`ce27fa4`** — the launcher, the four tests, the runbook repairs and this section as it stood in the plan — plus **`ba71f63`**, which moved this section here, left the stub, and repaired the finding index. That second commit was not planned: the index had rotted in **both** directions and nothing in this repository could have caught it, because `plan-freshness.test.ts` detects only an *open* finding assigned to a `COMPLETED` batch. **L-09 and L-10 still read `deferred` though 7.6 closed them; L-22, L-36, L-64, DOC-13, DOC-14 and DOC-15 had no row at all though all six are closed; and five open findings — L-14, L-39, L-46, L-47, L-51 — were missing too.** All were corrected against this record. A guard for the second direction is unowned, and belongs with the `docs/` control-character guard in note 4.
 ---
 
 
