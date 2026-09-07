@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { renderReceipt } from "@/lib/services/receipt";
+import { renderReceipt, wrapToWidth } from "@/lib/services/receipt";
 import { SOFTWARE_IDENTITY } from "@/lib/version";
 import type { OrderDto, OrderItemDto, SettingsDto } from "@/types/api";
 
@@ -359,5 +359,130 @@ describe("FACTICE simulation stamp (L-18)", () => {
     // seen the switch must print real tickets, not simulations.
     expect(baseSettings).not.toHaveProperty("factice");
     expect(renderReceipt(baseOrder, baseSettings)).not.toContain("FACTICE");
+  });
+});
+
+// L-21 (Batch 1.3b) — the renderer wraps what does not fit the paper.
+//
+// `center()` padded a string towards the middle of the paper and returned it
+// untouched when it was already wider, because the `Math.max(0, …)` clamps the
+// PADDING and not the string. Measured read-only on the live settings
+// 2026-09-07: the restaurant's address is 56 characters and the paper is 48
+// columns, so every ticket carried one line eight characters over.
+//
+// The wrap has to be in the renderer or nowhere: `buildPrintJob()` passes the
+// text through verbatim on purpose, so that the printed ticket equals the
+// archived `Receipt.content` byte for byte.
+
+/** The live `restaurantAddress`, read from the production `Setting` row. */
+const LIVE_ADDRESS = "23 Grande Rue 45210, 45210 Ferrières-en-Gâtinais, France";
+
+describe("wrapToWidth (L-21)", () => {
+  it("returns a string that already fits byte-identical", () => {
+    // This is what makes the receipt snapshot above the proof that this batch
+    // cannot have changed a ticket that was already correct. Includes the
+    // boundary: exactly `width` characters is a fit, not an overflow.
+    for (const s of ["", "x", "12 Rue Test, 75001 Paris", "a".repeat(48)]) {
+      expect(wrapToWidth(s, 48)).toEqual([s]);
+    }
+  });
+
+  it("breaks an over-long line on spaces, never mid-word", () => {
+    expect(LIVE_ADDRESS.length).toBe(56);
+    const parts = wrapToWidth(LIVE_ADDRESS, 48);
+    expect(parts).toEqual(["23 Grande Rue 45210, 45210", "Ferrières-en-Gâtinais, France"]);
+    // Nothing lost and nothing invented — the address reads back whole.
+    expect(parts.join(" ")).toBe(LIVE_ADDRESS);
+    expect(parts.every((p) => p.length <= 48)).toBe(true);
+  });
+
+  it("hard-breaks a single token wider than the paper", () => {
+    // Word-wrapping alone cannot place a token longer than the line. Emitting
+    // it whole would reinstate the defect for the one input that provokes it.
+    expect(wrapToWidth("A".repeat(60), 48)).toEqual(["A".repeat(48), "A".repeat(12)]);
+    expect(wrapToWidth("A".repeat(100), 48).every((p) => p.length <= 48)).toBe(true);
+    // The token's neighbours keep their own lines rather than being absorbed.
+    expect(wrapToWidth(`ab ${"C".repeat(10)} de`, 6)).toEqual(["ab", "CCCCCC", "CCCC", "de"]);
+  });
+
+  it("terminates on whitespace-only input without dropping or inventing a line", () => {
+    expect(wrapToWidth(" ".repeat(60), 48)).toEqual([""]);
+    expect(wrapToWidth("", 48)).toEqual([""]);
+  });
+});
+
+describe("renderReceipt wraps over-long settings fields (L-21)", () => {
+  const live: Partial<SettingsDto> = {
+    ...baseSettings,
+    restaurantAddress: LIVE_ADDRESS,
+    receiptWidth: 48,
+  };
+
+  it("no longer prints the 56-character address onto 48-column paper", () => {
+    const lines = renderReceipt(baseOrder, live).split("\n");
+    expect(lines.some((l) => l.includes(LIVE_ADDRESS))).toBe(false);
+    // Still on the ticket, in full and in order — wrapped, not truncated. An
+    // establishment's address is part of what makes the document fiscal.
+    const addr = lines.filter((l) => /Grande Rue|Gâtinais/.test(l)).map((l) => l.trim());
+    expect(addr.length).toBe(2);
+    expect(addr.join(" ")).toBe(LIVE_ADDRESS);
+  });
+
+  it("produces a consistent snapshot at the production width and address", () => {
+    // A SECOND snapshot, added rather than substituted. The first one renders
+    // settings that fit at 42 columns and must stay byte-identical through this
+    // batch; this one is the live install — 48 columns, the real address.
+    expect(renderReceipt(baseOrder, live)).toMatchSnapshot();
+  });
+
+  it("leaves no line over the paper at any supported width, for all three fields", () => {
+    // The three the finding names, each at a length that overflows. 32..48 is
+    // the whole range `settingsSchema` allows and `normalizeReceiptColumns`
+    // can produce, so this is the invariant and not a spot check.
+    const overflowing: Partial<SettingsDto> = {
+      ...baseSettings,
+      restaurantName: "Restaurant du Très Long Nom de la Place du Marché",
+      restaurantAddress: LIVE_ADDRESS,
+      footerNote: "Merci de votre visite et à très bientôt dans notre établissement !",
+    };
+    expect(overflowing.restaurantName!.length).toBeGreaterThan(48);
+    expect(overflowing.footerNote!.length).toBeGreaterThan(48);
+    for (let w = 32; w <= 48; w++) {
+      const over = renderReceipt(baseOrder, { ...overflowing, receiptWidth: w })
+        .split("\n")
+        .filter((l) => l.length > w);
+      // Reported with the width, so a failure says which column count broke.
+      expect({ w, over }).toEqual({ w, over: [] });
+    }
+  });
+
+  it("wraps the settings-derived identity lines at the narrowest paper (32)", () => {
+    // `settingsSchema` allows 30 characters of phone and 40 each of SIRET and
+    // TVA number; at 32 columns those lines pass the paper well before the
+    // schema's own limit, so they are not safe merely because they are short
+    // on this install today.
+    const long: Partial<SettingsDto> = {
+      ...baseSettings,
+      receiptWidth: 32,
+      restaurantPhone: "+33 2 38 87 44 09 poste 1234",
+      restaurantSiret: "812 345 678 00021 812 345 678",
+      restaurantTva: "FR 12 345678901 FR 12 3456789",
+    };
+    const lines = renderReceipt(baseOrder, long).split("\n");
+    expect(lines.every((l) => l.length <= 32)).toBe(true);
+    // …and each value survives whole rather than being cut off at the margin.
+    const flat = lines.map((l) => l.trim()).join(" ");
+    expect(flat).toContain("+33 2 38 87 44 09 poste 1234");
+    expect(flat).toContain("812 345 678 00021 812 345 678");
+    expect(flat).toContain("FR 12 345678901 FR 12 3456789");
+  });
+
+  it("does not touch a ticket whose fields already fit", () => {
+    // The regression control for the whole batch, stated independently of the
+    // snapshot: `baseSettings` fits at 42 columns, so the wrap must be inert.
+    const lines = renderReceipt(baseOrder, baseSettings).split("\n");
+    expect(lines.filter((l) => l.includes("12 Rue Test, 75001 Paris"))).toHaveLength(1);
+    expect(lines.filter((l) => l.includes("Merci de votre visite !"))).toHaveLength(1);
+    expect(lines.filter((l) => l.trim() === "HibaPOS Test")).toHaveLength(1);
   });
 });

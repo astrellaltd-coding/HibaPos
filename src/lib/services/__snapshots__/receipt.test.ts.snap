@@ -31,3 +31,36 @@ Espèces                            22,50 €
          Merci de votre visite !
           HibaPOS France v0.2.1"
 `;
+
+exports[`renderReceipt wraps over-long settings fields (L-21) produces a consistent snapshot at the production width and address 1`] = `
+"                  HibaPOS Test
+           23 Grande Rue 45210, 45210
+         Ferrières-en-Gâtinais, France
+              Tél : 01 23 45 67 89
+               SIRET : TEST-SIRET
+                 TVA : TEST-TVA
+                  Caisse N° 1
+------------------------------------------------
+Ticket N° 42                    14/08/2026 12:30
+Caissier : Admin                       Service 7
+Type : Sur place                      Table : T1
+------------------------------------------------
+2× Double Cheese                         19,80 €
+  · À point
+  + Bacon (1,50 €)
+1× Coca-Cola                              2,70 €
+------------------------------------------------
+Sous-total                               22,50 €
+Détail TVA
+TVA 10 % (HT 20,45 €)                     2,05 €
+dont TVA                                  2,05 €
+TOTAL                                    22,50 €
+------------------------------------------------
+Paiements
+Espèces                                  22,50 €
+  Reçu 25,00 € — Rendu 2,50 €
+------------------------------------------------
+                   4 articles
+            Merci de votre visite !
+             HibaPOS France v0.2.1"
+`;
