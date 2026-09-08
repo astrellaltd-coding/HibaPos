@@ -33,6 +33,12 @@ export function PosView() {
   const [activeSubCategory, setActiveSubCategory] = useState<string | null>(null);
   const [optionsProduct, setOptionsProduct] = useState<ProductDto | null>(null);
   const [optionsOpen, setOptionsOpen] = useState(false);
+  // Bumped by EVERY path that opens the options dialog, and used as its `key`,
+  // so each open mounts a fresh dialog seeded from the line being edited. A key
+  // derived from the product or the cart line is not enough: adding the same
+  // product twice, or editing the same line twice, would reuse the instance and
+  // show the previous open's selection. See product-options-dialog-v2.tsx.
+  const [optionsSeq, setOptionsSeq] = useState(0);
   const [editCartItem, setEditCartItem] = useState<CartItem | null>(null);
   const [payOpen, setPayOpen] = useState(false);
   const [receiptOrder, setReceiptOrder] = useState<OrderDto | null>(null);
@@ -92,6 +98,7 @@ export function PosView() {
     if (!product) return;
     setOptionsProduct(product);
     setEditCartItem(item);
+    setOptionsSeq((n) => n + 1);
     setOptionsOpen(true);
   };
 
@@ -101,6 +108,7 @@ export function PosView() {
     if (hasOptions) {
       setOptionsProduct(product);
       setEditCartItem(null);
+      setOptionsSeq((n) => n + 1);
       setOptionsOpen(true);
     } else {
       addItem({
@@ -343,7 +351,7 @@ export function PosView() {
       )}
 
       {/* Dialogs */}
-      <ProductOptionsDialog product={optionsProduct} open={optionsOpen} onOpenChange={(v) => { setOptionsOpen(v); if (!v) setEditCartItem(null); }} editItem={editCartItem} />
+      <ProductOptionsDialog key={optionsSeq} product={optionsProduct} open={optionsOpen} onOpenChange={(v) => { setOptionsOpen(v); if (!v) setEditCartItem(null); }} editItem={editCartItem} />
       <PaymentDialog
         open={payOpen}
         onOpenChange={setPayOpen}

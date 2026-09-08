@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -48,16 +48,31 @@ export function ProductOptionsDialog({
   const [qty, setQty] = useState(editItem?.quantity ?? 1);
   const [note, setNote] = useState(editItem?.notes ?? "");
 
-  const reset = () => {
-    setSelected(isEditing ? initialSelected : {});
-    setChosenAddons(isEditing ? initialAddons : {});
-    setQty(editItem?.quantity ?? 1);
-    setNote(editItem?.notes ?? "");
-  };
-
+  // THIS DIALOG IS REMOUNTED FOR EVERY OPEN, which is what makes the four
+  // `useState` initialisers above load-bearing rather than decorative.
+  // `pos-view.tsx` gives it a `key` that changes each time it is opened, so React
+  // discards the previous instance and those initialisers run again against the
+  // current `editItem`.
+  //
+  // WHAT THIS REPLACED, AND THE BUG IT CAUSED. The dialog used to be mounted
+  // once and reused, so the initialisers ran on the first mount of the session
+  // and never again; re-seeding was left to `setTimeout(reset, 200)` on CLOSE,
+  // whose closure captured the `editItem` of the render that closed it. So the
+  // first open after adding a product showed NOTHING selected, and the first
+  // open after confirming an edit showed the selection as it had been BEFORE
+  // that edit. Closing and reopening appeared to fix it, because that second
+  // close finally captured the current line.
+  //
+  // Neither was cosmetic. `cartAddons` below is built from what is DISPLAYED and
+  // handed straight to `updateItem`, so confirming from a stale view wrote the
+  // stale supplements onto the line — dropping ones the customer had asked for,
+  // or restoring ones they had removed — and moved the line price with them.
+  //
+  // Remounting is React's own answer to "reset state when the subject changes".
+  // An effect that re-seeded on `open` was tried first and trips
+  // `react-hooks/set-state-in-effect`, which is a rule worth keeping.
   const close = (v: boolean) => {
     onOpenChange(v);
-    if (!v) setTimeout(reset, 200);
   };
 
   const { orderType } = useCartStore();
