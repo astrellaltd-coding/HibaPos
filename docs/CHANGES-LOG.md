@@ -78,7 +78,7 @@ Fields, and none is optional:
 
 | Date | What | Why | Files | Commit | Tests | Revert | Risk |
 |---|---|---|---|---|---|---|---|
-| — | *No changes yet. The baseline above is current.* | | | `ec162b4` | 1007 | | |
+| 2026-09-08 | The − and + buttons on each cart line are drawn smaller: a 32 px box centred inside the same 44 px touch area. | Operator, reviewing the cart on localhost the afternoon before delivery: they looked too big beside the line text. | `src/components/pos/cart-panel.tsx` | `PLACEHOLDER_SHA` | 1007 pass, 0 fail · no test added | `git revert PLACEHOLDER_SHA` — one file, two className strings and a wrapping `<span>`; nothing depends on it. | None to money: `onClick` and `aria-label` are byte-identical, so quantities and totals cannot move. The tap area is unchanged at 44 px, but the *visible* box is now 12 px smaller than the area that responds — it looks smaller than it is, which is worth one [OWNER] look on the real till screen. |
 
 ---
 
