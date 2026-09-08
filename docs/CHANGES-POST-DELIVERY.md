@@ -18,7 +18,7 @@ not belong here — it is a batch, and it goes through the plan.**
 
 | | |
 |---|---|
-| Commit | `a260b70` — the last commit before any post-delivery change |
+| Commit | **`ec162b4`** — the commit that added this file, and the tip of `main` at delivery. Anything after it is a post-delivery change and needs a row below. |
 | Tests | **1007 pass, 0 fail** · e2e **13 passed** |
 | Production database | `d09369c09dd9b4515c78af31118e8dc47516e74c0ab4d41e2bc4d93c5e54b16b`, 704 512 bytes |
 | Migrations | 10 applied, none pending |
@@ -56,7 +56,7 @@ Fields, and none is optional:
 
 | Date | What | Why | Files | Commit | Tests | Revert | Risk |
 |---|---|---|---|---|---|---|---|
-| — | *No post-delivery changes yet. The baseline above is current.* | | | `a260b70` | 1007 | | |
+| — | *No post-delivery changes yet. The baseline above is current.* | | | `ec162b4` | 1007 | | |
 
 ---
 
@@ -96,7 +96,7 @@ Fields, and none is optional:
 1. **`C:\HibaPOS\data\logs\server.log`, last line.** The launcher's five
    refusals all name themselves there.
 2. **This file's table, newest row first.** That is what it is for.
-3. `git log --oneline a260b70..HEAD` — the same list, unsummarised.
+3. `git log --oneline ec162b4..HEAD` — the same list, unsummarised.
 4. **Reverting:** each row's *Revert* column, one at a time, newest first.
 5. **The fiscal state is not part of this.** `GET /api/fiscal/verify` must answer
    all four chains `ok` before and after any revert. If it does not, stop and
