@@ -49,6 +49,9 @@ export type CategoryDto = {
   parentName?: string | null;
   /** VAT for products in this category that inherit. null = not set here. */
   vatRate: number | null;
+  /** The rate when the order is not consumed on the premises (L-68, Batch
+   *  3.12). null = the same rate whatever the order type. */
+  vatRateTakeaway?: number | null;
   children?: { id: string; name: string }[];
   productCount?: number;
   optionGroups?: CategoryOptionGroupDto[];

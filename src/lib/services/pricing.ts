@@ -32,9 +32,16 @@ export type VatResolvable = {
   inheritCategoryVat?: boolean | null;
   category?: {
     vatRate?: number | null;
-    parent?: { vatRate?: number | null } | null;
+    vatRateTakeaway?: number | null;
+    parent?: { vatRate?: number | null; vatRateTakeaway?: number | null } | null;
   } | null;
 };
+
+/** The three order types, as far as VAT is concerned (L-68, Batch 3.12).
+ *
+ *  Structural rather than imported from Prisma so `resolveVatRate` stays
+ *  testable without a database, exactly as `VatResolvable` is. */
+export type VatOrderType = "DINE_IN" | "TAKEAWAY" | "LIVRAISON";
 
 /**
  * The VAT rate that actually applies to a product (L-16/L-17, Batch 3.1c).
@@ -53,13 +60,34 @@ export type VatResolvable = {
  * checkout and every report reads that, so changing a category's rate can
  * never alter a sale that has already happened.
  */
-export function resolveVatRate(product: VatResolvable): number {
-  if (!product.inheritCategoryVat) return product.vatRate;
-  const own = product.category?.vatRate;
-  if (own != null) return own;
-  const parent = product.category?.parent?.vatRate;
-  if (parent != null) return parent;
-  return product.vatRate;
+export function resolveVatRate(
+  product: VatResolvable,
+  orderType: VatOrderType = "DINE_IN",
+): number {
+  // ONE governing source, read twice — L-68 (Batch 3.12).
+  //
+  // Both rates come from the SAME level of the chain. Resolving them
+  // independently would let a category set the sur-place rate while its parent
+  // supplied the à-emporter one, so a single sale could be taxed from two
+  // different places in the catalogue and neither would look wrong on its own.
+  const governing =
+    !product.inheritCategoryVat
+      ? null
+      : product.category?.vatRate != null
+        ? product.category
+        : product.category?.parent?.vatRate != null
+          ? product.category.parent
+          : null;
+
+  // Identical to this function's behaviour before 3.12: own rate unless
+  // inheriting, then own category, then parent, then the product's stored rate.
+  const dineIn = governing?.vatRate ?? product.vatRate;
+  if (orderType === "DINE_IN") return dineIn;
+
+  // À emporter and livraison. Absent means "the same rate whatever the order
+  // type", which is why adding the column moved nothing: every category that
+  // has not set it resolves exactly as it did before.
+  return governing?.vatRateTakeaway ?? dineIn;
 }
 
 type ChoiceRow = {

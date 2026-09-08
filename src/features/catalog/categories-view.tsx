@@ -63,6 +63,7 @@ type CategoryForm = {
   parentId: string;
   /** "" = not set here (inherit from the parent, or the product's own rate). */
   vatRate: string;
+  vatRateTakeaway: string;
   optionGroups: CategoryOptionGroupForm[];
   addOns: CategoryAddOnForm[];
 };
@@ -103,6 +104,7 @@ type CategoryPayload = {
   active: boolean;
   parentId: string | null;
   vatRate: number | null;
+  vatRateTakeaway?: number | null;
   optionGroups: CategoryOptionGroupForm[];
   addOns: CategoryAddOnForm[];
 };
@@ -115,6 +117,7 @@ const EMPTY_FORM: CategoryForm = {
   active: true,
   parentId: "",
   vatRate: "",
+  vatRateTakeaway: "",
   optionGroups: [],
   addOns: [],
 };
@@ -238,6 +241,7 @@ export function CategoriesView() {
       active: full.active,
       parentId: full.parentId ?? "",
       vatRate: full.vatRate == null ? "" : String(full.vatRate),
+      vatRateTakeaway: full.vatRateTakeaway == null ? "" : String(full.vatRateTakeaway),
       optionGroups: (full.optionGroups ?? [])
         .filter((g) => g.name !== "Taille")
         .map((g) => ({
@@ -343,6 +347,7 @@ export function CategoriesView() {
         active: form.active,
         parentId: form.parentId.trim() || null,
         vatRate: form.vatRate === "" ? null : Number(form.vatRate),
+        vatRateTakeaway: form.vatRateTakeaway === "" ? null : Number(form.vatRateTakeaway),
         optionGroups: [
           ...(sizeGroup ? [sizeGroup] : []),
           ...form.optionGroups.map((g, i) => ({
@@ -700,7 +705,7 @@ export function CategoriesView() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">Non défini</SelectItem>
-                    <SelectItem value="10">10 % — sur place et à emporter</SelectItem>
+                    <SelectItem value="10">10 % — sur place</SelectItem>
                     <SelectItem value="5.5">5,5 % — canettes et bouteilles</SelectItem>
                     <SelectItem value="20">20 % — boissons alcoolisées</SelectItem>
                   </SelectContent>
@@ -708,6 +713,38 @@ export function CategoriesView() {
                 <p className="text-[11px] text-muted-foreground">
                   S&apos;applique aux produits de cette catégorie réglés sur « taux de la
                   catégorie ». « Non défini » remonte à la catégorie parente.
+                </p>
+              </div>
+
+              {/* TVA à emporter (L-68, Batch 3.12). Operator's ruling of
+                  2026-09-09: a sealed bottle or can is 10 % sur place and 5,5 %
+                  à emporter et en livraison. It is a property of the ITEM, not a
+                  blanket takeaway discount — a pizza stays 10 % either way — so
+                  it belongs on the container category beside the rate above, and
+                  « Non défini » must mean "same rate whatever the order type".
+                  That default is what kept every other category unchanged when
+                  the column was added. */}
+              <div className="grid gap-2">
+                <Label htmlFor="cat-vat-takeaway">Taux de TVA à emporter et en livraison</Label>
+                <Select
+                  value={form.vatRateTakeaway || "__none__"}
+                  onValueChange={(v) =>
+                    setForm((f) => ({ ...f, vatRateTakeaway: v === "__none__" ? "" : v }))
+                  }
+                >
+                  <SelectTrigger id="cat-vat-takeaway">
+                    <SelectValue placeholder="Non défini" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Non défini — même taux qu&apos;en salle</SelectItem>
+                    <SelectItem value="10">10 %</SelectItem>
+                    <SelectItem value="5.5">5,5 % — canettes et bouteilles fermées</SelectItem>
+                    <SelectItem value="20">20 % — boissons alcoolisées</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground">
+                  Utilisé pour les commandes à emporter et en livraison. « Non défini »
+                  applique le taux ci-dessus à tous les modes de vente.
                 </p>
               </div>
             </div>

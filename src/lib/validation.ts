@@ -45,6 +45,12 @@ export const categorySchema = z.object({
   // NULL / omitted = "not set here". Products that opt into inheritance
   // resolve own category -> parent -> their own rate (L-16/L-17).
   vatRate: vatRateField.nullable().optional(),
+  // The rate when the order is NOT consumed on the premises — L-68, Batch 3.12.
+  // NULL / omitted = "the same rate whatever the order type", which is why
+  // adding it moved nothing: every category that leaves it unset resolves
+  // exactly as it did before. Same allowed values as `vatRate`, so a typo here
+  // is refused by the same guard rather than by a second one that could drift.
+  vatRateTakeaway: vatRateField.nullable().optional(),
 });
 export type CategoryInput = z.infer<typeof categorySchema>;
 

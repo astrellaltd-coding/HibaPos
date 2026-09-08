@@ -248,7 +248,15 @@ export const POST = withAuth(async (req, { user }) => {
       // product's category. Snapshotted here on purpose — OrderItem.vatRate is
       // what every report reads, so a later category edit cannot restate a
       // sale that has already been made.
-      vatRate: resolveVatRate(product),
+      //
+      // L-68 (Batch 3.12): and it depends on the ORDER TYPE. A sealed bottle or
+      // can is 10 % sur place and 5,5 % à emporter et en livraison, so the same
+      // product books at two different rates. This is the ONLY call site that
+      // decides what is booked — the client sends a `vatRate` and it is ignored
+      // here on purpose, which is why a tampered basket cannot choose its own
+      // tax. `orderType` is the same value already driving `computeLinePricing`
+      // twelve lines above.
+      vatRate: resolveVatRate(product, orderType),
       optionsJson: lineResult.optionsJson,
       addOnsJson: lineResult.addOnsJson,
       notes: itemIntent.notes ?? null,

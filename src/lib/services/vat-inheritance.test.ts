@@ -200,3 +200,97 @@ describe("a 5,5 % drink and 10 % food land in separate breakdown rows", () => {
     expect(map["10"].ttc).toBe(590);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// L-68 (Batch 3.12) — the same rate does not apply to every order type.
+//
+// THIS REFINES 3.1c'S RULING RATHER THAN CONTRADICTING IT. That batch moved the
+// 17 cans and bottles from 10 % to 5,5 % on the operator's determination, and
+// the determination was incomplete rather than wrong: it is the CONTAINER and
+// the CONSUMPTION that decide. Operator's ruling 2026-09-09 — a sealed bottle
+// or can is 10 % sur place and 5,5 % à emporter et en livraison. Everything
+// else in this catalogue stays 10 % under every order type.
+//
+// The consequence in the code was that `resolveVatRate` took the product and
+// nothing else, so a can sold on the premises booked at 5,5 %: an
+// under-declaration on every dine-in drink, and the reason this is a batch.
+//
+// NOTE WHAT IS NOT TESTED HERE: that the ORDER ROUTE passes the order type.
+// A rule can be right while nothing consults it — Batch 5.8 shipped exactly
+// that mistake — so `orders-vat-by-order-type.test.ts` drives the real handler.
+describe("resolveVatRate — the rate follows the order type (L-68)", () => {
+  const CAN = {
+    vatRate: 10,
+    inheritCategoryVat: true,
+    category: { vatRate: 10, vatRateTakeaway: 5.5, parent: null },
+  };
+
+  it("is the sur-place rate for DINE_IN", () => {
+    expect(resolveVatRate(CAN, "DINE_IN")).toBe(10);
+  });
+
+  it("is the à-emporter rate for TAKEAWAY and LIVRAISON", () => {
+    expect(resolveVatRate(CAN, "TAKEAWAY")).toBe(5.5);
+    expect(resolveVatRate(CAN, "LIVRAISON")).toBe(5.5);
+  });
+
+  it("defaults to DINE_IN when no order type is given", () => {
+    // The parameter is optional so the two display call sites did not have to
+    // change. Defaulting to the reduced rate instead would have quietly
+    // under-declared every caller that forgot to pass one.
+    expect(resolveVatRate(CAN)).toBe(10);
+  });
+
+  it("keeps a 10 % product at 10 % under every order type", () => {
+    // The safety property of the whole change: `vatRateTakeaway` is null
+    // everywhere until a category sets it, so nothing moved when the column
+    // was added. A pizza is 10 % eaten in or taken away.
+    const pizza = { vatRate: 10, inheritCategoryVat: true, category: { vatRate: 10, parent: null } };
+    for (const t of ["DINE_IN", "TAKEAWAY", "LIVRAISON"] as const) {
+      expect(resolveVatRate(pizza, t)).toBe(10);
+    }
+  });
+
+  it("falls back to the sur-place rate when the category sets no à-emporter rate", () => {
+    const noTakeaway = { vatRate: 10, inheritCategoryVat: true, category: { vatRate: 5.5, parent: null } };
+    expect(resolveVatRate(noTakeaway, "TAKEAWAY")).toBe(5.5);
+    expect(resolveVatRate(noTakeaway, "DINE_IN")).toBe(5.5);
+  });
+
+  it("reads both rates off the PARENT when the parent is what governs", () => {
+    const sub = {
+      vatRate: 10,
+      inheritCategoryVat: true,
+      category: { vatRate: null, vatRateTakeaway: null, parent: { vatRate: 10, vatRateTakeaway: 5.5 } },
+    };
+    expect(resolveVatRate(sub, "DINE_IN")).toBe(10);
+    expect(resolveVatRate(sub, "TAKEAWAY")).toBe(5.5);
+  });
+
+  it("takes BOTH rates from the same level, never one from each", () => {
+    // The child sets the sur-place rate, so the child governs — and the
+    // parent's à-emporter rate must NOT leak in underneath it. Resolving the
+    // two independently would tax one sale from two places in the catalogue,
+    // and neither half would look wrong on its own.
+    const mixed = {
+      vatRate: 10,
+      inheritCategoryVat: true,
+      category: { vatRate: 10, vatRateTakeaway: null, parent: { vatRate: 5.5, vatRateTakeaway: 5.5 } },
+    };
+    expect(resolveVatRate(mixed, "DINE_IN")).toBe(10);
+    expect(resolveVatRate(mixed, "TAKEAWAY")).toBe(10);
+  });
+
+  it("lets a product that opts out of inheritance keep its own rate everywhere", () => {
+    // A product with a bespoke rate is that rate under every order type. The
+    // à-emporter rate lives on the category only — see the batch's *Left open*.
+    const own = {
+      vatRate: 10,
+      inheritCategoryVat: false,
+      category: { vatRate: 5.5, vatRateTakeaway: 5.5, parent: null },
+    };
+    for (const t of ["DINE_IN", "TAKEAWAY", "LIVRAISON"] as const) {
+      expect(resolveVatRate(own, t)).toBe(10);
+    }
+  });
+});

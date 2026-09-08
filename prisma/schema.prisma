@@ -83,6 +83,18 @@ model Category {
   // product's own rate. The fiscal criterion is the container, not the drink,
   // so this belongs on `Canette`/`Bouteilles` rather than on `Boissons`.
   vatRate   Float?
+  // The rate when the order is NOT consumed on the premises — L-68, Batch 3.12.
+  //
+  // Operator's ruling 2026-09-09: a sealed bottle or can is 10 % sur place and
+  // 5,5 % à emporter et en livraison. Everything else in this catalogue is 10 %
+  // whatever the order type, so this is a property of the ITEM and not a
+  // blanket takeaway rule — which is why it sits beside `vatRate` on the
+  // container category rather than being a global switch.
+  //
+  // NULL = "the same rate whatever the order type", and that is what makes the
+  // column safe to add: every product that resolves to 10 % today keeps
+  // resolving to 10 % under all three order types until a category sets this.
+  vatRateTakeaway Float?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

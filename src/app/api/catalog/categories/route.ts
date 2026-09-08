@@ -45,6 +45,7 @@ export const GET = withAuth(async () => {
       icon: c.icon,
       sortOrder: c.sortOrder,
       vatRate: c.vatRate,
+      vatRateTakeaway: c.vatRateTakeaway,
       active: c.active,
       parentId: c.parentId,
       parentName: c.parent?.name ?? null,

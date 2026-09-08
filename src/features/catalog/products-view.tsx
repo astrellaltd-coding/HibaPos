@@ -885,7 +885,7 @@ function ProductFormDialog({
               ) : (
                 <div className="flex flex-wrap gap-2">
                   {[
-                    { value: 10, label: "10 %", hint: "Sur place et a emporter" },
+                    { value: 10, label: "10 %", hint: "Sur place" },
                     { value: 5.5, label: "5,5 %", hint: "Canettes et bouteilles" },
                     { value: 20, label: "20 %", hint: "Boissons alcoolisees" },
                   ].map((r) => (
