@@ -55,6 +55,13 @@ bunx prisma generate
 bun run build        # or .zscripts\build.ps1, which does the last two
 ```
 
+**The carried `.env` also needs its `DATABASE_URL` rewritten**, twice: it holds
+an absolute path into the development machine's project folder, so point it at
+the clone before building, and at `C:\HibaPOS\data\db\custom.db` after the
+installer moves the file. Forget it and the launcher refuses with *Base de
+donnees introuvable* naming a `C:\Users\…\OneDrive\…` path, which is the
+signature of exactly this.
+
 Two orderings are load-bearing. **`.env` before `bun run build`**, because
 `next build` throws at import time with no `SESSION_SECRET`. And **the build
 before the reboot**, because `bun run start` is `next start`, which needs

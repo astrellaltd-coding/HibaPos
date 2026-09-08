@@ -132,6 +132,28 @@ two.
       new one. Check the size before going further: nothing here will create a
       database, and a wrong path is answered by a refusal rather than an empty
       till (L-59).
+- [ ] **`DATABASE_URL` rewritten for THIS machine** — see the warning below. The
+      carried `.env` points at the development machine.
+
+> ### ⚠ The carried `.env` names a path that does not exist here
+>
+> You carry that file for its two **secrets**. Its `DATABASE_URL` is an absolute
+> path into the development machine's OneDrive-synced project folder, and on the
+> till it points at nothing. **It needs rewriting twice, one line each time**, and
+> the two edits are in different sections because the database moves between them:
+>
+> 1. **Here, before `bun run build`** — point it at the clone, so the build has a
+>    real database at a real path:
+>    `DATABASE_URL=file:C:\HibaPOS-app\db\custom.db?_fk=1&_busy_timeout=5000`
+> 2. **In § 1, after `install-windows.ps1 -Apply`** — point it at where the
+>    installer has just moved the file, alongside `HIBAPOS_DATA_DIR`:
+>    `DATABASE_URL=file:C:\HibaPOS\data\db\custom.db?_fk=1&_busy_timeout=5000`
+>
+> **If you forget, the failure is loud and it names itself.** The launcher refuses
+> with *« Base de donnees introuvable »* **followed by the path it tried** — and a
+> path beginning `C:\Users\…\OneDrive\…` in `server.log` on the restaurant's till
+> is this mistake and nothing else. It will not create a database to paper over it
+> (L-59). Twenty minutes if you recognise the line, longer if you do not.
 
 > **`bun install` needs internet on the till.** Confirm the restaurant has it
 > before you rely on this. If it does not, the fallback is to carry
