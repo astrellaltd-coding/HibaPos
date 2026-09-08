@@ -175,41 +175,24 @@ export function CartPanel({ onCheckout, onEditItem, onOpenDiscount }: { onChecko
                   transition={{ duration: 0.13, ease: "easeOut" }}
                   className="rounded-xl border border-border bg-background p-2"
                 >
-                  {/* One row. The stepper sits between the description and the
-                      two actions; the line total sits directly under those two.
-                      Fixed content is ~304px (32 image + 112 stepper + 90 action
-                      column + gaps + padding + scrollbar), which fits the 360px
-                      desktop panel. Radix's scroll viewport is
-                      min-width:100%; display:table and GROWS to its content, so
-                      anything narrower than that clips the card's right corner. */}
-                  <div className="flex items-start gap-2">
-                    <ProductImage image={item.image} alt={item.productName} className="mt-0.5 h-8 w-8 shrink-0 rounded-md text-base" />
+                  {/* THE CARD HAS TWO ZONES, AND THAT IS THE SPACING RULE.
+                      Header: identity and controls, 44px tall on every card
+                      because the buttons set it — so the stepper never drifts.
+                      Detail: everything variable, as one column that shares the
+                      card's left and right gutters, with the line total last and
+                      right-aligned. Supplement prices are right-aligned into that
+                      same gutter rather than sitting next to their names, which
+                      is what kept the right edge ragged on a card with eight of
+                      them. Header fixed content is ~298px (32 image + 112 stepper
+                      + 90 actions + gaps + padding + scrollbar) against a 360px
+                      panel; Radix's viewport is min-width:100%; display:table and
+                      GROWS to its content, so anything wider clips the corner. */}
+                  <div className="flex items-center gap-1.5">
+                    <ProductImage image={item.image} alt={item.productName} className="h-8 w-8 shrink-0 rounded-md text-base" />
 
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[12px] font-semibold leading-tight text-foreground">{item.productName}</p>
-                      {item.options.length > 0 && (
-                        <p className="mt-0.5 line-clamp-1 text-[9px] text-muted-foreground">
-                          {item.options.map((o) => o.choice).join(", ")}
-                        </p>
-                      )}
-                      {item.addOns.length > 0 && (
-                        <div className="mt-0.5 space-y-0.5">
-                          {item.addOns.map((a) => (
-                            <div key={a.id} className="flex items-baseline gap-2 text-[9px] text-muted-foreground">
-                              <span className="truncate">+ {a.name}</span>
-                              <span className="shrink-0 tabular-nums">{formatEuro(a.price)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      {item.notes && (
-                        <div className="mt-0.5 text-[9px] italic text-foreground/70">
-                          « {item.notes} »
-                        </div>
-                      )}
-                    </div>
+                    <p className="min-w-0 flex-1 truncate text-[12px] font-semibold leading-tight text-foreground">{item.productName}</p>
 
-                    <div className="flex shrink-0 items-center gap-0.5 self-center">
+                    <div className="flex shrink-0 items-center gap-0.5">
                       <button
                         className="group flex h-11 w-11 min-h-[44px] min-w-[44px] items-center justify-center rounded-md active:scale-95"
                         onClick={() => decItem(item.uid)}
@@ -231,27 +214,45 @@ export function CartPanel({ onCheckout, onEditItem, onOpenDiscount }: { onChecko
                       </button>
                     </div>
 
-                    <div className="flex shrink-0 flex-col items-center">
-                      <div className="flex items-center gap-0.5">
-                        {onEditItem && (item.options.length > 0 || item.addOns.length > 0) && (
-                          <button
-                            className="flex h-11 w-11 min-h-[44px] min-w-[44px] items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-primary active:scale-95"
-                            onClick={() => onEditItem(item)}
-                            aria-label="Modifier la ligne"
-                          >
-                            <Pencil className="h-3 w-3" />
-                          </button>
-                        )}
+                    <div className="flex shrink-0 items-center gap-0.5">
+                      {onEditItem && (item.options.length > 0 || item.addOns.length > 0) && (
                         <button
-                          className="flex h-11 w-11 min-h-[44px] min-w-[44px] items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive active:scale-95"
-                          onClick={() => removeItem(item.uid)}
-                          aria-label="Retirer la ligne"
+                          className="flex h-11 w-11 min-h-[44px] min-w-[44px] items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-primary active:scale-95"
+                          onClick={() => onEditItem(item)}
+                          aria-label="Modifier la ligne"
                         >
-                          <Trash2 className="h-3.5 w-3.5" />
+                          <Pencil className="h-3 w-3" />
                         </button>
-                      </div>
+                      )}
+                      <button
+                        className="flex h-11 w-11 min-h-[44px] min-w-[44px] items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive active:scale-95"
+                        onClick={() => removeItem(item.uid)}
+                        aria-label="Retirer la ligne"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
 
-                      <Money amount={computeLineTotal(item)} className="-mt-1 text-[12px] font-bold text-foreground" />
+                  <div className="mt-1.5 space-y-0.5 border-t border-border pt-1.5">
+                    {item.options.length > 0 && (
+                      <p className="line-clamp-1 text-[9px] text-muted-foreground">
+                        {item.options.map((o) => o.choice).join(", ")}
+                      </p>
+                    )}
+                    {item.addOns.map((a) => (
+                      <div key={a.id} className="flex items-baseline justify-between gap-2 text-[9px] text-muted-foreground">
+                        <span className="truncate">+ {a.name}</span>
+                        <span className="shrink-0 tabular-nums">{formatEuro(a.price)}</span>
+                      </div>
+                    ))}
+                    {item.notes && (
+                      <div className="text-[9px] italic text-foreground/70">
+                        « {item.notes} »
+                      </div>
+                    )}
+                    <div className="flex justify-end pt-0.5">
+                      <Money amount={computeLineTotal(item)} className="text-[12px] font-bold text-foreground" />
                     </div>
                   </div>
                 </motion.div>
