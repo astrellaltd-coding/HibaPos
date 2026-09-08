@@ -350,6 +350,23 @@ function ProductFormDialog({
 
   const [name, setName] = useState(product?.name ?? "");
   const [categoryId, setCategoryId] = useState(product?.categoryId ?? categories[0]?.id ?? "");
+
+  // WHICH CATEGORY THE GLOBALS ACTUALLY COME FROM.
+  //
+  // Sub-categories are folders: a product filed under one inherits the PARENT's
+  // option groups and add-ons. The server resolves it as `parent ?? category`
+  // (`services/product-options.ts`, `inheritedCategoryGroups`), and this must
+  // agree with it or the toggle below describes something that is not happening.
+  //
+  // It did not agree. The label named the product's OWN category, so « Menu Eco »
+  // — filed under « Menu », whose parent is « Pizzas » — said it applied the
+  // settings of « Menu », which has no options at all. What it was really
+  // applying was the Pizzas size group and 14 pizza supplements, and the operator
+  // read that sentence while deciding whether to turn the toggle off.
+  const selectedCategory = categories.find((c) => c.id === categoryId);
+  const globalsCategory =
+    (selectedCategory?.parentId ? categories.find((c) => c.id === selectedCategory.parentId) : null) ??
+    selectedCategory;
   const [expandedParent, setExpandedParent] = useState<string | null>(() => {
     // On edit, pre-expand the parent if the product is in a sub-category
     const cat = categories.find((c) => c.id === product?.categoryId);
@@ -812,7 +829,12 @@ function ProductFormDialog({
             <div className="flex items-center justify-between rounded-lg border border-border bg-muted/20 p-3">
               <div>
                 <p className="text-sm font-semibold text-foreground">Hériter des options & suppléments globaux</p>
-                <p className="text-xs text-muted-foreground">Applique les réglages définis dans la catégorie « {categories.find((c) => c.id === categoryId)?.name ?? "—"} »</p>
+                <p className="text-xs text-muted-foreground">
+                  Applique les réglages définis dans la catégorie « {globalsCategory?.name ?? "—"} »
+                  {globalsCategory && selectedCategory && globalsCategory.id !== selectedCategory.id && (
+                    <> , catégorie parente de « {selectedCategory.name} »</>
+                  )}
+                </p>
               </div>
               <Switch checked={inheritCategoryGlobals} onCheckedChange={setInheritCategoryGlobals} />
             </div>
