@@ -114,14 +114,14 @@ export function CartPanel({ onCheckout, onEditItem, onOpenDiscount }: { onChecko
 
       {/* Order type pills */}
       <div className="shrink-0 border-b border-border p-2">
-        <div className="flex rounded-xl border border-border bg-muted/30 p-1">
+        <div className="flex gap-2">
           <button
             onClick={() => setOrderType("DINE_IN")}
             className={cn(
-              "flex-1 h-12 min-h-[48px] items-center justify-center rounded-lg text-xs font-semibold transition-all",
+              "flex flex-1 h-12 min-h-[48px] items-center justify-center rounded-full border text-xs font-semibold transition-all",
               orderType === "DINE_IN"
-                ? "bg-emerald-600 text-white shadow-sm"
-                : "text-muted-foreground hover:text-foreground",
+                ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
             )}
           >
             Sur place
@@ -129,10 +129,10 @@ export function CartPanel({ onCheckout, onEditItem, onOpenDiscount }: { onChecko
           <button
             onClick={() => setOrderType("TAKEAWAY")}
             className={cn(
-              "flex-1 h-12 min-h-[48px] items-center justify-center rounded-lg text-xs font-semibold transition-all",
+              "flex flex-1 h-12 min-h-[48px] items-center justify-center rounded-full border text-xs font-semibold transition-all",
               orderType === "TAKEAWAY"
-                ? "bg-emerald-600 text-white shadow-sm"
-                : "text-muted-foreground hover:text-foreground",
+                ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
             )}
           >
             À emporter
@@ -140,10 +140,10 @@ export function CartPanel({ onCheckout, onEditItem, onOpenDiscount }: { onChecko
           <button
             onClick={() => setOrderType("LIVRAISON")}
             className={cn(
-              "flex-1 h-12 min-h-[48px] items-center justify-center rounded-lg text-xs font-semibold transition-all",
+              "flex flex-1 h-12 min-h-[48px] items-center justify-center rounded-full border text-xs font-semibold transition-all",
               orderType === "LIVRAISON"
-                ? "bg-emerald-600 text-white shadow-sm"
-                : "text-muted-foreground hover:text-foreground",
+                ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
             )}
           >
             Livraison
