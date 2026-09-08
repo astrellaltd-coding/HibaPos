@@ -133,7 +133,7 @@ prisma/
   schema.prisma   → Schéma de base de données (centimes entiers)
   seed.ts         → Orchestrateur de seed CLI
 public/
-  uploads/        → Images du catalogue — **versionnées dans git** (139 fichiers, 49 Mo).
+  uploads/        → Images du catalogue — **versionnées dans git** (144 fichiers, 49 Mo).
                     Décision DD-16 du 2026-09-05 : git en est aujourd'hui la seule copie
                     versionnée, et aucune sauvegarde restaurable n'existe (L-46).
 docs/
