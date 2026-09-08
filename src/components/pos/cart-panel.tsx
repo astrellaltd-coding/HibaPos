@@ -175,13 +175,13 @@ export function CartPanel({ onCheckout, onEditItem, onOpenDiscount }: { onChecko
                   transition={{ duration: 0.13, ease: "easeOut" }}
                   className="rounded-xl border border-border bg-background p-2"
                 >
-                  {/* Top row — image, description, and the line's two actions.
-                      The quantity stepper and the total moved to a second row
-                      below: with all four blocks on one line the row's
-                      unshrinkable content was ~356px, and Radix's scroll
-                      viewport (min-width:100%; display:table) GROWS to that,
-                      pushing the card's right edge — and its rounded corner —
-                      outside the visible panel. */}
+                  {/* One row. The stepper sits between the description and the
+                      two actions; the line total sits directly under those two.
+                      Fixed content is ~304px (32 image + 112 stepper + 90 action
+                      column + gaps + padding + scrollbar), which fits the 360px
+                      desktop panel. Radix's scroll viewport is
+                      min-width:100%; display:table and GROWS to its content, so
+                      anything narrower than that clips the card's right corner. */}
                   <div className="flex items-start gap-2">
                     <ProductImage image={item.image} alt={item.productName} className="mt-0.5 h-8 w-8 shrink-0 rounded-md text-base" />
 
@@ -209,30 +209,7 @@ export function CartPanel({ onCheckout, onEditItem, onOpenDiscount }: { onChecko
                       )}
                     </div>
 
-                    <div className="flex shrink-0 items-center gap-0.5">
-                      {onEditItem && (item.options.length > 0 || item.addOns.length > 0) && (
-                        <button
-                          className="flex h-11 w-11 min-h-[44px] min-w-[44px] items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-primary active:scale-95"
-                          onClick={() => onEditItem(item)}
-                          aria-label="Modifier la ligne"
-                        >
-                          <Pencil className="h-3 w-3" />
-                        </button>
-                      )}
-                      <button
-                        className="flex h-11 w-11 min-h-[44px] min-w-[44px] items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive active:scale-95"
-                        onClick={() => removeItem(item.uid)}
-                        aria-label="Retirer la ligne"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Bottom row — quantity on the left, line total on the right,
-                      so the total sits under the edit and delete buttons. */}
-                  <div className="mt-1 flex items-center justify-between gap-2">
-                    <div className="flex shrink-0 items-center gap-0.5">
+                    <div className="flex shrink-0 items-center gap-0.5 self-center">
                       <button
                         className="group flex h-11 w-11 min-h-[44px] min-w-[44px] items-center justify-center rounded-md active:scale-95"
                         onClick={() => decItem(item.uid)}
@@ -254,7 +231,28 @@ export function CartPanel({ onCheckout, onEditItem, onOpenDiscount }: { onChecko
                       </button>
                     </div>
 
-                    <Money amount={computeLineTotal(item)} className="shrink-0 text-[12px] font-bold text-foreground" />
+                    <div className="flex shrink-0 flex-col items-center">
+                      <div className="flex items-center gap-0.5">
+                        {onEditItem && (item.options.length > 0 || item.addOns.length > 0) && (
+                          <button
+                            className="flex h-11 w-11 min-h-[44px] min-w-[44px] items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-primary active:scale-95"
+                            onClick={() => onEditItem(item)}
+                            aria-label="Modifier la ligne"
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </button>
+                        )}
+                        <button
+                          className="flex h-11 w-11 min-h-[44px] min-w-[44px] items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive active:scale-95"
+                          onClick={() => removeItem(item.uid)}
+                          aria-label="Retirer la ligne"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+
+                      <Money amount={computeLineTotal(item)} className="-mt-1 text-[12px] font-bold text-foreground" />
+                    </div>
                   </div>
                 </motion.div>
               ))}
