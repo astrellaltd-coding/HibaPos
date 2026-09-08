@@ -235,10 +235,22 @@ export function CartPanel({ onCheckout, onEditItem, onOpenDiscount }: { onChecko
                   </div>
 
                   <div className="mt-1.5 space-y-0.5 border-t border-border pt-1.5">
-                    {item.options.length > 0 && (
-                      <p className="line-clamp-1 text-[9px] text-muted-foreground">
-                        {item.options.map((o) => o.choice).join(", ")}
-                      </p>
+                    {/* The base line. `unitPrice` is the product at its chosen
+                        options — the "Senior" price — and is maintained by
+                        `recalculateUnitPrice`; nothing is computed here. Without
+                        it a pizza with supplements listed 1,50 € four times and
+                        no sign of where the other 11,90 € came from. Shown
+                        whenever the card lists any priced detail, so the same
+                        gap cannot reappear on a line that has supplements but
+                        no options. Like the supplement rows, this is a PER-UNIT
+                        price; the bold figure below is the line total. */}
+                    {(item.options.length > 0 || item.addOns.length > 0) && (
+                      <div className="flex items-baseline justify-between gap-2 text-[9px] text-muted-foreground">
+                        <span className="truncate">
+                          {item.options.length > 0 ? item.options.map((o) => o.choice).join(", ") : "Prix de base"}
+                        </span>
+                        <span className="shrink-0 tabular-nums">{formatEuro(item.unitPrice)}</span>
+                      </div>
                     )}
                     {item.addOns.map((a) => (
                       <div key={a.id} className="flex items-baseline justify-between gap-2 text-[9px] text-muted-foreground">
