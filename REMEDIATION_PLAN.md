@@ -556,6 +556,87 @@ that reason, on the same terms as Batch 1.3.)*
 
 ---
 
+## Batch 1.4c — How the app gets onto the till, and the refusal that was missing for it (L-66, DOC-17)
+
+**Status:** `COMPLETED`
+
+**Why it exists.** The operator asked, hours before the remote session, how the application would actually be installed on the till — was there an installer, a launcher, something that runs the necessary commands. Answering it from the scripts rather than from the runbook found that **nobody owned the question**. `install-windows.ps1` moves data *out of* the install directory and registers two Scheduled Tasks; it does not fetch code, install dependencies or build. `docs/mise-en-service.md` § 0 compressed all of that into one prerequisite row — *"The repository on the machine, and a `.env` from `.env.example`"* — and `.zscripts/README-windows.md` did the same, while additionally claiming the installer **puts a database in place**, which it cannot. And the launcher, which refuses four other ways to be wrong, did not refuse the one this gap produces.
+
+**The shape of the miss is the same as 1.4b's, one layer out.** 1.4b: the condition was detected where a human was watching (the installer) and not where nobody was (the launcher). Here: every *step* was known to whoever had done it before, and none of it was written down for the person who has not.
+
+### The measurements the answer rested on
+
+| | Size | Where it comes from |
+|---|---|---|
+| Tracked in git | 579 files, incl. **139 catalogue images (47.7 MB)** | `git clone` |
+| `db/custom.db` | **704 KB** | **carried by hand** — `/db/` is gitignored |
+| `.env` (rotated 2026-09-07) | 279 B | **carried by hand** — `.env*` gitignored bar the example |
+| `node_modules` | **880.6 MB, 46 479 files** | `bun install` on the till — do not copy |
+| `.next` | **388.4 MB** | `bun run build` on the till — do not copy |
+| `db/backups/` | 126.2 MB | **skip it**: not restorable (L-46), and undecryptable since the rotation |
+
+So the manual transfer is **about 705 KB**, which is the useful fact for a remote session, and `bun install` needing internet on the till is the one thing to confirm before travelling.
+
+### L-66 — the launcher does not refuse a missing production build (new, fixed here)
+
+**Severity:** MEDIUM · **Category:** operational / deployment
+
+**Problem.** `bun run start` is `next start`, which requires `.next/BUILD_ID`. A till cloned, installed and rebooted without `bun run build` comes up dead, and the launcher — which refuses a missing database, a pending migration, a missing `SESSION_SECRET` and, since 1.4b, a bun it cannot see — said nothing. `server.log` recorded a non-zero exit and no cause: **the same shape of silence as L-65, on the day after it.**
+
+**Fix.** Refusal 5, grouped with refusal 4 because both answer *"is this install finished?"*, both are instant local checks, and both were silent. It names the three commands and `build.ps1`, and on success logs the BUILD_ID it found.
+
+**It checks `BUILD_ID`, not the `.next` directory, and that distinction is the point.** `next dev` creates `.next` with no BUILD_ID, and so does a build that failed halfway, so the directory's existence proves nothing. BUILD_ID is the marker `next start` itself looks for. Revert R4 weakens the check to the directory and a test fails.
+
+### DOC-17 — neither deployment document said how the app gets onto the machine (new, fixed here)
+
+**Severity:** MEDIUM (it is the first hour of the commissioning session) · **Category:** documentation
+
+**What was missing, and what was wrong.** Neither `docs/mise-en-service.md` nor `.zscripts/README-windows.md` mentioned `bun install`, `bunx prisma generate` or `bun run build` **anywhere** — confirmed by grep before writing a word. Two orderings inside that gap are load-bearing and were therefore unrecorded: **`.env` before `bun run build`**, because `next build` throws at import time without `SESSION_SECRET` and blames the import; and **the build before § 2's reboot**, which is L-66's whole failure. Separately, `README-windows.md` § 5 asserted *"`install-windows.ps1` is the only path that puts one in place"* about the database. The installer **relocates** a database already in the install directory and prints `skip (absent)` otherwise. On a fresh clone there is nothing to relocate, and the sentence sends the reader looking for a script that will make them a database — which is exactly what L-59 forbids anything here from doing.
+
+**Fix.** A new **§ 0b** in the runbook: what comes from git, the two files carried by hand with their sizes, the sequence, the two orderings as checkboxes, and the internet question with its USB fallback. § 0's repository row now points at it instead of pretending it is one step. `README-windows.md` gains a *Step 0* before the installer, its prerequisites gain the carried files, and the false sentence in § 5 is corrected with a dated note in the style that file already uses.
+
+### Batch 1.4c — Validation Required
+
+- Refusal 5 fires, on a scratch project with no `.next`: `FATAL`, naming the commands, exit 1. **DONE.**
+- It fires **after** refusal 4 and **before** refusal 1, proved by a run where bun is present and the database is absent: `bun found` / `bunx found`, then `production build present: YGCIeyWl7ZL2nUoY7tIHR`, then refusal 1. **DONE.**
+- `[System.Management.Automation.Language.Parser]::ParseFile` — **756 tokens, no errors.**
+- BOM and pure ASCII preserved, both pinned by existing tests. **PASS.**
+- **Every message this batch adds must be rendered, not read.** **DONE — and it caught a real defect; see note 1.**
+- `bun run test`, `typecheck`, `lint`. **PASS.**
+- Production `db/custom.db` untouched, no server started, no task registered. **PASS.**
+
+### Batch 1.4c — Status Record
+
+**Status:** `COMPLETED`
+**Completed:** 2026-09-08
+**Commit:** *(this commit)*
+**Findings:** **L-66 (new, fixed here)**, **DOC-17 (new, fixed here)**. 1.4's four `[MACHINE]` criteria remain open.
+**Decisions:** none; the table stays empty.
+
+**Changes.** **(1) `hibapos-server.ps1` gains refusal 5** — `.next/BUILD_ID`, checked beside refusal 4, refusing with the three commands and `build.ps1` and logging the BUILD_ID on success. **(2) `docs/mise-en-service.md` gains § 0b**, the step that was missing between "rehearse" and "install": git versus the 705 KB carried by hand, the sizes that say what *not* to copy, the sequence, and the two orderings — `.env` before the build, the build before the reboot — as checkboxes rather than prose. § 0's repository row repointed. **(3) `.zscripts/README-windows.md`** gains a *Step 0* ahead of the installer, its prerequisites gain `db/custom.db` and the carried `.env`, and § 5's claim that the installer puts a database in place is corrected with a dated note. **(4) A standing guard** against the defect this batch shipped and caught: no backtick inside an expanding here-string, across all seven `.ps1`. **(5)** `sliceBlock` in the test file, replacing two fixed-width windows — including 1.4b's, which this batch had already weakened. **(6)** The README's pinned count and a third `EXPANSIONS` entry.
+
+**Files.** Modified: `.zscripts/hibapos-server.ps1`, `.zscripts/README-windows.md`, `docs/mise-en-service.md`, `src/lib/deployment.test.ts`, `src/lib/readme-counts.test.ts`, `README.md`, `REMEDIATION_PLAN.md`, `REMEDIATION_RECORD.md`.
+
+**Tests.** **1007 pass, 0 fail** (997 before). Ten new cases: three on refusal 5, seven from the backtick guard. **Seven reverts, both directions, and two of them are the batch's real content.** R1 deletes the block (three fail); R2 moves the guard below `bun run start` (ordering only); R3 turns `Fail` into `Write-Log`; R4 weakens BUILD_ID to the `.next` directory; **R5 restores the backticks — the actual bug — and the new guard catches it**; **R6 is a control**: a backtick in a `#` comment must *not* fail, and does not; **R7 re-checks 1.4b's guard** after `sliceBlock` replaced its window, and it still bites. `readme-counts.test.ts` caught the loop, not just the count, and said so.
+
+**Notes.**
+
+1. **The batch shipped the defect it had just spent a day fixing, in another language, and only running it found that.** Refusal 5's French message read `` `bun run start` lance `next start` `` — and **inside a double-quoted PowerShell here-string the backtick is the escape character**, so the operator would have read `<BACKSPACE>un run start lance ⏎ext start`. Identical in kind to DOC-16 the day before: an escape interpreted where a literal was meant. The file stays pure ASCII either way, so `deployment.test.ts`'s ASCII assertion could not see it — the damage happens at expansion, in front of the operator. Now guarded for all seven scripts, with a control proving comments and `@'…'@` are still allowed.
+
+2. **A revert that caught nothing, and the fix was in the test.** R3 — `Fail` → `Write-Log` — passed everything. The assertion sliced 1200 characters from `Test-Path $BuildId` and **refusal 1's `Fail @"` sits at +991**, so a neighbouring refusal satisfied it. *Methods → Prove the test fails on the old code.*
+
+3. **The same pattern had already silently weakened 1.4b's guard, and by 37 characters.** That assertion was itself the *fix* for a slice-between-landmarks bug the day before, and it used a 1200-character window. Inserting refusal 5 between the bun guard and refusal 1 moved the nearest foreign `Fail @"` to **+1237** — still outside, but one line of French from being vacuous. **A fixed-width window's strength depends on what lies downstream, so it decays as the file grows, and nothing announces it.** Both are now `sliceBlock(src, start, ownEndMarker)`, which cannot reach past its own block at any size. R7 exists to prove the replacement still bites.
+
+4. **`readme-counts.test.ts` earned its keep again, and not on the number.** The runner said 1007 while the test derived 1001, because the backtick guard is seven tests from one `it()` — a third expansion. The message named that possibility explicitly, so the fix was to declare the expansion *and* update the count. A test that had only compared totals would have been satisfied by editing one digit.
+
+5. **No installer was written, and that was a recommendation rather than an omission.** The operator asked whether one script could do everything. Most of the sequence could be automated; the database cannot — a script that creates or fetches one **is** L-59, the trap 1.4 removed from `start.ps1` — and neither can the secrets, `BACKUP_LOCATION`, the printer, FACTICE or § 6. The rest is a timing judgement: every automation script here earned trust by being run, and 1.4's installer had a silent nested-copy defect that its own dry run printed a flawless plan for. An installer written hours before delivery and never executed on the target is a worse risk than a written sequence. Recorded as a **Stage 9 candidate**, once a till exists that can be re-imaged.
+
+6. **Production untouched, and no server bound a port.** `db/custom.db` sha256 `d09369c09dd9b4515c78af31118e8dc47516e74c0ab4d41e2bc4d93c5e54b16b`, 704 512 bytes, mtime 2026-09-07 15:33:56 — identical throughout, no `-wal`/`-shm`. Every launcher run died at refusal 5 or refusal 1, so `bun run start` was never reached. The scratch project used a deliberately fake `SESSION_SECRET` (`TEST_ONLY_NOT_A_SECRET_…`) in the session scratchpad, never a real value. `Get-ScheduledTask -TaskName "HibaPOS*"` still returns nothing and `C:\HibaPOS` still does not exist. The operator's server on port 3000 was left alone.
+
+7. **What § 0b still cannot settle.** Whether the till has internet, which decides between `bun install` and carrying 880 MB of `node_modules`; and how long `next build` takes on all-in-one hardware, which nothing here can measure. Both are named in § 0b as questions for the operator rather than answered.
+
+---
+
 # STAGE 2 — DATA SURVIVAL
 
 **Stage status:** `COMPLETED` (2026-09-06) — **five batches done. Reopened 2026-09-06 for 2.5** and closed the same day: Batch 8.2's rehearsal found that the restore this stage built could not complete on Windows (**L-61**, HIGH), because `db.ts` cached its PrismaClient only outside production and the server therefore ran two, so `$disconnect()` never closed the file. Fixed, and the restore now completes in 2,6 s. Before it, `COMPLETED` (2026-09-03) with all four earlier batches. Two shipped mechanisms are **not yet in effect on the production install**: WAL waits on the DD-02 move off OneDrive (which **Batch 1.4 built the mover for**), and `BACKUP_LOCATION` still needs a second volume chosen at deployment.

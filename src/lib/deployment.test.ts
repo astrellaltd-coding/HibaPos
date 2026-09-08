@@ -24,6 +24,24 @@ import manifest from "@/app/manifest";
 const ZSCRIPTS = path.join(process.cwd(), ".zscripts");
 const read = (name: string) => readFileSync(path.join(ZSCRIPTS, name), "utf8");
 
+/**
+ * The text of ONE refusal block: from `start` up to that block's own `end`
+ * marker, never past it.
+ *
+ * Why this exists rather than `src.slice(at, at + n)`: a fixed window's
+ * strength depends on what follows the block, so it silently weakens whenever
+ * the file grows. Batch 1.4c measured that happening — see the two call sites.
+ * Both markers must be present and in order, which also means a gutted block
+ * fails here rather than passing on a neighbour's text.
+ */
+const sliceBlock = (src: string, start: string, end: string, what: string) => {
+  const a = src.indexOf(start);
+  if (a < 0) throw new Error(`${what}: start marker not found: ${start}`);
+  const b = src.indexOf(end, a);
+  if (b < 0) throw new Error(`${what}: end marker not found after the start: ${end}`);
+  return src.slice(a, b);
+};
+
 const ALL_SCRIPTS = [
   "build.ps1",
   "dev.ps1",
@@ -175,14 +193,20 @@ describe("the server launcher refuses a bun it cannot see (Batch 1.4b)", () => {
   it("refuses rather than warning, so the task cannot go green over a dead till", () => {
     // `Fail` writes FATAL and exits 1. A Write-Log/WARN here would let the
     // script carry on into the CommandNotFoundException it exists to prevent.
-    // Located from the `if` itself and read forward a fixed window, NOT sliced
-    // between two landmarks: a position-independent probe keeps this test about
-    // Fail-vs-warn only, so that moving the guard fails the ordering test above
-    // and nothing else. The first version of this assertion sliced to refusal 1
-    // and so failed under R2 as well, which made two reverts indistinguishable.
-    const at = src.indexOf("if (-not $bunCmd");
-    expect(at, "the bun guard's `if` was not found at all").toBeGreaterThanOrEqual(0);
-    const guardBlock = src.slice(at, at + 1200);
+    // Bounded by the guard's OWN end marker, not by a character count.
+    //
+    // TWO ITERATIONS, both recorded because the second was measured. The first
+    // version sliced between two landmarks — the guard's start and refusal 1's
+    // comment — and so went empty when the guard moved, failing under R2 as
+    // well and making two reverts indistinguishable. Replacing it with a fixed
+    // 1200-character window fixed that and introduced a subtler fault: the
+    // window's strength depends on what lies DOWNSTREAM of the block, so it
+    // decays as the file grows. When Batch 1.4c inserted refusal 5 between this
+    // guard and refusal 1, the nearest foreign `Fail @"` moved to +1237 — 37
+    // characters outside the window, and one line of French away from silently
+    // making this assertion vacuous. `sliceBlock` cannot reach past its own
+    // block at any file size.
+    const guardBlock = sliceBlock(src, "if (-not $bunCmd", 'Write-Log ("bun found', "the bun guard");
     expect(guardBlock, "the bun guard does not call Fail").toMatch(/Fail @"/);
   });
 
@@ -205,6 +229,95 @@ describe("the server launcher refuses a bun it cannot see (Batch 1.4b)", () => {
     expect(src).toMatch(/Write-Log \("bun found/);
     expect(src).toMatch(/Write-Log \("bunx found/);
   });
+});
+
+describe("the server launcher refuses a repo that was never built (Batch 1.4c)", () => {
+  const src = read("hibapos-server.ps1");
+  const commands = src.split("\n").map((l) => l.trim()).filter((l) => !l.startsWith("#"));
+  const firstIndex = (re: RegExp) => commands.findIndex((l) => re.test(l));
+
+  // MEASURED 2026-09-08. A till cloned, installed and rebooted without
+  // `bun run build` came up dead: `bun run start` is `next start`, which needs
+  // `.next/BUILD_ID`. Before this refusal the log recorded only a non-zero exit
+  // — the same shape of silence as L-65 — and NEITHER deployment document had a
+  // build step at all (DOC-17), which is how the gap stayed invisible.
+  it("guards the build before it tries to start the server", () => {
+    const guard = firstIndex(/Test-Path \$BuildId/);
+    const start = firstIndex(/&\s*bun\s+run\s+start/);
+    expect(guard, "no build guard at all").toBeGreaterThanOrEqual(0);
+    expect(start, "nothing starts the server any more — has this script changed shape?").toBeGreaterThanOrEqual(0);
+    expect(guard, "the build guard sits AFTER the server start").toBeLessThan(start);
+  });
+
+  it("checks BUILD_ID, not the .next directory", () => {
+    // `next dev` creates `.next` with no BUILD_ID, and so does a build that
+    // failed halfway, so the directory's existence proves nothing. BUILD_ID is
+    // the marker `next start` itself looks for.
+    expect(src).toContain("BUILD_ID");
+    const guardLine = commands.find((l) => /\$BuildId\s*=/.test(l)) ?? "";
+    expect(guardLine, "the guard does not resolve BUILD_ID").toMatch(/BUILD_ID/);
+    // A guard that merely tested the directory would satisfy the line above by
+    // accident, so pin the negative too.
+    expect(
+      commands.some((l) => /Test-Path.*\.next"\s*\)/.test(l)),
+      "the guard tests the .next directory rather than BUILD_ID",
+    ).toBe(false);
+  });
+
+  it("refuses rather than warning, and names how to build", () => {
+    // MEASURED, after this assertion's first version failed to bite. A 1200-
+    // character window from `Test-Path $BuildId` reached refusal 1's `Fail @"`
+    // at +991, so turning THIS block's `Fail` into a `Write-Log` was satisfied
+    // by the neighbouring refusal and R3 caught nothing. Its own `Fail` is at
+    // +27 and its block ends at +534.
+    const guardBlock = sliceBlock(src, "Test-Path $BuildId", 'Write-Log ("production build present', "the build guard");
+    expect(guardBlock, "the build guard does not call Fail").toMatch(/Fail @"/);
+    expect(guardBlock).toContain("bun run build");
+    expect(guardBlock).toContain("build.ps1");
+    expect(guardBlock).toContain("mise-en-service.md");
+  });
+});
+
+describe("no .ps1 hides a backtick inside an expanding here-string (Batch 1.4c)", () => {
+  // FOUND BY RUNNING THE SCRIPT, not by reading it — and it was this batch's
+  // own new message that did it. Inside @"…"@ the BACKTICK IS POWERSHELL'S
+  // ESCAPE CHARACTER, so `bun run start` in a French error message arrived as
+  // <BACKSPACE>un run start, and `next start` as a newline followed by "ext".
+  // The file stays pure ASCII either way, so the ASCII/BOM test above cannot
+  // see it: the damage happens at expansion time, in front of the operator.
+  //
+  // This is the same defect class as DOC-16, which corrupted the runbook's own
+  // warnings a day earlier — an escape interpreted where a literal was meant.
+  // A backtick in a `#` comment is harmless (comments never expand) and a
+  // single-quoted here-string @'…'@ does not expand either, so both are allowed.
+  const BACKTICK = String.fromCharCode(96);
+
+  for (const f of ALL_SCRIPTS) {
+    it(`${f}: no backtick inside @"…"@`, () => {
+      const lines = read(f).split("\n");
+      let inExpanding = false;
+      const offenders: string[] = [];
+      lines.forEach((line, i) => {
+        const t = line.trim();
+        if (inExpanding) {
+          if (t === '"@') { inExpanding = false; return; }
+          if (line.includes(BACKTICK)) offenders.push(`line ${i + 1}: ${line.trim()}`);
+          return;
+        }
+        if (t === "@'" || t.endsWith("@'")) {
+          // A single-quoted here-string: literal, so skip to its terminator.
+          inExpanding = false;
+          return;
+        }
+        if (t.endsWith('@"')) inExpanding = true;
+      });
+      expect(
+        offenders,
+        `${f} has a backtick inside an expanding here-string, where PowerShell reads it as an escape:\n  ` +
+          offenders.join("\n  "),
+      ).toEqual([]);
+    });
+  }
 });
 
 describe("the update procedure never touches the data (C-05, C-07)", () => {

@@ -31,7 +31,7 @@ at the till. Everything the owner has to *see* or *touch* is marked **[OWNER]**.
 | The printer's **IP address**, fixed not DHCP | § 3 needs it, and a DHCP lease that moves silently breaks printing weeks later. |
 | The printer on the **same network** as the till, powered, with paper | |
 | A **second volume** for `BACKUP_LOCATION` — USB drive, NAS share, anything not the system disk | A backup on the same disk as the database is not a backup (C-06). |
-| The repository on the machine, and a `.env` from `.env.example` | |
+| The repository on the machine, plus dependencies and a **production build** | **This is § 0b, and it is more than one step** — the code comes from git, but `db/custom.db` and the rotated `.env` are carried by hand, and `bun install` / `prisma generate` / `bun run build` all have to happen before § 2's reboot. |
 | **[OWNER]** available at the till for §§ 3 and 7 | Somebody has to watch paper come out and a drawer open. |
 
 **Not needed yet:** `FISCAL_CHAIN_KEY`. It is generated in § 6e, after the reset, and never before — and it is **not** one of the two secrets already rotated — § 6a only *checks* those now.
@@ -71,6 +71,75 @@ powershell -ExecutionPolicy Bypass -File .zscripts\install-windows.ps1 -DataDir 
       ```
 
 Whatever this finds is worth knowing tonight rather than in front of the client.
+
+---
+## 0b. Get the app onto the till — the step this runbook used to skip
+
+**There is no installer that does this.** `install-windows.ps1` moves data *out
+of* the install directory and registers the two Scheduled Tasks; it does not
+fetch code, install dependencies, or build. Nothing else did either, and § 0
+compressed all of it into "the repository on the machine" — which is how the gap
+stayed invisible until it was looked for (DOC-17, 2026-09-08).
+
+### What comes from git, and what you carry by hand
+
+The repository carries **579 tracked files, including the 139 catalogue images
+(47.7 MB)**. Two things it deliberately does not:
+
+| Carry by hand | Size | Why it is not in git |
+|---|---|---|
+| **`db/custom.db`** | **704 KB** | `/db/` is gitignored. **This is the restaurant's real catalogue and it exists nowhere else** — 78 products, their options and their VAT rates. Warning 4: treat it as irreplaceable. |
+| **`.env`** — the one rotated 2026-09-07 | 279 B | `.env*` is gitignored except `.env.example`. § 0's second prerequisite is about this file. |
+
+**That is the whole manual transfer: about 705 KB.** Do **not** copy
+`node_modules` (880 MB, 46 479 files) or `.next` (388 MB) across the link —
+install and build on the till instead. **Skip `db/backups/` too** (126 MB): those
+three backups predate seven fiscal tables so `assertCompatibleSchema` refuses
+them (L-46), and since the rotation they no longer decrypt at all. § 6b creates
+the first restorable one.
+
+### The sequence, and the two orderings that matter
+
+```powershell
+# 1. the code
+git clone <remote> C:\HibaPOS-app        # or copy the working tree
+cd C:\HibaPOS-app
+
+# 2. the two carried files, BEFORE anything else
+#    db\custom.db  ->  C:\HibaPOS-app\db\custom.db
+#    .env          ->  C:\HibaPOS-app\.env
+
+# 3. dependencies and the production build
+bun install
+bunx prisma generate
+bun run build
+```
+
+`bun install`, `prisma generate` and `bun run build` are also what
+`.zscripts\build.ps1` runs, if you would rather have one command for the last
+two.
+
+- [ ] **`.env` is in place before `bun run build`.** `next build` throws at
+      import time without `SESSION_SECRET`, and the message points at the import,
+      not at the missing file.
+- [ ] **The build happens before the reboot in § 2.** `bun run start` is
+      `next start`, which needs `.next/BUILD_ID`. Register the tasks and reboot
+      without building and the till comes up dead. **Since 2026-09-08 the
+      launcher refuses loudly** and names the three commands above in
+      `server.log` (refusal 5) — but it is a much better morning if it never
+      fires.
+- [ ] `db\custom.db` is the **704 KB** file from the development machine, not a
+      new one. Check the size before going further: nothing here will create a
+      database, and a wrong path is answered by a refusal rather than an empty
+      till (L-59).
+
+> **`bun install` needs internet on the till.** Confirm the restaurant has it
+> before you rely on this. If it does not, the fallback is to carry
+> `node_modules` on a USB stick — 880 MB, and slow to copy, but it works and
+> needs no network. Decide this before you travel, not at the till.
+
+Only then § 1, which moves the data out of this directory and registers the
+tasks.
 
 ---
 

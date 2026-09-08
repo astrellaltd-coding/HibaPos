@@ -57,6 +57,11 @@ const EXPANSIONS = [
     what: "for (const f of ALL_SCRIPTS) it(…) — seven PowerShell scripts",
     runs: 7,
   },
+  {
+    where: "src/lib/deployment.test.ts",
+    what: "for (const f of ALL_SCRIPTS) it(…) — the backtick-in-here-string guard, Batch 1.4c",
+    runs: 7,
+  },
 ];
 
 function testFilesUnder(dir: string, match: (f: string) => boolean): string[] {

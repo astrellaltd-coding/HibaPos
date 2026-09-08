@@ -29,9 +29,42 @@ Running and deploying **HibaPOS France** on the restaurant's Windows all-in-one.
   installer with `-ServerAccount <compte>`. `install-windows.ps1` checks this
   and warns.
 - **Microsoft Edge** — ships with Windows 10/11.
-- A `.env` file — copy `.env.example` and fill it in.
+- A `.env` file. On a **new** machine this is the file **carried from the
+  development machine**, not a fresh copy of `.env.example`: it holds the
+  `SESSION_SECRET` and `BACKUP_ENCRYPTION_KEY` rotated on 2026-09-07, and an
+  older one means the backups written here cannot be opened by anyone.
+- **`db/custom.db`, carried by hand.** `/db/` is gitignored, so a clone has no
+  database — and **nothing in this repository will create one**, deliberately
+  (L-59). It is 704 KB and it holds the restaurant's real catalogue.
+- **Dependencies and a production build**, which are nobody's job until you make
+  them yours — see § 2, step 0. `bun install` needs internet on the target
+  machine.
 
 ## 2. Installing
+
+### Step 0 — first, make it a working app
+
+**`install-windows.ps1` does not do this and never did.** It moves data out of
+the install directory and registers the Scheduled Tasks. On a machine that has
+only just been cloned, do this first, in this order:
+
+```powershell
+# db\custom.db and .env into place BEFORE this -- see the prerequisites
+bun install
+bunx prisma generate
+bun run build        # or .zscripts\build.ps1, which does the last two
+```
+
+Two orderings are load-bearing. **`.env` before `bun run build`**, because
+`next build` throws at import time with no `SESSION_SECRET`. And **the build
+before the reboot**, because `bun run start` is `next start`, which needs
+`.next/BUILD_ID`; register the tasks and reboot without it and the till comes up
+dead. Since 2026-09-08 the launcher refuses loudly and names these commands
+(refusal 5), which turns a silent morning into a one-line fix — but not needing
+it is better. The ordered version of all this, with the sizes and the reasons, is
+`docs/mise-en-service.md` § 0b.
+
+### Then the installer
 
 ```powershell
 # 1. See what it would do. Changes nothing.
@@ -120,8 +153,17 @@ SESSION_SECRET="…32+ chars…"
 BACKUP_ENCRYPTION_KEY="…32+ chars…"
 ```
 
-The database is **not** created automatically any more; `install-windows.ps1`
-is the only path that puts one in place.
+The database is **not** created automatically any more, and **no script here
+creates one at all.**
+
+> **Corrected 2026-09-08 (Batch 1.4c, DOC-17).** This sentence used to end
+> "`install-windows.ps1` is the only path that puts one in place", which is
+> wrong in a way that costs an hour on a remote connection. The installer
+> **relocates** a database that is already in the install directory and prints
+> `skip (absent)` when there is none — it cannot put one there. On a new machine
+> `db/custom.db` is **carried by hand** (it is gitignored), and if it is missing
+> the launcher refuses with *Base de donnees introuvable* rather than creating an
+> empty till (L-59). See `docs/mise-en-service.md` § 0b.
 
 > **Corrected 2026-09-05 (batch 7.1, DOC-03).** This section used to say the
 > database initializes "in SQLite WAL mode on first launch". Both halves were

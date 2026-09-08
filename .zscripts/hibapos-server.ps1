@@ -46,6 +46,19 @@
 #    up in front of a customer. Checked FIRST now, and it logs which bun it
 #    found even when it succeeds.
 #
+# 5. NO PRODUCTION BUILD  ->  refuse.
+#    `bun run start` is `next start`, which needs `.next/BUILD_ID`. A till
+#    that was cloned, installed and rebooted WITHOUT `bun run build` comes up
+#    dead, and until this refusal existed the log said only that the server
+#    had exited non-zero -- the same shape of silence as refusal 4. Neither
+#    deployment document had a build step at all (DOC-17), which is how the
+#    gap stayed invisible: the installer moves data and registers tasks, it
+#    does not build, and nothing else said who does.
+#    BUILD_ID and not the `.next` DIRECTORY, deliberately: `next dev` creates
+#    `.next` without a BUILD_ID, and so does a build that failed halfway, so
+#    the directory's existence proves nothing. The marker is what `next start`
+#    itself looks for.
+#
 # A refusal is loud: it writes to the log and exits non-zero, so the Task
 # Scheduler entry shows a failure instead of a green tick over a dead till.
 
@@ -133,6 +146,27 @@ Voir .zscripts\install-windows.ps1 et docs\mise-en-service.md section 0.
 }
 Write-Log ("bun found: {0}" -f $bunCmd.Source)
 Write-Log ("bunx found: {0}" -f $bunxCmd.Source)
+
+# --- refusal 5: a production build must exist -------------------------------
+# Grouped with refusal 4 because both are 'is this install finished?', both
+# are instant local checks, and both are silent failures otherwise.
+$BuildId = Join-Path $ProjectDir ".next\BUILD_ID"
+if (-not (Test-Path $BuildId)) {
+    Fail @"
+Aucune version de production compilee : $BuildId est absent.
+"bun run start" lance "next start", qui exige ce fichier. La caisse ne peut
+pas demarrer sur un depot qui n'a jamais ete compile.
+Depuis le dossier d'installation ($ProjectDir) :
+    bun install
+    bunx prisma generate
+    bun run build
+ou, tout en un :
+    powershell -ExecutionPolicy Bypass -File .zscripts\build.ps1
+Puis relancez la tache : Start-ScheduledTask -TaskName "HibaPOS Server"
+Voir docs\mise-en-service.md section 0b.
+"@
+}
+Write-Log ("production build present: {0}" -f (Get-Content $BuildId -Raw).Trim())
 
 # --- refusal 1: the database must already exist -----------------------------
 # DATABASE_URL is a file: URL with query parameters; strip both to get a path.
