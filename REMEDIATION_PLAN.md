@@ -1519,7 +1519,7 @@ Audit section J, step 6: none of these are subtle; all of them generate support 
 
 ## Batch 5.8 — The catalogue editor writes inherited option groups back onto the product (L-67)
 
-**Status:** `COMPLETED` · **Completed:** 2026-09-08 · **Commit:** `PLACEHOLDER_SHA` · **Findings:** L-67 (**closed**)
+**Status:** `COMPLETED` · **Completed:** 2026-09-08 · **Commit:** `6994e5f` · **Findings:** L-67 (**closed**)
 **Record:** `REMEDIATION_RECORD.md` → *Batch 5.8* — specification, validation criteria and status record, moved there verbatim on 2026-09-08.
 
 **No migration.** **Stage 5 closes again.**
