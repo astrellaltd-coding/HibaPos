@@ -378,6 +378,14 @@ function ProductFormDialog({
   // Other option groups (excluding "Taille")
   const [groups, setGroups] = useState<GroupForm[]>(
     (product?.options ?? [])
+      // L-67 (Batch 5.8). Inherited groups are edited on the CATEGORY, not
+      // here. Offering them in this form is what fed them back to `PUT`, which
+      // stored each one a second time as the product's own; and now that the
+      // server refuses those, offering them would silently discard the edit.
+      // The size group is deliberately NOT filtered here — `existingSizes`
+      // above reads it from the merged list and it drives the product's own
+      // base price, which does save.
+      .filter((g: OptionGroupDto) => !g.inherited)
       .filter((g: OptionGroupDto) => g.name !== SIZE_GROUP_NAME)
       .map((g: OptionGroupDto) => ({
         name: g.name,

@@ -48,6 +48,7 @@ function serialize(p: ProductWithRelations): ProductDto {
           required: g.required,
           multiple: g.multiple,
           sortOrder: g.sortOrder,
+          inherited: true,
           choices: (g.choices ?? [])
             .slice()
             .sort((a, b) => a.sortOrder - b.sortOrder)
@@ -92,6 +93,7 @@ function serialize(p: ProductWithRelations): ProductDto {
       required: g.required,
       multiple: g.multiple,
       sortOrder: g.sortOrder,
+      inherited: false,
       choices: (g.choices ?? [])
         .slice()
         .sort((a, b) => a.sortOrder - b.sortOrder)

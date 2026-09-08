@@ -61,6 +61,12 @@ export type OptionGroupDto = {
   required: boolean;
   multiple: boolean;
   sortOrder: number;
+  /** True when this group comes from the product's category rather than the
+   *  product itself (L-67, Batch 5.8). Without it the merged list in
+   *  `ProductDto.options` is indistinguishable, the admin editor round-trips
+   *  the category's groups back to `PUT`, and each one is stored a second time
+   *  as the product's own. */
+  inherited: boolean;
   choices: {
     id: string;
     name: string;

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { inheritedGroupNames, splitOwnFromInherited } from "@/lib/services/product-options";
 import { db } from "@/lib/db";
 import { withAuthParams, parseJson } from "@/lib/api-handler";
 import { productSchema } from "@/lib/validation";
@@ -45,6 +46,7 @@ function serialize(p: ProductWithRelations): ProductDto {
           required: g.required,
           multiple: g.multiple,
           sortOrder: g.sortOrder,
+          inherited: true,
           choices: (g.choices ?? [])
             .slice()
             .sort((a, b) => a.sortOrder - b.sortOrder)
@@ -89,6 +91,7 @@ function serialize(p: ProductWithRelations): ProductDto {
       required: g.required,
       multiple: g.multiple,
       sortOrder: g.sortOrder,
+      inherited: false,
       choices: (g.choices ?? [])
         .slice()
         .sort((a, b) => a.sortOrder - b.sortOrder)
@@ -207,9 +210,42 @@ export const PUT = withAuthParams(async (req, { user, params }) => {
     // the product had and returned 200. Absent now leaves them untouched;
     // an explicit `[]` still clears them.
     if (options !== undefined) {
+      // L-67 (Batch 5.8). REFUSE TO STORE A GROUP THE PRODUCT ALREADY INHERITS.
+      //
+      // The GET merges the category's groups with the product's own and marks
+      // neither, so any client that round-trips a product — the admin editor
+      // does — sends the inherited ones straight back here. Persisting them
+      // gave the product its own copy of every group its category provides,
+      // while the category kept its own, and the POS then rendered each one
+      // twice. Twelve products on production reached that state, all edited on
+      // one afternoon; a « Sauces » group marked `required` had to be answered
+      // twice before the product could be added to a basket.
+      //
+      // The rule is `scripts/fix-duplicate-product-options.ts`'s, reproduced
+      // through the shared module so the guard and the repair cannot drift:
+      // inheritance on, category is `parent ?? category`, names compared
+      // trimmed and lower-cased. A product needing its own version of an
+      // inherited group turns `inheritCategoryGlobals` off — with it on, a
+      // same-named group is this corruption and not an override.
+      //
+      // Silent rather than a 400: the client is sending back what the GET gave
+      // it, which is not a caller error, and failing the save would block an
+      // operator from editing a price on any product with inherited options.
+      const savedCategory = productData.categoryId
+        ? await tx.category.findUnique({
+            where: { id: productData.categoryId },
+            include: { optionGroups: { select: { name: true } }, parent: { include: { optionGroups: { select: { name: true } } } } },
+          })
+        : null;
+      const inherited = inheritedGroupNames(
+        productData.inheritCategoryGlobals !== false,
+        savedCategory,
+      );
+      const { own: ownGroups } = splitOwnFromInherited(options, inherited);
+
       await tx.optionGroup.deleteMany({ where: { productId: params.id } });
-      for (let i = 0; i < options.length; i++) {
-        const g = options[i];
+      for (let i = 0; i < ownGroups.length; i++) {
+        const g = ownGroups[i];
         const group = await tx.optionGroup.create({
           data: {
             productId: params.id,
