@@ -1086,7 +1086,7 @@ Nothing else in the catalogue changes: all 61 non-drink products stay at 10 %.
 
 ### Status record
 
-**Status:** `IMPLEMENTED — TESTING REQUIRED` · **Code complete and validated 2026-09-09** · **Commit:** `PLACEHOLDER_SHA` · **Findings:** L-68 · **Decisions:** none taken here — the rule is the operator's ruling of 2026-09-09, encoded, not chosen.
+**Status:** `IMPLEMENTED — TESTING REQUIRED` · **Code complete and validated 2026-09-09** · **Commit:** `004c112` · **Findings:** L-68 · **Decisions:** none taken here — the rule is the operator's ruling of 2026-09-09, encoded, not chosen.
 
 **Why not `COMPLETED`.** Two things remain and neither is Claude's: **the migration has not been applied to production** (warning 9), and **L-68f — the rates on *Bouteilles* and *Canette* — is a write to real menu data.** Until both are done the production till still books every drink at 5,5 % under all three order types. The code, the tests and the rehearsal are finished.
 
