@@ -155,10 +155,13 @@ two.
 > is this mistake and nothing else. It will not create a database to paper over it
 > (L-59). Twenty minutes if you recognise the line, longer if you do not.
 
-> **`bun install` needs internet on the till.** Confirm the restaurant has it
-> before you rely on this. If it does not, the fallback is to carry
-> `node_modules` on a USB stick — 880 MB, and slow to copy, but it works and
-> needs no network. Decide this before you travel, not at the till.
+> **`bun install` needs internet on the till — and the operator confirmed on
+> 2026-09-08 that it has it.** So this is the path: no `node_modules` to carry.
+> Together with `bun run build` it is the longest step in this section, and
+> neither needs watching — start `bun install` and do something else.
+>
+> *The fallback, kept in case the connection is down on the day: carry
+> `node_modules` on a USB stick — 880 MB, slow to copy, needs no network.*
 
 Only then § 1, which moves the data out of this directory and registers the
 tasks.
