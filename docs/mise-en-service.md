@@ -32,15 +32,15 @@ at the till. Everything the owner has to *see* or *touch* is marked **[OWNER]**.
 | The printer on the **same network** as the till, powered, with paper | |
 | A **second volume** for `BACKUP_LOCATION` — USB drive, NAS share, anything not the system disk | A backup on the same disk as the database is not a backup (C-06). |
 | The repository on the machine, plus dependencies and a **production build** | **This is § 0b, and it is more than one step** — the code comes from git, but `db/custom.db` and the rotated `.env` are carried by hand, and `bun install` / `prisma generate` / `bun run build` all have to happen before § 2's reboot. |
-| **[OWNER]** available at the till for §§ 3 and 7 | Somebody has to watch paper come out and a drawer open. |
+| **[OWNER]** available at the till for §§ 4 and 7 | Somebody has to watch paper come out and a drawer open — that is § 4's print and drawer test, and § 7's trading day. *(Read §§ 3 and 7 until 2026-09-08; § 3 is the FACTICE switch, which needs nobody watching.)* |
 
 **Not needed yet:** `FISCAL_CHAIN_KEY`. It is generated in § 6e, after the reset, and never before — and it is **not** one of the two secrets already rotated — § 6a only *checks* those now.
 
 ---
 
-## 0a. Rehearse on a spare Windows machine — the evening before
+## 0a. Rehearse on a spare Windows machine — before you connect, if there is time
 
-**Optional, and worth more than any other hour spent before delivery.** It closes
+**Optional, and worth more than any other hour spent before delivery** — and if the day has arrived without it, skip it rather than delaying: it rehearses §§ 1–2, it does not replace them. It closes
 **Batch 1.4's four `[MACHINE]` criteria** — a cold reboot, the supervisor restart,
 the Scheduled Task registration itself, and the till coming up unattended — on a
 machine where getting it wrong costs nothing.
@@ -70,7 +70,7 @@ powershell -ExecutionPolicy Bypass -File .zscripts\install-windows.ps1 -DataDir 
       Remove-Item -Recurse -Force C:\HibaPOS-rehearsal
       ```
 
-Whatever this finds is worth knowing tonight rather than in front of the client.
+Whatever this finds is worth knowing on a spare machine rather than in front of the client.
 
 ---
 ## 0b. Get the app onto the till — the step this runbook used to skip
