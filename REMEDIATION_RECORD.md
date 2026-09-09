@@ -2105,7 +2105,7 @@ inventing an operator-facing one is not what the finding asks for.
 
 ### Status record
 
-**Status:** `COMPLETED` · **Completed:** 2026-09-09 · **Commit:** `004c112` (code), `PLACEHOLDER_SHA` (this record) · **Findings:** L-68 (**closed**) · **Decisions:** none taken here — the rule is the operator's ruling of 2026-09-09, encoded, not chosen.
+**Status:** `COMPLETED` · **Completed:** 2026-09-09 · **Commit:** `004c112` (code), `58f14a5` (this record) · **Findings:** L-68 (**closed**) · **Decisions:** none taken here — the rule is the operator's ruling of 2026-09-09, encoded, not chosen.
 
 **Both [OWNER] steps were taken by the operator on 2026-09-09 and the result is verified on the live till — see note 9.**
 
@@ -2131,7 +2131,7 @@ inventing an operator-facing one is not what the finding asks for.
 12. **Simulation mode was OFF while these were rung**, so the receipts carry no `FACTICE` stamp and the sales were journalled as genuine. Flagged to the operator when it was noticed. It costs nothing here — § 6 clears the journal — but **FACTICE must be on for the client's three-day trial**, where the old till is the system of record.
 
 
-*Moved verbatim from `REMEDIATION_PLAN.md` lines 1038–1111 (commit `PLACEHOLDER_SHA`) on 2026-09-09.*
+*Moved verbatim from `REMEDIATION_PLAN.md` lines 1038–1111 (commit `58f14a5`) on 2026-09-09.*
 
 ---
 
