@@ -72,17 +72,17 @@ model Session {
 // ---------------------------------------------------------------------------
 
 model Category {
-  id        String   @id @default(cuid())
-  name      String   @unique
-  color     String   @default("#f59e0b")
-  icon      String? // lucide icon name (preferred) or emoji fallback
-  sortOrder Int      @default(0)
-  active    Boolean  @default(true)
+  id              String   @id @default(cuid())
+  name            String   @unique
+  color           String   @default("#f59e0b")
+  icon            String? // lucide icon name (preferred) or emoji fallback
+  sortOrder       Int      @default(0)
+  active          Boolean  @default(true)
   // VAT rate for products in this category that opt into inheritance (L-16/L-17).
   // NULL = "not set here" — resolution walks own category -> parent -> the
   // product's own rate. The fiscal criterion is the container, not the drink,
   // so this belongs on `Canette`/`Bouteilles` rather than on `Boissons`.
-  vatRate   Float?
+  vatRate         Float?
   // The rate when the order is NOT consumed on the premises — L-68, Batch 3.12.
   //
   // Operator's ruling 2026-09-09: a sealed bottle or can is 10 % sur place and
@@ -95,8 +95,8 @@ model Category {
   // column safe to add: every product that resolves to 10 % today keeps
   // resolving to 10 % under all three order types until a category sets this.
   vatRateTakeaway Float?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   parentId String?
   parent   Category?  @relation("CategoryChildren", fields: [parentId], references: [id], onDelete: SetNull)
@@ -105,6 +105,10 @@ model Category {
   products     Product[]
   optionGroups CategoryOptionGroup[]
   addOns       CategoryAddOn[]
+  /**
+   * Menu slots that draw their fillers from this category (Batch 5.9).
+   */
+  comboSlots   ComboSlot[]
 
   @@index([parentId])
 }
@@ -127,16 +131,155 @@ model Product {
   // every existing product keeps the rate it already has — the migration
   // changes no behaviour on its own.
   inheritCategoryVat     Boolean  @default(false)
+  // This product is a MENU COMPOSÉ — a forfait whose components the cashier
+  // chooses slot by slot (Batch 5.9). Its `price` / `pickupPrice` /
+  // `deliveryPrice` are the forfait for each order type; it has no rate of its
+  // own that a sale ever uses, because a menu EXPLODES at checkout into one
+  // `OrderItem` per component, each carrying its own `resolveVatRate`.
+  //
+  // Defaults to FALSE, which is what makes the migration inert: all 74
+  // products on the catalogue keep behaving exactly as they do today.
+  //
+  // A COMBO MAY NEVER FILL A SLOT. `Menu Eco` sits under `Pizzas`, so a
+  // "any pizza" slot would otherwise offer the menu itself; every filler
+  // lookup filters on `isCombo: false` for that reason (`combo.ts`).
+  isCombo                Boolean  @default(false)
   sortOrder              Int      @default(0)
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
-  category   Category      @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  category   Category          @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   options    OptionGroup[]
   orderItems OrderItem[]
+  /**
+   * The slots of THIS product, when it is a menu.
+   */
+  comboSlots ComboSlot[]       @relation("ComboSlotMenu")
+  /**
+   * The slots this product is an explicit filler of — see `ComboSlotChoice`.
+   * `Restrict` on that side is why a product inside a menu cannot be deleted
+   * without the operator being told which menu depends on it.
+   */
+  comboFills ComboSlotChoice[]
 
   @@index([categoryId])
   @@index([name])
+}
+
+// ---------------------------------------------------------------------------
+// Menus composés (Batch 5.9)
+//
+// A menu is a `Product` with `isCombo = true` and a list of SLOTS. Each slot
+// asks the cashier for one component — « quelle pizza ? », « quelle boisson ? »
+// — `quantity` times over, and each answer is configured INDEPENDENTLY: the
+// first burger with salad, the second without. That independence is the whole
+// reason this batch exists; `CartItem` holds one set of options and one set of
+// add-ons and cannot express it.
+//
+// WHAT A SLOT IS ALLOWED TO CONTAIN, in the order the resolver tries:
+//   1. an explicit whitelist (`ComboSlotChoice`), each entry with its own
+//      surcharge — one entry means the component is fixed and is never asked;
+//   2. failing that, every non-combo product in `sourceCategory` and its
+//      children, exactly as the POS grid resolves a parent category.
+//
+// `sourceCategoryId` is required either way: it is what the admin screen lists
+// and what a whitelist entry is validated against, so a menu can never point
+// at a product from a category it does not draw from.
+// ---------------------------------------------------------------------------
+
+model ComboSlot {
+  id               String @id @default(cuid())
+  /**
+   * The MENU this slot belongs to.
+   */
+  productId        String
+  /**
+   * What the cashier is asked — « Pizza 1 », « Boisson », « Frite ».
+   */
+  name             String
+  /**
+   * How many components this slot takes. The Duo's burger slot is 2.
+   */
+  quantity         Int    @default(1)
+  sortOrder        Int    @default(0)
+  /**
+   * The tree a filler may come from (this category and its children).
+   */
+  sourceCategoryId String
+
+  product        Product  @relation("ComboSlotMenu", fields: [productId], references: [id], onDelete: Cascade)
+  sourceCategory Category @relation(fields: [sourceCategoryId], references: [id], onDelete: Restrict)
+
+  choices     ComboSlotChoice[]
+  optionRules ComboSlotOptionRule[]
+
+  @@index([productId])
+  @@index([sourceCategoryId])
+}
+
+/**
+ * One product a slot may be filled with, and what it costs on top.
+ * `surcharge` is a SUPPLEMENT in the sense of `docs/politique-ventilation-tva.md`
+ * § 6: charged on top of the forfait, at the component's own rate, and OUTSIDE
+ * the allocation. The forfait that gets split is the menu price alone.
+ * It exists because the operator's ruling could not be derived from the
+ * catalogue: inside a Duo, « Frite Cheddar » costs **+1,50 €**, while the
+ * standalone products differ by 1,40 (4,90 against 3,50). The figure is the
+ * modifier the `Burgers → Frite` category group already carries, and there was
+ * nowhere else to put it.
+ * An EMPTY choice list means the whole `sourceCategory` tree at no surcharge.
+ * A list of ONE means the component is fixed: the cashier configures it but is
+ * never asked which product it is.
+ */
+model ComboSlotChoice {
+  id        String @id @default(cuid())
+  slotId    String
+  productId String
+  /**
+   * Cents on top of the menu price. 0 for a filler included in the forfait.
+   */
+  surcharge Int    @default(0)
+  sortOrder Int    @default(0)
+
+  slot    ComboSlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  product Product   @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@unique([slotId, productId])
+  @@index([slotId])
+  @@index([productId])
+}
+
+/**
+ * An inherited CATEGORY option group the menu governs, so the cashier is not
+ * asked it inside the menu.
+ * Two shapes, and both are needed by the six menus:
+ * - `categoryOptionChoiceId` SET — the menu answers the group itself. This is
+ * the pizza size: a Menu Chill fixes `Taille = Senior`, so the cashier picks
+ * only which pizza. The choice's price modifier IS counted in the
+ * component's reference price, because a Senior is worth 11,90 at catalogue
+ * and that is the weight § 2 of the policy tells us to apportion by.
+ * - `categoryOptionChoiceId` NULL — the group is simply not asked, because
+ * another slot covers it. Every burger inherits a REQUIRED `Frite` group
+ * from `Burgers`; a Duo of two burgers would ask for a frite twice on top of
+ * its own frite slot, so the burger slot silences it.
+ * CATEGORY groups only. A filler's own product-level groups are still asked —
+ * no menu needs otherwise today, and matching by name across many products is
+ * the ambiguity Batch 5.8 was about.
+ */
+model ComboSlotOptionRule {
+  id                     String  @id @default(cuid())
+  slotId                 String
+  categoryOptionGroupId  String
+  categoryOptionChoiceId String?
+
+  slot   ComboSlot             @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  group  CategoryOptionGroup   @relation(fields: [categoryOptionGroupId], references: [id], onDelete: Cascade)
+  choice CategoryOptionChoice? @relation(fields: [categoryOptionChoiceId], references: [id], onDelete: Restrict)
+
+  @@unique([slotId, categoryOptionGroupId])
+  @@index([slotId])
+  @@index([categoryOptionGroupId])
+  @@index([categoryOptionChoiceId])
 }
 
 // A product can have option groups (e.g. "Cuisson", "Sauce", "Taille")
@@ -179,22 +322,30 @@ model CategoryOptionGroup {
   multiple   Boolean                @default(false)
   sortOrder  Int                    @default(0)
   choices    CategoryOptionChoice[]
+  /**
+   * Menu slots that govern this group instead of asking it (Batch 5.9).
+   */
+  comboRules ComboSlotOptionRule[]
 
   @@index([categoryId])
 }
 
 model CategoryOptionChoice {
-  id                    String              @id @default(cuid())
+  id                    String                @id @default(cuid())
   groupId               String
-  group                 CategoryOptionGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  group                 CategoryOptionGroup   @relation(fields: [groupId], references: [id], onDelete: Cascade)
   name                  String
-  priceModifier         Int                 @default(0) // cents
+  priceModifier         Int                   @default(0) // cents
   pickupPriceModifier   Int? // cents override for takeaway
   deliveryPriceModifier Int? // cents override for delivery
   pickupPrice           Int? // absolute fixed price in cents for takeaway (overrides modifier logic)
   deliveryPrice         Int? // absolute fixed price in cents for delivery
   image                 String? // optional thumbnail shown in POS picker
-  sortOrder             Int                 @default(0)
+  sortOrder             Int                   @default(0)
+  /**
+   * Menu slots that answer this choice on the cashier's behalf (Batch 5.9).
+   */
+  comboRules            ComboSlotOptionRule[]
 
   @@index([groupId])
 }
@@ -450,6 +601,31 @@ model OrderItem {
   // reason as L-57's `perpetualSalesTotal`.
   lineNetTotal Int? // cents, TTC, AFTER the apportioned discount
   lineHt       Int? // cents, HT, taken on lineNetTotal at vatRate
+
+  // Batch 5.9 - the three columns that tie a menu's exploded lines back
+  // together. A menu composé is sold at one forfait and BOOKED as one line per
+  // component, because the components carry different VAT rates and only a
+  // line can carry a rate. Without these, four rows reading « Regina »,
+  // « Quatre Fromages », « Coca » and nothing else would be indistinguishable
+  // from three separate sales at prices nobody charged.
+  //
+  // NULLABLE, and existing rows are NOT backfilled: null means « not part of a
+  // menu », which is what every row written before this batch is. Same
+  // treatment and same reason as L-58's `lineNetTotal` / `lineHt` above.
+  //
+  // `comboGroupId` is one cuid shared by the lines of ONE menu on ONE order -
+  // two Menu Chill lines on the same ticket get two different ids.
+  // `comboName` is snapshotted like `productName`, so renaming the menu in the
+  // catalogue cannot restate a sale that has already happened.
+  // `comboPrice` is the forfait PER UNIT, the number the ticket prints beside
+  // the menu name and the number the allocation divided. It is redundant with
+  // the sum of the group's shares and stored anyway, so a reader can check the
+  // allocation with a calculator instead of re-implementing it - L-58's
+  // argument for storing `lineNetTotal` beside `lineHt`, at the level above.
+  comboGroupId String?
+  comboName    String?
+  comboPrice   Int? // cents, TTC, the menu's forfait for this order type
+
   optionsJson String? // JSON snapshot of chosen options
   addOnsJson  String? // JSON snapshot of chosen add-ons
   notes       String?
@@ -459,6 +635,7 @@ model OrderItem {
 
   @@index([orderId])
   @@index([productId])
+  @@index([comboGroupId])
 }
 
 // DD-14 (2026-09-05), Batch 5.7b. `OFFERT` — « Offert / repas personnel » —

@@ -62,6 +62,11 @@ const EXPANSIONS = [
     what: "for (const f of ALL_SCRIPTS) it(…) — the backtick-in-here-string guard, Batch 1.4c",
     runs: 7,
   },
+  {
+    where: "src/lib/services/combo-allocation.test.ts",
+    what: "for (const c of CASES) it(…) — the nine cases of the VAT allocation policy, Batch 5.9",
+    runs: 9,
+  },
 ];
 
 function testFilesUnder(dir: string, match: (f: string) => boolean): string[] {

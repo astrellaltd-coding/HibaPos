@@ -90,7 +90,7 @@ export function resolveVatRate(
   return governing?.vatRateTakeaway ?? dineIn;
 }
 
-type ChoiceRow = {
+export type ChoiceRow = {
   id: string;
   name: string;
   priceModifier: number; // cents
@@ -107,6 +107,60 @@ type AddOnRow = {
   active: boolean;
 };
 
+/**
+ * The base price for one order type - EXTRACTED from `computeLinePricing`
+ * (Batch 5.9) so a menu component's reference price is read the same way a
+ * sold line is priced.
+ *
+ * Absent means "the dine-in price applies", which is why each arm tests for
+ * `null` rather than falling through: a product with no `pickupPrice` sells at
+ * `price` a emporter, and always has.
+ */
+export function resolveBasePrice(
+  product: { price: number; pickupPrice: number | null; deliveryPrice: number | null },
+  orderType: VatOrderType,
+): number {
+  if (orderType === "TAKEAWAY" && product.pickupPrice != null) return product.pickupPrice;
+  if (orderType === "LIVRAISON" && product.deliveryPrice != null) return product.deliveryPrice;
+  return product.price;
+}
+
+/**
+ * What one chosen option adds to the base - EXTRACTED from
+ * `computeLinePricing` (Batch 5.9), unchanged line for line.
+ *
+ * WHY IT MOVED. Batch 5.9's menu components need the catalogue price of a
+ * pizza *at the size the menu fixes*, and the sizes are category choices
+ * carrying ABSOLUTE prices (`Taille`: Junior 8,90 / Senior 11,90 / Mega 15,90
+ * a emporter). Re-deriving that arithmetic beside this one is precisely the
+ * "second implementation" the record warns about - `money.ts`'s `splitVat`
+ * comment and Batch 6.2 note 3 are both about a rule that existed twice.
+ *
+ * `dineInBase` is the product's `price` and is NOT the same as `basePrice`
+ * under DINE_IN: the serializer relativises an absolute choice price against
+ * the dine-in figure, so both are needed.
+ */
+export function resolveChoiceModifier(
+  choice: ChoiceRow,
+  orderType: VatOrderType,
+  basePrice: number,
+  dineInBase: number,
+): number {
+  if (choice.pickupPrice != null) {
+    // Absolute choice price (category-level only). deliveryPrice
+    // defaults to the pickup absolute when unset (serializer parity).
+    const absPickup = choice.pickupPrice;
+    const absDelivery = choice.deliveryPrice != null ? choice.deliveryPrice : absPickup;
+    if (orderType === "TAKEAWAY") return absPickup - basePrice;
+    if (orderType === "LIVRAISON") return absDelivery - basePrice;
+    // DINE_IN: serializer relativizes against the dine-in base.
+    return absPickup - dineInBase;
+  }
+  if (orderType === "TAKEAWAY" && choice.pickupPriceModifier != null) return choice.pickupPriceModifier;
+  if (orderType === "LIVRAISON" && choice.deliveryPriceModifier != null) return choice.deliveryPriceModifier;
+  return choice.priceModifier;
+}
+
 export type ItemIntent = {
   productId: string;
   quantity: number;
@@ -114,9 +168,31 @@ export type ItemIntent = {
   addons: { addonId: string; quantity: number }[];
 };
 
+/**
+ * What a MENU imposes on one of its components (Batch 5.9).
+ *
+ * Passing none of this leaves `computeLinePricing` behaving exactly as it did
+ * before the batch - which is what every existing test asserts.
+ */
+export type ComboSlotContext = {
+  /** Category option groups the menu governs. Not asked inside the menu, and
+   *  therefore not REQUIRED inside it: every burger inherits a required
+   *  `Frite` group from `Burgers`, and a Duo answers it once with its own
+   *  frite slot instead of twice through its two burgers. */
+  governedGroupIds: Set<string>;
+  /** Choices the menu pins - the pizza size. Priced exactly as if the cashier
+   *  had tapped them, because a Senior IS worth 11,90 at catalogue and that is
+   *  the weight section 2 of the allocation policy apportions by. */
+  fixedChoiceIds: string[];
+};
+
 export type LinePricingResult = {
   unitPrice: number; // cents
   lineTotal: number; // cents
+  /** The add-ons alone, already multiplied by their quantities (Batch 5.9).
+   *  A menu component's supplements have to be separable from its allocated
+   *  share: the forfait is what gets split, the supplements ride on top. */
+  addOnsTotal: number; // cents
   optionsJson: string | null;
   addOnsJson: string | null;
 };
@@ -130,17 +206,13 @@ export function computeLinePricing(
   itemIntent: ItemIntent,
   product: ProductWithRelations,
   orderType: "DINE_IN" | "TAKEAWAY" | "LIVRAISON",
+  combo?: ComboSlotContext,
 ): LinePricingResult | LinePricingError {
   // Sub-categories are folders: products inherit options/add-ons from the parent category.
   const effectiveCategory = product.category?.parent ?? product.category;
 
   // Determine base price by order type (all in cents).
-  let basePrice = product.price;
-  if (orderType === "TAKEAWAY" && product.pickupPrice != null) {
-    basePrice = product.pickupPrice;
-  } else if (orderType === "LIVRAISON" && product.deliveryPrice != null) {
-    basePrice = product.deliveryPrice;
-  }
+  const basePrice = resolveBasePrice(product, orderType);
 
   // Merge category options + product options for validation.
   // Products marked `inheritCategoryGlobals=false` skip the category-level
@@ -153,11 +225,17 @@ export function computeLinePricing(
   // Validate and apply options
   let optionsModifier = 0;
   const chosenOptions: { group: string; choice: string; priceModifier: number }[] = [];
-  const selectedOptionIds = new Set(itemIntent.optionIds);
+  // Batch 5.9: the menu's pinned choices join what the cashier tapped. They are
+  // priced identically - the size is part of what the component is worth.
+  const selectedOptionIds = new Set([...itemIntent.optionIds, ...(combo?.fixedChoiceIds ?? [])]);
 
   for (const group of allOptions) {
     const selectedInGroup = group.choices.filter((c) => selectedOptionIds.has(c.id));
-    if (group.required && selectedInGroup.length === 0) {
+    // Batch 5.9: a group the MENU governs is never asked inside the menu, so it
+    // cannot be missing. Outside a menu `combo` is undefined and this reads
+    // exactly as it did before.
+    const governed = combo?.governedGroupIds.has(group.id) ?? false;
+    if (group.required && !governed && selectedInGroup.length === 0) {
       return { error: `Option obligatoire manquante : ${group.name}` };
     }
     if (!group.multiple && selectedInGroup.length > 1) {
@@ -165,25 +243,7 @@ export function computeLinePricing(
     }
     for (const choice of selectedInGroup) {
       const c = choice as ChoiceRow;
-      let modifier = c.priceModifier;
-      if (c.pickupPrice != null) {
-        // Absolute choice price (category-level only). deliveryPrice
-        // defaults to the pickup absolute when unset (serializer parity).
-        const absPickup = c.pickupPrice;
-        const absDelivery = c.deliveryPrice != null ? c.deliveryPrice : absPickup;
-        if (orderType === "TAKEAWAY") {
-          modifier = absPickup - basePrice;
-        } else if (orderType === "LIVRAISON") {
-          modifier = absDelivery - basePrice;
-        } else {
-          // DINE_IN: serializer relativizes against the dine-in base.
-          modifier = absPickup - product.price;
-        }
-      } else if (orderType === "TAKEAWAY" && c.pickupPriceModifier != null) {
-        modifier = c.pickupPriceModifier;
-      } else if (orderType === "LIVRAISON" && c.deliveryPriceModifier != null) {
-        modifier = c.deliveryPriceModifier;
-      }
+      const modifier = resolveChoiceModifier(c, orderType, basePrice, product.price);
       optionsModifier += modifier;
       chosenOptions.push({ group: group.name, choice: choice.name, priceModifier: modifier });
     }
@@ -248,6 +308,7 @@ export function computeLinePricing(
   return {
     unitPrice,
     lineTotal,
+    addOnsTotal: addonsTotal,
     optionsJson: chosenOptions.length ? JSON.stringify(chosenOptions) : null,
     addOnsJson: chosenAddons.length ? JSON.stringify(chosenAddons) : null,
   };
