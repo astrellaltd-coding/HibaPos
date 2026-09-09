@@ -4976,6 +4976,42 @@ Each original is shown with what replaced it.)*
 
 # RETIRED OPEN-THREAD ROWS AND SUPERSEDED FRONT-MATTER LINES
 
+## Baseline history retired from *Open Threads → G* on 2026-09-09 (Batch 5.9)
+
+*Both rows had grown a historical tail longer than the fact they state, and the
+front matter hit its ~40 KB ceiling when Batch 5.9's measurements were added.
+Retired here rather than deleted; the plan keeps the current value and a
+pointer. Same treatment and same reason as *Methods* (2026-09-07) and
+*Finding-ID prefixes* (2026-09-05).*
+
+**The test-count lineage**, as the Tests row carried it: 1044 before Batch 5.9,
+1007 before it, 997 before Batch 1.4c, 993 before 1.4b, 992 before 7.7, 986
+before 7.6, 976 before 7.5, 967 before 3.11, 963 before `readme-counts.test.ts`,
+943 before Batch 1.3c, 934 before 1.3b, 923 before 2.5, 891 before 1.4, 879
+before 3.10. Each batch's own record section carries its delta, which is where
+the number is actually explained.
+
+**Batch 3.11's migration evidence**, as the Production DB sha256 row carried it —
+still true of 2026-09-07 and superseded as a *current* baseline by Batch 5.9's
+migration on 2026-09-09: sha `d09369c09dd9b4515c78af31118e8dc47516e74c0ab4d41e2bc4d93c5e54b16b`,
+mtime 2026-09-07 15:33:56, 704 512 bytes. Applied by the OPERATOR and verified
+read-only: 10 migrations, counters 20/3/2/2 and `GrandTotal` unmoved in every
+field, all four chains `ok` (recomputed with the app's own verifier),
+`integrity_check` ok, no FK errors, journal byte 18 still `1`, and **the
+fingerprint diff against the pre-migration snapshot is one line, the
+`_prisma_migrations` row** — the third time a migration here has done that
+(5.7a, 3.8, 3.11). Snapshot:
+`../db-snapshots/custom.db.pre-3.11.2026-09-07T11-53-44Z`. Earlier the same day
+the operator's Réglages save moved it `c9f26516…` → `58781596…`; the only thing
+outside the fingerprint since was one `SESSION_LOCKED` audit row.
+
+**Why the counters in that paragraph read 20/3/2/2 and the plan now says
+39/5/4/26.** Both are correct for their date. The operator has continued
+development trading since 2026-09-07 — sales #37 and #38 are Batch 3.12's own
+verification sales — and P-04 deletes all of it before the first real sale.
+
+---
+
 **RETIRED 2026-09-07 (session 19, second pass — reconciling `CLAUDE.md` with the plan).** Three more front-matter passages, all of them a second statement of a rule stated in full elsewhere in the same section. Nothing is withdrawn. Verbatim:
 
 ### warning 3's detail on the four wiping test files
