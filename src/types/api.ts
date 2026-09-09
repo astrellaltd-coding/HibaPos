@@ -160,6 +160,12 @@ export type OrderItemDto = {
   optionsJson: string | null;
   addOnsJson: string | null;
   notes: string | null;
+  /** Batch 5.9 — set on the lines of a menu composé, null on every other.
+   *  `comboGroupId` gathers them, `comboName` is the snapshotted menu name and
+   *  `comboPrice` the forfait per unit, which is what the ticket prints. */
+  comboGroupId?: string | null;
+  comboName?: string | null;
+  comboPrice?: number | null;
 };
 
 /** DD-14 (Batch 5.7b): `OFFERT` is the give-away tender. Not a refund

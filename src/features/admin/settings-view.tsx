@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "@/lib/api-client";
 import type { SettingsDto } from "@/types/api";
+import { VAT_ALLOCATION_POLICY } from "@/lib/vat-allocation-policy";
 import { PageHeader } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -203,6 +204,35 @@ function SettingsForm({ initial }: { initial: SettingsDto }) {
                   <p className="text-xs text-muted-foreground">
                     10 % alimentaire, 20 % boissons, 5,5 % certaines boissons.
                   </p>
+                </div>
+                {/* Batch 5.9f — the VAT allocation policy, where the operator
+                    can read it. The operator's ruling of 2026-09-09 is that it
+                    lives in `docs/politique-ventilation-tva.md` AND in
+                    Réglages.
+
+                    READ-ONLY on purpose, and not a stored setting: an editable
+                    field would let the stated method drift from the one
+                    `services/combo.ts` performs, and a document describing a
+                    division the software does not do is worse than none. */}
+                <div className="flex flex-col gap-1.5 md:col-span-2">
+                  {/* L-10 (Batch 7.6): a Label with no control to point at
+                      names its REGION instead, and the region points back —
+                      an `id` alone is not an association. */}
+                  <Label id="s-tva-ventilation-label">
+                    Ventilation de la TVA — menus à prix forfaitaire
+                  </Label>
+                  <div
+                    role="group"
+                    aria-labelledby="s-tva-ventilation-label"
+                    className="rounded-md border border-border bg-muted/40 p-3 text-xs leading-relaxed text-muted-foreground"
+                  >
+                    <p>{VAT_ALLOCATION_POLICY.method}</p>
+                    <p className="mt-2">{VAT_ALLOCATION_POLICY.dineIn}</p>
+                    <p className="mt-2">{VAT_ALLOCATION_POLICY.supplements}</p>
+                    <p className="mt-2">{VAT_ALLOCATION_POLICY.fallback}</p>
+                    <p className="mt-2 font-medium text-foreground">{VAT_ALLOCATION_POLICY.pending}</p>
+                    <p className="mt-2">Référence : {VAT_ALLOCATION_POLICY.source}</p>
+                  </div>
                 </div>
                 {/* DD-24 (Batch 3.8). Written in the operator's terms, not the
                     code's: this is "when does my day end", and the consequence

@@ -55,6 +55,53 @@ function rateLabel(key: string): string {
  */
 const CAISSE_NUMBER = 1;
 
+/**
+ * The article blocks a ticket prints — Batch 5.9f.
+ *
+ * An ordinary line is its own block. The lines of ONE menu composé are a single
+ * block, gathered by `comboGroupId`, because that is what the customer bought:
+ * a Menu Chill at 24,90, not a pizza at 10,86 and another at 10,85 and a Coca
+ * at 3,19. Those three figures are ALLOCATION ARTEFACTS — the shares the
+ * forfait was divided into so each could carry its own VAT rate — and printing
+ * them would state prices the customer did not pay and cannot be charged.
+ *
+ * Order is preserved and grouping is by id, not by adjacency: two Menu Chills
+ * on one ticket have two group ids and stay two blocks, and a line that landed
+ * between them would not merge them.
+ */
+type ArticleBlock =
+  | { kind: "item"; item: OrderDto["items"][number] }
+  | { kind: "combo"; name: string; price: number; quantity: number; parts: OrderDto["items"] };
+
+export function articleBlocks(items: OrderDto["items"]): ArticleBlock[] {
+  const blocks: ArticleBlock[] = [];
+  const byGroup = new Map<string, Extract<ArticleBlock, { kind: "combo" }>>();
+  for (const item of items) {
+    const group = item.comboGroupId ?? null;
+    if (!group) {
+      blocks.push({ kind: "item", item });
+      continue;
+    }
+    const existing = byGroup.get(group);
+    if (existing) {
+      existing.parts.push(item);
+      continue;
+    }
+    const block: Extract<ArticleBlock, { kind: "combo" }> = {
+      kind: "combo",
+      // `comboName` is snapshotted beside the lines, so renaming a menu in the
+      // catalogue cannot restate a ticket that was already printed.
+      name: item.comboName ?? item.productName,
+      price: item.comboPrice ?? 0,
+      quantity: item.quantity,
+      parts: [item],
+    };
+    byGroup.set(group, block);
+    blocks.push(block);
+  }
+  return blocks;
+}
+
 export function renderReceipt(order: OrderDto, settings?: Partial<SettingsDto>): string {
   const s = settings ?? {};
   const lines: string[] = [];
@@ -103,23 +150,48 @@ export function renderReceipt(order: OrderDto, settings?: Partial<SettingsDto>):
   pushLeftRight(`Type : ${typeLabel}`, order.tableLabel ? `Table : ${order.tableLabel}` : "");
   lines.push("-".repeat(w));
 
-  for (const item of order.items) {
-    pushLeftRight(`${item.quantity}× ${item.productName}`, formatEuro(item.lineTotal));
-    if (item.optionsJson) {
-      try {
-        const opts = JSON.parse(item.optionsJson) as { group: string; choice: string }[];
-        for (const o of opts) pushMarked("  · ", o.choice);
-      } catch {
-        pushMarked("  · ", "(options illisibles)");
-      }
+  // The chosen options of one article, as indented price-less lines. Extracted
+  // in Batch 5.9f because a menu's components need them one level deeper.
+  const pushOptions = (item: OrderDto["items"][number], indent: string) => {
+    if (!item.optionsJson) return;
+    try {
+      const opts = JSON.parse(item.optionsJson) as { group: string; choice: string }[];
+      for (const o of opts) pushMarked(indent, o.choice);
+    } catch {
+      pushMarked(indent, "(options illisibles)");
     }
-    if (item.addOnsJson) {
-      try {
-        const adds = JSON.parse(item.addOnsJson) as { name: string; price: number }[];
-        for (const a of adds) pushMarked("  + ", `${a.name} (${formatEuro(a.price)})`);
-      } catch {
-        pushMarked("  + ", "(suppléments illisibles)");
-      }
+  };
+  // The supplements, WITH their prices — unlike an option or a component, a
+  // supplement is money the customer paid.
+  const pushAddOns = (item: OrderDto["items"][number], indent: string) => {
+    if (!item.addOnsJson) return;
+    try {
+      const adds = JSON.parse(item.addOnsJson) as { name: string; price: number }[];
+      for (const a of adds) pushMarked(indent, `${a.name} (${formatEuro(a.price)})`);
+    } catch {
+      pushMarked(indent, "(suppléments illisibles)");
+    }
+  };
+
+  for (const block of articleBlocks(order.items)) {
+    if (block.kind === "item") {
+      pushLeftRight(`${block.item.quantity}× ${block.item.productName}`, formatEuro(block.item.lineTotal));
+      pushOptions(block.item, "  · ");
+      pushAddOns(block.item, "  + ");
+      continue;
+    }
+
+    // A menu composé (Batch 5.9f). The operator's ruling: the ticket shows the
+    // composition, as indented price-less lines, and NO per-component amount.
+    // The forfait is the price beside the menu's name; the `Détail TVA` block
+    // below carries the rates the components were booked at.
+    pushLeftRight(`${block.quantity}× ${block.name}`, formatEuro(block.price * block.quantity));
+    for (const part of block.parts) {
+      pushMarked("  · ", part.productName);
+      // The component's own choices — « Senior », « Sans Crudités ». One level
+      // deeper, so a choice can never be read as another component.
+      pushOptions(part, "    · ");
+      pushAddOns(part, "    + ");
     }
   }
 

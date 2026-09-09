@@ -252,6 +252,22 @@ export async function priceComboItem(args: {
       if (choice) referencePrice += resolveChoiceModifier(choice, orderType, basePrice, product.price);
     }
 
+    // A slot surcharge is NOT an allocation artefact — it is money the customer
+    // paid, and the client ticket is the only paper there is. So it joins the
+    // add-on snapshot, where `receipt.ts` already prints `  + nom (prix)`, and
+    // the sale records what the extra was for rather than folding an unexplained
+    // 1,50 € into the total. Per-component SHARES stay unprinted; those really
+    // are artefacts.
+    const surcharge = slotSurcharge(seat.slot, product.id);
+    let addOnsJson = full.addOnsJson;
+    if (surcharge > 0) {
+      const existing = addOnsJson ? (JSON.parse(addOnsJson) as unknown[]) : [];
+      addOnsJson = JSON.stringify([
+        ...existing,
+        { id: null, name: `Supplément ${product.name}`, price: surcharge },
+      ]);
+    }
+
     priced.push({
       slotId: seat.slot.id,
       slotName: seat.slot.name,
@@ -261,11 +277,10 @@ export async function priceComboItem(args: {
       // Everything on top of the forfait, and outside the allocation (§ 6):
       // what the cashier's own choices added beyond the pinned ones, the
       // component's add-ons, and the slot's surcharge for this filler.
-      supplements:
-        full.unitPrice - referencePrice + full.addOnsTotal + slotSurcharge(seat.slot, product.id),
+      supplements: full.unitPrice - referencePrice + full.addOnsTotal + surcharge,
       vatRate: resolveVatRate(product, orderType),
       optionsJson: full.optionsJson,
-      addOnsJson: full.addOnsJson,
+      addOnsJson,
       notes: intent.notes ?? null,
     });
   }

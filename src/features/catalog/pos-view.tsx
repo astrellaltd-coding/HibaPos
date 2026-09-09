@@ -6,6 +6,7 @@ import { api } from "@/lib/api-client";
 import type { CategoryDto, ProductDto, OrderDto } from "@/types/api";
 import { CartPanel } from "@/components/pos/cart-panel";
 import { ProductOptionsDialog } from "@/components/pos/product-options-dialog-v2";
+import { ComboBuilderDialog } from "@/components/pos/combo-builder-dialog";
 import { PaymentDialog } from "@/components/pos/payment-dialog";
 import { ReceiptDialog } from "@/components/pos/receipt-dialog";
 import { DiscountDialog } from "@/components/pos/discount-dialog";
@@ -39,6 +40,13 @@ export function PosView() {
   // product twice, or editing the same line twice, would reuse the instance and
   // show the previous open's selection. See product-options-dialog-v2.tsx.
   const [optionsSeq, setOptionsSeq] = useState(0);
+  // Batch 5.9c — the menu being built, and a key that remounts the builder on
+  // every open. Same reasoning as `optionsSeq` above: the builder holds the
+  // seats confirmed so far in `useState`, and reusing the instance would open
+  // the next menu half-built with the previous one's components.
+  const [comboMenu, setComboMenu] = useState<ProductDto | null>(null);
+  const [comboOpen, setComboOpen] = useState(false);
+  const [comboSeq, setComboSeq] = useState(0);
   const [editCartItem, setEditCartItem] = useState<CartItem | null>(null);
   const [payOpen, setPayOpen] = useState(false);
   const [receiptOrder, setReceiptOrder] = useState<OrderDto | null>(null);
@@ -104,6 +112,17 @@ export function PosView() {
 
   const handleProductClick = (product: ProductDto) => {
     if (!product.available) return;
+    // Batch 5.9c. A menu composé is not configured like a product — it asks for
+    // its components one slot at a time, and each is configured on its own.
+    // Checked FIRST: a menu can carry inherited option groups from the category
+    // it sits in (`Menu` is a child of `Pizzas`, which has a required
+    // « Taille »), and the ordinary dialog would ask for the size of a menu.
+    if (product.isCombo) {
+      setComboMenu(product);
+      setComboSeq((n) => n + 1);
+      setComboOpen(true);
+      return;
+    }
     const hasOptions = product.options.length > 0 || product.addOns.length > 0;
     if (hasOptions) {
       setOptionsProduct(product);
@@ -352,6 +371,14 @@ export function PosView() {
 
       {/* Dialogs */}
       <ProductOptionsDialog key={optionsSeq} product={optionsProduct} open={optionsOpen} onOpenChange={(v) => { setOptionsOpen(v); if (!v) setEditCartItem(null); }} editItem={editCartItem} />
+      <ComboBuilderDialog
+        key={`combo-${comboSeq}`}
+        menu={comboMenu}
+        products={products ?? []}
+        categories={categories ?? []}
+        open={comboOpen}
+        onOpenChange={(v) => { setComboOpen(v); if (!v) setComboMenu(null); }}
+      />
       <PaymentDialog
         open={payOpen}
         onOpenChange={setPayOpen}
