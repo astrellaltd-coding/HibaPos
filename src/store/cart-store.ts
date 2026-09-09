@@ -25,6 +25,38 @@ export type CartOption = {
   deliveryPriceModifier?: number | null;
 };
 export type CartAddOn = { id: string | null; name: string; price: number };
+
+/**
+ * One component of a menu composé, configured on its own (Batch 5.9).
+ *
+ * THIS TYPE IS THE BATCH. `CartItem` below holds ONE set of options and ONE
+ * set of add-ons, so two burgers configured differently — the first with
+ * salade, the second without — could not be represented at all. A menu line
+ * carries an array of these instead, one per seat, and each has its own
+ * `options` and `addOns`.
+ *
+ * Nothing here is authoritative. The server re-reads every price, re-resolves
+ * every rate and re-runs the allocation from the catalogue; what the client
+ * sends is an INTENT — slot, product, option ids, add-on ids. `referencePrice`
+ * and `surcharge` are carried so the till can show a running total that agrees
+ * with the one the checkout will compute, and for no other reason.
+ */
+export type CartComponent = {
+  slotId: string;
+  slotName: string;
+  productId: string;
+  productName: string;
+  /** This component's own configuration — the point of the whole batch. */
+  options: CartOption[];
+  addOns: CartAddOn[];
+  /** Cents on top of the forfait for THIS filler (a Frite Cheddar in a Duo). */
+  surcharge: number;
+  /** The catalogue price for the current order type, with the size the menu
+   *  fixes applied. The allocation weight — never displayed, never charged. */
+  referencePrice: number;
+  image?: string | null;
+};
+
 export type CartItem = {
   uid: string; // unique line id
   productId: string | null;
@@ -36,10 +68,35 @@ export type CartItem = {
   quantity: number;
   options: CartOption[];
   addOns: CartAddOn[];
+  /**
+   * Present ONLY on a menu composé (Batch 5.9), and then never empty.
+   *
+   * A combo line's `unitPrice` is the menu's own forfait for the order type;
+   * the components add their surcharges and their own extras on top. Its
+   * `options` and `addOns` stay empty — a menu has no options of its own, and
+   * putting a component's there is exactly the collapse this field prevents.
+   */
+  components?: CartComponent[];
   notes?: string | null;
   vatRate: number;
   image?: string | null;
 };
+
+/** Is this line a menu composé? One reading, used everywhere. */
+export function isComboLine(item: Pick<CartItem, "components">): boolean {
+  return Array.isArray(item.components) && item.components.length > 0;
+}
+
+/** What one component adds on top of the forfait: its slot surcharge, whatever
+ *  its own option choices cost, and its add-ons. Outside the allocation
+ *  (`docs/politique-ventilation-tva.md` § 6). */
+export function componentExtras(c: CartComponent): number {
+  return (
+    c.surcharge +
+    c.options.reduce((acc, o) => acc + o.priceModifier, 0) +
+    c.addOns.reduce((acc, a) => acc + a.price, 0)
+  );
+}
 
 export type HeldOrder = {
   id: string;
@@ -121,8 +178,15 @@ const emptyCart = (): PersistedCart => ({ ...emptySale(), heldOrders: [], schema
  * the modifier it was added under — the very defect M-19 names. Bumped rather
  * than defaulted, which is what the instruction above says to do when the
  * persisted SHAPE changes.
+ *
+ * **Version 3 (Batch 5.9)** adds `CartItem.components`. A version-2 payload
+ * cannot contain a menu — the feature did not exist — so nothing is lost by
+ * discarding it, and the alternative is worse than usual here: a menu line
+ * rehydrated WITHOUT its components is a forfait with nothing in it, which
+ * would check out as an unallocatable menu and take the higher-rate fallback.
+ * A silently over-taxed sale is precisely what a version stamp is for.
  */
-export const CART_PERSIST_VERSION = 2;
+export const CART_PERSIST_VERSION = 3;
 
 /**
  * Vet a persisted payload; return the empty cart when it cannot be vouched for.
@@ -174,8 +238,14 @@ export const useCartStore = create<CartState>()(
   addItem: (item) =>
     set((s) => {
       // Merge identical lines (same product + same options + same addons + same notes)
+      // Batch 5.9: the components are part of the identity of a line. Two Duos
+      // whose first burger differs are two different things to make and two
+      // different things to allocate, and merging them would lose one of the
+      // configurations outright — the same collapse `components` exists to
+      // prevent, reintroduced one layer up.
       const key = (i: CartItem) =>
-        `${i.productId}|${JSON.stringify(i.options)}|${JSON.stringify(i.addOns)}|${i.notes ?? ""}`;
+        `${i.productId}|${JSON.stringify(i.options)}|${JSON.stringify(i.addOns)}|${i.notes ?? ""}` +
+        `|${JSON.stringify(i.components ?? null)}`;
       const newKey = key(item);
       const idx = s.items.findIndex((i) => key(i) === newKey);
       if (idx >= 0) {
@@ -305,6 +375,17 @@ export function recalculateUnitPrice(
   item: CartItem,
   orderType: "DINE_IN" | "TAKEAWAY" | "LIVRAISON",
 ): number {
+  // Batch 5.9. A menu is priced by its FORFAIT and by nothing else: the
+  // components' own option modifiers are supplements and are added by
+  // `computeLineTotal`, not folded into the unit price. Falling through to the
+  // loop below would price a menu at the forfait PLUS the modifiers the
+  // components carry, and the client total would then disagree with the
+  // server's — « Paiement incorrect », which is M-19's shape.
+  if (isComboLine(item)) {
+    if (orderType === "TAKEAWAY" && item.pickupPrice != null) return item.pickupPrice;
+    if (orderType === "LIVRAISON" && item.deliveryPrice != null) return item.deliveryPrice;
+    return item.basePrice;
+  }
   let base = item.basePrice;
   if (orderType === "TAKEAWAY" && item.pickupPrice != null) base = item.pickupPrice;
   else if (orderType === "LIVRAISON" && item.deliveryPrice != null) base = item.deliveryPrice;
@@ -324,7 +405,12 @@ export function recalculateUnitPrice(
 
 export function computeLineTotal(item: CartItem): number {
   const addonsTotal = item.addOns.reduce((acc, a) => acc + a.price, 0);
-  return (item.unitPrice + addonsTotal) * item.quantity; // integer cents
+  // Batch 5.9: a menu's components each add their surcharge, their own paid
+  // option choices and their add-ons ON TOP of the forfait — policy § 6, « le
+  // forfait ventilé reste le prix du menu seul ». For an ordinary line
+  // `components` is undefined and this term is 0.
+  const componentsTotal = (item.components ?? []).reduce((acc, c) => acc + componentExtras(c), 0);
+  return (item.unitPrice + addonsTotal + componentsTotal) * item.quantity; // integer cents
 }
 
 export function computeCartTotals(items: CartItem[], discountTotal: number) {

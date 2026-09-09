@@ -158,10 +158,18 @@ describe("the version guard is wired into persist, not merely written (C-23)", (
     // would reprice with whatever order type it was added under. The fixture
     // and the pin move together, deliberately and recorded; neither is
     // adjusted to whatever the code now returns.
+    //
+    // **Batch 5.9: it FIRED a second time, 2 → 3.** `CartItem` gained
+    // `components`, and a version-2 payload cannot hold a menu because the
+    // feature did not exist. The reason to discard rather than default is
+    // sharper than last time: a menu line rehydrated without its components is
+    // a forfait containing nothing, which checks out as an unallocatable menu
+    // and takes the higher-rate fallback — a sale silently over-taxed by a
+    // stale browser. Fixture and pin moved together again.
     const { useCartStore, CART_PERSIST_VERSION } = await loadStoreWith(
-      CURRENT(2),
+      CURRENT(3),
     );
-    expect(CART_PERSIST_VERSION).toBe(2);
+    expect(CART_PERSIST_VERSION).toBe(3);
     const s = useCartStore.getState();
     expect(s.items).toHaveLength(1);
     expect(s.items[0].unitPrice).toBe(1000);

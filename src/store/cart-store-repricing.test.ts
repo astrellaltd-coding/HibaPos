@@ -156,15 +156,23 @@ describe("M-19 — a line keeps its dine-in modifier, whatever it was added unde
     if (!("error" in server)) expect(server.unitPrice).toBe(client);
   });
 
-  it("bumps the persisted version, so a version-1 cart is discarded not half-read", () => {
+  it("bumps the persisted version, so an older cart is discarded not half-read", () => {
     // A version-1 line has no `dineInPriceModifier`, so its DINE_IN price would
     // fall back to whatever it was added under — M-19 exactly. The guard's own
     // comment says to bump when the persisted SHAPE changes.
-    expect(CART_PERSIST_VERSION).toBe(2);
+    //
+    // Batch 5.9 bumped it again, 2 → 3, for `CartItem.components`. BOTH older
+    // versions are asserted below rather than only the newest: an off-by-one
+    // guard that discarded 2 and accepted 1 would still pass a test that only
+    // looked at 2, and version 1 is the one that rehydrates euros into cent
+    // fields.
+    expect(CART_PERSIST_VERSION).toBe(3);
     const v1 = { items: [{ uid: "x" }], heldOrders: [], schema: 1 };
     expect(vetPersistedCart(v1).items).toEqual([]);
-    const v2 = { items: [], heldOrders: [], schema: 2 };
-    expect(vetPersistedCart(v2).schema).toBe(2);
+    const v2 = { items: [{ uid: "x" }], heldOrders: [], schema: 2 };
+    expect(vetPersistedCart(v2).items).toEqual([]);
+    const v3 = { items: [], heldOrders: [], schema: 3 };
+    expect(vetPersistedCart(v3).schema).toBe(3);
   });
 });
 
