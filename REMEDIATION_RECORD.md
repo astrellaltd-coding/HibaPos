@@ -4047,6 +4047,121 @@ Four such products exist in the catalogue **as ordinary single-price products**:
 
 ---
 
+## Batch 5.10 — There was no way to enter a menu
+
+*Written and completed in place on 2026-09-09; this batch never sat in `REMEDIATION_PLAN.md` as an open section, because it was opened and closed in one session at the operator's request.*
+
+
+**Status:** `COMPLETED` · **Completed:** 2026-09-09 · **Findings:** none from the audit — the gap was found by the operator asking how to create the six menus · **Decisions:** none
+
+### The gap
+
+Batch 5.9 built the model, the till flow, the allocation, the fallback, the
+ticket and the admin validation — and **no way to enter a menu**. The API
+accepted `isCombo` and `comboSlots`, `validateComboShape` and `combo-admin.ts`
+refused a badly-built one, and `products-view.tsx` never sent either field. So
+5.9g, *« the operator creates the six menus »*, was not something the operator
+could do: the only route in was `curl`.
+
+It surfaced the way these things do — the operator asked how to create them,
+and the honest answer was that they could not.
+
+### What was built
+
+A « Menu composé » switch in the product form, and beneath it one block per
+slot: the question the cashier is asked, how many times, which category the
+answers come from, an optional whitelist of fillers each with its own
+surcharge, and — for every option group those fillers inherit — a three-way
+choice between *demander au caissier*, *imposé par le menu* and *ne pas
+demander*.
+
+### Validation Required
+
+1. The mapping is EXTRACTED and tested, not written inside the component.
+2. A revert must fail the tests, both directions, one property at a time.
+3. **What the editor produces must be what the server stores** — proved by
+   POSTing the form's own payload to the real route and reading the database.
+4. C-24's rule: an absent `comboSlots` leaves the stored ones alone; only
+   turning the switch off clears them.
+5. `bun run test`, `bun run typecheck`, `bun run lint`; README re-pinned.
+6. Production untouched.
+
+### Status record
+
+**Changes.** `src/lib/combo-slot-form.ts` owns every decision: `slotsFromProduct`
+and `slotsToPayload` (cents in the database, euros in the form),
+`candidateProducts` (**never offers a menu** — `Menu` is a child of `Pizzas`, so
+an « any pizza » slot reaches the menus themselves), `governableGroups` (read
+from the FILLERS' inherited groups, because `GET /api/catalog/categories`
+returns no option groups at all and the fillers are the truer source anyway),
+`ruleModeFor` / `withRule` for the three-way, `slotFormErrors`, and
+`comboSlotsForPayload` for C-24's rule. `combo-slots-editor.tsx` renders and
+calls back; it decides nothing. `products-view.tsx` gains the switch, the
+section, the state and two payload keys, and refuses to save a menu the server
+would refuse.
+
+**THE FORM AND THE SERVER SHARE ONE VALIDATOR.** `slotFormErrors` builds the
+payload and hands it to `validateComboShape` — the function the routes run — so
+the sentence the operator reads before saving is the sentence the server would
+have answered with. A second implementation is how the two come to disagree
+about what a valid menu is.
+
+Turning the switch on also turns OFF the size group and category inheritance: a
+menu under `Menu` would otherwise inherit `Pizzas`' required « Taille » and hang
+a size question on the menu that the till never asks and nothing prices.
+
+**Files.** New: `src/lib/combo-slot-form.ts`, `src/lib/combo-slot-form.test.ts`
+(30), `src/components/catalog/combo-slots-editor.tsx`,
+`src/app/api/catalog/products-combo-editor.test.ts` (7). Changed:
+`src/features/catalog/products-view.tsx`, `README.md` (1172 → 1209).
+
+**Tests.** 1209 pass, 0 fail — 37 added. **Eight reverts, all caught, two only
+after the tests they exposed were strengthened.** R5 nulled the guard that
+clears a stale choice when a rule goes from *imposé* to *ne pas demander*, and
+nothing failed: the test had passed `null` in, so it was proving its own
+argument rather than the function. It now passes a stale id, which is exactly
+how one arrives. R8 removed the save guard and nothing failed either — no test
+reached `handleSave`; there is now a source assertion, named as one, in the
+idiom `checkout-guards.test.ts` already uses.
+
+**Notes.**
+
+1. **The editor was NOT driven by hand, and that is the one criterion this
+   batch could not run.** The browser pane would not dispatch events to React
+   in this session — synthetic clicks, DOM `PointerEvent`/`MouseEvent`
+   sequences and React's own `onClick` from the fiber props all fired without
+   advancing the app, on a page whose `readyState` was `complete` with an empty
+   console. **It stays an [OWNER] check on the till**, the same treatment Batch
+   5.8 gave L-67d. What replaced it is stronger than a screenshot and weaker
+   than a click: `products-combo-editor.test.ts` builds a `SlotForm` exactly as
+   the editor's state would hold it, runs it through the same
+   `comboSlotsForPayload` the form calls, POSTs it to the real route, and reads
+   the database back.
+
+2. **The surcharge conversion has a test because it is a money path.** The
+   operator types 1,50 and the database must hold 150; a missing ×100 would
+   book a 1,50 € extra as one cent. R7 reverted it and was caught.
+
+3. **A round-trip test guards the edit path.** A menu opened for editing and
+   saved again unchanged must come back identical — that is what stops an edit
+   to the PRICE quietly rewriting the composition.
+
+4. **`governableGroups` is checked against the server**, not just asserted: one
+   test takes what the editor would offer and saves it, so an editor offering a
+   group the fillers do not inherit would fail here rather than at the till.
+
+5. **Production untouched.** Read-only inspection only; the walkthrough attempt
+   ran against a copy under the scratchpad with both `DATABASE_URL` and
+   `HIBAPOS_DATA_DIR` overridden, and the marker was read back from the
+   pre-auth `GET /api/auth/profiles` before anything was written. No `-wal` or
+   `-shm` appeared beside `db/custom.db`.
+
+6. **What is still the operator's:** creating the six menus, now possible in the
+   catalogue screen; and the three Duo burgers, which do not exist as products
+   yet and which the Duos cannot be built without.
+
+---
+
 # STAGE 7 — CLEANUP AND DOCUMENTATION TRUTH
 
 ## Batch 7.1 — Documentation corrections
@@ -4824,6 +4939,7 @@ Each original is shown with what replaced it.)*
 | 1.4b | COMPLETED | 2026-09-07 | `ce27fa4` | **L-65 and DOC-16** — the two prerequisites `docs/mise-en-service.md` § 0 calls the likeliest failures, measured the evening before delivery. **Prerequisite 2 passed**; **prerequisite 1 failed** and is a live blocker. **L-65**: the launcher says of itself *"a refusal is loud"* and refusals 1–3 are, but a **missing bun** was not — `& bunx` throws `CommandNotFoundException`, `$ErrorActionPreference = "Stop"` makes that terminating, it is uncaught, so the script died before `$statusCode` existed and refusal 2's `Fail` never ran; `server.log` ended on `Checking migration status...` naming no cause. Batch 1.4 had put the same detection in the **installer**, which a human reads, and not in the launcher, which runs unattended as `SYSTEM`. **DOC-16**: commit `4ab1eef` corrupted both warnings it was written to add — a `\n` became a real newline and broke the § 0 table after its first row, and `\a`/`\b` became a BEL and a BACKSPACE inside commands meant to be pasted. Also corrected § 6a, which still instructed a rotation the operator had already done. 997 tests, five reverts, the sibling 32 caught none of it. |
 | 1.4c | COMPLETED | 2026-09-08 | `1dcbe79` | **L-66 and DOC-17** — from the operator's question hours before the remote session: *is there an installer?* Answered from the scripts, and **nobody owned the question.** `install-windows.ps1` moves data out of the install directory and registers tasks; it does not fetch code, install dependencies or build, and **neither deployment document mentioned `bun install`, `prisma generate` or `bun run build` anywhere** — while `README-windows.md` § 5 claimed the installer *puts a database in place*, which it cannot: it relocates one and prints `skip (absent)` otherwise. **DOC-17** is the new **§ 0b**: 579 files from git including the 139 images, ~705 KB carried by hand (`db/custom.db`, the rotated `.env`), what not to copy (880 MB of `node_modules`, 388 MB of `.next`, 126 MB of unrestorable backups), and the two load-bearing orderings — `.env` before the build, the build before § 2's reboot. **L-66** is refusal 5, for the failure that gap produces: `next start` needs `.next/BUILD_ID`, and until now the launcher said nothing, the same silence as L-65 the day before. Two test findings recorded rather than quietly fixed: the batch **shipped DOC-16's defect in PowerShell** (a backtick inside `@"…"@` is an escape), and **a revert caught nothing** because a fixed-width window reached a neighbouring refusal's `Fail`. No installer was written, deliberately — Stage 9. 1007 tests, seven reverts. |
 | 5.9 | COMPLETED | 2026-09-09 | `0e80c73`…`2725cef` + docs | **Menus composés** — the operator's rulings of 2026-09-09, not an audit finding. `CartItem` held ONE set of options, so a Duo's two burgers — first with salade, second without — could not be represented at all; `CartItem.components` is that fix. A menu is a `Product` with `isCombo` and a list of slots, and it is BOOKED as one line per component, because `OrderItem` carries exactly one `vatRate` and a menu contains two rates the moment it leaves the premises. The forfait is divided per `docs/politique-ventilation-tva.md` — prorata of the components' catalogue prices, `apportion` so the shares always sum exactly, supplements on top and outside, and a higher-rate fallback that admin validation is meant to make unreachable. **Six of the policy document's nine published figures were wrong and the document was corrected**: one row grouped three pizzas into a single weight before apportioning, and five rounded the HT once per rate where this till rounds once per line (Batch 3.11's stored invariant), the three sur-place rows among them. **Twenty-two reverts, all caught — but two only after the tests they exposed were strengthened**: the fallback's rate floor was masked by a helper passing 10, and the cart's combo repricing branch was masked by every combo line having empty options. **The worked example found what no test could see**: the till was not sending the composition at all, because `payment-dialog.tsx` built the intent inline where no test looks — M-19's shape one layer out, now extracted to `lib/checkout-intent.ts` with a guard against re-inlining. All nine § 5 cases rung end to end against the rebuilt bundle on a scratch copy and read back from the database; the sur-place case through the real UI, the other eight over HTTP, said plainly. Migration rehearsed, NOT applied — the operator's to run. 1044 → **1172/0**. |
+| 5.10 | COMPLETED | 2026-09-09 | see the section | **There was no way to enter a menu.** Batch 5.9 built the model, the till flow, the allocation, the fallback, the ticket and the admin validation, and the product form never sent `isCombo` or `comboSlots` — so 5.9g, « the operator creates the six menus », could only be done with `curl`. Found by the operator asking how. A « Menu composé » switch and a slot editor: the question, how many times, the source category, an optional whitelist with per-filler surcharges, and a three-way for every inherited option group — *demander*, *imposé*, *ne pas demander*. Every decision lives in `lib/combo-slot-form.ts`, which is the rule this project has now paid for twice (M-19 in 5.7c, the checkout intent in 5.9). **The form runs the SERVER's validator**, so it cannot show « saved » for a menu the API will refuse. Eight reverts, all caught — two only after the tests they exposed were strengthened: one had passed `null` into the function it was testing, proving its own argument. **The screen itself was not driven by hand** — the browser pane would not dispatch to React — so that stays an [OWNER] check, and what replaced it POSTs the form's own payload to the real route and reads the database back. 1172 → **1209/0**. |
 
 # RESOLVED FINDINGS
 
@@ -4975,6 +5091,25 @@ Each original is shown with what replaced it.)*
 *(DD-24 and DD-25 were appended here on **2026-09-07**. They were answered on 2026-09-06 and the plan's DESIGN DECISIONS table has said since then that "the last three (DD-23, DD-24, DD-25)" were retired to this register — **DD-23 was; these two were not**. The full rationale had always been in Batches 3.8 and 3.9 above; what was missing was the register entry that makes it findable from the plan. Found by the session-19 sweep, which counted this register against that claim.)*
 
 # RETIRED OPEN-THREAD ROWS AND SUPERSEDED FRONT-MATTER LINES
+
+## Completed operator actions retired from *Open Threads → B* on 2026-09-09 (Batch 5.10)
+
+*All four were struck through and marked ✅ DONE, which is history rather than
+status; the front matter hit its ~40 KB ceiling again when Batch 5.10's lines
+went in. The section keeps the actions that are still outstanding.*
+
+| ~~Rotate `SESSION_SECRET` and `BACKUP_ENCRYPTION_KEY`~~ | **✅ DONE 2026-09-07**, by the operator with `scripts/rotate-secrets.ts`. **Verified**: both values are now 64 hex chars, the app signs in under the new secret, and the 2026-08-28 backup that decrypted hours earlier now **fails** — which is the proof. `FISCAL_CHAIN_KEY` untouched. The pre-rotation `.env` at `C:\HibaPOS-secrets-backup\` — **copied off the machine by the operator 2026-09-07** — is the only way the three old backups will ever open. Record → *Batch 7.3*. | SEC-ROT, L-04, DD-04 |
+| ~~**Correct the address in Réglages**~~ **✅ DONE 2026-09-07** | `restaurantAddress` reads `23 Grande Rue 45210, 45210 Ferrières-en-Gâtinais, France` — **the postcode appears twice**, once inside the street line. The operator asked for it corrected on 2026-09-07 to `23 Grande Rue, 45210 Ferrières-en-Gâtinais, France`. **Claude cannot write it** (CLAUDE.md rule 3); rehearsed on a scratch copy, where two things were measured: at **50 characters it still exceeds the paper** (1.3b is why that is now harmless), and **saving also persists `receiptWidth` 80 → 48**. | L-21, L-20, DOC-15 |
+| ~~Correct `printerName` in Réglages~~ | **✅ DONE 2026-09-07** — reads `Sunso WTP-801`. Verified read-only. **DOC-15 closed.** | DOC-15 |
+| ~~**Apply Batch 3.11's migration**~~ **✅ DONE 2026-09-07, verified** | `bunx prisma migrate deploy` — adds `lineNetTotal` and `lineHt` to `OrderItem` (L-58, BOFiP § 50). Two `ADD COLUMN`s, no table rebuild; rehearsed with a fingerprint diff whose only difference was the `_prisma_migrations` row. **Claude cannot run it** (CLAUDE.md rule 4). Command and checks: Batch 3.11's status record. | L-58 |
+
+**And a fifth, completed the same day:** Batch 5.9's migration
+`20260909143000_combo_menus`, run by the operator on 2026-09-09 and verified
+read-only — 21 checks, and a 16-line fingerprint diff in which every line is
+the intended schema change or the `_prisma_migrations` row. Detail: record →
+*Batch 5.9*, and the plan's *Open Threads → G* Production DB sha256 row.
+
+---
 
 ## Baseline history retired from *Open Threads → G* on 2026-09-09 (Batch 5.9)
 

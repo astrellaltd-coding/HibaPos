@@ -27,6 +27,14 @@ import { Separator } from "@/components/ui/separator";
 import { PageHeader, EmptyState } from "@/components/shared/empty-state";
 import { ProductImage } from "@/components/shared/product-image";
 import { MediaPickerDialog } from "@/components/shared/media-picker-dialog";
+import { ComboSlotsEditor } from "@/components/catalog/combo-slots-editor";
+import {
+  comboSlotsForPayload,
+  emptySlot,
+  slotFormErrors,
+  slotsFromProduct,
+  type SlotForm,
+} from "@/lib/combo-slot-form";
 import { formatEuro } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -317,6 +325,7 @@ export function ProductsView() {
 
       {editing && (
         <ProductFormDialog
+          products={products ?? []}
           product={editing === "new" ? null : editing}
           categories={categories ?? []}
           onClose={() => setEditing(null)}
@@ -336,11 +345,15 @@ export function ProductsView() {
 
 function ProductFormDialog({
   product,
+  products,
   categories,
   onClose,
   onSaved,
 }: {
   product: ProductDto | null;
+  /** Batch 5.10: the catalogue, so a menu's slots can offer their fillers and
+   *  read the option groups those fillers inherit. */
+  products: ProductDto[];
   categories: CategoryDto[];
   onClose: () => void;
   onSaved: () => void;
@@ -383,6 +396,14 @@ function ProductFormDialog({
   // Per-choice picker: tracks which choice index is being picked for
   const [choicePickerOpen, setChoicePickerOpen] = useState(false);
   const choicePickerTarget = useRef<{ gi: number; ci: number } | null>(null);
+
+  // MENU COMPOSÉ (Batch 5.10). `wasCombo` is captured on mount and never
+  // recomputed: it is what decides between « clear the stored slots » and
+  // « leave them alone » when the switch is off, and that question is about
+  // what the product WAS, not what the form now shows.
+  const wasCombo = product?.isCombo === true;
+  const [isCombo, setIsCombo] = useState(wasCombo);
+  const [comboSlots, setComboSlots] = useState<SlotForm[]>(() => slotsFromProduct(product));
 
   // Size mode
   const [sizesEnabled, setSizesEnabled] = useState(!!existingSizes);
@@ -439,9 +460,26 @@ function ProductFormDialog({
       : pickupPrice >= 0 && deliveryPrice >= 0
   );
 
+  // Batch 5.10. The forfait is the SUR-PLACE price, which this form derives the
+  // same way `handleSave` does — from the sizes when they are on, from the
+  // single price when they are off. A menu turns the sizes off (see the switch
+  // below), so in practice this is the single price; deriving it rather than
+  // assuming keeps the message honest if that ever changes.
+  const forfaitCents = sizesEnabled
+    ? sizesToGroupAndPrice(sizes).pickupPrice
+    : Math.round(Number(pickupPrice) * 100);
+  const comboErrors = slotFormErrors({ isCombo, priceCents: forfaitCents, slots: comboSlots });
+
   const handleSave = async () => {
     if (!valid) {
       toast.error(sizesEnabled ? "Ajoutez au moins 2 tailles avec un nom" : "Veuillez remplir le nom et la catégorie");
+      return;
+    }
+    // Batch 5.10: the same validator the server runs, so the operator is never
+    // shown « saved » for a menu the API is about to refuse — nor refused here
+    // for something it would have accepted.
+    if (comboErrors.length > 0) {
+      toast.error(comboErrors[0]);
       return;
     }
 
@@ -494,7 +532,14 @@ function ProductFormDialog({
       inheritCategoryVat,
       sortOrder: product?.sortOrder ?? 0,
       options: finalOptions,
+      // Batch 5.10. `comboSlotsForPayload` returns `undefined` for a product
+      // that is not and never was a menu, and the key is then dropped below —
+      // an ABSENT field means « leave the stored slots alone » (C-24's rule),
+      // and only an explicit `[]` clears them.
+      isCombo,
+      comboSlots: comboSlotsForPayload({ isCombo, wasCombo, slots: comboSlots }),
     };
+    if (payload.comboSlots === undefined) delete (payload as { comboSlots?: unknown }).comboSlots;
 
     setSaving(true);
     try {
@@ -822,6 +867,52 @@ function ProductFormDialog({
                 </div>
               </>
             )}
+
+            <Separator />
+
+            {/* ── 3b. Menu composé (Batch 5.10) ──
+                Batch 5.9 built the model, the till flow, the allocation and the
+                validation, and left no way to ENTER a menu: the API accepted
+                `isCombo` and `comboSlots` and this form never sent them, so the
+                six menus could only be created with `curl`. */}
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center justify-between rounded-lg border border-border bg-muted/20 p-3">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Menu composé</p>
+                  <p className="text-xs text-muted-foreground">
+                    Un prix forfaitaire, composé au comptoir. La TVA du forfait est ventilée entre
+                    les taux de ses composants — voir Réglages.
+                  </p>
+                </div>
+                <Switch
+                  id="product-is-combo"
+                  aria-label="Menu composé"
+                  checked={isCombo}
+                  onCheckedChange={(v) => {
+                    setIsCombo(v);
+                    // A menu's size is fixed by its slots, never by the menu
+                    // itself: `Menu` is a child of `Pizzas`, so leaving the
+                    // size group on would hang a « Taille » question on the
+                    // menu that the till never asks and nothing prices.
+                    if (v) {
+                      setSizesEnabled(false);
+                      setInheritCategoryGlobals(false);
+                      if (comboSlots.length === 0) setComboSlots([emptySlot()]);
+                    }
+                  }}
+                />
+              </div>
+
+              {isCombo && (
+                <ComboSlotsEditor
+                  slots={comboSlots}
+                  onChange={setComboSlots}
+                  products={products}
+                  categories={categories}
+                  errors={comboErrors}
+                />
+              )}
+            </div>
 
             <Separator />
 
