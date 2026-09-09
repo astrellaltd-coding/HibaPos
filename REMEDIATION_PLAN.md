@@ -1589,7 +1589,19 @@ Four such products exist in the catalogue **as ordinary single-price products**:
 | **Menu Chill** | 2 × pizza Senior + 1 bouteille | 24,90 | 24,90 | 28,90 |
 | **Menu XXL** | 2 × pizza Mega + 1 bouteille | 33,90 | 33,90 | 36,90 |
 
-**None of the three exists yet.** The operator creates them once the feature is built; *Menu Eco* as it stands is a different, damaged product being deactivated. Worked allocations for all nine cases are in the policy document, computed with the application's own `apportion()` and `splitVat()`.
+**None of the three exists yet.** The operator creates them once the feature is built. Worked allocations for all nine cases are in the policy document, computed with the application's own `apportion()` and `splitVat()`.
+
+### And the three Duo meals — folded in 2026-09-09
+
+| Menu | Composition (as described) | Sur place / à emporter | Livraison |
+|---|---|---|---|
+| **Duo Cheeseroyale** | 2 burgers + 1 barquette de frite + 1 boisson | 11,90 | 13,90 |
+| **Duo Chickenroyale** | 2 burgers + 1 barquette de frite + 1 boisson | 13,90 | 15,90 |
+| **Duo Geant Royale** | 2 burgers + 1 barquette de frite + 1 boisson | 15,90 | 17,90 |
+
+**These are the case that motivated the whole batch.** The two burgers are configured **independently** — the first with salad, the second without — which is exactly what `CartItem` cannot express. **All three are being deleted and will be recreated with the feature** (operator, 2026-09-09); none had ever been sold.
+
+**Their VAT is simpler than the pizza menus'.** Burgers and frites are 10 % in every mode, so a Duo splits only if its drink is a sealed container, and only à emporter or en livraison. **Their compositions are not yet resolvable** — see *Open before coding*.
 
 ### Items
 
@@ -1601,7 +1613,7 @@ Four such products exist in the catalogue **as ordinary single-price products**:
 | **5.9d** | `NOT STARTED` | Allocation at checkout, per the policy: explode into one `OrderItem` per component, each carrying its allocated share and its own rate from `resolveVatRate(component, orderType)`. **Use `apportion()`** — largest remainder — so the parts always sum to the menu price. |
 | **5.9e** | `NOT STARTED` | The higher-rate fallback, plus admin-side validation that makes it unreachable. |
 | **5.9f** | `NOT STARTED` | The composition on the client ticket, and the allocation policy surfaced in Réglages. |
-| **5.9g** | `NOT STARTED` | **[OWNER]** Create the three menus once the feature exists. |
+| **5.9g** | `NOT STARTED` | **[OWNER]** Create the three pizza menus **and the three Duo meals** once the feature exists. All six are deleted first; none had been sold. |
 
 ### Validation Required
 
@@ -1617,7 +1629,9 @@ Four such products exist in the catalogue **as ordinary single-price products**:
 ### Open before coding
 
 - **The accountant has not yet confirmed the allocation method.** The policy document names the three points needing confirmation. The rates are settled; **the division method is the open claim**, and the plan forbids claiming fiscal compliance from testing.
-- Whether the *Duo* meals become composed products too, or stay flat. They are live and now have inheritance off, so they ask nothing wrong — but they have the same unrecorded-composition problem.
+- **The burger names in the Duo compositions do not exist in the catalogue.** The operator described "2 Burgers Cheese Royal / Chicken Royal / Giant Royal"; the *Burgers* category holds **Cheeseburger 6,90**, **Chicken Burger 8,90**, **Giant Bacon 9,90** and **Royale Bacon 8,90**. Each Duo must be mapped to a real product before its reference prices can be computed. **Ask; do not guess** — the mapping decides the allocation.
+- **Which drink a Duo contains** — a 1,50 € canette or a 3,50 € bouteille. It changes the reference total and, à emporter, the size of the 5,5 % share.
+- **Which frite.** Presumably *Frite* (3,50 €) in *Croustillants*, but *Frite Cheddar* (4,90 €) and *Potatoes* (3,50 €) also exist. Confirm.
 
 ---
 
