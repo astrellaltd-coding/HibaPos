@@ -4160,6 +4160,58 @@ idiom `checkout-guards.test.ts` already uses.
    catalogue screen; and the three Duo burgers, which do not exist as products
    yet and which the Duos cannot be built without.
 
+### Appended 2026-09-09 — the operator's ruling on the Duo's frite, and the first menu sold
+
+**THE FRITE: as configured is what the operator wants, and this note exists so
+no future session "fixes" it.** The batch specified a Duo as *2 burgers + 1
+barquette de frite + 1 boisson*, one frite, and asked how to reconcile that with
+the required `Frite` group every burger inherits from `Burgers`. The operator's
+answer on 2026-09-09, having built and used the menus: **leave it.** No Duo has
+a frite slot and no slot silences that group, so **each burger brings its own
+frite** — the same side it comes with à la carte — and a Duo yields two.
+
+The consequence, stated so it is not rediscovered as a defect: a customer may
+choose « Frite Cheddar » on **both** burgers, so a Duo can carry **+3,00 €**
+rather than the +1,50 the composition table implies. That is charged correctly —
+each modifier lands on its own burger's line, at 10 %, outside the forfait — and
+it is the operator's commercial decision, not a bug.
+
+**THE FIRST MENU SOLD ON PRODUCTION, read-only on 2026-09-09 at 19:18.** Ticket
+**#40**, Menu Chill sur place, 29,40 €:
+
+| line | unit | rate | net | HT |
+|---|---|---|---|---|
+| Cannibale (Senior) + Champignons + Poivron | 13,86 | 10 % | 1386 | 1260 |
+| Buffalo (Senior) + Poivron | 12,35 | 10 % | 1235 | 1123 |
+| Fanta | 3,19 | 10 % | 319 | 290 |
+
+The 24,90 forfait apportioned **10,86 + 10,85 + 3,19** exactly as
+`combo-allocation.test.ts` predicts for two Seniors and a bottle; the three
+1,50 € supplements ride on the components that carry them and are outside the
+allocation; `comboName` and `comboPrice` on all three rows; **one** article;
+`Σ lineNetTotal = order.total` and `Σ (net − HT) = order.vatTotal`. Sur place,
+so a single 10 % bucket, which is what § 2 of the policy says happens.
+
+This is the batch's own *Validation Required* criterion 6 met on the real
+catalogue and the real database, by the operator, rather than on a scratch copy
+by us.
+
+**ONE THING IN THE CATALOGUE IS STILL WRONG, and it is data rather than code.**
+`Menu XXL` imposes **Senior** on its second pizza where the menu is « 2 pizzas
+Mega ». Measured read-only at 19:18, after the operator reported the menu fixed
+— the missing `Boisson` slot had been added, the size had not. Recomputed with
+the application's own functions, à emporter:
+
+| | shares | 5,5 % | 10 % | TVA |
+|---|---|---|---|---|
+| as configured (Mega + Senior) | 17,22 + 12,89 + 3,79 | TTC 3,79 · HT 3,59 | TTC 30,11 · HT 27,37 | **2,94** |
+| as specified (Mega + Mega) | 15,27 + 15,27 + 3,36 | TTC 3,36 · HT 3,18 | TTC 30,54 · HT 27,76 | **2,96** |
+
+So the customer receives a smaller pizza than the menu promises, and 43 cents of
+base moves onto the reduced-rate share — two centimes of VAT under-declared per
+Menu XXL sold à emporter. Both are the operator's to fix in the editor; the plan
+carries it as an open action under *Open Threads → B*.
+
 ---
 
 # STAGE 7 — CLEANUP AND DOCUMENTATION TRUTH

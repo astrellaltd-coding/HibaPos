@@ -34,11 +34,11 @@ Batch 3.12's `vatRateTakeaway`.
 | | |
 |---|---|
 | Commit | **`ec162b4`** — the tip of `main` when this file was added. Anything after it is a change and needs a row below. |
-| Tests | **1172 pass, 0 fail** · e2e **13 passed** — unit figure re-measured 2026-09-09 after Batch 5.9 |
-| Production database | `98c4c9d4b12e5eef9e383af81b5238d57633c55c9b05fc482656ea5b7cd1014f`, 868 352 bytes (2026-09-09 16:15, after Batch 5.9's migration). **This hash moves on its own while the operator's app is open** — a session touch rewrites pages without changing a single fiscal row. The invariant to assert is the fiscal fingerprint, not the sha: record → *Batch 5.9*, note 9 |
+| Tests | **1217 pass, 0 fail** · e2e **13 passed** — unit figure re-measured 2026-09-09 after Batch 5.10 and the three tweaks below |
+| Production database | `b21104b5d2d4aaa109414ec633ee822dd7e81ebebafb0e23330a7678dee3f8b7`, 876 544 bytes (2026-09-09 19:18, after the operator built the six menus). **This hash moves on its own while the operator's app is open** — a session touch rewrites pages without changing a single fiscal row. The invariant to assert is the fiscal fingerprint, not the sha: record → *Batch 5.9*, note 9 |
 | Migrations | **12 applied, none pending.** Batch 5.9's `20260909143000_combo_menus` was applied by the operator 2026-09-09 and verified read-only (21 checks; the fingerprint diff is 16 lines, all of them the intended schema change) |
-| Fiscal counters | **39 / 5 / 4 / 26**, measured 2026-09-09 *(this row read 20/3/2/2 until then, true on 2026-09-06)* — all of it **development** trading data (plan warning 4), which **§ 6's reset deletes** |
-| Fiscal chains | all four `ok` at `lastSequence: 26`, and **unkeyed** — `FISCAL_CHAIN_KEY` is armed in § 6e and on no machine before it |
+| Fiscal counters | **41 / 5 / 4 / 30**, measured 2026-09-09 19:18 — **#40 is the first menu composé ever sold**, a Menu Chill sur place at 29,40 — all of it **development** trading data (plan warning 4), which **§ 6's reset deletes** |
+| Fiscal chains | all four `ok` at `lastSequence: 30`, and **unkeyed** — `FISCAL_CHAIN_KEY` is armed in § 6e and on no machine before it |
 
 **Every entry below must be reversible on its own.** One change, one commit, one
 row here. That is the whole point: a row you can revert without unpicking four
