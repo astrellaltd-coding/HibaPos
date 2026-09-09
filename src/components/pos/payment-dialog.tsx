@@ -11,6 +11,7 @@ import { toCents } from "@/lib/money";
 import { useCartStore, computeCartTotals } from "@/store/cart-store";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "@/lib/api-client";
+import { buildCheckoutItems } from "@/lib/checkout-intent";
 import type { OrderDto, PaymentMethod, SettingsDto } from "@/types/api";
 import { Banknote, CreditCard, Ticket, Plus, Trash2, Loader2, CheckCircle2, Coins, Gift } from "lucide-react";
 import { toast } from "sonner";
@@ -180,13 +181,12 @@ export function PaymentDialog({
         customerId: customerId ?? null,
         discount,
         notes: notes || null,
-        items: items.map((i) => ({
-          productId: i.productId,
-          quantity: i.quantity,
-          notes: i.notes ?? null,
-          optionIds: i.options.map((o) => o.choiceId),
-          addons: i.addOns.map((a) => ({ addonId: a.id, quantity: 1 })),
-        })),
+        // Batch 5.9: EXTRACTED to `lib/checkout-intent.ts`. It was inline
+        // here, so no test could see what the till actually sends — and a menu
+        // reached this point with its three components in the cart and left it
+        // without them, answering 400 at the counter while every unit and
+        // route test passed.
+        items: buildCheckoutItems(items),
         payments: lines.map((l) => {
           if (l.method !== "CASH") {
             return { method: l.method, amount: l.amount };
