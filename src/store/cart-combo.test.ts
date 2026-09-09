@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
+import { readFileSync } from "fs";
+import path from "path";
 import {
   useCartStore,
   computeLineTotal,
@@ -279,6 +281,42 @@ describe("repricing a menu when the order type changes", () => {
     const l = duo([canette()], { pickupPrice: null, deliveryPrice: null });
     expect(recalculateUnitPrice(l, "TAKEAWAY")).toBe(1190);
     expect(recalculateUnitPrice(l, "LIVRAISON")).toBe(1190);
+  });
+});
+
+describe("the cart panel shows what is in a menu", () => {
+  // REPORTED BY THE OPERATOR, 2026-09-09, after ringing a Menu Eco: the cart
+  // showed « Menu Eco » and a total and nothing else, because a menu line's
+  // `options` and `addOns` are both empty and the panel rendered only those.
+  // The cashier had no way to check what they had just built before charging
+  // for it.
+  //
+  // SOURCE ASSERTIONS, and named as such — `cart-panel.tsx` is a component and
+  // there is no harness that renders it. This is the idiom
+  // `table-withdrawal.test.ts` and `checkout-guards.test.ts` already use, and
+  // it is a guard against the line being dropped again, not proof that it
+  // draws correctly. Seeing it on screen is an [OWNER] check.
+  const panel = () =>
+    readFileSync(path.join(process.cwd(), "src/components/pos/cart-panel.tsx"), "utf8");
+
+  it("renders a menu's components", () => {
+    expect(panel(), "the cart panel no longer lists a menu's components").toMatch(
+      /item\.components\s*\?\?\s*\[\]/,
+    );
+    expect(panel()).toContain("c.productName");
+  });
+
+  it("shows a component's own extras, which ARE money the customer pays", () => {
+    expect(panel()).toContain("componentExtras(c)");
+  });
+
+  it("computes NO per-component share — there is none to show before checkout", () => {
+    // The forfait is not divided until the server allocates it, and those
+    // shares are artefacts of that division rather than prices anyone pays.
+    // Same rule as the printed ticket.
+    const src = panel();
+    expect(src).not.toContain("apportion");
+    expect(src).not.toContain("referencePrice");
   });
 });
 

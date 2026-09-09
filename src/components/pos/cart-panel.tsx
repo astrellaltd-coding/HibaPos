@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useCartStore, computeLineTotal, computeCartTotals, type CartItem } from "@/store/cart-store";
+import { useCartStore, computeLineTotal, computeCartTotals, componentExtras, type CartItem } from "@/store/cart-store";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import type { CustomerDto } from "@/types/api";
@@ -258,6 +258,39 @@ export function CartPanel({ onCheckout, onEditItem, onOpenDiscount }: { onChecko
                         <span className="shrink-0 tabular-nums">{formatEuro(a.price)}</span>
                       </div>
                     ))}
+
+                    {/* A MENU'S COMPOSITION (reported by the operator, 2026-09-09).
+                        A menu line carried its components in `components` and
+                        nothing else — `options` and `addOns` are empty on one —
+                        so the card showed « Menu Eco » and a total, with no way
+                        for the cashier to check what they had just built before
+                        charging for it.
+
+                        NO PER-COMPONENT AMOUNT IS SHOWN, and there is nothing
+                        here that could show one: the forfait is not divided
+                        until the server allocates it, and those shares are
+                        artefacts of that division rather than prices anyone
+                        pays. What DOES carry a price is a component's own
+                        extras — a slot surcharge, a paid option, a supplement —
+                        because the customer is charged for those on top of the
+                        forfait. Same rule as the printed ticket. */}
+                    {(item.components ?? []).map((c, ci) => {
+                      const extras = componentExtras(c);
+                      return (
+                        <div key={`${c.slotId}-${ci}`} className="flex items-baseline justify-between gap-2 text-[9px] text-muted-foreground">
+                          <span className="truncate">
+                            · {c.productName}
+                            {c.options.length > 0 && (
+                              <span className="text-foreground/50"> ({c.options.map((o) => o.choice).join(", ")})</span>
+                            )}
+                            {c.addOns.map((a) => (
+                              <span key={a.id ?? a.name} className="text-foreground/50"> + {a.name}</span>
+                            ))}
+                          </span>
+                          {extras > 0 && <span className="shrink-0 tabular-nums">+{formatEuro(extras)}</span>}
+                        </div>
+                      );
+                    })}
                     {item.notes && (
                       <div className="text-[9px] italic text-foreground/70">
                         « {item.notes} »
