@@ -34,9 +34,9 @@ Batch 3.12's `vatRateTakeaway`.
 | | |
 |---|---|
 | Commit | **`ec162b4`** — the tip of `main` when this file was added. Anything after it is a change and needs a row below. |
-| Tests | **1007 pass, 0 fail** · e2e **13 passed** |
-| Production database | `d09369c09dd9b4515c78af31118e8dc47516e74c0ab4d41e2bc4d93c5e54b16b`, 704 512 bytes |
-| Migrations | 10 applied, none pending |
+| Tests | **1172 pass, 0 fail** · e2e **13 passed** — unit figure re-measured 2026-09-09 after Batch 5.9 |
+| Production database | `abf700279dcbe71007190cd981665236ec8afc7ef44805de067b21010be0d860`, 798 720 bytes (2026-09-09). **This hash moves on its own while the operator's app is open** — a session touch rewrites pages without changing a single fiscal row. The invariant to assert is the fiscal fingerprint, not the sha: record → *Batch 5.9*, note 9 |
+| Migrations | **11 applied** (3.12's `category_vat_rate_takeaway`, by the operator 2026-09-09). **One pending: `20260909143000_combo_menus`** — Batch 5.9's, rehearsed with a one-line fingerprint diff and **not applied**. The operator runs `bunx prisma migrate deploy` |
 | Fiscal counters | 20 / 3 / 2 / 2 — all of it **development** trading data (plan warning 4), which **§ 6's reset deletes** |
 | Fiscal chains | all four `ok`, and **unkeyed** — `FISCAL_CHAIN_KEY` is armed in § 6e and on no machine before it |
 

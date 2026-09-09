@@ -12,9 +12,11 @@
 > une fausse attestation est un délit pénal. La ventilation de la TVA n'est pas
 > une question ISCA et n'a rien à y faire.
 
-**Statut au 2026-09-09 : la politique est arrêtée, la mise en œuvre ne l'est
-pas.** Aucun menu composé n'existe encore dans le logiciel — voir *Ce qui
-existe déjà* en fin de document.
+**Statut au 2026-09-09 : la politique est arrêtée et la mise en œuvre est
+faite.** Le Batch 5.9 a construit les menus composés ; les neuf cas du § 5 ont
+été rejoués de bout en bout contre le logiciel réel et **six d'entre eux ont
+été corrigés d'un centime** — voir *§ 9, correction du 2026-09-09*. La méthode
+elle-même reste à faire confirmer par le comptable (§ 8).
 
 ---
 
@@ -93,34 +95,48 @@ scellée **3,50** dans tous les modes.
 Chiffres produits par les fonctions `apportion()` et `splitVat()` du logiciel
 lui-même. **Chaque ventilation retombe exactement sur le prix de vente.**
 
+> **Tableaux corrigés le 2026-09-09** (Batch 5.9). Les chiffres publiés le matin
+> même n'étaient pas ceux que le logiciel produit : **six lignes sur neuf**
+> changeaient d'un centime. Les valeurs ci-dessous sont celles relevées sur les
+> tickets réels, encaissement par encaissement. Le détail et la raison : § 9.
+
 ### Menu Eco — 3 pizzas Junior + 1 bouteille — 24,90 €
 
 | Mode | Prix | Base 10 % | Base 5,5 % | TVA |
 |---|---|---|---|---|
-| Sur place | 24,90 | 24,90 TTC → HT 22,64 | — | 2,26 |
-| À emporter | 24,90 | 22,01 TTC → HT 20,01 | 2,89 TTC → HT 2,74 | 2,15 |
+| Sur place | 24,90 | 24,90 TTC → HT **22,63** | — | **2,27** |
+| À emporter | 24,90 | **22,02** TTC → HT 20,01 | **2,88** TTC → HT **2,73** | **2,16** |
 | Livraison | 24,90 | 22,28 TTC → HT 20,25 | 2,62 TTC → HT 2,48 | 2,17 |
 
 ### Menu Chill — 2 pizzas Senior + 1 bouteille — 24,90 € / 28,90 € en livraison
 
 | Mode | Prix | Base 10 % | Base 5,5 % | TVA |
 |---|---|---|---|---|
-| Sur place | 24,90 | 24,90 TTC → HT 22,64 | — | 2,26 |
-| À emporter | 24,90 | 21,71 TTC → HT 19,74 | 3,19 TTC → HT 3,02 | 2,14 |
-| Livraison | 28,90 | 25,58 TTC → HT 23,25 | 3,32 TTC → HT 3,15 | 2,50 |
+| Sur place | 24,90 | 24,90 TTC → HT **22,63** | — | **2,27** |
+| À emporter | 24,90 | 21,71 TTC → HT **19,73** | 3,19 TTC → HT 3,02 | **2,15** |
+| Livraison | 28,90 | 25,58 TTC → HT **23,26** | 3,32 TTC → HT 3,15 | **2,49** |
 
 ### Menu XXL — 2 pizzas Mega + 1 bouteille — 33,90 € / 36,90 € en livraison
 
 | Mode | Prix | Base 10 % | Base 5,5 % | TVA |
 |---|---|---|---|---|
-| Sur place | 33,90 | 33,90 TTC → HT 30,82 | — | 3,08 |
+| Sur place | 33,90 | 33,90 TTC → HT **30,81** | — | **3,09** |
 | À emporter | 33,90 | 30,54 TTC → HT 27,76 | 3,36 TTC → HT 3,18 | 2,96 |
 | Livraison | 36,90 | 33,77 TTC → HT 30,70 | 3,13 TTC → HT 2,97 | 3,23 |
 
 **Détail d'un calcul, à titre d'illustration** — Menu Chill à emporter :
-référence 2 × 11,90 + 3,50 = 27,30 ; part pizzas 23,80/27,30 × 24,90 = 21,71 ;
-part boisson 24,90 − 21,71 = 3,19 ; puis 21,71 ÷ 1,10 = 19,74 HT (TVA 1,97) et
-3,19 ÷ 1,055 = 3,02 HT (TVA 0,17).
+référence 11,90 + 11,90 + 3,50 = 27,30 ; le forfait est réparti **composant par
+composant** au prorata de ces trois prix, ce qui donne 10,86 + 10,85 + 3,19 =
+24,90 exactement. Les deux pizzas relèvent de 10 %, la bouteille de 5,5 % ; la
+base à 10 % est donc 10,86 + 10,85 = 21,71 et la base à 5,5 % est 3,19.
+
+Le HT est ensuite pris **ligne par ligne** : 10,86 ÷ 1,10 = 9,87 et
+10,85 ÷ 1,10 = 9,86, soit 19,73 HT au total (TVA 1,98) ; et 3,19 ÷ 1,055 = 3,02
+HT (TVA 0,17). Total TVA 2,15.
+
+*(La rédaction initiale groupait d'abord les deux pizzas — 23,80/27,30 × 24,90 =
+21,71 — puis divisait la base une seule fois : 21,71 ÷ 1,10 = 19,74. Le résultat
+diffère d'un centime sur le HT. Voir § 9.)*
 
 ## 6. Les suppléments
 
@@ -144,10 +160,18 @@ supplément alimentaire. Le forfait ventilé reste le prix du menu seul.
   sont testés.
 - Le ticket client imprime déjà un **Détail TVA** par taux.
 
-**Ce qui n'existe pas encore :** la notion même de menu composé. Les quatre
-« menus » présents au catalogue sont des produits ordinaires à prix unique et à
-taux unique. Tant que la fonctionnalité n'est pas construite, **aucun menu ne
-peut être ventilé** — voir `REMEDIATION_PLAN.md` → *Batch 5.9*.
+**Construit le 2026-09-09 par le Batch 5.9 :** la notion de menu composé. Un
+menu est un produit portant `isCombo`, dont les composants sont choisis au
+comptoir case par case, et qui est **enregistré en une ligne par composant** —
+chacune avec sa part du forfait et son propre taux. C'est ce découpage qui rend
+la ventilation possible : `OrderItem` ne porte qu'un seul taux, et une ligne
+unique n'aurait jamais pu en porter deux.
+
+**Ce qui reste à faire :** l'exploitant doit créer les six menus au catalogue
+(les trois menus pizzas et les trois Duo). Les produits « Burger Cheese Royal »,
+« Chicken Royal » et « Giant Royal » que contiennent les Duo n'existent pas
+encore ; tant qu'ils n'existent pas, **les Duo ne peuvent pas figurer au § 5**,
+faute de prix de référence. Ils y seront ajoutés une fois le catalogue à jour.
 
 ## 8. À faire confirmer par le comptable
 
@@ -156,6 +180,47 @@ peut être ventilé** — voir `REMEDIATION_PLAN.md` → *Batch 5.9*.
    sources citent cette méthode comme un exemple admis, pas comme la seule.
 2. **Le repli au taux supérieur** en cas d'impossibilité de ventiler.
 3. **Le traitement des suppléments** hors forfait.
+4. **Le cas des composants qui ne sont pas vendus à la carte.** La méthode du
+   § 2 se justifie par les « prix pratiqués séparément lorsque les produits sont
+   aussi vendus à la carte » : c'est vrai de toutes les pizzas et de toutes les
+   boissons. Si les burgers des Duo n'existent QUE dans les Duo, leur prix de
+   référence devient une valeur notionnelle et cette justification ne tient plus
+   pour ces menus-là. Les vendre aussi à l'unité suffirait à la rétablir.
+
+## 9. Correction des tableaux du § 5 — 2026-09-09
+
+Les neuf lignes publiées le matin du 2026-09-09 annonçaient être « produites
+par les fonctions `apportion()` et `splitVat()` du logiciel lui-même ». Elles ne
+l'étaient pas tout à fait : elles avaient été calculées à la main, en groupant
+d'abord. Quand le Batch 5.9 a rejoué les neuf cas contre le logiciel réel,
+**six d'entre eux ont donné un centime d'écart**. Les tableaux du § 5 portent
+désormais les chiffres du logiciel, relevés sur les tickets réels.
+
+Deux causes, distinctes, et toutes deux **conséquences du fait qu'un menu est
+enregistré en une ligne par composant** :
+
+**a. Le regroupement.** La ligne « Menu Eco à emporter » répartissait 26,70
+(trois Junior comptés comme UN poids) contre 3,50. Le logiciel répartit entre
+les **composants** — quatre poids — parce qu'une ligne est la seule chose qui
+puisse porter un taux. 22,02 / 2,88 au lieu de 22,01 / 2,89. **Une ligne.**
+
+**b. Où le HT est arrondi.** Le document divisait chaque **base** une seule fois
+(« 21,71 ÷ 1,10 = 19,74 »). La caisse divise chaque **ligne** : `lineHt =
+arrondi(lineNetTotal ÷ (1 + taux/100))`, chiffre stocké sur chaque ligne depuis
+le Batch 3.11 et vérifié par la somme `Σ (net − HT) = TVA de la commande`.
+**Cinq lignes**, dont les trois lignes « sur place », là où le § 2 dit
+pourtant qu'aucune ventilation n'a lieu : il n'y en a pas, mais le HT est tout
+de même pris trois fois plutôt qu'une.
+
+**Le sens de l'écart n'est pas systématique** : cinq lignes gagnent un centime
+de TVA, une en perd un. Il ne s'agit pas d'un choix de méthode — la méthode du
+§ 2 est inchangée — mais de l'arrondi, à l'endroit où le logiciel l'applique
+réellement.
+
+**Vérification.** Les neuf cas ont été encaissés de bout en bout sur une copie
+de travail, contre l'application compilée, et relus dans la base : total,
+TVA par taux, HT par taux, et `Σ (net − HT) = TVA` sur chaque commande. Le
+détail figure dans `REMEDIATION_RECORD.md` → *Batch 5.9*.
 
 ---
 

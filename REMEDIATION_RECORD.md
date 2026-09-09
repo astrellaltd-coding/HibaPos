@@ -3928,6 +3928,125 @@ Three facts, each read from the code rather than inferred:
 
 ---
 
+## Batch 5.9 — Menus composés (combos): the cashier cannot ring one, and the VAT cannot be split
+
+*Moved verbatim from `REMEDIATION_PLAN.md` lines 1558–1637 (commit `2725cef`) on 2026-09-09, with the status record appended.*
+
+**Status:** `NOT STARTED` · **Specified 2026-09-09** from the operator's rulings; **no code written.** Prerequisite **3.12 is done**, which is what unblocks it.
+
+**Read `docs/politique-ventilation-tva.md` before anything here.** It is the allocation policy, agreed with the operator on 2026-09-09, and this batch implements it.
+
+### The gap
+
+The restaurant sells menus — a fixed price covering several items the cashier must choose one after another. **The application has no notion of a product composed of configurable slots**, and `git grep` finds nothing: no table, no type, no code.
+
+Four such products exist in the catalogue **as ordinary single-price products**: *Menu Eco* (being deactivated by the operator) and the three *Duo* meals. Tapping one drops a single line in the basket and asks nothing, so the kitchen never learns which pizzas were ordered and the price cannot be split across VAT rates.
+
+**The blocking structural fact:** `CartItem` holds **one** set of options and **one** set of add-ons. Two burgers configured differently — the first with salad, the second without — **cannot be represented at all**. This is the shape of the basket, not a screen.
+
+### The operator's rulings — 2026-09-09, and they are the specification
+
+| | |
+|---|---|
+| **VAT** | Split across rates, by the policy in `docs/politique-ventilation-tva.md`: **prorata of the components' standalone catalogue prices for the order type concerned**. **Sur place performs no split** — every component is 10 % there. |
+| **Fallback** | If a menu cannot be allocated, **the whole price is taxed at the higher rate present (10 %)** — never lower. And the admin must **refuse to save** an incompletely configured menu, so the fallback should not be reachable in service. |
+| **Supplements** | Charged **on top** of the menu price at their own rate, **outside** the allocation. The forfait that gets split is the menu price alone. |
+| **Prices** | Fixed per menu and per order type. Sizes are fixed by the menu, so the cashier **never chooses a size** — only which pizza. |
+| **Slots** | "Any pizza" means any product in the Pizzas tree. **A combo may never be a component of a combo** — *Menu Eco* sits under Pizzas and would otherwise offer itself. |
+| **Receipt** | The client ticket is the **only** paper — there is no kitchen ticket. It must show the composition, as **indented, price-less lines** in the idiom `receipt.ts` already uses for options (`pushMarked("  · ", …)`). Per-component **amounts are not printed**: they are allocation artefacts, not prices, and printing them would state a price the customer did not pay. The existing *Détail TVA* block carries the rates. |
+| **Policy document** | Lives in `docs/politique-ventilation-tva.md` **and** as a setting in Réglages. **Explicitly NOT in `docs/attestation-conformite.md`** — that is the BOI-LETTRE-000242 ISCA model, carrying criminal liability, and VAT ventilation is not an ISCA matter. |
+
+### The three menus
+
+| Menu | Composition | Sur place | À emporter | Livraison |
+|---|---|---|---|---|
+| **Menu Eco** | 3 × pizza Junior + 1 bouteille | 24,90 | 24,90 | 24,90 |
+| **Menu Chill** | 2 × pizza Senior + 1 bouteille | 24,90 | 24,90 | 28,90 |
+| **Menu XXL** | 2 × pizza Mega + 1 bouteille | 33,90 | 33,90 | 36,90 |
+
+**None of the three exists yet.** The operator creates them once the feature is built. Worked allocations for all nine cases are in the policy document, computed with the application's own `apportion()` and `splitVat()`.
+
+### And the three Duo meals — folded in 2026-09-09
+
+| Menu | Composition (as described) | Sur place / à emporter | Livraison |
+|---|---|---|---|
+| **Duo Cheeseroyale** | 2 burgers + 1 barquette de frite + 1 boisson | 11,90 | 13,90 |
+| **Duo Chickenroyale** | 2 burgers + 1 barquette de frite + 1 boisson | 13,90 | 15,90 |
+| **Duo Geant Royale** | 2 burgers + 1 barquette de frite + 1 boisson | 15,90 | 17,90 |
+
+**These are the case that motivated the whole batch.** The two burgers are configured **independently** — the first with salad, the second without — which is exactly what `CartItem` cannot express. **All three are being deleted and will be recreated with the feature** (operator, 2026-09-09); none had ever been sold.
+
+**Their VAT is simpler than the pizza menus'.** Burgers and frites are 10 % in every mode, so a Duo splits only if its drink is a sealed container, and only à emporter or en livraison. **Their compositions are not yet resolvable** — see *Open before coding*.
+
+### Items
+
+| Item | Status | What |
+|---|---|---|
+| **5.9a** | `NOT STARTED` | A data model for a composed product: slots, each with a quantity, a fixed size where relevant, and what may fill it. Migration. Combos excluded from being components. |
+| **5.9b** | `NOT STARTED` | The basket can hold a line whose components are **individually configured**. This is the deep change — `CartItem` today cannot express it. |
+| **5.9c** | `NOT STARTED` | The slot-by-slot configuration flow: slot *n* of *m*, back and next, a running summary, and the size never asked because the menu fixes it. |
+| **5.9d** | `NOT STARTED` | Allocation at checkout, per the policy: explode into one `OrderItem` per component, each carrying its allocated share and its own rate from `resolveVatRate(component, orderType)`. **Use `apportion()`** — largest remainder — so the parts always sum to the menu price. |
+| **5.9e** | `NOT STARTED` | The higher-rate fallback, plus admin-side validation that makes it unreachable. |
+| **5.9f** | `NOT STARTED` | The composition on the client ticket, and the allocation policy surfaced in Réglages. |
+| **5.9g** | `NOT STARTED` | **[OWNER]** Create the three pizza menus **and the three Duo meals** once the feature exists. All six are deleted first; none had been sold. |
+
+### Validation Required
+
+1. **Unit tests on the allocation** — all nine cases in the policy document, asserting the parts sum to the selling price exactly and that sur place produces a single 10 % bucket.
+2. **A route-level test on `POST /api/orders`** proving what is **booked** for a menu: the `OrderItem` rows, their rates and their shares, under all three order types. **Batch 5.8's and 3.12's lesson: a rule can be right while nothing consults it — the revert must fail this, not only the unit tests.**
+3. **The fallback tested directly**: a menu that cannot be allocated books the whole amount at 10 %, and the admin refuses to save that configuration in the first place.
+4. **Supplements**: added on top at their own rate and **excluded** from the allocation base.
+5. **The revert protocol** — one property at a time, both directions, and say which tests pass under no revert.
+6. **A worked example on a scratch copy**, end to end, through the real UI: ring each menu sur place and à emporter, and read the ticket's *Détail TVA* against the policy document's table. **Rebuild first** — 3.12 note 3 is what happens otherwise.
+7. `bun run test`, `bun run typecheck`, `bun run lint`; README counts re-pinned.
+8. **Production untouched**, demonstrated rather than asserted.
+
+### Open before coding
+
+- **The accountant has not yet confirmed the allocation method.** The policy document names the three points needing confirmation. The rates are settled; **the division method is the open claim**, and the plan forbids claiming fiscal compliance from testing.
+- **The burger names in the Duo compositions do not exist in the catalogue.** The operator described "2 Burgers Cheese Royal / Chicken Royal / Giant Royal"; the *Burgers* category holds **Cheeseburger 6,90**, **Chicken Burger 8,90**, **Giant Bacon 9,90** and **Royale Bacon 8,90**. Each Duo must be mapped to a real product before its reference prices can be computed. **Ask; do not guess** — the mapping decides the allocation.
+- **Which drink a Duo contains** — a 1,50 € canette or a 3,50 € bouteille. It changes the reference total and, à emporter, the size of the 5,5 % share.
+- **Which frite.** Presumably *Frite* (3,50 €) in *Croustillants*, but *Frite Cheddar* (4,90 €) and *Potatoes* (3,50 €) also exist. Confirm.
+
+---
+
+
+### Status record
+
+**Status:** `COMPLETED` · **Completed:** 2026-09-09 · **Commits:** `0e80c73` (5.9a), `8955d60` (5.9b), `8b4b48f` (5.9d/e), `29398a2` (5.9c/f), `830cd45` (reverts), `2725cef` (the intent gap), and the documents commit that moved this section · **Findings:** none from the audit — the batch is the operator's rulings of 2026-09-09 · **Decisions:** four, answered by the operator before any code (see note 1); **5.9g stays open and is the operator's.**
+
+**Changes.** `Product.isCombo` marks a menu; `ComboSlot` is what the cashier is asked, `quantity` times over; `ComboSlotChoice` whitelists a filler with its own surcharge; `ComboSlotOptionRule` names an inherited CATEGORY group the menu governs — answering it (the pizza size) or simply not asking it (the burgers' required « Frite », which a Duo covers with its own slot). `OrderItem` gained three nullable columns, `comboGroupId` / `comboName` / `comboPrice`, which tie a menu's exploded lines back together. `CartItem.components` is the structural fix: one entry per seat, each with its own `options` and `addOns`, so the Duo's two burgers — first with salade, second without — can be represented at all. `services/combo.ts` implements `docs/politique-ventilation-tva.md` and nothing else: prorata of the components' catalogue prices for the order type, `apportion` so the shares always sum to the forfait, supplements on top and outside, and the higher-rate fallback. `services/combo-checkout.ts` reads the catalogue and hands the result to it; `POST /api/orders` explodes a menu into one `OrderItem` per component, each with its own `resolveVatRate(component, orderType)`. `services/combo-admin.ts` plus `validateComboShape` refuse to SAVE a menu that could not be sold right. The builder dialog asks slot by slot and never asks a size the menu fixes. The ticket prints the menu once at its forfait with the composition as indented price-less lines. Réglages carries the policy, read-only. `resolveBasePrice` and `resolveChoiceModifier` were extracted from `computeLinePricing` unchanged, because a component's reference price is the catalogue price at the size the menu fixes and those sizes carry absolute prices.
+
+**Files.** New: `prisma/migrations/20260909143000_combo_menus/`, `src/lib/services/combo.ts`, `combo-checkout.ts`, `combo-admin.ts`, `src/lib/combo-builder.ts`, `src/lib/checkout-intent.ts`, `src/lib/vat-allocation-policy.ts`, `src/components/pos/combo-builder-dialog.tsx`, and six test files (`combo-allocation`, `combo-builder`, `checkout-intent`, `cart-combo`, `receipt-combo`, `orders-combo`, `products-combo-validation`). Changed: `prisma/schema.prisma`, `src/lib/services/pricing.ts`, `checkout.ts`, `receipt.ts`, `src/lib/validation.ts`, `src/store/cart-store.ts`, `src/app/api/orders/route.ts`, `src/app/api/catalog/products/route.ts` and `[id]/route.ts`, `src/components/pos/payment-dialog.tsx`, `src/features/catalog/pos-view.tsx`, `src/features/admin/settings-view.tsx`, `src/types/api.ts`, `README.md` (1044 → 1172), `src/lib/readme-counts.test.ts` (one expansion registered), `docs/politique-ventilation-tva.md`.
+
+**Tests.** 1172 pass, 0 fail — 128 added (1044 before). **Twenty-two reverts, all caught, and two of them were not on the first pass.** R8 removed the fallback's rate floor and nothing failed, because the test's helper passed the menu's own rate as 10 and `Math.max(0, 10, 5.5)` is 10 either way — the assertion was true for a reason unrelated to what it names, and now runs with every rate at 5,5 so only the floor can produce 10. R9 removed the combo branch from `recalculateUnitPrice` and nothing failed either, because every combo line in the tests had an empty `options` array so the ordinary path summed nothing; there is now a test that puts options on a menu line and asserts the forfait anyway. Three further reverts were added because the first pass never reached `lib/combo-builder.ts` at all. **What fails under no revert, named rather than counted:** `line-ht.test.ts`'s 8, included as a REGRESSION guard because this batch adds a second writer of `lineNetTotal`/`lineHt`; five explicit controls asserting an ordinary sale, line, ticket and product are untouched; and 41 further assertions whose property was not among the 22 reverted. 72 of the batch's 120 declared assertions failed under at least one revert.
+
+**Notes.**
+
+1. **Four questions were put to the operator before any code, and all four moved the work.** The drink in a Duo is a **canette at 1,50 €**. The frite is **one slot, cashier picks Frite / Potatoes / Frite Cheddar +1,50 €** — a figure the catalogue cannot yield, where the standalone products differ by 1,40, which is why `ComboSlotChoice.surcharge` exists. The policy document's figures were to be **corrected to what the software computes**. And the Duo burgers — « Cheese Royal », « Chicken Royal », « Giant Royal » — **do not exist in the catalogue and the operator will create them later**; that blocks nothing, because a slot names a category and a whitelist and the reference price is read at ring time, but it does mean **no Duo worked example can be published until those products exist**.
+
+2. **SIX OF THE POLICY DOCUMENT'S NINE ROWS WERE WRONG, and the document is what was corrected.** Two causes, both consequences of booking a menu as its components. (a) The Menu Eco à emporter row grouped three Juniors into one weight before apportioning; the software apportions across four components. 22,02 / 2,88, not 22,01 / 2,89 — one row. (b) The document rounded the HT once per RATE; this till rounds once per LINE, which is Batch 3.11's stored and tested invariant — five more rows, the three sur-place ones among them, where § 2 says no ventilation happens at all. It does not: the split is one bucket, but the HT is still taken three times rather than once. Five rows gain a cent of VAT, one loses one; the direction is not systematic. `docs/politique-ventilation-tva.md` § 9 records the correction.
+
+3. **The migration is hand-written, and deliberately not what `prisma migrate diff` produced.** The generator emits a RedefineTables block that drops and recreates `Product`; four in-place `ADD COLUMN`s are the same change, and `OrderItem` rows point at that table. `migrate diff` reports no drift against the schema afterwards, and the rehearsal's fingerprint diff on a copy of production is exactly the three new tables, the appended columns and the `_prisma_migrations` row. **`isCombo` came out LAST in `Product`'s column list rather than before `sortOrder`** — which is the proof it really was an in-place add and not a rebuild.
+
+4. **THE TILL WAS NOT SENDING THE COMPOSITION, and only the worked example could see it.** The cart held a Menu Chill's three components; `POST /api/orders` answered 400. `payment-dialog.tsx` built the items array inline and nobody had taught it about `components`. Every test passed: `orders-combo.test.ts` drives the real route but constructs its own body, and `combo-builder.test.ts` proves the cart line is right, which it was. The gap between the two was one mapping in a component — M-19's shape (Batch 5.7c), one layer further out. It is now `lib/checkout-intent.ts`, tested, with a guard asserting the dialog does not keep a copy.
+
+5. **A menu with no slots FALLS BACK rather than being refused.** Policy § 4 lists « composition incomplète » among the fallback triggers, and a refusal at the till would stop the restaurant trading over a catalogue mistake. A MISMATCH between what the client sent and what the menu defines *is* refused: guessing which side is right would be guessing what the customer ordered.
+
+6. **An absent `comboSlots` means « leave them alone », not « you have none »** — C-24's rule (Batch 4.6). A test caught this being got wrong: a price-only update to a menu was refused for having no components. Had the error gone the other way, a partial update would have silently wiped a menu's slots and the menu would have gone on selling at its forfait under the higher-rate fallback, over-taxing every sale with nothing on screen to say so. The PUT now asks the database whether the menu already has slots.
+
+7. **A slot surcharge is printed; a component's allocated share is not.** The share is an artefact of dividing the forfait and nobody was charged it — there is a test that fails if 10,86 / 10,85 / 3,19 ever appear on a Menu Chill's ticket. The surcharge is money the customer paid, so it joins the add-on snapshot as « Supplément <filler> » and prints with its price.
+
+8. **Two of the batch's own test fixtures were wrong and the code was right.** A pizza put in a slot that governs nothing is correctly refused for a missing size; and deleting a slot's option rule is not the same as governing a group without pinning a choice. Both now have tests of their own. A third: the worked-example script picked the `Canette` Coca for a slot drawing on `Bouteilles` and the server refused it — an incidental confirmation, on real catalogue data, that a slot enforces its category tree.
+
+9. **The production database's file hash moves on its own while the operator's app is open.** It changed mid-session at 12:03:07, 31 ms after `Session.lastActivityAt` — `auth.ts`'s best-effort session touch. The fiscal fingerprint (31 tables' row counts, `FiscalCounter`, `GrandTotal`, every event hash, both Z rows, every `OrderItem`, every product and category, `integrity_check`, `foreign_key_check`) was identical to the copy taken at the start of the session, and `prisma generate` and `migrate diff` were each run twice to confirm neither touches it. **The fingerprint is the invariant to assert, not the sha.**
+
+10. **The worked example was run against the REBUILT bundle**, and the build it replaced was 14 hours stale — `.next/BUILD_ID` 00:37 against sources of 14:45–14:52, which is 3.12's trap exactly. All nine cases of § 5 were then rung end to end on a scratch copy and read back from the database: total, TVA per rate, HT per rate, the group columns, and `Σ (net − HT) = order.vatTotal` on every one. **The sur-place case was driven through the real UI** — the builder dialog, the cart, the payment dialog — and that is what found note 4. **The remaining eight were driven over HTTP against the same built server**, because the browser pane stopped dispatching events after the machine restarted mid-session; DOM dispatch and React's own `onClick` were both tried and neither advanced the app. Said here rather than implied: eight of the nine did not go through a browser.
+
+11. **Production was read, never written, by this session.** Read-only inspection with `bun:sqlite`, and every write went to a copy under the session scratchpad with both `DATABASE_URL` and `HIBAPOS_DATA_DIR` overridden. The marker user `zz-marker-batch-5-9` was read back from the pre-auth `GET /api/auth/profiles` before the first write, twice — once per server start — proving which database the server had open. No `-wal` or `-shm` ever appeared beside `db/custom.db`.
+
+---
+
 # STAGE 7 — CLEANUP AND DOCUMENTATION TRUTH
 
 ## Batch 7.1 — Documentation corrections
@@ -4704,6 +4823,7 @@ Each original is shown with what replaced it.)*
 | 7.7 | COMPLETED | 2026-09-07 | `1379e93` | **L-64** — the `Button` primitive's size variants were all under 44 px (`default` 36, `sm` 32, `lg` 40, `icon` 36), and **103 of 144 buttons take those heights rather than declaring their own**, which is why Batch 7.6 could fix eleven call sites and leave the majority undersized with its guard none the wiser. Now 44/44/48/44; `sm` keeps its tighter padding and type, because on a till "small" cannot mean "below the floor". **7.6 had declined this on two grounds — the decision was the operator's, and no session had ever seen the application render.** The operator settled the first; the second was settled by **going and looking**: the app was started on a scratch copy and driven through the profile picker, the PIN pad, the dashboard, the POS, the product-options dialog, the Catégories list and the category editor — nothing overlapping, nothing clipped, no row broken. **And L-47 did not reproduce, for the second time**: its operative claim, that no browser walkthrough can reach an authenticated view, is contradicted by one that did; the row is amended rather than closed. 992 → **993/0**. |
 | 1.4b | COMPLETED | 2026-09-07 | `ce27fa4` | **L-65 and DOC-16** — the two prerequisites `docs/mise-en-service.md` § 0 calls the likeliest failures, measured the evening before delivery. **Prerequisite 2 passed**; **prerequisite 1 failed** and is a live blocker. **L-65**: the launcher says of itself *"a refusal is loud"* and refusals 1–3 are, but a **missing bun** was not — `& bunx` throws `CommandNotFoundException`, `$ErrorActionPreference = "Stop"` makes that terminating, it is uncaught, so the script died before `$statusCode` existed and refusal 2's `Fail` never ran; `server.log` ended on `Checking migration status...` naming no cause. Batch 1.4 had put the same detection in the **installer**, which a human reads, and not in the launcher, which runs unattended as `SYSTEM`. **DOC-16**: commit `4ab1eef` corrupted both warnings it was written to add — a `\n` became a real newline and broke the § 0 table after its first row, and `\a`/`\b` became a BEL and a BACKSPACE inside commands meant to be pasted. Also corrected § 6a, which still instructed a rotation the operator had already done. 997 tests, five reverts, the sibling 32 caught none of it. |
 | 1.4c | COMPLETED | 2026-09-08 | `1dcbe79` | **L-66 and DOC-17** — from the operator's question hours before the remote session: *is there an installer?* Answered from the scripts, and **nobody owned the question.** `install-windows.ps1` moves data out of the install directory and registers tasks; it does not fetch code, install dependencies or build, and **neither deployment document mentioned `bun install`, `prisma generate` or `bun run build` anywhere** — while `README-windows.md` § 5 claimed the installer *puts a database in place*, which it cannot: it relocates one and prints `skip (absent)` otherwise. **DOC-17** is the new **§ 0b**: 579 files from git including the 139 images, ~705 KB carried by hand (`db/custom.db`, the rotated `.env`), what not to copy (880 MB of `node_modules`, 388 MB of `.next`, 126 MB of unrestorable backups), and the two load-bearing orderings — `.env` before the build, the build before § 2's reboot. **L-66** is refusal 5, for the failure that gap produces: `next start` needs `.next/BUILD_ID`, and until now the launcher said nothing, the same silence as L-65 the day before. Two test findings recorded rather than quietly fixed: the batch **shipped DOC-16's defect in PowerShell** (a backtick inside `@"…"@` is an escape), and **a revert caught nothing** because a fixed-width window reached a neighbouring refusal's `Fail`. No installer was written, deliberately — Stage 9. 1007 tests, seven reverts. |
+| 5.9 | COMPLETED | 2026-09-09 | `0e80c73`…`2725cef` + docs | **Menus composés** — the operator's rulings of 2026-09-09, not an audit finding. `CartItem` held ONE set of options, so a Duo's two burgers — first with salade, second without — could not be represented at all; `CartItem.components` is that fix. A menu is a `Product` with `isCombo` and a list of slots, and it is BOOKED as one line per component, because `OrderItem` carries exactly one `vatRate` and a menu contains two rates the moment it leaves the premises. The forfait is divided per `docs/politique-ventilation-tva.md` — prorata of the components' catalogue prices, `apportion` so the shares always sum exactly, supplements on top and outside, and a higher-rate fallback that admin validation is meant to make unreachable. **Six of the policy document's nine published figures were wrong and the document was corrected**: one row grouped three pizzas into a single weight before apportioning, and five rounded the HT once per rate where this till rounds once per line (Batch 3.11's stored invariant), the three sur-place rows among them. **Twenty-two reverts, all caught — but two only after the tests they exposed were strengthened**: the fallback's rate floor was masked by a helper passing 10, and the cart's combo repricing branch was masked by every combo line having empty options. **The worked example found what no test could see**: the till was not sending the composition at all, because `payment-dialog.tsx` built the intent inline where no test looks — M-19's shape one layer out, now extracted to `lib/checkout-intent.ts` with a guard against re-inlining. All nine § 5 cases rung end to end against the rebuilt bundle on a scratch copy and read back from the database; the sur-place case through the real UI, the other eight over HTTP, said plainly. Migration rehearsed, NOT applied — the operator's to run. 1044 → **1172/0**. |
 
 # RESOLVED FINDINGS
 
