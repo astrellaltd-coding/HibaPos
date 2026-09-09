@@ -2130,6 +2130,8 @@ inventing an operator-facing one is not what the finding asks for.
 11. **The journal reads as its own history, and it is worth leaving legible.** Drink lines run 10 % up to #20 (before 3.1c set the categories to 5,5 %), then 5,5 % under every order type from #24 to #36 — **that stretch is L-68 itself, recorded** — and 10 % / 5,5 % correctly split from #37. All of it is development trading that § 6 deletes before the first real sale.
 12. **Simulation mode was OFF while these were rung**, so the receipts carry no `FACTICE` stamp and the sales were journalled as genuine. Flagged to the operator when it was noticed. It costs nothing here — § 6 clears the journal — but **FACTICE must be on for the client's three-day trial**, where the old till is the system of record.
 
+> **Appended 2026-09-09 — the trial referred to in note 12 was cancelled.** The operator cancelled the three-day parallel trial the same day this batch closed. There is now no client copy before installation: the work is finished here and the finished application is installed over an AnyDesk session, running `docs/mise-en-service.md` including § 6 at that point. **Note 12's FACTICE requirement therefore has no occasion to apply.** What remains true is the first half of it — the sales rung during development were journalled as genuine because FACTICE is off, and § 6 is what clears them.
+
 
 *Moved verbatim from `REMEDIATION_PLAN.md` lines 1038–1111 (commit `58f14a5`) on 2026-09-09.*
 

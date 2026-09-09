@@ -2,12 +2,12 @@
 
 **Where we are — rewritten 2026-09-09, because the original framing went stale.**
 The application is **not installed**, **§ 6 has not run**, and **nothing has
-traded**. The plan is no longer the single hand-over evening this file was
-written for: a copy goes to the restaurant for a **three-day parallel trial**,
-with the owner's **old till remaining the system of record** and **FACTICE ON**
-here, after which the feedback is worked and the final copy is installed over an
-AnyDesk session. `docs/mise-en-service.md` is still the install sequence, and
-**§ 6 does not run for the trial.**
+traded**. Delivery did not happen on the evening of 2026-09-08 as the first
+version of this paragraph said. **The plan is to finish the work here, then
+install the finished application over an AnyDesk session and run
+`docs/mise-en-service.md` — § 6 included — at that point.** No copy goes to the
+restaurant before then. *(A three-day parallel trial on the owner's existing till
+was considered on 2026-09-08 and **cancelled on 2026-09-09**.)*
 
 This file carries on either side of that, because the reason for keeping it is
 the same: if a screen misbehaves in the restaurant, there should be one short
@@ -121,7 +121,8 @@ They are listed here instead, newest last. **Claude cannot make these edits**
 | 2026-09-09 | *Bouteilles* and *Canette* set to **`vatRate` 10 / `vatRateTakeaway` 5,5**. | Batch 3.12's L-68f, on the operator's ruling. **A swap, not an addition** — the old 5,5 was in the column that now means sur place. | Set both back to `vatRate` 5,5 and clear the takeaway rate. |
 | 2026-09-09 | The three *Duo* meals: « Hériter des options & suppléments globaux » turned **off**. | They sit under *Burgers* and were inheriting its *Crudités* and *Frite* groups, asking once for two burgers. | Turn the toggle back on. |
 | 2026-09-09 | Three menu photographs added (`menu_eco`, `menu_chill`, `menu_xxl`). | Preparing the combos. Two of the three have no product yet. | Files are in git (`39a47be`). |
-| **PENDING** | **Deactivate *Menu Eco*.** Its price was overwritten 24,90 → 8,90 by a save while it inherited the Pizzas *Taille* group; the operator is removing it and will create all three menus with Batch 5.9. **Turn off « Tailles multiples » and the inherit toggle before saving**, or the save re-creates the phantom size group. | Operator's decision, 2026-09-09. | Turn *Actif* back on. |
+| 2026-09-09 | *Menu Eco* deactivated. Its price had been overwritten 24,90 → 8,90 by a save while it inherited the Pizzas *Taille* group. Done in the right order, so no phantom size group was created. | The operator is removing it and will create all three menus with Batch 5.9. | Turn *Actif* back on. |
+| **PENDING** | **Hard-delete the *Menu Eco* row** with `bun scripts/delete-product.ts "Menu Eco" --apply`. Rehearsed on a copy 2026-09-09: the row goes, the *Menu* category survives, an `AuditLog` `PRODUCT_HARD_DELETED` is written, 78 → 77 products, integrity ok. | Operator's decision, 2026-09-09 — a deactivated row would otherwise survive § 6 and appear in every listing for the life of the installation. | **Not undoable from here.** Take a backup first; the row can only be recreated by hand. |
 
 ---
 
