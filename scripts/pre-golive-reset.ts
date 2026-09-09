@@ -21,6 +21,7 @@
  * WHAT IT DELETES — the operator's decision of 2026-09-03 plus three
  * amendments, each written when the table in question was added:
  *   Order, OrderItem, Payment, Receipt, Refund, Shift, ZReport,
+ *   Customer (L-73, 2026-09-09 — the operator asked for clients to go too),
  *   FiscalEvent, DailyClose (3.8), MonthlyClose, AnnualClose,
  *   FiscalArchive (rows AND files), CashMovement (5.5), GrandTotal,
  *   Table (5.2 — the one stale `T1 / Salle` row),
@@ -28,8 +29,12 @@
  *
  * WHAT IT KEEPS, deliberately:
  *   Categories, products, option groups and choices, add-ons, product images,
- *   customers, users, settings — the catalogue is real work recovered in
- *   commit `0c5ede6`; only the trading is fake.
+ *   THE SIX COMPOSED MENUS and their slots, choices and option rules
+ *   (L-72, 2026-09-09), users, settings — the catalogue is real work recovered
+ *   in commit `0c5ede6`; only the trading is fake.
+ *
+ *   NOT customers any more: they moved to the delete list on 2026-09-09 at the
+ *   operator’s request (L-73), superseding the ruling of 2026-09-03.
  *
  *   AND **AuditLog**, which P-04 does not list and this script does not touch.
  *   468 rows of development history stay. Deleting an audit trail is the exact
@@ -78,6 +83,10 @@ const DELETION_ORDER = [
   "Payment",
   "Refund",
   "Order",
+  // L-73 (Batch 8.0, 2026-09-09): the operator asked for « clients » to go
+  // with the sales. AFTER "Order", never before: Customer is the parent of
+  // Order.customerId and deleting it first is an FK violation, not a cascade.
+  "Customer",
   "ZReport",
   "CashMovement",
   "Shift",
@@ -100,7 +109,13 @@ const PRESERVED = [
   "CategoryOptionGroup",
   "CategoryOptionChoice",
   "CategoryAddOn",
-  "Customer",
+  // L-72 (Batch 8.0, 2026-09-09): the three combo tables postdate this script
+  // (Batch 5.9) and were in NEITHER list. Nothing deleted them — the menus were
+  // never at risk — but the closing "Catalogue intact" line was printed without
+  // ever looking at them, at the one moment in this project that has no undo.
+  "ComboSlot",
+  "ComboSlotChoice",
+  "ComboSlotOptionRule",
   "Setting",
   "AuditLog",
   "TechnicalLog",
@@ -149,6 +164,9 @@ async function main() {
   console.log(`${"=".repeat(74)}\n`);
 
   const url = process.env.DATABASE_URL ?? "(unset)";
+  // Hoisted for guard 2 (L-74). The test is unchanged and is still the only
+  // thing standing between --yes and a real database.
+  const disposable = /scratch|temp|tmp|rehears|test/i.test(url);
   console.log(`  DATABASE_URL : ${url}`);
   console.log(`  archives     : ${fiscalArchivesDir()}\n`);
 
@@ -171,7 +189,16 @@ async function main() {
   // A reset underneath a live server leaves it serving from stale state, and
   // the swap-file lesson of L-61 applies: the process holding the database is
   // the one that must let go of it.
-  for (const port of [3000, 3001]) {
+  //
+  // L-74 (2026-09-09): this fired on ANY live server, including one holding a
+  // COMPLETELY DIFFERENT database, which made the batch’s own rehearsal
+  // method impossible on a machine where the operator’s till is running. It
+  // is narrowed, NOT weakened: the exemption is exactly the mode this script
+  // already documents for rehearsals — `--yes` AND a disposable DATABASE_URL
+  // — and `--yes` is refused on anything else a few lines below. On the real
+  // till, where `--yes` cannot be used, the guard is untouched.
+  const rehearsing = ASSUME_YES && disposable;
+  for (const port of rehearsing ? [] : [3000, 3001]) {
     try {
       const r = await fetch(`http://127.0.0.1:${port}/api`, {
         signal: AbortSignal.timeout(1500),
@@ -225,7 +252,6 @@ async function main() {
   }
 
   // ---- guard 3: the operator says it out loud -----------------------------
-  const disposable = /scratch|temp|tmp|rehears|test/i.test(url);
   if (!ASSUME_YES) {
     console.log(`  ${RED}Cette operation est IRREVERSIBLE.${OFF}`);
     console.log(`  ${RED}Elle ne doit jamais etre lancee apres la premiere vente reelle.${OFF}\n`);
