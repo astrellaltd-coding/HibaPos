@@ -280,27 +280,43 @@ export function ComboBuilderDialog({
                       {g.required ? "Obligatoire" : "Facultatif"} · {g.multiple ? "plusieurs" : "un seul"}
                     </span>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
                     {g.choices.map((c) => {
                       const isSel = (selected[g.name] ?? []).includes(c.name);
+                      // Same card as `product-options-dialog-v2.tsx`, image and
+                      // all. THE FIRST DRAFT OF THIS DIALOG DREW NO IMAGES —
+                      // and 36 of the 39 category choices and all 49 product
+                      // choices on this catalogue have one, so a cashier who
+                      // knows the ordinary screen by its pictures was handed a
+                      // wall of text the moment they rang a menu.
+                      const hasImg = c.image && (c.image.startsWith("/") || c.image.startsWith("http"));
                       return (
                         <button
                           key={c.id}
                           type="button"
                           onClick={() => toggleChoice(g.name, c.name, g.multiple)}
                           className={cn(
-                            "relative flex min-h-[56px] items-center justify-center rounded-lg border-2 p-2 text-center text-sm font-medium transition-all duration-150",
+                            "group relative flex h-[100px] w-full flex-col items-center gap-1 rounded-lg border-2 px-1 py-2 text-center transition-all duration-150",
                             isSel
                               ? "border-primary bg-primary/5 shadow-sm"
                               : "border-border bg-card hover:border-primary/40 hover:bg-muted/30",
                           )}
                         >
                           {isSel && (
-                            <span className="absolute right-1.5 top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                            <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground">
                               <Check className="h-2.5 w-2.5" />
                             </span>
                           )}
-                          <span className="leading-tight">{c.name}</span>
+                          <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-md bg-muted/50">
+                            {hasImg ? (
+                              <ProductImage image={c.image} alt={c.name} className="h-full w-full object-cover text-lg" />
+                            ) : (
+                              <span className="text-2xl leading-none">🍽️</span>
+                            )}
+                          </div>
+                          <span className="line-clamp-2 text-[11px] font-medium leading-tight text-foreground">
+                            {c.name}
+                          </span>
                         </button>
                       );
                     })}
@@ -313,23 +329,37 @@ export function ComboBuilderDialog({
                   <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                     Suppléments
                   </p>
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
                     {addOns.map((a) => {
                       const isSel = !!chosenAddons[a.id];
+                      // 19 of the 21 supplements on this catalogue carry a
+                      // picture. This is the one the operator noticed first.
                       return (
                         <button
                           key={a.id}
                           type="button"
                           onClick={() => setChosenAddons((s) => ({ ...s, [a.id]: !s[a.id] }))}
                           className={cn(
-                            "flex min-h-[56px] flex-col items-center justify-center gap-0.5 rounded-lg border-2 p-2 text-center text-sm transition-all duration-150",
+                            "group relative flex h-[100px] w-full flex-col items-center gap-1 rounded-lg border-2 px-1 py-2 text-center transition-all duration-150",
                             isSel
                               ? "border-primary bg-primary/5 shadow-sm"
                               : "border-border bg-card hover:border-primary/40 hover:bg-muted/30",
                           )}
                         >
-                          <span className="font-medium leading-tight">{a.name}</span>
-                          <span className="text-xs text-muted-foreground">+{formatEuro(a.price)}</span>
+                          {isSel && (
+                            <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                              <Check className="h-2.5 w-2.5" />
+                            </span>
+                          )}
+                          <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-md bg-muted/50">
+                            <ProductImage image={a.image} alt={a.name} className="h-full w-full object-cover text-lg" />
+                          </div>
+                          <div className="flex flex-col items-center gap-0">
+                            <span className="line-clamp-2 text-[11px] font-medium leading-tight text-foreground">
+                              {a.name}
+                            </span>
+                            <span className="text-[10px] font-semibold text-primary">+{formatEuro(a.price)}</span>
+                          </div>
                         </button>
                       );
                     })}
