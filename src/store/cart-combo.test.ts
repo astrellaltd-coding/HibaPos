@@ -7,6 +7,8 @@ import {
   computeCartTotals,
   recalculateUnitPrice,
   componentExtras,
+  effectiveChoiceModifier,
+  toCartOptions,
   isComboLine,
   type CartComponent,
   type CartItem,
@@ -281,6 +283,71 @@ describe("repricing a menu when the order type changes", () => {
     const l = duo([canette()], { pickupPrice: null, deliveryPrice: null });
     expect(recalculateUnitPrice(l, "TAKEAWAY")).toBe(1190);
     expect(recalculateUnitPrice(l, "LIVRAISON")).toBe(1190);
+  });
+});
+
+describe("what the builder SHOWS is what the cart CHARGES", () => {
+  // REPORTED BY THE OPERATOR, 2026-09-09: « Frite Cheddar » inside a Duo showed
+  // no price in the menu builder and +1,50 € in the cart. The Duos ask for a
+  // frite through the burgers' own required group, whose cheddar carries a 150
+  // modifier — and the builder's choice cards drew no price at all.
+  //
+  // The fix is not « add a label »: it is that one function now answers both
+  // questions, so the two cannot drift again. These tests are that property.
+  const choice = (over: Partial<{ priceModifier: number; pickupPriceModifier: number | null; deliveryPriceModifier: number | null }> = {}) => ({
+    id: "c1",
+    name: "Frite Cheddar",
+    priceModifier: 150,
+    pickupPriceModifier: null,
+    deliveryPriceModifier: null,
+    ...over,
+  });
+
+  it("resolves the modifier for the order type", () => {
+    const c = choice({ pickupPriceModifier: 200, deliveryPriceModifier: 250 });
+    expect(effectiveChoiceModifier(c, "DINE_IN")).toBe(150);
+    expect(effectiveChoiceModifier(c, "TAKEAWAY")).toBe(200);
+    expect(effectiveChoiceModifier(c, "LIVRAISON")).toBe(250);
+  });
+
+  it("falls back to the dine-in modifier when a mode sets none", () => {
+    for (const t of ["DINE_IN", "TAKEAWAY", "LIVRAISON"] as const) {
+      expect(effectiveChoiceModifier(choice(), t)).toBe(150);
+    }
+  });
+
+  it("AGREES with what toCartOptions puts on the line, under every order type", () => {
+    // The agreement itself, asserted rather than assumed. The builder displays
+    // the left-hand side; `componentExtras` counts the right-hand side.
+    const c = choice({ pickupPriceModifier: 200, deliveryPriceModifier: 250 });
+    const groups = [{ name: "Frite", choices: [c] }];
+    for (const t of ["DINE_IN", "TAKEAWAY", "LIVRAISON"] as const) {
+      const [opt] = toCartOptions(groups, { Frite: ["Frite Cheddar"] }, t);
+      expect(opt.priceModifier).toBe(effectiveChoiceModifier(c, t));
+    }
+  });
+
+  it("what the builder shows for a component equals what the line total charges", () => {
+    const c = choice();
+    const [opt] = toCartOptions([{ name: "Frite", choices: [c] }], { Frite: ["Frite Cheddar"] }, "DINE_IN");
+    const comp: CartComponent = { ...frite(), options: [opt] };
+    // shown in the modal:
+    const shown = effectiveChoiceModifier(c, "DINE_IN");
+    // charged on the line:
+    expect(componentExtras(comp)).toBe(shown);
+    expect(computeLineTotal(duo([comp]))).toBe(1190 + shown);
+  });
+
+  it("the builder card renders it through that function, not a copy", () => {
+    const src = readFileSync(
+      path.join(process.cwd(), "src/components/pos/combo-builder-dialog.tsx"),
+      "utf8",
+    );
+    expect(src, "the builder no longer prices its choice cards").toContain(
+      "effectiveChoiceModifier(c, orderType)",
+    );
+    // A second resolution here is how the modal and the cart came to disagree.
+    expect(src).not.toContain("pickupPriceModifier != null");
   });
 });
 

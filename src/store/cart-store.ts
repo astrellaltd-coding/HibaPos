@@ -443,6 +443,34 @@ export type ChoiceModifiers = {
  * prices with); `dineInPriceModifier` is always the choice's own dine-in
  * figure, so a later switch back to DINE_IN has something true to read.
  */
+/**
+ * What one choice adds, for the order type it is being sold under.
+ *
+ * EXTRACTED from `toCartOptions` on 2026-09-09, because a screen needed to
+ * DISPLAY the same number the basket was about to CHARGE and the two disagreed.
+ * The menu builder drew no price on a choice card at all, so « Frite Cheddar »
+ * inside a Duo looked free and then appeared at +1,50 € in the cart — reported
+ * by the operator, who had every right to believe the modal.
+ *
+ * One function, two callers: what the cashier reads and what the line costs can
+ * no longer drift apart. `ChoiceModifiers` is structural, so an
+ * `OptionGroupDto` choice and a category choice both satisfy it.
+ *
+ * A category choice carrying an ABSOLUTE price arrives here already
+ * relativised — `products/route.ts` serialises `pickupPrice` into
+ * `pickupPriceModifier` against the same base — so this needs no absolute
+ * branch, and inside a menu the delta is the right figure anyway: the customer
+ * pays the forfait, and what a choice adds to it is all that is chargeable.
+ */
+export function effectiveChoiceModifier(
+  choice: Pick<ChoiceModifiers, "priceModifier" | "pickupPriceModifier" | "deliveryPriceModifier">,
+  orderType: "DINE_IN" | "TAKEAWAY" | "LIVRAISON",
+): number {
+  if (orderType === "TAKEAWAY" && choice.pickupPriceModifier != null) return choice.pickupPriceModifier;
+  if (orderType === "LIVRAISON" && choice.deliveryPriceModifier != null) return choice.deliveryPriceModifier;
+  return choice.priceModifier;
+}
+
 export function toCartOptions(
   groups: { name: string; choices: ChoiceModifiers[] }[],
   selected: Record<string, string[]>,
@@ -453,9 +481,7 @@ export function toCartOptions(
     for (const picked of selected[g.name] ?? []) {
       const ch = g.choices.find((c) => c.name === picked);
       if (!ch) continue;
-      let effective = ch.priceModifier;
-      if (orderType === "TAKEAWAY" && ch.pickupPriceModifier != null) effective = ch.pickupPriceModifier;
-      else if (orderType === "LIVRAISON" && ch.deliveryPriceModifier != null) effective = ch.deliveryPriceModifier;
+      const effective = effectiveChoiceModifier(ch, orderType);
       out.push({
         group: g.name,
         choice: ch.name,

@@ -10,6 +10,7 @@ import {
   useCartStore,
   toCartOptions,
   componentExtras,
+  effectiveChoiceModifier,
   type CartAddOn,
   type CartComponent,
   type CartItem,
@@ -314,9 +315,39 @@ export function ComboBuilderDialog({
                               <span className="text-2xl leading-none">🍽️</span>
                             )}
                           </div>
-                          <span className="line-clamp-2 text-[11px] font-medium leading-tight text-foreground">
-                            {c.name}
-                          </span>
+                          <div className="flex flex-col items-center gap-0">
+                            <span className="line-clamp-2 text-[11px] font-medium leading-tight text-foreground">
+                              {c.name}
+                            </span>
+                            {/* WHAT THIS CHOICE ADDS TO THE FORFAIT.
+                                Missing entirely until 2026-09-09, reported by
+                                the operator: « Frite Cheddar » inside a Duo
+                                looked free here and appeared at +1,50 € in the
+                                cart. The Duos ask for a frite through the
+                                burgers' own required group, whose cheddar
+                                carries a 150 modifier.
+
+                                `effectiveChoiceModifier` is the function
+                                `toCartOptions` uses, so this figure and the one
+                                the line is charged are the same number by
+                                construction rather than by agreement. */}
+                            {(() => {
+                              const extra = effectiveChoiceModifier(c, orderType);
+                              if (extra > 0)
+                                return (
+                                  <span className="text-[10px] font-semibold text-primary">
+                                    +{formatEuro(extra)}
+                                  </span>
+                                );
+                              if (extra < 0)
+                                return (
+                                  <span className="text-[10px] font-semibold text-primary">
+                                    {formatEuro(extra)}
+                                  </span>
+                                );
+                              return <span className="text-[10px] text-muted-foreground">Inclus</span>;
+                            })()}
+                          </div>
                         </button>
                       );
                     })}
