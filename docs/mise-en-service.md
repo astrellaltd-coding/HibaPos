@@ -328,6 +328,24 @@ Everything rung here is deleted in § 6. That is the point of doing it now.
 
 ## 6. THE POINT OF NO RETURN — P-04 / Batch 8.0
 
+> ### ⚠ A three-day client trial now comes BEFORE this section — added 2026-09-09
+>
+> The delivery plan changed on 2026-09-08. Before the sequence below is run, a
+> copy goes to the restaurant for a **three-day parallel trial**: the owner keeps
+> ringing real money on his **old till, which remains the system of record**, and
+> types the same orders into this one to shake the software out.
+>
+> **§ 6 does not run for that trial, and must not.** It empties the fiscal
+> journal once, immediately before genuine trading on THIS till begins — which is
+> after the trial, after the feedback has been worked, and at the installation of
+> the final copy over AnyDesk.
+>
+> **What the trial needs instead: FACTICE ON** (`Réglages`), so every ticket this
+> app prints carries its `*** FACTICE — SIMULATION ***` stamp and cannot be
+> mistaken for the customer's receipt, which comes from the old till. The trial's
+> sales are then development trading like any other, and § 6 clears them when it
+> finally runs.
+
 ### 6a. The secrets are ALREADY rotated — verify, and do **not** rotate again
 
 **✅ DONE BY THE OPERATOR 2026-09-07 AND VERIFIED.** `SESSION_SECRET` and

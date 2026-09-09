@@ -13,17 +13,17 @@ Detailed audit record: https://claude.ai/code/artifact/329316b0-3a6b-48b0-9d27-d
 
 **Current Stage:** **Stages 0 and 2 through 7 are all COMPLETED** — **Stage 2 reopened 2026-09-06 for 2.5** (the restore could not complete on Windows) and closed the same day; Stage 3 reopened three times that day (3.7, 3.8/3.9, 3.10) and closed each time. Stage 1 is partly done — 1.1, 1.2, **1.3b**, **1.3c**, **1.4b** and **1.4c** COMPLETED, **1.3 and 1.4 both `IMPLEMENTED — TESTING REQUIRED`**, waiting only on the till. **Stage 8 is `IN PROGRESS` — 8.1 `COMPLETED` 2026-09-06**; 8.0 and 8.2 wait on the commissioning session, 8.3 is external. C-22's chain-design half stays `REQUIRES EXTERNAL VERIFICATION` (V-01) and V-03 is open. Per-batch dates: the completion history in `REMEDIATION_RECORD.md`.
 
-**Current Batch:** none. **3.12 closed L-68 on 2026-09-09**, end to end: the migration and the category rates were applied by the operator the same day, and the live journal now shows the same 7 Up at **10 % sur place (#37)** and **5,5 % à emporter (#38)**. Before it, every one of the 17 drinks booked 5,5 % under all three order types. **The combo/menu feature is what this unblocks** — a menu price cannot be split across rates until the rates are right — and its remaining questions are recorded in that analysis, not here.
+**Current Batch:** none. **3.12 closed L-68 on 2026-09-09**, end to end — the migration and the category rates were applied by the operator the same day, and the live journal now shows the same 7 Up at **10 % sur place (#37)** and **5,5 % à emporter (#38)**. **Where the project actually is: not installed, § 6 not run, nothing traded.** The delivery plan changed on 2026-09-08 and is no longer one hand-over evening — a copy goes to the restaurant for a **three-day parallel trial** with the owner's **old till as the system of record** and **FACTICE ON**, then the feedback is worked here and the final copy is installed over AnyDesk. `CLAUDE.md` rule 6 carries the same statement.
 
 **Last Batch:** **3.12, 2026-09-09** — L-68, VAT not varying by order type. **Its lesson is *Methods → Run the thing*, and the session learned it twice.** The worked example on real data came back 10 % for both order types; the code was right and the **build was stale** — `.next` compiled at 22:27, `pricing.ts` edited at 00:15 — and only the arithmetic (takeaway VAT should be 8, the response said 14) exposed it after every test had passed. Then the same shape again on the till: two sales still showed 0,08 € because the categories' old 5,5 was sitting in the column that now means *sur place*, exactly as the batch item said it would. Before it, **5.8, 2026-09-08** — the catalogue editor writing inherited option groups back onto the product. Records → those batches.
 
-**Next Batch:** **the combo / menu feature**, which 3.12 was the prerequisite for. Four products already exist as flat single-price lines — *Menu Eco* and the three *Duo* meals — and the operator has ruled on the four questions that gated a design: **the price is split across VAT rates**, **supplements inside a menu are charged on top**, **menu prices are fixed because the sizes are fixed**, **any pizza may fill a pizza slot**, and **there is no kitchen ticket, only the client ticket**. What does not exist is any notion of a product composed of configurable slots: `CartItem` holds one set of options and one of add-ons, so two burgers configured differently cannot be represented at all. **Still ahead of it:** § 0b's install, § 6's reset and the chain-key arming, 1.3's `[HW]` and 1.4's `[MACHINE]` criteria, and 8.2's V-07.
+**Next Batch:** **5.9 — menus composés (combos)**, specified 2026-09-09 and `NOT STARTED`. **3.12 was its prerequisite and is done.** Read **`docs/politique-ventilation-tva.md`** first: it is the VAT allocation policy agreed with the operator, with the nine worked cases computed by the application's own `apportion()` and `splitVat()`. The batch section carries every ruling — prices, compositions, the higher-rate fallback, supplements outside the forfait, no combo inside a combo, and what the ticket prints. **One thing is genuinely open and it is not code:** the accountant has not confirmed the allocation *method*. The rates are settled; the division of a forfait between them is the claim that is not. **Also still ahead:** § 0b's install, § 6's reset and the chain-key arming, 1.3's `[HW]` and 1.4's `[MACHINE]` criteria, and 8.2's V-07.
 
 **Blocked:** the `[HW]` / `[MACHINE]` criteria of **1.3 and 1.4**, and **8.2's V-07** — nothing else. All three need a human at the till; everything around them is built. See *Hardware-dependent validation* for exactly what remains.
 
 **Awaiting decision:** **nothing** — the table is empty (record → *Answered design decisions*).
 
-**Last Updated:** 2026-09-09 (session 21 — **5.8** and **3.12**). Carry forward: (0) **A unit test on an extracted rule proves the rule, not that anything calls it.** Both batches this session shipped that gap and both were caught by reverting the WIRING rather than the logic. (1) **Run the thing, and check the arithmetic against the answer.** 3.12's worked example was run against a build compiled before the fix; nothing but the number said so. (2) **A repair script that exists is evidence of a cause nobody removed** — ask what re-creates the data it deletes. (3) **A guard narrowed to spare the case that scares you leaves that case unguarded.** (4) Earlier sessions' lessons stand in the record.
+**Last Updated:** 2026-09-09 (session 21 — **5.8**, **3.12**, and 5.9 specified). Carry forward: (0) **A unit test on an extracted rule proves the rule, not that anything calls it.** Both batches this session shipped that gap and both were caught by reverting the WIRING rather than the logic. (1) **Run the thing, and check the arithmetic against the answer.** 3.12's worked example ran against a build compiled before the fix; nothing but the number said so. (2) **A fallback that is safe by design is also silent by design** — 3.12's nullable column spared every existing row and thereby hid the operator's un-done step until the data was read. (3) **A repair script that exists is evidence of a cause nobody removed.** (4) Earlier sessions' lessons stand in the record.
 
 ### OPEN THREADS — read this before starting a batch
 
@@ -1274,7 +1274,7 @@ Category and product updates no longer delete option groups before validating th
 
 # STAGE 5 — WORKFLOW GAPS
 
-**Stage status:** `COMPLETED` — **reopened and closed again 2026-09-08 by 5.8** (L-67, the catalogue editor writing inherited option groups back onto the product). 5.1 through 5.6 and 5.7a–5.7d are all `COMPLETED`, all 2026-09-05. **5.7 was SPLIT into four** on the day it was run; its router section carries the evidence and the criterion map. **DD-09 through DD-15 were all answered 2026-09-05 in one brief**, so 5.4 through 5.7 are unblocked and can be worked in turn. Each batch's spec below carries its answer inline. **Six batches found their own *Validation Required* wanting, in six different ways** — the stage's most reusable lesson: 5.2's was written for the answer it did not get and was re-derived; 5.3's was correct and *incomplete*, and gained five criteria; 5.4's two *Manual* criteria could not be run by hand at all (L-47) and were converted into automated coverage that turned out stronger; 5.6's **assumed a single dead value where there were two**, and said nothing about the second namespace the removal would have destroyed; 5.7b's said **both walls must come down together** when only one had to, and keeping the second is what makes the fix safe; and **5.7d inherited three *Manual* criteria that L-47 blocked outright**, all three converted. Read the criteria before running them, for what they omit as well as what they assume.
+**Stage status:** `IN PROGRESS` — **5.9 (menus composés) is specified and `NOT STARTED` as of 2026-09-09**; before it the stage was **reopened and closed again 2026-09-08 by 5.8** (L-67, the catalogue editor writing inherited option groups back onto the product). 5.1 through 5.6 and 5.7a–5.7d are all `COMPLETED`, all 2026-09-05. **5.7 was SPLIT into four** on the day it was run; its router section carries the evidence and the criterion map. **DD-09 through DD-15 were all answered 2026-09-05 in one brief**, so 5.4 through 5.7 are unblocked and can be worked in turn. Each batch's spec below carries its answer inline. **Six batches found their own *Validation Required* wanting, in six different ways** — the stage's most reusable lesson: 5.2's was written for the answer it did not get and was re-derived; 5.3's was correct and *incomplete*, and gained five criteria; 5.4's two *Manual* criteria could not be run by hand at all (L-47) and were converted into automated coverage that turned out stronger; 5.6's **assumed a single dead value where there were two**, and said nothing about the second namespace the removal would have destroyed; 5.7b's said **both walls must come down together** when only one had to, and keeping the second is what makes the fix safe; and **5.7d inherited three *Manual* criteria that L-47 blocked outright**, all three converted. Read the criteria before running them, for what they omit as well as what they assume.
 
 Audit section J, step 6: none of these are subtle; all of them generate support calls in week one.
 
@@ -1554,6 +1554,72 @@ Audit section J, step 6: none of these are subtle; all of them generate support 
 - **L-67e was completed by the operator**, who backed the database up and ran `scripts/fix-duplicate-product-options.ts --apply`; the dry run now reports 0. *(record, note 2)*
 
 **Left open:** the override hatch is **all-or-nothing**. `inheritCategoryGlobals = false` drops every inherited option group *and* every inherited add-on, so a product cannot override one inherited group while keeping the rest. That is the pre-existing data model, not something this batch introduced, and no product on production needs it today — recorded here so a future session does not rediscover it as a defect. ~~The [OWNER] check on the admin form (note 7) is the one piece of validation this batch could not run.~~ **Run on 2026-09-08 after the batch closed, at the operator's request** — the editor offers no « Sauces » group for a Croustillant, saving through it leaves one inherited group and no duplicate, and Calzone comes back byte-identical with its sizes intact. Record → *Batch 5.8 → Appended 2026-09-08*.
+
+## Batch 5.9 — Menus composés (combos): the cashier cannot ring one, and the VAT cannot be split
+
+**Status:** `NOT STARTED` · **Specified 2026-09-09** from the operator's rulings; **no code written.** Prerequisite **3.12 is done**, which is what unblocks it.
+
+**Read `docs/politique-ventilation-tva.md` before anything here.** It is the allocation policy, agreed with the operator on 2026-09-09, and this batch implements it.
+
+### The gap
+
+The restaurant sells menus — a fixed price covering several items the cashier must choose one after another. **The application has no notion of a product composed of configurable slots**, and `git grep` finds nothing: no table, no type, no code.
+
+Four such products exist in the catalogue **as ordinary single-price products**: *Menu Eco* (being deactivated by the operator) and the three *Duo* meals. Tapping one drops a single line in the basket and asks nothing, so the kitchen never learns which pizzas were ordered and the price cannot be split across VAT rates.
+
+**The blocking structural fact:** `CartItem` holds **one** set of options and **one** set of add-ons. Two burgers configured differently — the first with salad, the second without — **cannot be represented at all**. This is the shape of the basket, not a screen.
+
+### The operator's rulings — 2026-09-09, and they are the specification
+
+| | |
+|---|---|
+| **VAT** | Split across rates, by the policy in `docs/politique-ventilation-tva.md`: **prorata of the components' standalone catalogue prices for the order type concerned**. **Sur place performs no split** — every component is 10 % there. |
+| **Fallback** | If a menu cannot be allocated, **the whole price is taxed at the higher rate present (10 %)** — never lower. And the admin must **refuse to save** an incompletely configured menu, so the fallback should not be reachable in service. |
+| **Supplements** | Charged **on top** of the menu price at their own rate, **outside** the allocation. The forfait that gets split is the menu price alone. |
+| **Prices** | Fixed per menu and per order type. Sizes are fixed by the menu, so the cashier **never chooses a size** — only which pizza. |
+| **Slots** | "Any pizza" means any product in the Pizzas tree. **A combo may never be a component of a combo** — *Menu Eco* sits under Pizzas and would otherwise offer itself. |
+| **Receipt** | The client ticket is the **only** paper — there is no kitchen ticket. It must show the composition, as **indented, price-less lines** in the idiom `receipt.ts` already uses for options (`pushMarked("  · ", …)`). Per-component **amounts are not printed**: they are allocation artefacts, not prices, and printing them would state a price the customer did not pay. The existing *Détail TVA* block carries the rates. |
+| **Policy document** | Lives in `docs/politique-ventilation-tva.md` **and** as a setting in Réglages. **Explicitly NOT in `docs/attestation-conformite.md`** — that is the BOI-LETTRE-000242 ISCA model, carrying criminal liability, and VAT ventilation is not an ISCA matter. |
+
+### The three menus
+
+| Menu | Composition | Sur place | À emporter | Livraison |
+|---|---|---|---|---|
+| **Menu Eco** | 3 × pizza Junior + 1 bouteille | 24,90 | 24,90 | 24,90 |
+| **Menu Chill** | 2 × pizza Senior + 1 bouteille | 24,90 | 24,90 | 28,90 |
+| **Menu XXL** | 2 × pizza Mega + 1 bouteille | 33,90 | 33,90 | 36,90 |
+
+**None of the three exists yet.** The operator creates them once the feature is built; *Menu Eco* as it stands is a different, damaged product being deactivated. Worked allocations for all nine cases are in the policy document, computed with the application's own `apportion()` and `splitVat()`.
+
+### Items
+
+| Item | Status | What |
+|---|---|---|
+| **5.9a** | `NOT STARTED` | A data model for a composed product: slots, each with a quantity, a fixed size where relevant, and what may fill it. Migration. Combos excluded from being components. |
+| **5.9b** | `NOT STARTED` | The basket can hold a line whose components are **individually configured**. This is the deep change — `CartItem` today cannot express it. |
+| **5.9c** | `NOT STARTED` | The slot-by-slot configuration flow: slot *n* of *m*, back and next, a running summary, and the size never asked because the menu fixes it. |
+| **5.9d** | `NOT STARTED` | Allocation at checkout, per the policy: explode into one `OrderItem` per component, each carrying its allocated share and its own rate from `resolveVatRate(component, orderType)`. **Use `apportion()`** — largest remainder — so the parts always sum to the menu price. |
+| **5.9e** | `NOT STARTED` | The higher-rate fallback, plus admin-side validation that makes it unreachable. |
+| **5.9f** | `NOT STARTED` | The composition on the client ticket, and the allocation policy surfaced in Réglages. |
+| **5.9g** | `NOT STARTED` | **[OWNER]** Create the three menus once the feature exists. |
+
+### Validation Required
+
+1. **Unit tests on the allocation** — all nine cases in the policy document, asserting the parts sum to the selling price exactly and that sur place produces a single 10 % bucket.
+2. **A route-level test on `POST /api/orders`** proving what is **booked** for a menu: the `OrderItem` rows, their rates and their shares, under all three order types. **Batch 5.8's and 3.12's lesson: a rule can be right while nothing consults it — the revert must fail this, not only the unit tests.**
+3. **The fallback tested directly**: a menu that cannot be allocated books the whole amount at 10 %, and the admin refuses to save that configuration in the first place.
+4. **Supplements**: added on top at their own rate and **excluded** from the allocation base.
+5. **The revert protocol** — one property at a time, both directions, and say which tests pass under no revert.
+6. **A worked example on a scratch copy**, end to end, through the real UI: ring each menu sur place and à emporter, and read the ticket's *Détail TVA* against the policy document's table. **Rebuild first** — 3.12 note 3 is what happens otherwise.
+7. `bun run test`, `bun run typecheck`, `bun run lint`; README counts re-pinned.
+8. **Production untouched**, demonstrated rather than asserted.
+
+### Open before coding
+
+- **The accountant has not yet confirmed the allocation method.** The policy document names the three points needing confirmation. The rates are settled; **the division method is the open claim**, and the plan forbids claiming fiscal compliance from testing.
+- Whether the *Duo* meals become composed products too, or stay flat. They are live and now have inheritance off, so they ask nothing wrong — but they have the same unrecorded-composition problem.
+
+---
 
 # STAGE 6 — TESTING
 

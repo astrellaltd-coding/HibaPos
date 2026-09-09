@@ -1,11 +1,17 @@
 # Change log — final tweaks, and everything after go-live
 
-**Where we are.** The application is **not yet delivered**. Delivery is the
-evening of **2026-09-08**, and `docs/mise-en-service.md` is the sequence. This
-file starts now, during the final tweaks, and carries on past go-live — because
-the reason for keeping it is the same either side: if a screen misbehaves in the
-restaurant, there should be one short list of what moved, not a `git log` to
-reverse-engineer under pressure.
+**Where we are — rewritten 2026-09-09, because the original framing went stale.**
+The application is **not installed**, **§ 6 has not run**, and **nothing has
+traded**. The plan is no longer the single hand-over evening this file was
+written for: a copy goes to the restaurant for a **three-day parallel trial**,
+with the owner's **old till remaining the system of record** and **FACTICE ON**
+here, after which the feedback is worked and the final copy is installed over an
+AnyDesk session. `docs/mise-en-service.md` is still the install sequence, and
+**§ 6 does not run for the trial.**
+
+This file carries on either side of that, because the reason for keeping it is
+the same: if a screen misbehaves in the restaurant, there should be one short
+list of what moved, not a `git log` to reverse-engineer under pressure.
 
 **This is NOT the remediation record.** `REMEDIATION_PLAN.md` and
 `REMEDIATION_RECORD.md` govern fiscal and data-integrity work and keep their own
@@ -17,6 +23,13 @@ is a batch, and it goes through the plan.**
 ---
 
 ## THE BASELINE
+
+**This block is a snapshot of 2026-09-08, not a current reading.** It is the
+mark the rows below are measured from and it is deliberately not updated; for
+where things stand now, read `REMEDIATION_PLAN.md`'s front matter. Two figures
+have since moved and are named here so nobody mistakes them for current: the
+suite is **1044** tests, and **11** migrations are applied — the eleventh is
+Batch 3.12's `vatRateTakeaway`.
 
 | | |
 |---|---|
@@ -88,6 +101,27 @@ Fields, and none is optional:
 | 2026-09-08 | New photographs for the Croustillants: 7 old files removed, 12 new `cros_*.webp` added, so five items that had no picture now have one. README's uploads count re-pinned 139 → 144 files (49 Mo unchanged). | Operator replaced the pictures on localhost and re-pointed every Croustillants product at the new files. | `public/uploads/Produits/` (7 deleted, 12 added), `README.md` | `c394533` | 1011 pass, 0 fail · no test added | `git revert c394533` — restores the 7 old files and removes the 12 new ones. | **Only half of this change is in git, and that is the thing to remember.** The image FILES are versioned; the product-to-image LINKS are rows in `db/custom.db`, which is untracked and exists only on this machine. So a fresh clone gets the new pictures with nothing pointing at them unless it also carries this database. Two consequences. **(1)** Any product still referencing one of the 7 deleted files would render a broken image — the operator re-pointed them, but it is a two-minute [OWNER] check in the Croustillants category. **(2)** For the client's trial machine, the pictures travel by git and the catalogue edits travel only with the database file; do not assume a `git pull` moves both. |
 | 2026-09-09 | The « Hériter des options & suppléments globaux » toggle in the product editor now names the category the settings actually come from. For a product in a sub-category that is the PARENT, and the line says so — « Pizzas », catégorie parente de « Menu ». | Found while rehearsing the combo fix: « Menu Eco » said it applied the settings of « Menu », which has no options at all. It was really applying the Pizzas size group and 14 pizza supplements — and that sentence is what the operator reads while deciding whether to switch the toggle off. | `src/features/catalog/products-view.tsx` | `4b7d095` | 1031 pass, 0 fail · no test added | `git revert 4b7d095` — one file, one derived value and one label. | Display only: the toggle's behaviour is unchanged, and the resolution mirrors the server's `inheritedCategoryGroups` (`parent ?? category`) so the sentence cannot describe something different from what happens. **The risk is that it now tells the truth about an arrangement the operator may not expect** — a product in a sub-category inherits from the parent, not from its own category — so the first reading may look wrong when it is right. Nothing else in the form changed. |
 | 2026-09-09 | Three photographs added for the menus: `menu_eco.webp`, `menu_chill.webp`, `menu_xxl.webp`. README's uploads count re-pinned 144 → 147 files (49 Mo unchanged). | Operator added them while preparing the combo menus. | `public/uploads/Produits/` (3 added), `README.md` | `39a47be` | 1044 pass, 0 fail · no test added | `git revert 39a47be` — removes the three files and restores the count. | **Two of the three have no product yet.** Only *Menu Eco* exists in the catalogue; *Menu Chill* and *Menu XXL* were described but never created, so `menu_chill.webp` and `menu_xxl.webp` are currently unreferenced files. That is harmless — nothing renders them — but it means the count in the README is the only thing pointing at them until the combo feature creates the products. Same split as the Croustillants row: the files are in git, the product-to-image links live in `db/custom.db`, which is not. |
+
+---
+
+## OPERATOR CATALOGUE CHANGES
+
+**Why this section exists.** The table above needs a commit sha in every row, and
+a catalogue edit has none — the menu lives in `db/custom.db`, which is not in
+git. Several such edits were made during 2026-09-08 and 2026-09-09 and were
+recorded **nowhere**, which is exactly the gap this file was created to close.
+They are listed here instead, newest last. **Claude cannot make these edits**
+(`CLAUDE.md` rule 3); each was prepared and handed over, and the operator ran it.
+
+| Date | What | Why | How to undo |
+|---|---|---|---|
+| 2026-09-08 | Repaired 12 products carrying a duplicate « Sauces » group — every Croustillant — with `bun scripts/fix-duplicate-product-options.ts --apply`, after backing the database up to `db/custom.db.before-dupfix-2026-09-08`. | The catalogue editor was re-creating them on every save (L-67). Batch 5.8 removed the cause; this cleared what it had already produced. | Restore that backup. The dry run now reports 0. |
+| 2026-09-08 | New photographs for the Croustillants, and the products re-pointed at them. | Operator. | Files are in git (`882409b`); the product-to-image links are not. |
+| 2026-09-09 | Applied migration `20260909101500_category_vat_rate_takeaway` to production. | Batch 3.12 (L-68). Rehearsed on a copy with a fingerprint diff first. | Prisma migrations are not reversed in place; restore a backup. |
+| 2026-09-09 | *Bouteilles* and *Canette* set to **`vatRate` 10 / `vatRateTakeaway` 5,5**. | Batch 3.12's L-68f, on the operator's ruling. **A swap, not an addition** — the old 5,5 was in the column that now means sur place. | Set both back to `vatRate` 5,5 and clear the takeaway rate. |
+| 2026-09-09 | The three *Duo* meals: « Hériter des options & suppléments globaux » turned **off**. | They sit under *Burgers* and were inheriting its *Crudités* and *Frite* groups, asking once for two burgers. | Turn the toggle back on. |
+| 2026-09-09 | Three menu photographs added (`menu_eco`, `menu_chill`, `menu_xxl`). | Preparing the combos. Two of the three have no product yet. | Files are in git (`39a47be`). |
+| **PENDING** | **Deactivate *Menu Eco*.** Its price was overwritten 24,90 → 8,90 by a save while it inherited the Pizzas *Taille* group; the operator is removing it and will create all three menus with Batch 5.9. **Turn off « Tailles multiples » and the inherit toggle before saving**, or the save re-creates the phantom size group. | Operator's decision, 2026-09-09. | Turn *Actif* back on. |
 
 ---
 
