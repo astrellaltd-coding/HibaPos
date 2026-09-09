@@ -31,24 +31,25 @@ Baselines, all measured 2026-09-09 19:18 — **re-measure before trusting any of
 them**, because they moved four times in one session:
 
 - tests **1217 pass, 0 fail**; e2e 13
-- production `b21104b5d2d4aaa109414ec633ee822dd7e81ebebafb0e23330a7678dee3f8b7`,
+- production `0ad41ae70803bae0f3ee6cc249be7f2615e12523f034250afa27676ded997f67`,
   876 544 bytes, 80 products, 6 menus, counters 41/5/4/30, 12 migrations, none
-  pending
+  pending, `integrity_check` ok
 - **the production file's hash moves on its own while the operator's app is
   open** — a session touch rewrites pages without changing a fiscal row. Assert
   the fiscal fingerprint, never the sha.
 
-## Two things waiting on the operator, not on you
+## One thing waiting on the operator, not on you
 
-1. **`Menu XXL`'s second pizza imposes Senior where the menu is "2 pizzas
-   Mega".** Data, not code. The fix is two clicks in the catalogue editor. It is
-   in *Open Threads → B* with the arithmetic in the record. Mention it once if
-   it is still wrong; do not fix it yourself — Claude does not write to real menu
-   data.
-2. **The accountant has not confirmed the VAT allocation METHOD.** The rates are
-   settled and live; how a forfait is divided between them is the open claim.
-   `docs/politique-ventilation-tva.md` § 8 lists four points. **Never describe
-   any of this as compliant.**
+**The accountant has not confirmed the VAT allocation METHOD.** The rates are
+settled and live; how a forfait is divided between them is the open claim.
+`docs/politique-ventilation-tva.md` § 8 lists four points. **Never describe any
+of this as compliant.**
+
+*(A second item — `Menu XXL`'s second pizza imposed as Senior rather than Mega —
+was raised and fixed by the operator the same evening. The catalogue now matches
+the specification for all six menus. Recorded because it is what a composition
+mistake costs: 43 cents of base onto the reduced-rate share, 2,94 of VAT where
+2,96 was due.)*
 
 ## Rulings already made — do not re-open them
 
@@ -108,7 +109,7 @@ Four things this project has paid for, in order of how much they cost:
 - `readme-counts.test.ts`, `plan-freshness.test.ts` and `touch-and-labels.test.ts`
   pin numbers that move when you work. **When one fails, the number is what to
   check, not the assertion.** The plan's front matter has a ~40 KB ceiling and it
-  is nearly full at 40 864 — retire something into the record rather than
+  is nearly full at 40 821 — retire something into the record rather than
   trimming a measurement.
 - The server on port 3000 is the operator's. Use a spare port and stop anything
   you start with `taskkill //PID <pid> //T //F`. Ports 3021–3026, 3033/3034,

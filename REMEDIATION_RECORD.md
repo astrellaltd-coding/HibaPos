@@ -4212,6 +4212,12 @@ base moves onto the reduced-rate share — two centimes of VAT under-declared pe
 Menu XXL sold à emporter. Both are the operator's to fix in the editor; the plan
 carries it as an open action under *Open Threads → B*.
 
+**✅ FIXED THE SAME EVENING**, by the operator, within the hour of being told —
+re-measured read-only: both `Menu XXL` pizza slots now impose **Mega**, and the
+catalogue matches the specification for all six menus. Worth keeping the figures
+above rather than deleting them: they are what a configuration mistake in a
+menu's composition costs, and the next one will cost the same shape.
+
 ---
 
 # STAGE 7 — CLEANUP AND DOCUMENTATION TRUTH
