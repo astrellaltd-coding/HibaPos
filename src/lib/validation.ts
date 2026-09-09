@@ -105,6 +105,40 @@ export const categoryAddOnSchema = z.object({
   active: z.boolean().default(true),
 });
 
+/**
+ * One slot of a menu composé (Batch 5.9).
+ *
+ * `choices` empty means « the whole source category tree »; one entry means
+ * the component is fixed and the cashier is never asked. `surcharge` is cents
+ * on top of the forfait for that filler — the operator's +1,50 € Frite
+ * Cheddar, a figure the catalogue cannot yield (standalone the two products
+ * differ by 1,40).
+ */
+export const comboSlotSchema = z.object({
+  name: z.string().min(1, "Le composant doit être nommé").max(40),
+  quantity: z.number().int().min(1).max(10).default(1),
+  sortOrder: z.number().int().default(0),
+  sourceCategoryId: z.string().min(1, "Catégorie requise"),
+  choices: z
+    .array(
+      z.object({
+        productId: z.string().min(1),
+        surcharge: z.number().int().min(0).default(0),
+        sortOrder: z.number().int().default(0),
+      }),
+    )
+    .default([]),
+  optionRules: z
+    .array(
+      z.object({
+        categoryOptionGroupId: z.string().min(1),
+        // null = « governed, and not asked »: another slot answers it.
+        categoryOptionChoiceId: z.string().nullable().default(null),
+      }),
+    )
+    .default([]),
+});
+
 export const productSchema = z.object({
   name: z.string().min(1, "Le nom est requis").max(80),
   description: z.string().max(280).optional().nullable(),
@@ -137,8 +171,88 @@ export const productSchema = z.object({
    * On create there is nothing to preserve, so absent means "none" there.
    */
   options: z.array(optionGroupSchema).optional(),
+  /**
+   * A menu composé (Batch 5.9). Defaults false, so every existing caller and
+   * every existing product is unaffected.
+   */
+  isCombo: z.boolean().default(false),
+  /**
+   * The menu's slots. `.optional()` for the same reason `options` is: the PUT
+   * handler replaces them wholesale, so an absent field must mean « leave them
+   * alone » and not « delete them all ». That distinction is C-24 (Batch 4.6),
+   * and a menu whose slots were silently wiped by a partial update would sell
+   * at its forfait under the higher-rate fallback — a real, invisible cost.
+   */
+  comboSlots: z.array(comboSlotSchema).optional(),
 });
 export type ProductInput = z.infer<typeof productSchema>;
+
+/**
+ * Is this menu completely enough configured to be SOLD? — Batch 5.9e.
+ *
+ * `docs/politique-ventilation-tva.md` § 4: « Ce repli est conçu pour ne jamais
+ * se déclencher en service : la configuration d'un menu incomplet doit être
+ * refusée à l'enregistrement, là où il y a le temps de la corriger. Le repli
+ * est la ceinture, la validation est les bretelles. »
+ *
+ * So this is the bretelles. It runs where there IS time to fix the problem —
+ * the catalogue editor — and it returns French sentences an operator can act
+ * on. It cannot see the database, so it checks the SHAPE; the routes add the
+ * checks that need the catalogue (does this category exist, is this filler a
+ * menu itself).
+ *
+ * ABSENT `comboSlots` IS NOT AN EMPTY ONE. `undefined` means « leave the slots
+ * alone » — C-24's rule (Batch 4.6), the same reading `options` has — so the
+ * « at least one component » check is skipped when nothing is being written.
+ * Whether the menu ALREADY has one is a database question and belongs to the
+ * route; on create the caller passes `[]`, because on create absent means none.
+ *
+ * Returns an empty array when the menu is fine.
+ */
+/** One wording, used by the shape check and by the route's « it already has
+ *  none » check, so an operator never sees two sentences for one problem. */
+export const COMBO_NEEDS_A_SLOT = "Un menu composé doit avoir au moins un composant.";
+
+export function validateComboShape(input: {
+  isCombo?: boolean;
+  price?: number;
+  comboSlots?: { name: string; quantity: number; sourceCategoryId: string; choices?: { productId: string }[] }[];
+}): string[] {
+  if (!input.isCombo) {
+    // A product that is not a menu may not carry slots: they would be dead
+    // configuration that nothing reads, and the next person to set `isCombo`
+    // would inherit a composition nobody chose.
+    return (input.comboSlots?.length ?? 0) > 0
+      ? ["Des composants sont définis alors que ce produit n'est pas un menu composé."]
+      : [];
+  }
+
+  const errors: string[] = [];
+  const slots = input.comboSlots ?? [];
+  if (input.comboSlots !== undefined && slots.length === 0) {
+    errors.push(COMBO_NEEDS_A_SLOT);
+  }
+  if ((input.price ?? 0) <= 0) {
+    errors.push("Un menu composé doit avoir un prix : le forfait est ce qui est ventilé entre les taux.");
+  }
+  for (const [i, slot] of slots.entries()) {
+    const where = slot.name?.trim() ? `« ${slot.name} »` : `Composant ${i + 1}`;
+    if (!slot.name?.trim()) {
+      errors.push(`${where} : le composant doit être nommé — c'est la question posée au caissier.`);
+    }
+    if (!Number.isInteger(slot.quantity) || slot.quantity < 1) {
+      errors.push(`${where} : la quantité doit être d'au moins 1.`);
+    }
+    if (!slot.sourceCategoryId) {
+      errors.push(`${where} : choisissez la catégorie dans laquelle piocher.`);
+    }
+    const ids = (slot.choices ?? []).map((c) => c.productId);
+    if (new Set(ids).size !== ids.length) {
+      errors.push(`${where} : le même produit est proposé deux fois.`);
+    }
+  }
+  return errors;
+}
 
 // DD-15 (Batch 5.7a): `addOnSchema` / `AddOnInput` were here, used only by
 // the two deleted `/api/catalog/addons` routes. `categoryAddOnSchema` above is

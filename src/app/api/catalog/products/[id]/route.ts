@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { inheritedGroupNames, splitOwnFromInherited } from "@/lib/services/product-options";
 import { db } from "@/lib/db";
 import { withAuthParams, parseJson } from "@/lib/api-handler";
-import { productSchema } from "@/lib/validation";
+import { productSchema, validateComboShape, COMBO_NEEDS_A_SLOT } from "@/lib/validation";
+import { validateComboAgainstCatalogue, replaceComboSlots } from "@/lib/services/combo-admin";
 import { audit } from "@/lib/services/audit";
 import type { ProductDto } from "@/types/api";
 import { Prisma } from "@prisma/client";
@@ -23,6 +24,7 @@ type ProductWithRelations = Prisma.ProductGetPayload<{
       };
     };
     options: { include: { choices: true } };
+    comboSlots: { include: { choices: true; optionRules: true } };
   };
 }>;
 
@@ -149,6 +151,27 @@ function serialize(p: ProductWithRelations): ProductDto {
     category: p.category
       ? { id: p.category.id, name: p.category.name, color: p.category.color }
       : undefined,
+    // Batch 5.9. `comboSlots` may be absent when a caller fetched the product
+    // without them; an ordinary product simply has none.
+    isCombo: p.isCombo === true,
+    comboSlots: (p.comboSlots ?? [])
+      .slice()
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map((slot) => ({
+        id: slot.id,
+        name: slot.name,
+        quantity: slot.quantity,
+        sortOrder: slot.sortOrder,
+        sourceCategoryId: slot.sourceCategoryId,
+        choices: (slot.choices ?? [])
+          .slice()
+          .sort((a, b) => a.sortOrder - b.sortOrder)
+          .map((c) => ({ productId: c.productId, surcharge: c.surcharge, sortOrder: c.sortOrder })),
+        optionRules: (slot.optionRules ?? []).map((r) => ({
+          categoryOptionGroupId: r.categoryOptionGroupId,
+          categoryOptionChoiceId: r.categoryOptionChoiceId,
+        })),
+      })),
   };
 }
 
@@ -169,6 +192,8 @@ export const GET = withAuthParams(async (_req, { params }) => {
         },
       },
       options: { include: { choices: true } },
+      // Batch 5.9 — the POS needs a menu's slots to ask for its components.
+      comboSlots: { include: { choices: true, optionRules: true } },
     },
   });
   if (!product) return NextResponse.json({ error: "Introuvable" }, { status: 404 });
@@ -184,7 +209,34 @@ export const PUT = withAuthParams(async (req, { user, params }) => {
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalide" }, { status: 400 });
   }
-  const { options, ...productData } = parsed.data;
+  const { options, comboSlots, ...productData } = parsed.data;
+
+  // Batch 5.9e — a menu that could not be sold correctly is refused HERE,
+  // where there is time to fix it. `docs/politique-ventilation-tva.md` § 4:
+  // « Le repli est la ceinture, la validation est les bretelles. » The
+  // higher-rate fallback still exists and still works; this is what is meant
+  // to keep it from ever firing in service.
+  const shapeErrors = validateComboShape(parsed.data);
+  if (shapeErrors.length > 0) {
+    return NextResponse.json({ error: shapeErrors[0], errors: shapeErrors }, { status: 400 });
+  }
+  // An update that does not send `comboSlots` keeps the ones the menu has —
+  // but a product being TURNED INTO a menu has none to keep, and would be
+  // saved as a menu that sells under the fallback. Asked of the database
+  // because that is the only place the answer lives.
+  if (parsed.data.isCombo && comboSlots === undefined) {
+    const existing = await db.comboSlot.count({ where: { productId: params.id } });
+    if (existing === 0) {
+      return NextResponse.json({ error: COMBO_NEEDS_A_SLOT, errors: [COMBO_NEEDS_A_SLOT] }, { status: 400 });
+    }
+  }
+  if (parsed.data.isCombo && comboSlots !== undefined) {
+    const catalogueErrors = await validateComboAgainstCatalogue(comboSlots, params.id);
+    if (catalogueErrors.length > 0) {
+      return NextResponse.json({ error: catalogueErrors[0], errors: catalogueErrors }, { status: 400 });
+    }
+  }
+
   const product = await db.$transaction(async (tx) => {
     await tx.product.update({
       where: { id: params.id },
@@ -201,9 +253,18 @@ export const PUT = withAuthParams(async (req, { user, params }) => {
         active: productData.active,
         available: productData.available,
         inheritCategoryGlobals: productData.inheritCategoryGlobals,
+        isCombo: productData.isCombo,
         sortOrder: productData.sortOrder,
       },
     });
+    // Batch 5.9. Replaced WHOLESALE, and only when the caller actually sent
+    // the field — C-24's rule (Batch 4.6), and it matters more here than it
+    // does for `options`: a menu whose slots a partial update silently wiped
+    // would keep selling, at its forfait, under the higher-rate fallback,
+    // over-taxing every sale with nothing on screen to say so.
+    if (comboSlots !== undefined) {
+      await replaceComboSlots(tx, params.id, comboSlots);
+    }
     // Replace product-specific option groups wholesale — but ONLY when the
     // caller actually sent the field (C-24, Batch 4.6). `options` used to
     // default to `[]`, so a PUT that omitted it deleted every option group
@@ -287,6 +348,7 @@ export const PUT = withAuthParams(async (req, { user, params }) => {
           },
         },
         options: { include: { choices: true } },
+        comboSlots: { include: { choices: true, optionRules: true } },
       },
     });
   });

@@ -4,6 +4,7 @@ import { withAuth, parseJson } from "@/lib/api-handler";
 import { z } from "zod";
 import { getSettings } from "@/lib/services/settings";
 import { computeLinePricing, resolveVatRate } from "@/lib/services/pricing";
+import { priceComboItem, COMBO_MENU_INCLUDE, type MenuWithSlots } from "@/lib/services/combo-checkout";
 import { sum2 } from "@/lib/money";
 import { consumeStepUpToken } from "@/lib/services/step-up";
 import { discountNeedsStepUp } from "@/lib/discount-policy";
@@ -46,6 +47,29 @@ const checkoutIntentSchema = z.object({
         addons: z.array(
           z.object({ addonId: z.string(), quantity: z.number().int().min(1).default(1) })
         ).default([]),
+        // Batch 5.9 — a menu composé, one entry per seat, IN SLOT ORDER.
+        //
+        // Intent only, like everything else this schema accepts: the server
+        // re-reads every reference price, re-resolves every rate and re-runs
+        // the allocation from the catalogue. A basket cannot choose what a
+        // component is worth any more than it can choose its own tax.
+        //
+        // The seat count is not bounded here because it is not a free number:
+        // `priceComboItem` requires exactly as many components as the menu has
+        // seats, so the menu's own configuration is the bound.
+        components: z
+          .array(
+            z.object({
+              slotId: z.string(),
+              productId: z.string(),
+              optionIds: z.array(z.string()).default([]),
+              addons: z
+                .array(z.object({ addonId: z.string(), quantity: z.number().int().min(1).default(1) }))
+                .default([]),
+              notes: z.string().optional().nullable(),
+            })
+          )
+          .optional(),
       })
     )
     .min(1, "La commande est vide"),
@@ -202,6 +226,10 @@ export const POST = withAuth(async (req, { user }) => {
     optionsJson: string | null;
     addOnsJson: string | null;
     notes: string | null;
+    // Batch 5.9: set on the lines of a menu composé, null on every other.
+    comboGroupId?: string | null;
+    comboName?: string | null;
+    comboPrice?: number | null;
   }[] = [];
 
   for (const itemIntent of items) {
@@ -221,12 +249,54 @@ export const POST = withAuth(async (req, { user }) => {
           },
         },
         options: { include: { choices: true } },
+        // Batch 5.9. Always fetched, because whether this product is a menu is
+        // not knowable until it has been read, and reading it twice to find out
+        // would be a second query per line on the hottest path in the app.
+        ...COMBO_MENU_INCLUDE,
       },
     });
     if (!product || !product.active || !product.available) {
       return NextResponse.json(
         { error: `Produit introuvable ou indisponible : ${itemIntent.productId}` },
         { status: 400 }
+      );
+    }
+
+    // ---- a menu composé explodes into one line per component (Batch 5.9d) ----
+    //
+    // WHY IT CANNOT STAY ONE LINE. `OrderItem` carries exactly one `vatRate`,
+    // and every report, Z close and archive reads that column. A menu contains
+    // items at two rates the moment it leaves the premises — a sealed drink is
+    // 5,5 % à emporter and 10 % sur place (L-68) — so one line could only ever
+    // book one of them. The forfait is divided by
+    // `docs/politique-ventilation-tva.md` and each component books its share at
+    // its own rate.
+    if (product.isCombo) {
+      const combo = await priceComboItem({
+        menu: product as unknown as MenuWithSlots,
+        components: itemIntent.components ?? [],
+        quantity: itemIntent.quantity,
+        orderType,
+        groupId: crypto.randomUUID(),
+      });
+      if ("error" in combo) {
+        return NextResponse.json({ error: combo.error }, { status: 400 });
+      }
+      for (const line of combo.lines) subtotal += line.lineTotal;
+      // ONE article, not one per component. The menu is what the customer
+      // bought and what the ticket's « N articles » counts.
+      itemCount += itemIntent.quantity;
+      orderItemsData.push(...combo.lines);
+      continue;
+    }
+
+    // A basket may not attach a composition to something that is not a menu:
+    // it would be silently ignored, and a silently ignored field on a checkout
+    // is how a client and a server come to disagree about what was sold.
+    if (itemIntent.components && itemIntent.components.length > 0) {
+      return NextResponse.json(
+        { error: `${product.name} n'est pas un menu composé.` },
+        { status: 400 },
       );
     }
 

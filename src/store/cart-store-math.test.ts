@@ -110,6 +110,8 @@ describe("productUnitPrice — base price per orderType on the product", () => {
     sortOrder: 0,
     options: [],
     addOns: [],
+    isCombo: false,
+    comboSlots: [],
   };
 
   it("uses price (1000) for DINE_IN", () => {

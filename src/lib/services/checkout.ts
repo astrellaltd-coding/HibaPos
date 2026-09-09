@@ -86,6 +86,18 @@ export type CheckoutItem = {
   optionsJson: string | null;
   addOnsJson: string | null;
   notes: string | null;
+  /**
+   * Batch 5.9 — set on the lines of a menu composé, absent on every other.
+   *
+   * A menu is sold at one forfait and booked as one line per component,
+   * because components carry different rates and `OrderItem.vatRate` is the
+   * only place a rate lives. These three are what let a reader put the menu
+   * back together: which lines belong to it, what it was called, and what its
+   * forfait was.
+   */
+  comboGroupId?: string | null;
+  comboName?: string | null;
+  comboPrice?: number | null;
 };
 
 export type CheckoutPayment = {
@@ -215,6 +227,11 @@ export async function createOrderInTransaction(input: CheckoutInput): Promise<Or
             vatRate: item.vatRate,
             lineNetTotal,
             lineHt: splitVat(lineNetTotal, item.vatRate).ht,
+            // Batch 5.9. Null on an ordinary line, which is every line written
+            // before this batch and most written after it.
+            comboGroupId: item.comboGroupId ?? null,
+            comboName: item.comboName ?? null,
+            comboPrice: item.comboPrice ?? null,
             optionsJson: item.optionsJson,
             addOnsJson: item.addOnsJson,
             notes: item.notes,

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { withAuth, parseJson } from "@/lib/api-handler";
-import { productSchema } from "@/lib/validation";
+import { productSchema, validateComboShape } from "@/lib/validation";
+import { validateComboAgainstCatalogue, replaceComboSlots } from "@/lib/services/combo-admin";
 import { audit } from "@/lib/services/audit";
 import type { ProductDto } from "@/types/api";
 import { Prisma } from "@prisma/client";
@@ -22,6 +23,7 @@ type ProductWithRelations = Prisma.ProductGetPayload<{
       };
     };
     options: { include: { choices: true } };
+    comboSlots: { include: { choices: true; optionRules: true } };
   };
 }>;
 
@@ -151,6 +153,27 @@ function serialize(p: ProductWithRelations): ProductDto {
     category: p.category
       ? { id: p.category.id, name: p.category.name, color: p.category.color }
       : undefined,
+    // Batch 5.9. `comboSlots` may be absent when a caller fetched the product
+    // without them; an ordinary product simply has none.
+    isCombo: p.isCombo === true,
+    comboSlots: (p.comboSlots ?? [])
+      .slice()
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map((slot) => ({
+        id: slot.id,
+        name: slot.name,
+        quantity: slot.quantity,
+        sortOrder: slot.sortOrder,
+        sourceCategoryId: slot.sourceCategoryId,
+        choices: (slot.choices ?? [])
+          .slice()
+          .sort((a, b) => a.sortOrder - b.sortOrder)
+          .map((c) => ({ productId: c.productId, surcharge: c.surcharge, sortOrder: c.sortOrder })),
+        optionRules: (slot.optionRules ?? []).map((r) => ({
+          categoryOptionGroupId: r.categoryOptionGroupId,
+          categoryOptionChoiceId: r.categoryOptionChoiceId,
+        })),
+      })),
   };
 }
 
@@ -200,6 +223,8 @@ export const GET = withAuth(async (req) => {
         },
       },
       options: { include: { choices: true } },
+      // Batch 5.9 — the POS needs a menu's slots to ask for its components.
+      comboSlots: { include: { choices: true, optionRules: true } },
     },
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
   });
@@ -215,7 +240,26 @@ export const POST = withAuth(async (req, { user }) => {
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalide" }, { status: 400 });
   }
-  const { options, ...productData } = parsed.data;
+  const { options, comboSlots, ...productData } = parsed.data;
+
+  // Batch 5.9e — a menu that could not be sold correctly is refused HERE,
+  // where there is time to fix it. `docs/politique-ventilation-tva.md` § 4:
+  // « Le repli est la ceinture, la validation est les bretelles. » The
+  // higher-rate fallback still exists and still works; this is what is meant
+  // to keep it from ever firing in service.
+  // On CREATE there is nothing to preserve, so an absent field really does
+  // mean « no slots » — and a menu with no slots is refused.
+  const shapeErrors = validateComboShape({ ...parsed.data, comboSlots: comboSlots ?? [] });
+  if (shapeErrors.length > 0) {
+    return NextResponse.json({ error: shapeErrors[0], errors: shapeErrors }, { status: 400 });
+  }
+  if (parsed.data.isCombo && comboSlots !== undefined) {
+    const catalogueErrors = await validateComboAgainstCatalogue(comboSlots, null);
+    if (catalogueErrors.length > 0) {
+      return NextResponse.json({ error: catalogueErrors[0], errors: catalogueErrors }, { status: 400 });
+    }
+  }
+
   const product = await db.$transaction(async (tx) => {
     const created = await tx.product.create({
       data: {
@@ -231,10 +275,16 @@ export const POST = withAuth(async (req, { user }) => {
         active: productData.active,
         available: productData.available,
         inheritCategoryGlobals: productData.inheritCategoryGlobals,
+        isCombo: productData.isCombo,
         sortOrder: productData.sortOrder,
       },
       include: { options: { include: { choices: true } } },
     });
+    // Batch 5.9. On create there is nothing to preserve, so absent means
+    // "no slots" — the same reading `options` has four lines below.
+    if (comboSlots !== undefined) {
+      await replaceComboSlots(tx, created.id, comboSlots);
+    }
     // `options` is optional since C-24 (Batch 4.6) so that a PUT omitting it
     // cannot wipe a product's groups. On create there is nothing to preserve,
     // so absent simply means "no product-specific groups".
@@ -281,6 +331,7 @@ export const POST = withAuth(async (req, { user }) => {
           },
         },
         options: { include: { choices: true } },
+        comboSlots: { include: { choices: true, optionRules: true } },
       },
     });
   });

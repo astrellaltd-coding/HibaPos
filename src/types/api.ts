@@ -104,6 +104,26 @@ export type ProductDto = {
   options: OptionGroupDto[];
   addOns: AddOnDto[];
   category?: { id: string; name: string; color: string };
+  /** A menu composé — its price is a forfait and its slots are filled at the
+   *  till (Batch 5.9). False on every ordinary product. */
+  isCombo: boolean;
+  /** The slots, in the order the cashier is asked. Empty unless `isCombo`. */
+  comboSlots: ComboSlotDto[];
+};
+
+/** One slot of a menu composé (Batch 5.9). */
+export type ComboSlotDto = {
+  id: string;
+  name: string;
+  quantity: number;
+  sortOrder: number;
+  sourceCategoryId: string;
+  /** Explicit fillers. EMPTY means the whole source-category tree at no
+   *  surcharge; ONE entry means the component is fixed and never asked. */
+  choices: { productId: string; surcharge: number; sortOrder: number }[];
+  /** Inherited category groups the menu governs: answered with
+   *  `categoryOptionChoiceId`, or simply not asked when it is null. */
+  optionRules: { categoryOptionGroupId: string; categoryOptionChoiceId: string | null }[];
 };
 
 export type AddOnDto = {
