@@ -297,7 +297,7 @@ export function ComboBuilderDialog({
                           type="button"
                           onClick={() => toggleChoice(g.name, c.name, g.multiple)}
                           className={cn(
-                            "group relative flex h-[100px] w-full flex-col items-center gap-1 rounded-lg border-2 px-1 py-2 text-center transition-all duration-150",
+                            "group relative flex min-h-[100px] w-full flex-col items-center gap-1 rounded-lg border-2 px-1 py-2 text-center transition-all duration-150",
                             isSel
                               ? "border-primary bg-primary/5 shadow-sm"
                               : "border-border bg-card hover:border-primary/40 hover:bg-muted/30",
@@ -308,7 +308,7 @@ export function ComboBuilderDialog({
                               <Check className="h-2.5 w-2.5" />
                             </span>
                           )}
-                          <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-md bg-muted/50">
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted/50">
                             {hasImg ? (
                               <ProductImage image={c.image} alt={c.name} className="h-full w-full object-cover text-lg" />
                             ) : (
@@ -371,7 +371,7 @@ export function ComboBuilderDialog({
                           type="button"
                           onClick={() => setChosenAddons((s) => ({ ...s, [a.id]: !s[a.id] }))}
                           className={cn(
-                            "group relative flex h-[100px] w-full flex-col items-center gap-1 rounded-lg border-2 px-1 py-2 text-center transition-all duration-150",
+                            "group relative flex min-h-[100px] w-full flex-col items-center gap-1 rounded-lg border-2 px-1 py-2 text-center transition-all duration-150",
                             isSel
                               ? "border-primary bg-primary/5 shadow-sm"
                               : "border-border bg-card hover:border-primary/40 hover:bg-muted/30",
@@ -382,7 +382,7 @@ export function ComboBuilderDialog({
                               <Check className="h-2.5 w-2.5" />
                             </span>
                           )}
-                          <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-md bg-muted/50">
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted/50">
                             <ProductImage image={a.image} alt={a.name} className="h-full w-full object-cover text-lg" />
                           </div>
                           <div className="flex flex-col items-center gap-0">
