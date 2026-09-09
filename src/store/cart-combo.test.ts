@@ -244,6 +244,37 @@ describe("repricing a menu when the order type changes", () => {
     expect(stored.components![1].options[0].choice).toBe("Sans Crudités");
   });
 
+  it("prices at the forfait even if the LINE itself carries options", () => {
+    // WHY THIS EXISTS. The combo branch in `recalculateUnitPrice` was reverted
+    // during the batch's revert protocol and nothing failed: every combo line
+    // in these tests had an empty `options` array, so the ordinary path summed
+    // nothing and returned the same number. The branch was load-bearing in
+    // principle and untested in fact.
+    //
+    // `CartItem.options` is meant to stay empty on a menu — the components hold
+    // theirs — but nothing in the type system says so, and `updateItem` can set
+    // it. If that ever happens the ordinary path would add those modifiers to
+    // the forfait, the client total would stop matching the server's, and the
+    // checkout would answer « Paiement incorrect ». The menu is priced by its
+    // forfait and by nothing else.
+    const l: CartItem = {
+      ...duo([canette()]),
+      options: [
+        {
+          group: "Parasite",
+          choice: "X",
+          choiceId: "x",
+          priceModifier: 500,
+          dineInPriceModifier: 500,
+          pickupPriceModifier: null,
+          deliveryPriceModifier: null,
+        },
+      ],
+    };
+    expect(recalculateUnitPrice(l, "DINE_IN")).toBe(1190);
+    expect(recalculateUnitPrice(l, "LIVRAISON")).toBe(1390);
+  });
+
   it("falls back to the dine-in forfait when the menu has no price for that mode", () => {
     const l = duo([canette()], { pickupPrice: null, deliveryPrice: null });
     expect(recalculateUnitPrice(l, "TAKEAWAY")).toBe(1190);

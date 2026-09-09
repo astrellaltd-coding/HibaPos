@@ -94,12 +94,12 @@ function buckets(lines: { unitPrice: number; vatRate: number }[]) {
   return out;
 }
 
-function run(components: ComboComponent[], forfait: number) {
+function run(components: ComboComponent[], forfait: number, menuVatRate = 10) {
   const a = allocateCombo({
     menuProductId: "menu",
     menuName: "Menu",
     forfait,
-    menuVatRate: 10,
+    menuVatRate,
     components,
   });
   return { allocation: a, buckets: buckets(a.lines) };
@@ -290,11 +290,17 @@ describe("allocation — the fallback (policy § 4)", () => {
     // Every rate present is 5,5, so « le taux le plus élevé des taux en
     // présence » would be 5,5. The floor is what keeps the software on the
     // safe side of a division it could not justify.
+    //
+    // THE MENU'S OWN RATE IS 5,5 HERE, AND THAT IS THE POINT. This assertion
+    // passed with `menuVatRate: 10` and went on passing when the floor was
+    // reverted away — `Math.max(0, 10, 5.5)` is 10 either way, so it was true
+    // for the wrong reason and proved nothing. Found by the revert protocol;
+    // with every rate in sight at 5,5, only the floor can produce 10.
     const comps = [
       { ...bouteille(5.5), referencePrice: 0 },
       { ...bouteille(5.5), referencePrice: 0, productId: "d2" },
     ];
-    const { allocation } = run(comps, 700);
+    const { allocation } = run(comps, 700, 5.5);
     expect(allocation.fallback!.rate).toBe(COMBO_FALLBACK_RATE_FLOOR);
     expect(allocation.lines[0].vatRate).toBe(10);
   });
