@@ -54,13 +54,13 @@ const EXPANSIONS = [
   },
   {
     where: "src/lib/deployment.test.ts",
-    what: "for (const f of ALL_SCRIPTS) it(…) — seven PowerShell scripts",
-    runs: 7,
+    what: "for (const f of ALL_SCRIPTS) it(…) — eight PowerShell scripts",
+    runs: 8,
   },
   {
     where: "src/lib/deployment.test.ts",
     what: "for (const f of ALL_SCRIPTS) it(…) — the backtick-in-here-string guard, Batch 1.4c",
-    runs: 7,
+    runs: 8,
   },
   {
     where: "src/lib/services/combo-allocation.test.ts",

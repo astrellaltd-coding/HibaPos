@@ -50,6 +50,10 @@ const ALL_SCRIPTS = [
   "hibapos-kiosk.ps1",
   "install-windows.ps1",
   "update.ps1",
+  // Batch 1.3d (L-70): the RAW spooler helper. It is the only .ps1 the
+  // RUNNING APPLICATION spawns rather than the operator, so a decoding fault
+  // here is a till that cannot print rather than one that cannot start.
+  "print-raw.ps1",
 ];
 
 describe("the scripts exist and are readable, so nothing below passes vacuously", () => {

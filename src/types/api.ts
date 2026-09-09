@@ -345,7 +345,9 @@ export type SettingsDto = {
   footerNote: string | null;
   defaultVatRate: number;
   currency: string;
-  printerName: string | null;
+  printerName: string | null; // a LABEL; printerQueue is what is addressed
+  printerConnection: "network" | "usb"; // Batch 1.3d (L-69)
+  printerQueue: string | null; // Windows print-queue name, for the USB path
   printerHost: string | null;
   printerPort: number;
   printerEnabled: boolean;

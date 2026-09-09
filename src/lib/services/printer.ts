@@ -12,6 +12,7 @@ import { centred } from "@/lib/services/ticket-layout";
 import {
   PrinterError,
   createTcpTransport,
+  createWindowsRawTransport,
   type PrinterTransport,
 } from "@/lib/services/printer-transport";
 
@@ -44,6 +45,26 @@ export async function resolvePrinter(deps: { transport?: PrinterTransport } = {}
       },
     };
   }
+  // Batch 1.3d (L-70): which transport, decided by an explicit setting rather
+  // than by which field happens to be filled. `printerConnection` defaults to
+  // "network" everywhere it is absent, so an install that predates this batch
+  // resolves to exactly the transport it resolved to before.
+  if (settings.printerConnection === "usb") {
+    const queue = (settings.printerQueue ?? "").trim();
+    if (!queue) {
+      return {
+        ok: false,
+        outcome: {
+          ok: false,
+          reason: "NOT_CONFIGURED",
+          message: new PrinterError("NOT_CONFIGURED", "", "", { connection: "usb" })
+            .operatorMessage,
+        },
+      };
+    }
+    return { ok: true, transport: createWindowsRawTransport({ printerName: queue }) };
+  }
+
   const host = (settings.printerHost ?? "").trim();
   if (!host) {
     return {

@@ -13,6 +13,10 @@ export const DEFAULT_SETTINGS: SettingsInput = {
   defaultVatRate: 10,
   currency: "EUR",
   printerName: "Sunso WTP-801",
+  // Batch 1.3d: "network" is what every existing install already means, so an
+  // upgrade changes nothing until the operator switches it.
+  printerConnection: "network",
+  printerQueue: "",
   printerHost: "",
   printerPort: 9100,
   printerEnabled: false,

@@ -269,6 +269,88 @@ unmistakable and safely deletable.
 
 ---
 
+## 4a. USB or network? Do this BEFORE § 4 — Batch 1.3d
+
+**The restaurant's printer is on a USB type-B cable, not on the network.** The
+owner confirmed it on 2026-09-09. So the printer is driven through a Windows
+print queue, and § 4's *"printer IP, port 9100"* line is the **network** case,
+which is not this restaurant's. Set the connection first, then do § 4.
+
+**Why a queue and not a COM port, settled without guessing:** the vendor driver
+declares its hardware as `USBPRINT\SUNSOWTP-800036C` in `sunso.inf` — a USB
+printer-class device. Windows always drives those through a print queue.
+
+### 4a.1 — Install the driver on the till (over AnyDesk)
+
+The owner cannot do this; the developer does it remotely. **The driver is
+already installed on the developer machine**, so the package can travel.
+
+```powershell
+# On the DEVELOPER machine — export the driver package to a folder you can copy.
+pnputil /export-driver oem*.inf C:\HibaPOS-driver
+# It is the one whose Original Name is sunso.inf; check with:
+pnputil /enum-drivers | Select-String -Context 3,3 "sunso"
+```
+
+Copy that folder to the till (AnyDesk file transfer), then, **as
+administrator** on the till:
+
+```powershell
+pnputil /add-driver C:\HibaPOS-driver\sunso.inf /install
+```
+
+Plug the USB cable in — or unplug and replug it if it was already connected —
+and Windows creates the queue by itself.
+
+- [ ] `Get-Printer` on the till lists the Sunso
+- [ ] Its `PortName` starts with **`USB`** (`USB001`, `USB002`…). If it says
+      `COM1:` the driver installed **without** the device attached: replug the
+      cable and re-check. A queue on `COM1:` prints nothing and reports success.
+
+**If the driver refuses to install** — a WTP-801 may report a hardware id this
+WTP-800 INF does not match — use Windows' own generic driver instead: *Ajouter
+une imprimante → L'imprimante que je veux n'est pas répertoriée → Ajouter une
+imprimante locale → port `USB001` → Generic / Generic / Text Only*. RAW printing
+does not go through the driver's rendering, so a generic driver prints exactly
+the same bytes. **Do not spend the session fighting the vendor package.**
+
+### 4a.2 — Point the app at it
+
+**Réglages → Imprimante:**
+
+- [ ] **Connexion** = « USB — imprimante installée dans Windows »
+- [ ] **Imprimante Windows** = the Sunso, chosen from the dropdown. If the list
+      is empty, press **Actualiser**; if it is still empty, 4a.1 did not finish.
+- [ ] `printerEnabled` on, `openDrawerOnCash` on
+- [ ] **Save**, then test — the test prints against the SAVED settings, so an
+      unsaved change tests the old configuration
+
+Then go to § 4 and run every one of its `[OWNER]` confirmations. **Nothing in
+§ 4 changes because of the cable** — the bytes are identical, only the way they
+leave the machine differs.
+
+### 4a.3 — What is proven and what is not
+
+**Proven on the developer machine, 2026-09-09:** the whole path from
+`buildPrintJob()` through the Windows spooler to a real queue using the real
+`SUNSO WTP-800` driver, byte-for-byte identical at the far end — 458, 94 and 7
+bytes across a test page, a receipt with accents and the euro sign, and a lone
+drawer kick; `ESC @`, `ESC t 16`, `GS V B 0` and `ESC p 0 25 250` all arrive;
+`0xE9` (é) and `0x80` (€) arrive intact. An absent queue comes back as
+`UNREACHABLE` with a French message and does not throw.
+
+**NOT proven, and only § 4 can:** that paper comes out. The spooler accepting a
+job means the bytes reached the queue, not that the printer printed — exactly
+the same limit as the network path, and the reason § 4's `[OWNER]` list exists.
+
+- [ ] **Turn the printer off, or unplug the USB cable, and ring a sale.** The
+      sale must still complete, and the message must mention the **USB** cable
+      and Windows — not a network cable. If it says *« Vérifiez qu'elle est
+      allumée et connectée au réseau »*, the Connexion setting is still on
+      « Réseau » and nothing above was saved.
+
+---
+
 ## 4. Commission the printer and the drawer — Batch 1.3 `[HW]`
 
 **While you are in Réglages, two stored values are wrong and this is the moment
@@ -282,6 +364,13 @@ to correct them** (*Open Threads → B*):
 **Réglages:** printer IP, port `9100`, `printerEnabled` on, `openDrawerOnCash`
 on. `receiptWidth` and `printerName` are already right — the operator's save of
 2026-09-07 set the width to 48 and the model to `Sunso WTP-801`.
+
+> **⚠ THE IP AND PORT ABOVE ARE THE NETWORK CASE, AND THIS RESTAURANT IS NOT
+> IT.** The printer is on a USB type-B cable (confirmed by the owner
+> 2026-09-09), so **§ 4a comes first** and sets *Connexion* to « USB » and picks
+> the Windows queue; there is no IP address to enter. Everything else in this
+> section is unchanged — the bytes are identical either way, and only the route
+> off the machine differs. *(Batch 1.3d, L-70.)*
 
 Then `POST /api/print/test`, or the test button in Réglages.
 

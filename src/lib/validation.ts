@@ -339,7 +339,18 @@ export const settingsSchema = z.object({
   footerNote: z.string().max(200).optional().nullable(),
   defaultVatRate: z.number().min(0).max(100),
   currency: z.string().max(3).default("EUR"),
+  // A LABEL ONLY, and deliberately still one (DOC-15). What the app actually
+  // addresses when printing over USB is `printerQueue` below; keeping the two
+  // apart is what stops a decorative value like "Sunso WTP-801" being mistaken
+  // for the Windows queue name, which on this very machine is "SUNSO WTP-800".
   printerName: z.string().max(60).optional().nullable(),
+  // How the printer is attached (Batch 1.3d, L-69). Explicit rather than
+  // inferred from which field is filled: the two modes fail differently and
+  // the operator has to be told the right thing to go and look at.
+  printerConnection: z.enum(["network", "usb"]).default("network"),
+  // The Windows print-queue name, exactly as the spooler reports it. Chosen
+  // from a list the app reads from Windows, never typed.
+  printerQueue: z.string().max(120).optional().nullable(),
   // Printer connection (C-03, Batch 1.3). DD-01 chose raw TCP on port 9100:
   // an IPv4 address or hostname, empty meaning "no printer configured", in
   // which case every print is skipped with a warning instead of failing.

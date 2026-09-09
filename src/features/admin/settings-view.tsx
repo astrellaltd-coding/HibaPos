@@ -79,6 +79,17 @@ function SettingsForm({ initial }: { initial: SettingsDto }) {
   // address. Hence the "enregistrez avant de tester" hint next to the button.
   const [printerTesting, setPrinterTesting] = useState(false);
 
+  // Batch 1.3d (L-70): the Windows print queues, so the operator PICKS the
+  // printer instead of typing its name. Only fetched in USB mode — on a
+  // network install the shell-out is pointless — and a failure comes back as
+  // an empty list, which the form renders as "aucune imprimante détectée".
+  const printerQueues = useQuery({
+    queryKey: ["windows-printers"],
+    queryFn: () => api.get<{ printers: string[] }>("/api/print/printers"),
+    enabled: form.printerConnection === "usb",
+    staleTime: 30_000,
+  });
+
   const runPrinterTest = async (openDrawer: boolean) => {
     setPrinterTesting(true);
     try {
@@ -319,35 +330,111 @@ function SettingsForm({ initial }: { initial: SettingsDto }) {
                   placeholder="Sunso WTP-801"
                 />
               </div>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="p-host">Adresse IP de l&apos;imprimante</Label>
-                  <Input
-                    id="p-host"
-                    value={form.printerHost ?? ""}
-                    onChange={(e) => update("printerHost", e.target.value || null)}
-                    placeholder="192.168.1.50"
-                    inputMode="decimal"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    L&apos;imprimante doit avoir une adresse IP fixe.
-                  </p>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="p-port">Port</Label>
-                  <Input
-                    id="p-port"
-                    type="number"
-                    min={1}
-                    max={65535}
-                    value={form.printerPort ?? 9100}
-                    onChange={(e) => update("printerPort", Number(e.target.value) || 9100)}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    9100 sauf configuration particulière.
-                  </p>
-                </div>
+              {/* HOW THE PRINTER IS ATTACHED (Batch 1.3d, L-70). Explicit,
+                  not inferred from which field is filled in: the two paths
+                  fail differently, and the message a cashier reads at 20h has
+                  to name the cable that actually exists. */}
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="p-conn">Connexion</Label>
+                <Select
+                  value={form.printerConnection ?? "network"}
+                  onValueChange={(v) =>
+                    update("printerConnection", v as SettingsDto["printerConnection"])
+                  }
+                >
+                  <SelectTrigger id="p-conn" className="min-h-[44px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="usb">USB — imprimante installée dans Windows</SelectItem>
+                    <SelectItem value="network">Réseau — adresse IP</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Câble USB entre la caisse et l&apos;imprimante : choisissez «&nbsp;USB&nbsp;».
+                </p>
               </div>
+
+              {form.printerConnection === "usb" ? (
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="p-queue">Imprimante Windows</Label>
+                  <Select
+                    value={form.printerQueue ?? ""}
+                    onValueChange={(v) => update("printerQueue", v || null)}
+                  >
+                    <SelectTrigger id="p-queue" className="min-h-[44px]">
+                      <SelectValue placeholder="Choisissez une imprimante…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(printerQueues.data?.printers ?? []).map((name) => (
+                        <SelectItem key={name} value={name}>
+                          {name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <div className="flex items-center gap-3">
+                    <p className="text-xs text-muted-foreground">
+                      {printerQueues.isLoading
+                        ? "Recherche des imprimantes…"
+                        : (printerQueues.data?.printers ?? []).length === 0
+                          ? "Aucune imprimante détectée. Installez le pilote de l'imprimante dans Windows, puis actualisez."
+                          : `${printerQueues.data?.printers.length} imprimante(s) détectée(s) par Windows.`}
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="min-h-[44px] shrink-0"
+                      onClick={() => printerQueues.refetch()}
+                      disabled={printerQueues.isFetching}
+                    >
+                      Actualiser
+                    </Button>
+                  </div>
+                  {/* The saved queue may have gone (printer unplugged, driver
+                      removed). Say so here rather than at the moment a ticket
+                      fails to come out. */}
+                  {form.printerQueue &&
+                    !printerQueues.isLoading &&
+                    (printerQueues.data?.printers ?? []).length > 0 &&
+                    !(printerQueues.data?.printers ?? []).includes(form.printerQueue) && (
+                      <p className="text-xs font-medium text-destructive">
+                        «&nbsp;{form.printerQueue}&nbsp;» n&apos;est plus détectée par Windows.
+                      </p>
+                    )}
+                </div>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="p-host">Adresse IP de l&apos;imprimante</Label>
+                    <Input
+                      id="p-host"
+                      value={form.printerHost ?? ""}
+                      onChange={(e) => update("printerHost", e.target.value || null)}
+                      placeholder="192.168.1.50"
+                      inputMode="decimal"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      L&apos;imprimante doit avoir une adresse IP fixe.
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="p-port">Port</Label>
+                    <Input
+                      id="p-port"
+                      type="number"
+                      min={1}
+                      max={65535}
+                      value={form.printerPort ?? 9100}
+                      onChange={(e) => update("printerPort", Number(e.target.value) || 9100)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      9100 sauf configuration particulière.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               <div className="flex items-center gap-3">
                 <input

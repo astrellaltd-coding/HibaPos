@@ -274,6 +274,7 @@ describe("T-03 — every API route declares an authorization gate", () => {
   "orders/[id]/print:POST": "ANY",
   "orders/[id]/refund:POST": "ANY",
   "orders/[id]/reprint:POST": "BOTH",
+  "print/printers:GET": "BOTH",
   "print/test:POST": "BOTH",
   "reports/cashiers:GET": "BOTH",
   "reports/products:GET": "BOTH",
@@ -355,7 +356,12 @@ describe("T-03 — every API route declares an authorization gate", () => {
     // `fiscal/close-day`. Every other number is unmoved, which is the whole
     // point of stating them: a batch that added a route AND quietly widened an
     // existing gate would show up here as two changes, not one.
-    expect(counts).toEqual({ BOTH: 30, ANY: 26, INLINE: 14, SUPER_ADMIN: 7 });
+    // AMENDED 2026-09-09 (Batch 1.3d, L-70): BOTH 30 -> 31, the one new route
+    // `print/printers`, which lists the Windows print queues for the settings
+    // picker. ANY, INLINE and SUPER_ADMIN are unmoved, which is this
+    // assertion earning its keep: it is the proof that adding a route did not
+    // also widen an existing gate.
+    expect(counts).toEqual({ BOTH: 31, ANY: 26, INLINE: 14, SUPER_ADMIN: 7 });
   });
 
   it("matches the expected gate wherever one is pinned", async () => {
