@@ -25,6 +25,40 @@ nobody may break.
 
 ## Completed in this cycle
 
+### PHASE 1 — the documents tell the truth again
+**Done:** 2026-09-10 · **Commits:** `cb8534a`, `54eb3d4`, `aaf885a`, `7a25ca7` · **Findings:** none
+
+**R1.1 — retired `docs/mise-en-service.md` (717 lines) and `.zscripts/README-windows.md`
+(206).** Both describe the withdrawn Windows-till deployment. Nothing was extracted: the one
+thing they carried that is *not* a deployment step — emptying the fiscal journal before the
+first genuine sale — was already in the plan as *Before the first real sale*. Every pointer
+to them was redirected, including two refusal messages inside `hibapos-server.ps1` and the
+two `deployment.test.ts` assertions that pin them. **The assertions were redirected, not
+dropped:** what they guard is that a refusal names somewhere to go.
+
+**R1.2 — corrected `docs/CHANGES-LOG.md`'s header**, which was stale in two directions at
+once: it said the trial was cancelled (true, then false, now true again for a different
+reason) and pointed at the runbook R1.1 deleted. Retired verbatim per that file's own
+append-never-rewrite rule.
+
+**R1.3 — retired `NEXT-SESSION.md`.** Its own header instructed it.
+
+**R1.4 — `docs/politique-ventilation-tva.md` § 2 and § 8.** § 2 now states *why* the
+allocation weights are TTC: BOFiP's market-value method is a split « à proportion de la
+valeur de marché, **pour le consommateur** », and a consumer's value is the TTC price they
+would pay for the item alone. § 8 records the HT alternative with its provenance, the
+measured gap, and three reasons it is not adopted.
+
+**R1.5 — three corrections in `README.md`:** the deployment section replaced, uploads
+corrected to 47,0 Mo, and `/api/reports/products` added to the no-interface list.
+
+**How it was verified:** `bun run test` 1248 pass / 0 fail before the commits; 48
+deployment tests pass after the pointer redirect; `.zscripts/hibapos-server.ps1` re-checked
+for its two enforced invariants (UTF-8 BOM present, body pure ASCII) after editing.
+
+**Left behind:** **the fiscal reset is not a deployment step.** It survived the retirement
+of the document that described it and must survive the Tauri migration too.
+
 ### CONSOLIDATION — one plan, one done file, and a simplified CLAUDE.md
 **Done:** 2026-09-10 · **Commit:** *(this commit)* · **Finding:** none — operator instruction
 

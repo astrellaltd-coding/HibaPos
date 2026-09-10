@@ -256,18 +256,6 @@ A `DONE` row leaves this file for `REMEDIATION_DONE.md`.
 | **R0.3** | `TODO` | **Delete `HibaPOS-copie-essai/`** (492 files, 58 MB), after recording its four pre-positioned settings in `REMEDIATION_DONE.md`: `factice=false`, `printerEnabled=false`, `printerConnection="usb"`, `printerQueue=""`. Verified 2026-09-10 to hold nothing unique. |
 | **R0.4** | `TODO` | **Remove `db/custom.db.before-dupfix-2026-09-08`** — a second plaintext production database on a OneDrive-synced path. Check it against `../db-snapshots/` first; it may be the only copy of that state. |
 
-### Phase 1 — Make the documents true again
-
-*Dropping the trial invalidated a governing rule and six documents downstream of it.*
-
-| ID | Status | Task |
-|---|---|---|
-| **R1.1** | `TODO` | **Retire `docs/mise-en-service.md` and `.zscripts/README-windows.md`.** 717 + 206 lines describing a deployment model that is withdrawn. **Extract nothing further** — the fiscal sequence they carried is already captured in *Before the first real sale* below. Both stay recoverable from git. |
-| **R1.2** | `TODO` | **Append a dated correction to `docs/CHANGES-LOG.md`.** Its header said the trial was cancelled — stale when written, right again now for a different reason. Say so with today's date. Also strike its references to the commissioning session. |
-| **R1.3** | `TODO` | **Retire `NEXT-SESSION.md`.** Its own header instructs deletion once spent; every figure in it is superseded. |
-| **R1.4** | `TODO` | **Strengthen `docs/politique-ventilation-tva.md` § 2 and § 8.** § 2 states the TTC market-value basis and *why*: BOFiP's own wording is « la valeur de marché, **pour le consommateur** », and consumer-facing prices are TTC. § 8 records the HT alternative, its provenance (Perplexity research, 2026-09-10), the measured 1–2 cent gap, and that the basis is unconfirmed by an accountant. **Do not soften § 8.** |
-| **R1.5** | `TODO` | **Three corrections in `README.md`:** uploads are 147 files / **47,0 MB**, not 49 Mo; `/api/reports/products` joins `vat` and `cashiers` in the no-interface list; and the *Production (Windows)* section goes — it describes the retired deployment. |
-
 ### Phase 2 — The reporting batch — **the only item with a real deadline**
 
 *Both change what is sealed into Z reports and closes. Zero closes exist, so the shape is
