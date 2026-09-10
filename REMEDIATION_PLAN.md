@@ -70,6 +70,14 @@ first real sale is **fiscal, not technical**, and it is § 6's last section.
    it was verified. Update *Current task* above.
 8. Stop. Do not roll into the next item without the operator's go-ahead.
 
+**And stop again at every phase boundary.** Finishing the last item of a phase is **not**
+licence to open the next one. Report what the phase did, what it cost and what it left
+behind, and wait for the operator to say start. *(Added 2026-09-10, after Phase 1 completed
+and Phase 2 was opened in the same breath. Step 8 already forbade it item-by-item; a phase
+boundary is where that reads as merely bureaucratic and is not, because a phase is where the
+work changes character — Phase 1 was documentation, Phase 2 changes what gets sealed into a
+fiscal document.)*
+
 ### Safety rules
 
 1. Never fix unrelated findings inside an item. Record them in § 7 instead.
@@ -264,8 +272,8 @@ still free; it freezes permanently at the restaurant's first real close.*
 | ID | Status | Task |
 |---|---|---|
 | **R2.1** | `TODO` | **L-76 — key product aggregation by identity, not by name.** `aggregate.ts:344,396` keys `productAgg` by `item.productName`, so *Coca* the 1,50 € can merges with *Coca* the 3,50 € bottle — and the merged row is sealed into an immutable Z report. Three collisions exist live: Coca, Fanta, Orangina. `reports/products/route.ts:105` already keys by `productId ?? productName`; the two reports disagree today. |
-| **R2.2** | `TODO` | **L-77 — make menus visible in reports.** `comboGroupId` / `comboName` / `comboPrice` are written at checkout and read by the receipt renderer alone, so « how many Menu Chill did I sell? » cannot be answered. Within one report `itemsCount` counts a menu as one article while `topProducts` counts its three components — the two figures disagree for every combo order. |
-| **R2.3** | `TODO` | **L-78 — store the allocation evidence.** `OrderItem` records the *result* of a menu's VAT split but not `referencePrice`, the standalone catalogue value each share was computed from. That figure is the *justification* for the split; without it, a catalogue price change makes an old sale's division unreconstructable. French doctrine requires the allocation be justifiable on request. Migration + write it at checkout. |
+| **R2.2** | `TODO` | **L-77 — make menus visible in reports.** `comboGroupId` / `comboName` / `comboPrice` are written at checkout and read by the receipt renderer alone, so « how many Menu Chill did I sell? » cannot be answered. Within one report `itemsCount` counts a menu as one article while `topProducts` counts its three components — the two figures disagree for every combo order. **Needs a new column, `OrderItem.comboProductId`** (operator-approved 2026-09-10): a menu is recorded only as `comboName`, a *string*, so counting menus by name would reproduce R2.1's exact bug one level up. Grouping is by `comboGroupId`, which the fallback path also sets, so a menu that fell back to a single line still counts as one menu. |
+| **R2.3** | `TODO` | **L-78 — store the allocation evidence.** `OrderItem` records the *result* of a menu's VAT split but not `referencePrice`, the standalone catalogue value each share was computed from. That figure is the *justification* for the split; without it, a catalogue price change makes an old sale's division unreconstructable. French doctrine requires the allocation be justifiable on request. **One migration carries R2.2's and R2.3's columns together** — `comboProductId` and `referencePrice`, both `Int?`/`String?` nullable, both harmless to existing rows (of which there are zero) — so the operator runs `prisma migrate deploy` **once** for Phase 2. Rehearse it on a scratch copy with a fingerprint diff first (§ 2, *Migration rehearsal*). |
 
 ### Phase 3 — « Use it on POS » and the three boxes it unblocks
 
