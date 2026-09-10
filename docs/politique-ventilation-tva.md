@@ -55,6 +55,23 @@ En pratique :
   boissons également (3,50 € la bouteille, 1,50 € la canette).
 - Elle est **simple**, **économiquement réaliste** et **reproductible** : deux
   personnes appliquant la méthode au même menu obtiennent le même chiffre.
+
+### Les prix de référence sont des prix TTC, et c'est un choix
+
+**Ajouté le 2026-09-10.** Les poids de la répartition sont les prix du
+catalogue, c'est-à-dire des prix **TTC** — `resolveBasePrice()` lit `price`,
+`pickupPrice` ou `deliveryPrice`, qui sont tous TTC en centiemes entiers. Ce
+n'est pas un détail d'implémentation : c'est la méthode, et elle se justifie
+ainsi.
+
+Le BOFiP décrit la méthode de la valeur de marché comme une répartition du prix
+forfaitaire « à proportion de la **valeur de marché, pour le consommateur**, de
+chacune des opérations ». La valeur pour le consommateur est le prix qu'il
+paierait effectivement s'il achetait l'article seul : le prix affiché, TTC.
+C'est exactement ce que contient le catalogue, et c'est ce que le client
+compare quand il choisit le menu plutôt que les articles séparés.
+
+**Une méthode concurrente existe et n'est pas retenue** — voir § 8, point 1.
 - Elle est **auto-cohérente** : si un prix du catalogue change, la répartition
   suit, sans second jeu de valeurs à maintenir.
 
@@ -178,6 +195,46 @@ faute de prix de référence. Ils y seront ajoutés une fois le catalogue à jou
 1. **La méthode de ventilation elle-même** — prorata des prix de vente à
    l'unité. C'est le point qui n'est pas tranché par le seul texte : les
    sources citent cette méthode comme un exemple admis, pas comme la seule.
+
+   **⚠ Une méthode concurrente a été étudiée le 2026-09-10 et n'a PAS été
+   retenue. Elle reste ouverte.** Une recherche de l'exploitant (Perplexity,
+   2026-09-10 — **pas un comptable**) conclut qu'il faudrait pondérer la
+   répartition par la valeur **HT** de chaque composant, et non par son prix
+   TTC : on convertirait chaque prix catalogue en HT à son propre taux, on
+   répartirait le forfait au prorata de ces valeurs HT, puis on détaxerait
+   chaque part. L'argument est économique et il est sérieux : pondérer en TTC
+   laisse le composant le plus taxé revendiquer une part de base supérieure à
+   sa valeur économique réelle.
+
+   **Écart mesuré sur le catalogue réel**, en centiemes, méthode logiciel
+   (TTC) puis méthode HT :
+
+   | Menu à emporter | TVA logiciel | TVA méthode HT | base déplacée vers 5,5 % |
+   |---|---|---|---|
+   | Menu Chill 24,90 | **2,15 €** | 2,13 € | +12 c |
+   | Menu XXL 33,90 | **2,96 €** | 2,94 € | +13 c |
+   | Menu Eco 24,90 | **2,16 €** | 2,14 € | +11 c |
+   | Duo Cheese 12,90 | **1,12 €** | 1,12 € | +5 c |
+   | Menu Chill **sur place** (témoin) | 2,27 € | 2,27 € | identique |
+
+   Le témoin sur place donne le même résultat sous les deux méthodes, tous les
+   composants relevant de 10 % : c'est ce qui valide la comparaison.
+
+   **Pourquoi la méthode TTC est conservée pour l'instant.** (a) La recherche
+   ne cite **aucune source** à l'appui du choix HT, et conclut elle-même que
+   la formule HT est « un choix d'implémentation robuste, pas une équation
+   statutaire », et que les proportions TTC ne sont « pas nécessairement
+   illégales ». (b) Le texte du BOFiP sur lequel elle s'appuie parle de la
+   valeur de marché **pour le consommateur**, ce qui désigne un prix TTC.
+   (c) Passer en HT **abaisse** la TVA déclarée de 1 à 2 centiemes par menu :
+   c'est le sens qui exige le plus de justification, pas le moins. La méthode
+   actuelle majore, ce qui est le sens prudent.
+
+   **Ce point n'a aucune échéance technique.** Changer la pondération change
+   des valeurs, pas la forme des documents scellés : rien ne se fige à la
+   première clôture, et une correction ultérieure ne toucherait que les ventes
+   postérieures. Le comptable peut donc trancher sans urgence — mais il doit
+   trancher, et par écrit.
 2. **Le repli au taux supérieur** en cas d'impossibilité de ventiler.
 3. **Le traitement des suppléments** hors forfait.
 4. **Le cas des composants qui ne sont pas vendus à la carte.** La méthode du
