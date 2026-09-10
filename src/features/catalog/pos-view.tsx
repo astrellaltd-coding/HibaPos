@@ -16,6 +16,7 @@ import { useCartStore, productUnitPrice, computeCartTotals, type CartItem } from
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { cn } from "@/lib/utils";
 import { formatEuro } from "@/lib/format";
+import { posGridProducts } from "@/lib/pos-grid";
 // uuid replaced with built-in crypto.randomUUID() (Node 19+, all evergreen browsers)
 import { Search, PackageX, Loader2, LockKeyhole, Keyboard, ShoppingCart as CartIcon, X, AlertTriangle, RefreshCw } from "lucide-react";
 import { useAppStore, POS_SEARCH_INPUT_ID } from "@/store/app-store";
@@ -78,28 +79,19 @@ export function PosView() {
     queryFn: () => api.get<ProductDto[]>("/api/catalog/products?all=1"),
   });
 
-  const visibleProducts = useMemo(() => {
-    if (!products) return [];
-    let list = products.filter((p) => p.active);
-    if (activeCategory !== "all") {
-      if (activeSubCategory) {
-        list = list.filter((p) => p.categoryId === activeSubCategory);
-      } else {
-        const parentCat = categories?.find((c) => c.id === activeCategory && !c.parentId);
-        if (parentCat && parentCat.children && parentCat.children.length > 0) {
-          const childIds = parentCat.children.map((ch) => ch.id);
-          list = list.filter((p) => p.categoryId === activeCategory || childIds.includes(p.categoryId));
-        } else {
-          list = list.filter((p) => p.categoryId === activeCategory);
-        }
-      }
-    }
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      list = list.filter((p) => p.name.toLowerCase().includes(q));
-    }
-    return list;
-  }, [products, activeCategory, activeSubCategory, categories, search]);
+  // R3.1. The filter itself lives in `@/lib/pos-grid` — see that file for why
+  // it is a rule and not a display detail, and for the counterpart it must stay
+  // consistent with (`combo-builder.ts`'s `slotProducts`, which deliberately
+  // does NOT consult `showOnPos`).
+  const visibleProducts = useMemo(
+    () =>
+      posGridProducts(products ?? [], categories ?? [], {
+        categoryId: activeCategory,
+        subCategoryId: activeSubCategory,
+        search,
+      }),
+    [products, activeCategory, activeSubCategory, categories, search],
+  );
 
   const handleEditItem = (item: CartItem) => {
     const product = products?.find((p) => p.id === item.productId);

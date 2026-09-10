@@ -1,0 +1,25 @@
+-- R3.1 — « Use it on POS »: one boolean on Product, defaulting ON.
+--
+-- A product with this off is hidden from the till's product GRID and from
+-- nothing else. It stays in the catalogue, stays a legal filler for a menu
+-- slot, stays refundable and reprintable, and stays in every past order and
+-- report. That distinction is the whole item; `R3.2`'s tests are what hold it.
+--
+-- HAND-WRITTEN, and the same change `prisma migrate diff` generates for this
+-- case: one ADD COLUMN with a constant DEFAULT, which SQLite performs in place.
+-- Deliberately NOT the generator's RedefineTables block for `Product` — that
+-- rebuilds the table, and `OrderItem.productId` and `ComboSlotChoice.productId`
+-- both point at it. This is the argument the 2026-09-09 combo migration made
+-- for `isCombo`, and it applies here unchanged.
+--
+-- NOT NULL DEFAULT true, unlike the two nullable columns of the Phase 2
+-- migration, and for the opposite reason: here `true` IS the true value for
+-- every existing row. All 81 products appear on the grid today, and after this
+-- migration all 81 still do. Null would mean « nobody decided », and somebody
+-- did: the default is the decision.
+--
+-- Rehearsed on a copy of the production database before being handed over, with
+-- a fingerprint diff over every table. See REMEDIATION_DONE.md for the result.
+
+-- AlterTable
+ALTER TABLE "Product" ADD COLUMN "showOnPos" BOOLEAN NOT NULL DEFAULT true;

@@ -390,6 +390,9 @@ function ProductFormDialog({
   const [image, setImage] = useState(product?.image ?? "");
   const [vatRate, setVatRate] = useState(product?.vatRate ?? 10);
   const [active, setActive] = useState(product?.active ?? true);
+  // R3.1. `?? true` matches the column's default: an existing product that
+  // predates the column, and every new one, appears on the grid.
+  const [showOnPos, setShowOnPos] = useState(product?.showOnPos ?? true);
   const [inheritCategoryGlobals, setInheritCategoryGlobals] = useState(product?.inheritCategoryGlobals ?? true);
   const [inheritCategoryVat, setInheritCategoryVat] = useState(product?.inheritCategoryVat ?? false);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -528,6 +531,7 @@ function ProductFormDialog({
       image: image.trim() || null,
       active,
       available: active,
+      showOnPos,
       inheritCategoryGlobals,
       inheritCategoryVat,
       sortOrder: product?.sortOrder ?? 0,
@@ -568,11 +572,38 @@ function ProductFormDialog({
               <Switch checked={active} onCheckedChange={setActive} id="header-active" />
               <Label htmlFor="header-active" className="text-sm font-medium">Actif</Label>
             </div>
+            {/* R3.1. Beside « Actif » because the two are read together, and
+                distinct from it because they mean different things: « Actif »
+                withdraws a product from the catalogue, this one only takes it
+                off the till's grid. A menu component uses exactly this. */}
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={showOnPos}
+                onCheckedChange={setShowOnPos}
+                id="header-show-on-pos"
+                disabled={!active}
+              />
+              <Label htmlFor="header-show-on-pos" className="text-sm font-medium">
+                Vendre en caisse
+              </Label>
+            </div>
           </div>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto min-h-0 scroll-thin">
           <div className="space-y-5 p-5">
+
+            {/* R3.1. Shown only when the switch is off, which is the moment the
+                distinction matters: « Vendre en caisse » is not a second
+                « Actif », and the difference is the whole reason the switch
+                exists. */}
+            {active && !showOnPos && (
+              <p className="rounded-lg border border-dashed border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                Ce produit n&apos;apparaît pas sur la grille de caisse et ne peut pas être vendu
+                seul. Il reste dans le catalogue et reste utilisable comme composant d&apos;un
+                menu composé.
+              </p>
+            )}
 
             {/* ── 1. Catégorie ── */}
             <div className="space-y-2">

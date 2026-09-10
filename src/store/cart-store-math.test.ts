@@ -104,6 +104,7 @@ describe("productUnitPrice — base price per orderType on the product", () => {
     image: null,
     active: true,
     available: true,
+    showOnPos: true,
     inheritCategoryGlobals: true,
     inheritCategoryVat: false,
     effectiveVatRate: 10,

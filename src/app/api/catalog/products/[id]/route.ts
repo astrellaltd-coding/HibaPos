@@ -139,6 +139,11 @@ function serialize(p: ProductWithRelations): ProductDto {
     image: p.image ?? null,
     active: p.active,
     available: p.available,
+    // R3.1. `?? true` is the vintage guard, not a default: a row read through a
+    // client generated before the column existed has `undefined` here, and the
+    // honest reading of that is « this product appeared on the grid », which is
+    // what every row did before the migration.
+    showOnPos: p.showOnPos ?? true,
     inheritCategoryGlobals: inheritGlobals,
     sortOrder: p.sortOrder,
     options: [...categoryOptions, ...productOptions],
@@ -252,6 +257,10 @@ export const PUT = withAuthParams(async (req, { user, params }) => {
         image: productData.image ?? null,
         active: productData.active,
         available: productData.available,
+        // R3.1. Enumerated like every field around it — this handler does not
+        // spread `productData`, so a column added to the schema and not added
+        // here is silently dropped on every write.
+        showOnPos: productData.showOnPos,
         inheritCategoryGlobals: productData.inheritCategoryGlobals,
         isCombo: productData.isCombo,
         sortOrder: productData.sortOrder,

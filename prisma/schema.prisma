@@ -144,6 +144,26 @@ model Product {
   // "any pizza" slot would otherwise offer the menu itself; every filler
   // lookup filters on `isCombo: false` for that reason (`combo.ts`).
   isCombo                Boolean  @default(false)
+  // R3.1 — « Use it on POS ». Does this product appear on the till's product
+  // grid, to be rung up ON ITS OWN?
+  //
+  // WHY IT EXISTS. A menu component must be `active`, and until now every
+  // active product appeared on the grid. That is what blocked L-69: Box 15
+  // cannot become a real menu until there is a food-only product to weigh its
+  // drink against, and creating one would have put a product on the till that
+  // nobody should ever ring up alone. This is the one switch that separates
+  // « sellable » from « sellable BY ITSELF ».
+  //
+  // WHAT IT DOES NOT DO. It hides a product from ONE grid. It is not `active`
+  // and it is not `available`: a product with this off is still in the
+  // catalogue, still a legal filler for a menu slot (`combo-builder.ts`
+  // `slotProducts` deliberately does not consult it), still refundable, still
+  // reprintable, and still present in every past order and every report. The
+  // rule this batch must not break is « hidden from one grid, not withdrawn ».
+  //
+  // Defaults to TRUE, which is what makes the migration inert: all 81 products
+  // on the catalogue keep behaving exactly as they do today.
+  showOnPos              Boolean  @default(true)
   sortOrder              Int      @default(0)
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt

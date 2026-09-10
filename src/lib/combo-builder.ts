@@ -60,6 +60,15 @@ export function slotProducts(
   products: ProductDto[],
   categories: CategoryDto[],
 ): ProductDto[] {
+  // R3.1 — `showOnPos` IS DELIBERATELY NOT CONSULTED HERE, and that omission is
+  // the point of the whole batch. A product hidden from the till's grid
+  // (`@/lib/pos-grid`) must still be offerable as a menu component: that is what
+  // lets Box 15 have a food-only half priced for the VAT allocation without
+  // putting it on the till for a customer to order by itself.
+  //
+  // These two filters are a pair. If you are about to unify them, or to add
+  // `showOnPos` to this line, read `pos-grid.ts` first — `hidden-product.test.ts`
+  // asserts both halves in one test so neither can move alone.
   const sellable = products.filter((p) => p.active && p.available && !p.isCombo);
   if (slot.choices.length > 0) {
     const order = new Map(slot.choices.map((c, i) => [c.productId, i]));

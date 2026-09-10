@@ -95,6 +95,14 @@ export type ProductDto = {
   image: string | null;
   active: boolean;
   available: boolean;
+  /**
+   * R3.1 — does this product appear on the till's product GRID, on its own?
+   *
+   * False hides it from that one grid and from nothing else: it is still a
+   * legal filler for a menu slot, still refundable, still reprintable, still
+   * in every past order and report. Not a second `active`.
+   */
+  showOnPos: boolean;
   inheritCategoryGlobals: boolean;
   /** The product's own stored rate (an override when inheritCategoryVat is false). */
   inheritCategoryVat: boolean;

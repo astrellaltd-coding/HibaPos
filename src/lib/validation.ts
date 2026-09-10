@@ -155,6 +155,12 @@ export const productSchema = z.object({
   image: z.string().optional().nullable(),
   active: z.boolean().default(true),
   available: z.boolean().default(true),
+  /**
+   * R3.1 — « Use it on POS ». Defaults TRUE, so every existing caller and
+   * every existing product is unaffected: a payload that omits it asks for a
+   * product that appears on the grid, which is what all 81 do today.
+   */
+  showOnPos: z.boolean().default(true),
   inheritCategoryGlobals: z.boolean().default(true),
   sortOrder: z.number().int().default(0),
   /**
