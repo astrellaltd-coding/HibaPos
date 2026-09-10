@@ -64,28 +64,19 @@ bun run dev
 
 L'application est disponible sur http://localhost:3000.
 
-## Production (Windows)
+## Déploiement
 
-**Pour une vraie installation sur la caisse, ne partez pas d'ici** :
-`.zscripts/README-windows.md` est le guide complet (lot 1.4 — installeur,
-service supervisé, chemin de mise à jour) et `docs/mise-en-service.md` est la
-séance de mise en service, pas à pas, dans l'ordre où elle doit se dérouler.
-L'ordre importe : le lot 8.0 vide le journal fiscal du commerce de
-développement et **ne peut tourner qu'avant la première vente réelle**.
+**Le déploiement est différé.** L'application sera livrée en **application
+native Tauri v2**, et cette migration aura son propre plan. Le modèle
+précédent — installation sur une caisse Windows, service supervisé, lanceur
+kiosque, séance de mise en service — a été retiré le 2026-09-10 avec les
+documents qui le décrivaient. Ce qui reste à faire avant la première vente
+réelle est **fiscal et non technique** : voir `REMEDIATION_PLAN.md`,
+*Before the first real sale*.
 
-```powershell
-# Installation / mise à jour de la caisse (lot 1.4) — commencez par un essai à blanc
-powershell -ExecutionPolicy Bypass -File .zscripts/install-windows.ps1
-powershell -ExecutionPolicy Bypass -File .zscripts/update.ps1
-
-# Build production
-powershell -ExecutionPolicy Bypass -File .zscripts/build.ps1
-
-# Lancer le serveur production (ne crée JAMAIS de base absente — L-59)
-powershell -ExecutionPolicy Bypass -File .zscripts/start.ps1
-```
-
-Le serveur démarre sur `http://localhost:3000` (navigateur en plein écran).
+Les scripts PowerShell de `.zscripts/` restent en place : `print-raw.ps1` est
+du **code vivant** appelé par `printer-transport.ts` pour l'impression USB, et
+les autres sont couverts par `src/lib/deployment.test.ts`.
 
 ## Tests
 
@@ -102,7 +93,7 @@ bun run test:e2e     # Playwright — 13 tests (auth, encaissement, caisse, cata
 - **Fiscalité (ISCA)** : Tickets immuables (snapshot textuel), numérotation séquentielle atomique, journal fiscal chaîné (JFP), grand total perpétuel, clôtures Z (par caisse) + J (journée d'exploitation, horaire de bascule paramétrable, ticket avec code d'intégrité) + M (mensuelle) + A (annuelle), mode FACTICE, archive annuelle ouverte (JSON + SHA-256 + notice FR)
 - **Sécurité** : Verrouillage après 30 min d'inactivité, brute-force protection (lockout 5 essais / 15 min), approbation manager pour remises et remboursements, révocation de session par session
 - **Gestion** : Produits, options, suppléments, catégories (soft-delete), clients, médiathèque
-- **Rapports** : X-Report (caisse ouverte, temps réel), Z-Report (clôture immuable), ventes par période avec top produits, ventilation TVA à l'intérieur des rapports X et Z. *Les endpoints `/api/reports/vat` et `/api/reports/cashiers` existent mais n'ont aucune interface — vérifié 2026-09-05, aucun appelant dans `src/`.*
+- **Rapports** : X-Report (caisse ouverte, temps réel), Z-Report (clôture immuable), ventes par période avec top produits, ventilation TVA à l'intérieur des rapports X et Z. *Les endpoints `/api/reports/vat`, `/api/reports/cashiers` et `/api/reports/products` existent mais n'ont aucune interface — re-vérifié 2026-09-10 : l'application n'appelle que `sales`, `x` et `z`.*
 - **Backups** : Sauvegardes SQLite chiffrées (AES-256-GCM, scrypt N=2^17) avec checksum SHA-256 et restauration sécurisée
 - **Journal technique** : Logs structurés en base, consultation restreinte au SUPER_ADMIN
 
@@ -133,17 +124,17 @@ prisma/
   schema.prisma   → Schéma de base de données (centimes entiers)
   seed.ts         → Orchestrateur de seed CLI
 public/
-  uploads/        → Images du catalogue — **versionnées dans git** (147 fichiers, 49 Mo).
+  uploads/        → Images du catalogue — **versionnées dans git** (147 fichiers, 47,0 Mo).
                     Décision DD-16 du 2026-09-05 : git en est aujourd'hui la seule copie
                     versionnée, et aucune sauvegarde restaurable n'existe (L-46).
 docs/
   attestation-conformite.md    → Attestation ISCA (BOI-LETTRE-000242) — NON SIGNÉE
-  mise-en-service.md           → Séance de mise en service, pas à pas
+  politique-ventilation-tva.md → Répartition de la TVA d'un menu à prix forfaitaire
   conformite-isca-map.md       → Chaque exigence ISCA → le code qui l'implémente
   conformite-isca-recherche.md → Les sources (BOFiP, CGI, LNE) derrière la carte
   SQLITE_WAL.md                → Pourquoi le WAL est refusé sur un dossier synchronisé
 .zscripts/
-  README-windows.md            → Guide de déploiement Windows (lot 1.4)
+  print-raw.ps1                → Impression RAW via le spouleur Windows (USB)
 ```
 
 ## Licence
