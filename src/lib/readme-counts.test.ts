@@ -67,6 +67,11 @@ const EXPANSIONS = [
     what: "for (const c of CASES) it(…) — the nine cases of the VAT allocation policy, Batch 5.9",
     runs: 9,
   },
+  {
+    where: "src/lib/services/hidden-product.test.ts",
+    what: "for (const c of CASES) it(…) — the two L-69 box shapes R3.3 hands over, Phase 3",
+    runs: 2,
+  },
 ];
 
 function testFilesUnder(dir: string, match: (f: string) => boolean): string[] {

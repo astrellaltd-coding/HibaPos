@@ -418,6 +418,115 @@ describe("R3.1 — the catalogue editor can actually set it", () => {
   });
 });
 
+// ------------------------------------------------- L-69, the three boxes ----
+
+describe("L-69 — the shape R3.3 hands the operator, and the figures it books", () => {
+  // R3.3 is the operator's to apply, but the SHAPE and the ARITHMETIC are
+  // Claude's to prove first. These are the three real products, their real
+  // forfaits, and the real drinks the operator named on 2026-09-10:
+  //
+  //   Box 15       29,90 €  + one Bouteille  3,50 €   food weight 26,40 €
+  //   Box 35       29,90 €  + one Bouteille  3,50 €   food weight 26,40 €
+  //   Tenders box   9,90 €  + one Canette    1,50 €   food weight  8,40 €
+  //
+  // The weight rule the operator chose is « forfait minus the drink », and it
+  // has a property worth naming: the weights sum EXACTLY to the forfait, so
+  // `apportion` returns them unchanged. The drink's share is its own shelf
+  // price to the cent, with no rounding artefact to explain — which is the
+  // easiest possible allocation to defend.
+  //
+  // Built and sold here rather than computed, because a figure handed to an
+  // operator as « what the till will book » should have been booked.
+  const CASES = [
+    { label: "Box 15", forfait: 2990, drink: 350, bottle: true, food: 2640, taVat: 258, spVat: 272 },
+    { label: "Tenders box", forfait: 990, drink: 150, bottle: false, food: 840, taVat: 84, spVat: 90 },
+  ];
+
+  for (const c of CASES) {
+    it(`${c.label}: books ${(c.food / 100).toFixed(2)} € at 10 % and ${(c.drink / 100).toFixed(2)} € at 5,5 % à emporter`, async () => {
+      const cat = await db.category.findFirstOrThrow({ where: { name: "Box" } });
+      const drinkCat = c.bottle
+        ? await db.category.create({
+            data: { name: "Bouteilles", color: "#00f", sortOrder: 9,
+              parentId: (await db.category.findFirstOrThrow({ where: { name: "Boissons" } })).id,
+              vatRate: 10, vatRateTakeaway: 5.5 },
+          })
+        : await db.category.findFirstOrThrow({ where: { name: "Canette" } });
+      const drink = c.bottle
+        ? await db.product.create({
+            data: { name: "Coca 33cl", categoryId: drinkCat.id, price: c.drink, pickupPrice: c.drink,
+              deliveryPrice: c.drink, vatRate: 10, inheritCategoryVat: true, active: true, available: true },
+          })
+        : await db.product.findFirstOrThrow({ where: { id: ids.coca } });
+
+      // The hidden food half — active, available, off the grid.
+      const food = await db.product.create({
+        data: { name: `${c.label} (sans boisson)`, categoryId: cat.id, price: c.food,
+          pickupPrice: c.food, deliveryPrice: c.food, vatRate: 10, inheritCategoryVat: true,
+          active: true, available: true, showOnPos: false },
+      });
+      // The menu, at the forfait the product already charges.
+      const menu = await db.product.create({
+        data: { name: c.label, categoryId: cat.id, price: c.forfait, pickupPrice: c.forfait,
+          deliveryPrice: c.forfait, vatRate: 10, inheritCategoryVat: false, isCombo: true,
+          active: true, available: true },
+      });
+      const foodSlot = await db.comboSlot.create({
+        data: { productId: menu.id, name: c.label, quantity: 1, sortOrder: 0, sourceCategoryId: cat.id },
+      });
+      // ONE choice, so the cashier is never asked: the food half is fixed.
+      await db.comboSlotChoice.create({
+        data: { slotId: foodSlot.id, productId: food.id, surcharge: 0, sortOrder: 0 },
+      });
+      const drinkSlot = await db.comboSlot.create({
+        data: { productId: menu.id, name: "Boisson", quantity: 1, sortOrder: 1, sourceCategoryId: drinkCat.id },
+      });
+
+      const sell = async (orderType: "TAKEAWAY" | "DINE_IN") => {
+        const mod = await import("@/app/api/orders/route");
+        const res = await callJson<{ error?: string }>(mod.POST, {
+          method: "POST", url: "http://localhost/api/orders",
+          body: {
+            orderType,
+            items: [{ productId: menu.id, quantity: 1, optionIds: [], addons: [],
+              components: [
+                { slotId: foodSlot.id, productId: food.id, optionIds: [], addons: [] },
+                { slotId: drinkSlot.id, productId: drink.id, optionIds: [], addons: [] },
+              ] }],
+            payments: [{ method: "CASH", amount: c.forfait }],
+          },
+        });
+        expect(res.status, res.body.error).toBe(201);
+        return db.order.findFirstOrThrow({ orderBy: { createdAt: "desc" }, include: { items: true } });
+      };
+
+      // ── À EMPORTER: the whole point of L-69 ──────────────────────────────
+      const ta = await sell("TAKEAWAY");
+      const taFood = ta.items.find((i) => i.productId === food.id)!;
+      const taDrink = ta.items.find((i) => i.productId === drink.id)!;
+      expect(taFood.vatRate).toBe(10);
+      expect(taDrink.vatRate).toBe(5.5);
+      // The weights sum to the forfait, so the shares ARE the weights.
+      expect(taFood.unitPrice).toBe(c.food);
+      expect(taDrink.unitPrice).toBe(c.drink);
+      expect(taFood.unitPrice + taDrink.unitPrice).toBe(c.forfait);
+      // The evidence R2.3 added, on the lines this shape produces.
+      expect(taFood.referencePrice).toBe(c.food);
+      expect(taDrink.referencePrice).toBe(c.drink);
+      // The figure handed to the operator.
+      expect(ta.vatTotal).toBe(c.taVat);
+      // The customer still pays exactly the forfait.
+      expect(ta.total).toBe(c.forfait);
+
+      // ── SUR PLACE: deliberately unchanged ────────────────────────────────
+      const sp = await sell("DINE_IN");
+      expect(sp.items.every((i) => i.vatRate === 10)).toBe(true);
+      expect(sp.vatTotal).toBe(c.spVat);
+      expect(sp.total).toBe(c.forfait);
+    });
+  }
+});
+
 // ------------------------------------------------------- the wiring itself --
 
 describe("R3.1 — the grid the cashier sees is the one tested above", () => {

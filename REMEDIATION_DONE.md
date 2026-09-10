@@ -342,6 +342,69 @@ against the freshly generated client: **1273 pass / 0 fail**, typecheck and lint
   the column order and the absence of a table rebuild, which is what made verifying the live
   deployment a five-minute diff rather than an act of faith.
 
+### R3.1 + R3.2 — « Use it on POS »: hidden from one grid, withdrawn from nothing
+**Done:** 2026-09-10 · **Commit:** `16e3415` · **Findings:** L-84 opened; L-69 **still open**
+(it closes when the operator applies R3.3)
+
+**What changed.** `Product.showOnPos`, one boolean defaulting ON, plus the migration
+`20260910233000_product_show_on_pos` — **prepared and rehearsed, NOT applied.** A product with
+it off is hidden from the till's product grid and from nothing else.
+
+**Why it exists.** A menu component must be `active`, and until now every active product
+appeared on the grid. That is what blocked L-69: making Box 15 a real menu needs a food-only
+product to weigh its drink against, and creating one would have put a product on the till for
+a customer to order by itself.
+
+**The pair, and it must stay a pair.** `pos-grid.ts`'s `sellableAlone` consults `showOnPos`;
+`combo-builder.ts`'s `slotProducts` **deliberately does not**. Both files now carry a comment
+pointing at the other, and one test asserts both halves together so neither can move alone.
+
+**The grid filter was LIFTED OUT of `pos-view.tsx`, not edited in place.** This project
+renders no components in tests, so an inline `useMemo` could not be proved. Extracting it to
+`src/lib/pos-grid.ts` makes the shipped filter testable, and a test checks that `pos-view.tsx`
+kept no product filter of its own — the extraction had to be a *move*, not a copy. That
+substitute is stated in the test file rather than glossed: it is what this codebase allows,
+and it is weaker than rendering the grid would be.
+
+**Default TRUE, NOT NULL** — the opposite of the Phase 2 columns and for the opposite reason:
+here `true` **is** the true value for every existing row. Rehearsed against a copy of the live
+catalogue: **all 81 products come out `showOnPos = 1`**, so the migration changes no behaviour
+on its own. Fingerprint diff: exactly three differences — `Product` columns 17 → 18
+(appended, existing columns unchanged *in place*, no table rebuild) and the migration's own
+row. All 81 products byte-identical, indexes identical, `integrity_check` ok, 0 FK errors.
+Production re-read afterwards and untouched (17 columns, 13 migrations).
+
+**How it was verified:** `src/lib/services/hidden-product.test.ts`, 15 tests, 1273 → 1288 —
+the count moved only by tests added. The `for (const c of CASES)` loop is registered in
+`readme-counts.test.ts`'s `EXPANSIONS`, which is what that registry is for: the count was
+1287 declarations against 1288 runs, and the honest fix was to record the expansion rather
+than bump the number.
+
+**The revert — six properties, each alone and in both directions. Five are caught.** The
+sixth — moving the visibility filter to run *after* the search filter instead of before —
+correctly changed **nothing**, because filtering before or after search gives the same set.
+An earlier draft of the comment in `pos-grid.ts` claimed that ordering was load-bearing. **It
+was wrong, and the comment was corrected rather than propped up with a test** that would have
+asserted the same list twice. This is the other branch of the plan's revert rule — not « the
+test proves less than it claims » but « the revert is a genuine no-op », and the prose was
+what needed fixing.
+
+**L-69's figures were proved, not computed on the side.** The same test file builds the exact
+shape R3.3 hands over and *sells it through `POST /api/orders`*, asserting the booked
+`vatTotal`, both rates, both `referencePrice` values and the unchanged total — for Box 15 and
+Tenders box, à emporter and sur place.
+
+**Left behind:**
+- **`sellableAlone` and `slotProducts` are a pair.** Unifying them makes L-69 inexpressible
+  again and puts Box 15's food half back on the till.
+- **L-84**: `showOnPos` is a display rule, not a guard. `orders/route.ts` still checks only
+  `active` and `available`, so a request naming a hidden product directly is still booked.
+  Deliberately not changed — R3.1's scope is « filter the grid, extend the DTO, add the
+  switch », and a server refusal is a business-behaviour change beyond the item (safety
+  rule 6). A test pins today's behaviour so closing it later is a decision.
+- **The R3.1 migration is not applied.** Stop the app first; a live `next dev` holds the
+  SQLite file and the Prisma query engine open.
+
 ---
 
 ## Carried forward — the 2026-09-03 → 2026-09-09 remediation

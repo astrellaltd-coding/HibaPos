@@ -100,8 +100,10 @@ describe("plan freshness — the plan and the done file may not disagree", () =>
     //   21 → 20 tasks, 16 findings — R2.1 done; L-76 closed, L-82 opened.
     //   20 → 18 tasks, 16 → 15 findings — R2.2 and R2.3 done; L-77 and L-78
     //   closed, L-83 opened.
-    expect(taskStatuses(src).size).toBe(18);
-    expect(openFindings(src).size).toBe(15);
+    //   18 → 16 tasks, 15 → 16 findings — R3.1 and R3.2 done; L-84 opened, and
+    //   nothing closed: L-69 stays open until the OPERATOR applies R3.3.
+    expect(taskStatuses(src).size).toBe(16);
+    expect(openFindings(src).size).toBe(16);
     expect(done()).toContain("# HibaPOS France — Completed Work");
   });
 

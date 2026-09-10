@@ -19,8 +19,15 @@ a short list of real defects and the four fiscal steps before the first real sal
 documentation reconciliation was Phase 1 and is done; the reporting defects were Phase 2 and
 are done.)*
 
-**Current phase:** **none — between phases.** Phase 2 closed 2026-09-10, migration included.
-The next phase needs its own go-ahead; § 2's rule is that a phase boundary stops the work.
+**Current phase:** **Phase 3 — « Use it on POS ».** Opened by the operator 2026-09-10.
+**R3.1 and R3.2 are COMPLETE** (`16e3415`). **R3.3 is the operator's**, prepared and rehearsed
+in § 6 under *R3.3 handover*.
+
+**Its migration is PREPARED, NOT APPLIED** — one boolean, `Product.showOnPos`, NOT NULL
+DEFAULT true. Rehearsed on a copy of the live catalogue: all 81 products come out
+`showOnPos = 1`, so it changes no behaviour on its own. Stop the app, then
+`bunx prisma migrate deploy`. Afterwards `Product` should report **18** columns and
+`_prisma_migrations` **14** rows.
 
 **Current task:** **none — PHASE 2 IS COMPLETE.** Awaiting the operator's go-ahead for the
 next phase. § 2's rule is that a phase boundary stops the work.
@@ -240,7 +247,7 @@ something going wrong.
 
 | Thing | Value, measured 2026-09-10 |
 |---|---|
-| Tests | **1273 pass, 0 fail**, 104 files, ~145 s *(1248/102 at the start of Phase 2; +9 `product-identity.test.ts`, +16 `menu-reporting.test.ts`)*. `typecheck` and `lint` both clean. Pinned by `readme-counts.test.ts`, which counts declarations plus declared expansions. |
+| Tests | **1288 pass, 0 fail**, 105 files, ~150 s *(1248/102 at the start of Phase 2; +9 `product-identity.test.ts`, +16 `menu-reporting.test.ts`, +15 `hidden-product.test.ts`)*. `typecheck` and `lint` both clean. Pinned by `readme-counts.test.ts`, which counts declarations plus declared expansions. |
 | e2e | **13 passed** (measured 2026-09-07). `bun run test:e2e` is **safe** — see § 5. |
 | Production DB | sha256 `47b33148dcbe081609ec24728662a32285e2252e3ed5f02dbde9c81178775c94`, 884 736 bytes, measured 2026-09-10 at 23:26 **with the app stopped and the Phase 2 migration applied**. `integrity_check` ok, 0 FK errors, **13 migrations**, **18 `OrderItem` columns**, none pending. **A sha is only a baseline while nothing is running** — a signed-in session writes `Session.lastActivityAt` on every request, which is why the earlier `c67b4b0b…` read `7abd7078…` at 22:27 with `next dev` live. If the app may be running, check the *structure*, not the hash. `integrity_check` ok, 0 FK errors, 12 migrations, none pending. **The file did not shrink after the reset** — SQLite frees pages for reuse, so size cannot distinguish a wiped database from a full one. Only the hash can. |
 | Trading tables | **All zero.** Order, OrderItem, Payment, Receipt, Refund, Shift, ZReport, FiscalEvent, GrandTotal, DailyClose, MonthlyClose, AnnualClose, CashMovement, Customer, Table. |
@@ -322,17 +329,69 @@ default — exactly what the rehearsal predicted, and no table rebuild.
 an open handle on the SQLite file and on `query_engine-windows.dll.node`. That is what made
 `bunx prisma generate` fail `EPERM` throughout 2026-09-10 until the app was stopped.
 
-### Phase 3 — « Use it on POS » and the three boxes it unblocks
+### Phase 3 — « Use it on POS » — **R3.1 and R3.2 COMPLETE 2026-09-10** (`16e3415`)
 
-*Today a menu component must be `active`, and every active product appears on the till grid.
-That is why Box 15 cannot become a menu: it needs a food-only product to weigh the drink
-against, and creating one would put a product on the till nobody should ring up alone.*
+*`Product.showOnPos` exists and defaults ON. A product with it off is hidden from the till's
+product grid and from **nothing else**: still in the catalogue, still a legal filler for a
+menu slot, still refundable, still in every past order and report.*
+
+**The invariant this created, and it is a PAIR:** `pos-grid.ts`'s `sellableAlone` consults
+`showOnPos`; `combo-builder.ts`'s `slotProducts` **deliberately does not**. Both files say so,
+pointing at each other, and `hidden-product.test.ts` asserts both halves in one test.
+Unifying them would make L-69's three boxes inexpressible again.
+
+**Its measured limit, pinned rather than glossed:** `orders/route.ts` still checks only
+`active` and `available`, so a request naming a hidden product **directly** is still booked.
+`showOnPos` is a display rule, not a guard — see **L-84**.
 
 | ID | Status | Task |
 |---|---|---|
-| **R3.1** | `TODO` | **Add the toggle.** One boolean on `Product`, defaulting **on** so nothing changes for the 80 existing products, plus a migration. Filter the POS grid (`pos-view.tsx:83`), extend the products DTO, add the switch to the catalogue editor. |
-| **R3.2** | `TODO` | **Prove a hidden product still behaves everywhere else** — sellable as a menu component, refundable, reprintable, present in past orders and reports. Hidden means hidden from one grid, not withdrawn from the catalogue. |
-| **R3.3** | `OPERATOR` | **Restructure Box 15, Box 35 and Tenders box into real menus** (L-69). Each becomes a menu with a hidden food-only component and a drink slot, so the drink gets 5,5 % à emporter instead of the whole price sitting at 10 %. **The operator sets each food component's standalone price** — that number is the allocation weight, so it is a commercial decision. TEX-MEX, 5 Nuggets and Box Bowl need nothing: frites are 10 % either way. Claude prepares, the operator applies. |
+| **R3.3** | `OPERATOR` | **Restructure Box 15, Box 35 and Tenders box into real menus** (L-69). Prepared and rehearsed below; the operator applies it in the catalogue editor. TEX-MEX, 5 Nuggets and Box Bowl need nothing — frites are 10 % either way. |
+
+#### R3.3 handover — the operator's procedure
+
+**The three numbers**, from the operator 2026-09-10 (composition) and the rule they chose,
+*forfait minus the drink*:
+
+| Product | Forfait | Drink | Food component, standalone | TVA à emporter | TVA sur place |
+|---|---|---|---|---|---|
+| **Box 15** | 29,90 € | one **Bouteille** 3,50 € | **26,40 €** | 2,58 € *(was 2,72)* | 2,72 € *(unchanged)* |
+| **Box 35** | 29,90 € | one **Bouteille** 3,50 € | **26,40 €** | 2,58 € *(was 2,72)* | 2,72 € *(unchanged)* |
+| **Tenders box** | 9,90 € | one **Canette** 1,50 € | **8,40 €** | 0,84 € *(was 0,90)* | 0,90 € *(unchanged)* |
+
+**Why this rule is the easy one to defend:** the two weights sum *exactly* to the forfait, so
+`apportion` returns them unchanged and the drink's share is its own shelf price to the cent.
+There is no rounding artefact to explain. **The customer pays the same price either way** —
+only the VAT split moves, and only à emporter.
+
+**These figures were not computed on the side.** `hidden-product.test.ts` builds this exact
+shape and *sells it through `POST /api/orders`*, asserting the booked `vatTotal`, both rates,
+both `referencePrice` values and the unchanged total, for Box 15 and Tenders box, à emporter
+and sur place.
+
+**Do it in the catalogue editor, not in SQL.** The editor runs `validateComboShape` and
+`validateComboAgainstCatalogue`, which exist precisely to refuse a menu that would sell
+wrong; raw SQL bypasses both. For each of the three:
+
+1. **New product** — the food half. Name it `Box 15 (sans boisson)` (etc.), category
+   **Croustillants**, price the figure above, TVA 10 %. **Turn « Vendre en caisse » OFF.**
+   That is R3.1's switch: it keeps the half off the till grid while leaving it sellable
+   inside the menu.
+2. **Edit the existing product** — `Box 15` itself. Leave its name, its price and its
+   category alone; the price *is* the forfait. Turn it into a **menu composé**.
+3. **Slot 1**, « Box 15 » — source category **Croustillants**, quantity 1, with **exactly one
+   choice**: the hidden food half. One choice means the cashier is never asked.
+4. **Slot 2**, « Boisson » — source category **Bouteilles** for Box 15 and Box 35,
+   **Canette** for Tenders box. Quantity 1, no explicit choices, so the whole category is
+   offered — the same shape the six existing menus already use.
+
+**Check afterwards, on one sale of each, à emporter:** two lines, not one; the food line at
+10 % and the drink line at 5,5 %; the two line totals summing to the forfait; and the
+ticket's total unchanged. If the drink shows 10 % à emporter, the slot is pointing at the
+wrong category.
+
+**One thing to know before starting:** the till button does not move and does not change
+name. What changes is that pressing it now asks which drink.
 
 ### Phase 4 — Small correctness
 
@@ -380,6 +439,7 @@ rule 1). Audit IDs are never renamed.
 |---|---|---|---|
 | **L-82** | Cosmetic | The product list renders the name alone (`report-widgets.tsx:136`, `csv-export.ts:53`), so the two rows R2.1 correctly separates now read as two identical « Coca » labels on the dashboard, in the reports view and in the CSV. The figures are right; the label is the remaining half. `productId` is in the payload, so a fix has what it needs — the open question is what a human should see (the category, the unit price, or nothing). Raised by R2.1 and not fixed in it, per safety rule 1. | none |
 | **L-83** | Low | `/api/reports/z` never sends `givenAwayCount`, `givenAwayItemsCount` or `givenAwayProducts`, yet `ZReportDto` declares all three and the Z detail panel (`reports-view.tsx:445`) renders them — so they read `undefined` at runtime. The sealed `ZReport` row has no column for them, so the DTO promises what no route can serve. Found while deciding where `topMenus` belonged; `topMenus` was deliberately kept out of that DTO rather than becoming a fourth instance. Routes are not typed against their DTOs, which is why the compiler cannot see this. | none |
+| **L-84** | Low | `showOnPos` is a display rule, not a guard: `orders/route.ts` checks only `active` and `available`, so a request naming a hidden product directly is still booked as an ordinary sale. Not a fraud vector — the till is the only client and the grid the only way in, and the price booked is the component's real catalogue price — but it means « cannot be sold alone » is true of the interface and not of the API. Measured and pinned by `hidden-product.test.ts` in R3.2, so closing it later is a decision rather than an accident. | none |
 | **L-79** | Low | A failed `tar` import silently produces an image-less backup with no journal entry. | R4.1 |
 | **L-80** | Low | `CartAddOn.id` is nullable but the checkout schema requires a string. Latent, not live. | R4.2 |
 | **L-71** | Low | The sliding session tracker logs a Prisma error for a write it deliberately ignores. | R4.3 |
