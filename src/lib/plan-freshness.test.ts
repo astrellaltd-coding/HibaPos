@@ -93,7 +93,9 @@ describe("plan freshness — the plan and the done file may not disagree", () =>
     // rather than `> 0`: the previous parser skipped four rows and `> 0` was
     // satisfied by the nine it could see.
     const src = plan();
-    expect(taskStatuses(src).size).toBe(21);
+    // 21 → 20 on 2026-09-10: R2.1's row moved to `REMEDIATION_DONE.md`. The
+    // findings count is unchanged at 16 — L-76 closed with it and L-82 opened.
+    expect(taskStatuses(src).size).toBe(20);
     expect(openFindings(src).size).toBe(16);
     expect(done()).toContain("# HibaPOS France — Completed Work");
   });

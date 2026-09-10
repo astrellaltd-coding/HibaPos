@@ -130,6 +130,75 @@ packaged as. **L-75 moved from an open High finding to deferred**, carried to th
 migration intact: `scripts/pre-golive-reset.ts` runs once, after testing, before the first
 genuine sale, and arming `FISCAL_CHAIN_KEY` comes after it and never before.
 
+### R2.1 — a product aggregates under its identity, not under its label
+**Done:** 2026-09-10 · **Commit:** `c9b9d23` · **Finding:** L-76 (closed)
+
+**What changed:** `src/lib/services/aggregate.ts`. `aggregateOrders` keyed `productAgg` by
+`item.productName`. That label is a snapshot taken at sale time and has never been unique:
+the live catalogue carries three pairs sharing a name at different prices — **Coca, Fanta
+and Orangina each exist as a 1,50 € canette and a 3,50 € bouteille**, all six `active` and
+`available`, all six ringable today (verified read-only against `db/custom.db`). Selling one
+of each produced a single row reading « Coca ×2 5,00 € » — a figure no product ever charged —
+and that row is sealed into `ZReport.topProductsJson` and into every close payload.
+
+All **four** per-product accumulator sites now key through one `productKey(item)` helper:
+the sale branch, the correction branch, and `givenAwayAgg`, which had the identical defect
+and is sealed beside `topProducts` in the close payload. The plan's row named the first two;
+the third is the same six lines of code and was not left half-fixed.
+
+**The row now carries `productId`** — a shape change, made deliberately and while it is free
+to make. Once the aggregation keys by identity, a period that sold both Cocas produces two
+rows both labelled « Coca », and a sealed document stating two different figures under one
+label with nothing to tell them apart is its own kind of unreadable. Zero closes exist, so
+the shape freezes at the restaurant's first real close and not before. It is the same shape
+`reports/products/route.ts` already returns, so the two reports now agree on what a product
+row *is* as well as on how it is counted. Propagated through `reports.ts`, `fiscal.ts`,
+`types/api.ts` and the two views. Identity is also the sorts' final tiebreak, so two equal
+rows sharing a name seal in a defined order instead of the order the query happened to
+return them in.
+
+**How it was verified:** a new `src/lib/services/product-identity.test.ts`, 9 tests, 1248 →
+1257 — the count moved only by tests added, and `README.md`'s pinned figure with it.
+
+Driven through **`POST /api/orders`** and **`generateZReport`**, not over hand-built
+fixtures, because of the failure this project has shipped three times: a correct extracted
+function nothing calls. The first test asserts the thing that makes the fix anything other
+than a no-op in production — that the route resolves a product intent to a real
+`OrderItem.productId` (`orders/route.ts:312`, server-side, never trusted from the client).
+Then: the aggregation splits, the **sealed** `topProductsJson` carries two rows, and
+`aggregateOrders` and `/api/reports/products` return the same per-product figures for the
+same day — the disagreement L-76 named.
+
+**The revert, five properties, each alone and in both directions:** sale-branch keying
+(4 tests fail), correction-branch keying (1), give-away keying (1), the tiebreak (1), and
+the row carrying `productId` (7). Every property is caught by at least one test.
+
+**Two tests pass under every revert, deliberately.** *«the route records an identity»* tests
+the route, not the aggregation — it is the precondition, and it fails only if
+`orders/route.ts` stops storing `productId`, which is exactly the change that would make
+this batch silently inert. *«falls back to the name when productId is null»* passes because
+with a null id the key **is** the name either way; it guards the `onDelete: SetNull` branch
+against throwing, not the keying.
+
+**One correction worth recording.** The correction-branch test's first version **survived
+its revert** — it aggregated a single order, so there was one bucket and keying by name was
+right by accident. The plan's rule («a revert that everything survives is a question, not a
+verdict») caught it. Rewritten to refund *both* Cocas across the period boundary, it fails
+under the revert as it should. Separately, an `as never` cast in the give-away test was
+masking an `orderNumber` field `CheckoutInput` does not have; both casts were removed and
+`tsc` is clean without them.
+
+**Left behind:**
+- **`topProducts` and `givenAwayProducts` rows carry `productId`, and that shape is sealed.**
+  It is still free to change **only until the restaurant's first real close**.
+- **The two readers of a sealed `topProductsJson`** — `reports/z/route.ts:55` and
+  `shifts/[id]/close/route.ts:96` — parse it untyped and the UI reads `name`/`quantity`/
+  `total` only, so both vintages render. Nothing needed changing; recorded so nobody
+  "tidies" that into a typed parse that would reject one of them.
+- **A new finding, L-82**, raised and not fixed (safety rule 1): the product list renders the
+  name alone, so two identity-keyed rows now read as two identical labels on screen and in
+  the CSV. The figures are right and the label is the remaining half.
+
 ---
 
 ## Carried forward — the 2026-09-03 → 2026-09-09 remediation

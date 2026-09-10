@@ -19,8 +19,11 @@ a short list of real defects, a documentation reconciliation, and hardware.
 
 **Current phase:** **Phase 2 — the reporting batch.** Approved 2026-09-10, not yet started.
 
-**Current task:** **R2.1** — key product aggregation by identity, not by name.
+**Current task:** **R2.2** — make menus visible in reports.
 **Phase 2 is APPROVED to start** (operator, 2026-09-10), including R2.2's `comboProductId`.
+**R2.1 is COMPLETE** (`c9b9d23`, 2026-09-10) — product aggregation now keys by identity, and
+`topProducts` / `givenAwayProducts` rows carry `productId`. That row shape is sealed into Z
+reports and closes and is **free to change only until the restaurant's first real close**.
 
 **Phase 1 is COMPLETE. R0.1 is COMPLETE** — the first restorable backup this installation
 has ever had, taken by the operator and verified 2026-09-10. R0.2 / R0.3 / R0.4 were blocked
@@ -222,7 +225,7 @@ something going wrong.
 
 | Thing | Value, measured 2026-09-10 |
 |---|---|
-| Tests | **1248 pass, 0 fail**, 102 files, ~130 s. `typecheck` and `lint` both clean. Pinned by `readme-counts.test.ts`, which counts declarations plus declared expansions. |
+| Tests | **1257 pass, 0 fail**, 103 files, ~135 s *(was 1248/102 before R2.1 added `product-identity.test.ts`)*. `typecheck` and `lint` both clean. Pinned by `readme-counts.test.ts`, which counts declarations plus declared expansions. |
 | e2e | **13 passed** (measured 2026-09-07). `bun run test:e2e` is **safe** — see § 5. |
 | Production DB | sha256 `c67b4b0b2e1c61e68b6461a4fa11f5344b48631c06a4071c4d2256cf89d30426`, 884 736 bytes. `integrity_check` ok, 0 FK errors, 12 migrations, none pending. **The file did not shrink after the reset** — SQLite frees pages for reuse, so size cannot distinguish a wiped database from a full one. Only the hash can. |
 | Trading tables | **All zero.** Order, OrderItem, Payment, Receipt, Refund, Shift, ZReport, FiscalEvent, GrandTotal, DailyClose, MonthlyClose, AnnualClose, CashMovement, Customer, Table. |
@@ -272,9 +275,13 @@ go-ahead.** The operator should still get a copy of that backup off this machine
 *Both change what is sealed into Z reports and closes. Zero closes exist, so the shape is
 still free; it freezes permanently at the restaurant's first real close.*
 
+*R2.1 is done (`c9b9d23`) and is in `REMEDIATION_DONE.md`. It established the rule the two
+items below follow: **a thing is counted under its identity, never under its label.** R2.2 is
+that rule one level up — a menu is recorded only as `comboName`, a string, so counting menus
+by name would reproduce L-76 exactly.*
+
 | ID | Status | Task |
 |---|---|---|
-| **R2.1** | `TODO` | **L-76 — key product aggregation by identity, not by name.** `aggregate.ts:344,396` keys `productAgg` by `item.productName`, so *Coca* the 1,50 € can merges with *Coca* the 3,50 € bottle — and the merged row is sealed into an immutable Z report. Three collisions exist live: Coca, Fanta, Orangina. `reports/products/route.ts:105` already keys by `productId ?? productName`; the two reports disagree today. |
 | **R2.2** | `TODO` | **L-77 — make menus visible in reports.** `comboGroupId` / `comboName` / `comboPrice` are written at checkout and read by the receipt renderer alone, so « how many Menu Chill did I sell? » cannot be answered. Within one report `itemsCount` counts a menu as one article while `topProducts` counts its three components — the two figures disagree for every combo order. **Needs a new column, `OrderItem.comboProductId`** (operator-approved 2026-09-10): a menu is recorded only as `comboName`, a *string*, so counting menus by name would reproduce R2.1's exact bug one level up. Grouping is by `comboGroupId`, which the fallback path also sets, so a menu that fell back to a single line still counts as one menu. |
 | **R2.3** | `TODO` | **L-78 — store the allocation evidence.** `OrderItem` records the *result* of a menu's VAT split but not `referencePrice`, the standalone catalogue value each share was computed from. That figure is the *justification* for the split; without it, a catalogue price change makes an old sale's division unreconstructable. French doctrine requires the allocation be justifiable on request. **One migration carries R2.2's and R2.3's columns together** — `comboProductId` and `referencePrice`, both `Int?`/`String?` nullable, both harmless to existing rows (of which there are zero) — so the operator runs `prisma migrate deploy` **once** for Phase 2. Rehearse it on a scratch copy with a fingerprint diff first (§ 2, *Migration rehearsal*). |
 
@@ -334,7 +341,7 @@ rule 1). Audit IDs are never renamed.
 
 | ID | Severity | Finding | Owner |
 |---|---|---|---|
-| **L-76** | Medium | `topProducts` merges distinct products sharing a name, and the merged row is sealed into Z reports. | R2.1 |
+| **L-82** | Cosmetic | The product list renders the name alone (`report-widgets.tsx:136`, `csv-export.ts:53`), so the two rows R2.1 correctly separates now read as two identical « Coca » labels on the dashboard, in the reports view and in the CSV. The figures are right; the label is the remaining half. `productId` is in the payload, so a fix has what it needs — the open question is what a human should see (the category, the unit price, or nothing). Raised by R2.1 and not fixed in it, per safety rule 1. | none |
 | **L-77** | Medium | Menus composés appear in no report; `itemsCount` and `topProducts` disagree for every combo order. | R2.2 |
 | **L-78** | Medium | The menu allocation's reference prices are not stored, so a split cannot be justified after a catalogue price change. | R2.3 |
 | **L-79** | Low | A failed `tar` import silently produces an image-less backup with no journal entry. | R4.1 |
