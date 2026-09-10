@@ -111,7 +111,7 @@ describe("plan freshness — an open finding may not point at a finished batch",
     // Pinned, not `> 0`: the old parser skipped the four unbolded rows and
     // `> 0` was satisfied by the nine it could see. Change this number only
     // when a row is genuinely added to or retired from the register.
-    expect(openFindings(src).size).toBe(13); // 13 → 12 (L-58) → 11 (DOC-15) → 7 (7.5) → 8 (L-64 by 7.6) → 7 (L-64 closed by 7.7) → 8 (L-67 opened by 5.8) → 7 (L-67 closed by 5.8) → 8 (L-68 opened by 3.12) → 7 (L-68 closed by 3.12) → 8 (L-69 opened by 5.9, and NOT closed by it — safety rule 10) → 10 (L-70 and L-71 opened by 1.3d; L-70 is the batch’s own subject and its code half is done, L-71 is out of scope and owned by nobody) → 12 (L-72 and L-73, both found while answering the operator’s wipe request, both owned by 8.0) → 13 (L-74, the guard that blocked the rehearsal, fixed in the same sitting)
+    expect(openFindings(src).size).toBe(14); // 13 → 12 (L-58) → 11 (DOC-15) → 7 (7.5) → 8 (L-64 by 7.6) → 7 (L-64 closed by 7.7) → 8 (L-67 opened by 5.8) → 7 (L-67 closed by 5.8) → 8 (L-68 opened by 3.12) → 7 (L-68 closed by 3.12) → 8 (L-69 opened by 5.9, and NOT closed by it — safety rule 10) → 10 (L-70 and L-71 opened by 1.3d; L-70 is the batch’s own subject and its code half is done, L-71 is out of scope and owned by nobody) → 12 (L-72 and L-73, both found while answering the operator’s wipe request, both owned by 8.0) → 13 (L-74, the guard that blocked the rehearsal, fixed in the same sitting) → 14 (L-75, the till is 32-bit and Prisma ships no 32-bit engine — hardware, not code)
     expect(batchStatuses(src).get("7.1")).toBe("COMPLETED");
   });
 
