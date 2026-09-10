@@ -34,7 +34,7 @@ at the till. Everything the owner has to *see* or *touch* is marked **[OWNER]**.
 
 | | Why |
 |---|---|
-| ⚠⚠ **A 64-bit Windows on the till** — added 2026-09-10, after a 32-bit machine stopped an install dead | **This is a hardware prerequisite and there is no way around it in software.** Measured that day by reading the PE headers of the shipped Prisma engines: `query_engine-windows.dll.node` and `schema-engine-windows.exe` are both `machine 0x8664`, **x86-64**. Prisma ships no 32-bit Windows engine, so on a 32-bit OS the data layer cannot load **whatever the runtime** — swapping bun for Node does not rescue it. Bun itself is also x64/ARM64 only, which is what surfaces first: *« Bun for Windows is only available for x86 64-bit and ARM64 Windows »*. **Check before travelling, and do not trust that message alone** — the bun installer reads the PROCESS architecture, so a 32-bit PowerShell on a 64-bit Windows prints it too. `[Environment]::Is64BitOperatingSystem` is the answer; `[Environment]::Is64BitProcess` tells you which shell you are in. **If the OS is 32-bit but `(Get-CimInstance Win32_Processor).DataWidth` is 64, the CPU is fine** — a 64-bit CPU carrying a pre-installed 32-bit Windows is common on older machines. ⚠ **But « fixes it for nothing » is wrong and this row said so until 2026-09-10: a 32-bit Windows CANNOT be upgraded in place to 64-bit.** It is a wipe and a clean install, so everything on the machine goes — **including the POS the restaurant is currently trading on**. Never do it to a working till for the sake of a trial. Two further reasons to prefer a separate machine: Windows 10 left support in October 2025, and hardware old enough to ship with 32-bit Windows rarely meets Windows 11's requirements. |
+| ⚠⚠ **A 64-bit Windows on the till** — added 2026-09-10, after a 32-bit machine stopped an install dead. **MEASURED ON THIS RESTAURANT'S TILL: `DataWidth` 64, `OSArchitecture` 32 bits** — the CPU is fine, the installed Windows is not, and the operator is reinstalling **Windows 10 Education N x64** (same edition, so the digital entitlement reactivates; Windows 11 is impossible on a Celeron N3160). | **This is a hardware prerequisite and there is no way around it in software.** Measured that day by reading the PE headers of the shipped Prisma engines: `query_engine-windows.dll.node` and `schema-engine-windows.exe` are both `machine 0x8664`, **x86-64**. Prisma ships no 32-bit Windows engine, so on a 32-bit OS the data layer cannot load **whatever the runtime** — swapping bun for Node does not rescue it. Bun itself is also x64/ARM64 only, which is what surfaces first: *« Bun for Windows is only available for x86 64-bit and ARM64 Windows »*. **Check before travelling, and do not trust that message alone** — the bun installer reads the PROCESS architecture, so a 32-bit PowerShell on a 64-bit Windows prints it too. `[Environment]::Is64BitOperatingSystem` is the answer; `[Environment]::Is64BitProcess` tells you which shell you are in. **If the OS is 32-bit but `(Get-CimInstance Win32_Processor).DataWidth` is 64, the CPU is fine** — a 64-bit CPU carrying a pre-installed 32-bit Windows is common on older machines. ⚠ **But « fixes it for nothing » is wrong and this row said so until 2026-09-10: a 32-bit Windows CANNOT be upgraded in place to 64-bit.** It is a wipe and a clean install, so everything on the machine goes — **including the POS the restaurant is currently trading on**. Never do it to a working till for the sake of a trial. Two further reasons to prefer a separate machine: Windows 10 left support in October 2025, and hardware old enough to ship with 32-bit Windows rarely meets Windows 11's requirements. |
 | ⚠ **Bun installed machine-wide** — not under a user profile | **The most likely way this session goes wrong**, and **the development machine FAILS this check** — measured 2026-09-07, see below. The server task runs as `SYSTEM`, which cannot see `%USERPROFILE%\.bun` or `%APPDATA%\npm`. **The failure used to be silent**: the task « runs », the launcher never found bun, the till never came up. **Batch 1.4b made it loud** — the launcher now refuses *before* it uses bun, writes a `FATAL` line naming the account and both commands, and prints the three ways out; it also logs which bun it found when it succeeds, so `server.log` answers this question either way. **Check it before travelling** with `where bun`. **What was measured here:** bun resolves to `%APPDATA%\npm\bun.ps1` and `%APPDATA%\npm` sits on the **user** PATH only — the machine PATH has no bun at all — which is exactly the case `SYSTEM` cannot see. The real binary is `%APPDATA%\npm\node_modules\bun\bin\bun.exe`, 98 MB, which is what makes option (c) a two-minute fix. The installer's dry run offers all three: machine-wide install, `-ServerAccount <compte>`, or that `bun.exe` copied into `C:\HibaPOS\bin` with that folder added to the **system** PATH — read that warning, do not scroll past it. |
 | ⚠ **The `.env` you carry must be the ROTATED one** | `SESSION_SECRET` and `BACKUP_ENCRYPTION_KEY` were rotated 2026-09-07. Carrying an older `.env` means the backups written on the till cannot be opened with the keys anyone holds. **This one PASSES on the development machine** — verified 2026-09-07 against the pre-rotation copy: both values are 64 characters and both differ from it. § 6a re-checks it at the step that depends on it, and has the command. |
 | ~~The printer’s **IP address**~~ — **NOT NEEDED, corrected 2026-09-09** | The printer is on a **USB type-B cable**, not the network (Batch 1.3d). No IP to fix, no DHCP lease to worry about. What replaces it: the **printer driver**, installed on the till over remote access (RustDesk since 2026-09-10; AnyDesk before it) — **§ 4a.1**, which carries the `pnputil` commands to move the package from the developer machine. |
@@ -89,6 +89,46 @@ of* the install directory and registers the two Scheduled Tasks; it does not
 fetch code, install dependencies, or build. Nothing else did either, and § 0
 compressed all of it into "the repository on the machine" — which is how the gap
 stayed invisible until it was looked for (DOC-17, 2026-09-08).
+
+### Ship it PRE-BUILT when the till is weak — added 2026-09-10
+
+**The restaurant's till cannot build this application, and does not have to.**
+Measured that day: Intel Celeron N3160 (Braswell, 2016), **4 GB RAM**, 40 GB SATA
+flash, Windows 10 Education N. Windows 10 x64 takes ~2 GB of that RAM, leaving
+about 2 GB for a `next build` that wants 2-4 GB on four 1.6 GHz cores — and
+`bun install` alone is **46,480 files** onto flash storage.
+
+So the developer machine runs `bun install` and `bun run build`, and the till is
+handed the result. **`node_modules` and `.next` are portable between two Windows
+x64 machines** — the Prisma engine inside is `machine 0x8664`, which is what the
+till wants once it is 64-bit.
+
+**PROVEN, not assumed (2026-09-10).** The tree was built at one absolute path,
+copied to a **different** one, and started there with **no `bun install` and no
+`bun run build`**: `GET /api` 200, `GET /api/auth/profiles` returned the carried
+catalogue's two accounts through the moved `node_modules` — which is the check
+that matters, because Prisma resolving its engine from a relocated tree is the
+thing most likely to break — `/api/print/printers` reached its auth gate, and
+`/` served 200. That is the whole risk of shipping pre-built, and it is closed.
+
+| | |
+|---|---|
+| Unpacked | **984 MB, 46 950 files** — `node_modules` 834 MB, `.next` 93 MB, `public` 54 MB |
+| **Zipped** | **344 MB, one file** |
+
+**Zip it.** 46 950 files over a remote link is slow and fails halfway; one
+344 MB file does not. And the person doing the Windows reinstall is carrying a
+USB stick to the machine anyway, so it can ride along and never touch the
+network at all.
+
+**The till still needs bun** — `bun run start` is `next start` — but only to
+*run*, never to install or build. It also no longer needs internet, and § 0b's
+"`bun install` needs internet on the till" note does not apply on this path.
+
+**When the source changes**, rebuild here and re-ship, or use
+`.zscripts\update.ps1 -Apply -NoGit`. Never build on the till.
+
+---
 
 ### The minimal install — what actually goes on the till (2026-09-10)
 
@@ -177,9 +217,12 @@ cd C:\HibaPOS-app
 #    .env          ->  C:\HibaPOS-app\.env
 
 # 3. dependencies and the production build
-bun install
-bunx prisma generate
-bun run build
+#    NOT ON THIS TILL -- node_modules and .next are shipped pre-built
+#    (4 GB RAM cannot run next build). Only if you are installing on a
+#    machine that can build for itself:
+#      bun install
+#      bunx prisma generate
+#      bun run build
 ```
 
 `bun install`, `prisma generate` and `bun run build` are also what
