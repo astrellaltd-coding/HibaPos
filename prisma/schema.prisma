@@ -626,6 +626,40 @@ model OrderItem {
   comboName    String?
   comboPrice   Int? // cents, TTC, the menu's forfait for this order type
 
+  // L-77 (R2.2) — the menu's IDENTITY, beside `comboName`, which is its label.
+  //
+  // Same finding as L-76 one level up: `comboName` is a snapshot of a string,
+  // and counting menus by it would merge two menus that ever shared a name
+  // exactly as `topProducts` merged the 1,50 EUR Coca with the 3,50 EUR one.
+  // Reports group by `comboGroupId` — one cuid per menu per order, which the
+  // fallback path sets too, so a menu that fell back to a single line still
+  // counts as one menu — and identify the menu by THIS.
+  //
+  // NULLABLE, and existing rows are NOT backfilled: null means « not part of a
+  // menu », or « part of a menu sold before the till recorded which menu ».
+  // There are zero rows of either kind today.
+  comboProductId String?
+
+  // L-78 (R2.3) — the allocation's EVIDENCE.
+  //
+  // A menu is sold at one forfait and divided between its components in
+  // proportion to their standalone catalogue prices for the order type
+  // (`docs/politique-ventilation-tva.md` § 2). `unitPrice` records the RESULT
+  // of that division; this records the WEIGHT it was computed from. Without it
+  // a catalogue price change makes an old sale's division unreconstructable,
+  // and French doctrine requires an allocation to be justifiable on request.
+  //
+  // Redundant with the division only while the catalogue stands still — which
+  // is precisely the assumption that fails. Same argument as `comboPrice`
+  // above and `lineNetTotal` beside `lineHt`: store the input, so a reader can
+  // check the arithmetic with a calculator instead of re-deriving it from a
+  // catalogue that has since moved.
+  //
+  // NULL on every line that is not a prorata share: an ordinary sale, and a
+  // menu that took the § 4 fallback — where the forfait was NOT divided, so
+  // there is no weight to justify and 0 would be a figure nobody computed.
+  referencePrice Int? // cents, TTC, the component's standalone catalogue price
+
   optionsJson String? // JSON snapshot of chosen options
   addOnsJson  String? // JSON snapshot of chosen add-ons
   notes       String?
