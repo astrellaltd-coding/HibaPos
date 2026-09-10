@@ -295,6 +295,53 @@ survived the first pass and were **real gaps, not no-ops**:
   Found while deciding where to put `topMenus`; `topMenus` was deliberately kept out of that
   DTO rather than becoming a fourth instance of the same defect.
 
+### PHASE 2 MIGRATION — APPLIED to production, and verified
+**Done:** 2026-09-10 · **Commit:** *(no code change — this records an operator action)*
+**Amends:** the *PHASE 2 MIGRATION* entry above, which recorded it as prepared and **not**
+applied. That entry stands as written; this is the dated line that supersedes its status,
+per this file's append-never-rewrite rule.
+
+**What happened.** The operator stopped the app and ran `bunx prisma migrate deploy` against
+production on 2026-09-10 at **23:22:11**, confirmed by them the same evening.
+`_prisma_migrations` records `20260910210000_order_item_combo_identity_and_reference_price`
+as one step, `rolled_back_at` null.
+
+**How it was verified — not assumed.** Claude did not run the deployment and did not take the
+operator's word for its outcome. Production was fingerprinted afterwards and diffed against
+the **pre-migration fingerprint of production itself**, taken earlier the same session with
+`VACUUM INTO` through a read-only connection. **Five differences, every one accounted for:**
+
+| | before | after |
+|---|---|---|
+| `OrderItem` columns | 16 | 18 — appended, existing columns unchanged **in place** |
+| `_prisma_migrations` | 12 | 13 |
+| `Session` | 1 | 0 — the operator's session ended with the app |
+| `AuditLog` | 595 | 596 — the row that logged it |
+
+Identical on both sides: `FiscalCounter`, `GrandTotal`, every fiscal event hash, every sealed
+table, every order line, all 81 products, every index and every other table's column order.
+`integrity_check` ok, 0 FK errors. `comboProductId TEXT` and `referencePrice INTEGER`, both
+nullable, neither with a default — **exactly what the rehearsal on the copy predicted**, and
+no table rebuild.
+
+**Production, app stopped, migration in:** sha256
+`47b33148dcbe081609ec24728662a32285e2252e3ed5f02dbde9c81178775c94`, 884 736 bytes, no
+`-wal`/`-shm`. `bunx prisma generate` then completed cleanly and the full suite was re-run
+against the freshly generated client: **1273 pass / 0 fail**, typecheck and lint clean.
+
+**Left behind:**
+- **Stop the app before any `prisma` command that writes.** A live `next dev` / `next start`
+  holds an open handle on the SQLite file *and* on `query_engine-windows.dll.node`. That is
+  what made `bunx prisma generate` fail `EPERM` for the whole of 2026-09-10 until the app was
+  stopped, and it is the same open-handle problem that once broke a restore.
+- **A sha256 of the production database is only a baseline while nothing is running.** A
+  signed-in session writes `Session.lastActivityAt` on every request, so the file's hash
+  moves without a single fiscal row changing. Compare *structure* — migrations, column
+  counts, row counts, hashes of sealed rows — unless the app is stopped.
+- **The rehearsal was worth its cost.** It predicted the production result exactly, down to
+  the column order and the absence of a table rebuild, which is what made verifying the live
+  deployment a five-minute diff rather than an act of faith.
+
 ---
 
 ## Carried forward — the 2026-09-03 → 2026-09-09 remediation

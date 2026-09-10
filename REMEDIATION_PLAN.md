@@ -15,9 +15,12 @@ Completed work lives in **`REMEDIATION_DONE.md`**. This file only ever shows out
 ## 1. CURRENT STATUS
 
 **Overall:** NOT READY FOR PRODUCTION. The software is essentially complete; what remains is
-a short list of real defects, a documentation reconciliation, and hardware.
+a short list of real defects and the four fiscal steps before the first real sale. *(The
+documentation reconciliation was Phase 1 and is done; the reporting defects were Phase 2 and
+are done.)*
 
-**Current phase:** **Phase 2 — the reporting batch.** Approved 2026-09-10, not yet started.
+**Current phase:** **none — between phases.** Phase 2 closed 2026-09-10, migration included.
+The next phase needs its own go-ahead; § 2's rule is that a phase boundary stops the work.
 
 **Current task:** **none — PHASE 2 IS COMPLETE.** Awaiting the operator's go-ahead for the
 next phase. § 2's rule is that a phase boundary stops the work.
@@ -31,8 +34,10 @@ until the restaurant's first real close**:
   payload deliberately does **not** — operator's decision, 2026-09-10.
 - `OrderItem` gains `comboProductId` and `referencePrice`.
 
-**AWAITING THE OPERATOR — the migration is prepared, rehearsed and not applied.** The exact
-command is in § 6 under *Phase 2 handover*.
+**The migration is APPLIED.** The operator ran `bunx prisma migrate deploy` against
+production on 2026-09-10 at 23:22, after stopping the app, and it was verified afterwards
+against the pre-migration fingerprint taken earlier the same session — see § 6, *Phase 2
+handover*. **Phase 2 is closed end to end: nothing about it is outstanding.**
 
 **Phase 1 is COMPLETE. R0.1 is COMPLETE** — the first restorable backup this installation
 has ever had, taken by the operator and verified 2026-09-10. R0.2 / R0.3 / R0.4 were blocked
@@ -48,7 +53,8 @@ Windows till — the commissioning session, the kiosk launcher, the pre-built tr
 32-bit hardware problem — was retired on 2026-09-10. What remains before the restaurant's
 first real sale is **fiscal, not technical**, and it is § 6's last section.
 
-**Last updated:** 2026-09-10, after a full read-only audit of the codebase and database.
+**Last updated:** 2026-09-10, at the close of Phase 2 — after the operator applied its
+migration to production and it was verified against the pre-migration fingerprint.
 
 ### What changed on 2026-09-10, and why this file exists
 
@@ -123,7 +129,7 @@ fiscal document.)*
   fiscal table before and after: row counts, `FiscalCounter`, `GrandTotal`, every event hash,
   sealed rows, order lines, `integrity_check`, FK errors, column order. Only the intended
   columns and the `_prisma_migrations` row may differ. Then hand the operator the exact
-  `bunx prisma migrate deploy` command.
+  `bunx prisma migrate deploy` command. *(Phase 2's went out this way and is applied.)*
 - **Prove the test fails on the old code.** Temporarily revert the fix, re-run, confirm the
   new tests fail, restore from a copy taken **before** the revert (`git checkout` on
   uncommitted work throws the change away). Revert **one property at a time**, in **both
@@ -236,7 +242,7 @@ something going wrong.
 |---|---|
 | Tests | **1273 pass, 0 fail**, 104 files, ~145 s *(1248/102 at the start of Phase 2; +9 `product-identity.test.ts`, +16 `menu-reporting.test.ts`)*. `typecheck` and `lint` both clean. Pinned by `readme-counts.test.ts`, which counts declarations plus declared expansions. |
 | e2e | **13 passed** (measured 2026-09-07). `bun run test:e2e` is **safe** — see § 5. |
-| Production DB | **The sha moves whenever the app runs** — a signed-in session writes `Session.lastActivityAt` on every request, so a hash is only a baseline while nothing is running. Was `c67b4b0b…`; measured `7abd7078…` on 2026-09-10 at 22:27 with `next dev` live, same 884 736 bytes, every trading table still at zero. Check the *structure* (12 migrations, 16 `OrderItem` columns before the Phase 2 migration) rather than the hash unless the app is stopped. `integrity_check` ok, 0 FK errors, 12 migrations, none pending. **The file did not shrink after the reset** — SQLite frees pages for reuse, so size cannot distinguish a wiped database from a full one. Only the hash can. |
+| Production DB | sha256 `47b33148dcbe081609ec24728662a32285e2252e3ed5f02dbde9c81178775c94`, 884 736 bytes, measured 2026-09-10 at 23:26 **with the app stopped and the Phase 2 migration applied**. `integrity_check` ok, 0 FK errors, **13 migrations**, **18 `OrderItem` columns**, none pending. **A sha is only a baseline while nothing is running** — a signed-in session writes `Session.lastActivityAt` on every request, which is why the earlier `c67b4b0b…` read `7abd7078…` at 22:27 with `next dev` live. If the app may be running, check the *structure*, not the hash. `integrity_check` ok, 0 FK errors, 12 migrations, none pending. **The file did not shrink after the reset** — SQLite frees pages for reuse, so size cannot distinguish a wiped database from a full one. Only the hash can. |
 | Trading tables | **All zero.** Order, OrderItem, Payment, Receipt, Refund, Shift, ZReport, FiscalEvent, GrandTotal, DailyClose, MonthlyClose, AnnualClose, CashMovement, Customer, Table. |
 | Fiscal counters | `0 / 0 / 0 / 0` (receipt / shift / Z / event). Journal **empty**. |
 | Fiscal chain | **Empty and UNKEYED**, which is correct here. Arming is the restaurant machine's step, after its own reset. |
@@ -291,22 +297,30 @@ What they established, and what the phases after them must not undo:*
 - **`referencePrice` is null where no prorata happened.** Null is the statement. Never
   backfill it, never default it to 0.
 
-#### Phase 2 handover — the one command the operator runs
+#### Phase 2 handover — DONE. The operator applied it 2026-09-10 at 23:22.
 
-**Not applied. Prepared, drift-checked and rehearsed on a copy** (`b50f97c`; the fingerprint
-diff is in `REMEDIATION_DONE.md`). Two nullable columns on `OrderItem`, no `DEFAULT`, no
-table rebuild, no backfill — and `OrderItem` holds zero rows.
+Prepared and rehearsed in `b50f97c`; **applied to production by the operator** after stopping
+the app, and verified afterwards rather than assumed. `_prisma_migrations` records it as one
+step, not rolled back.
 
-**Stop the app first.** A running `next dev` / `next start` holds an open handle on the
-SQLite file and on `query_engine-windows.dll.node`; that is what made `bunx prisma generate`
-fail `EPERM` throughout the session of 2026-09-10.
+**Verified against the pre-migration fingerprint of production** taken earlier the same
+session. Five differences, every one accounted for:
 
-```
-bunx prisma migrate deploy
-```
+| | before | after |
+|---|---|---|
+| `OrderItem` columns | 16 | 18 — appended, existing columns unchanged **in place** |
+| `_prisma_migrations` | 12 | 13 |
+| `Session` | 1 | 0 — the operator's session ended with the app |
+| `AuditLog` | 595 | 596 — the row that logged it |
 
-Afterwards `PRAGMA table_info("OrderItem")` should report **18** columns and
-`_prisma_migrations` **13** rows.
+Everything else identical: `FiscalCounter`, `GrandTotal`, every fiscal event hash, every
+sealed table, every order line, all 81 products, every index. `integrity_check` ok, 0 FK
+errors. `comboProductId TEXT` and `referencePrice INTEGER`, both nullable, neither with a
+default — exactly what the rehearsal predicted, and no table rebuild.
+
+**The lesson worth keeping: stop the app first.** A running `next dev` / `next start` holds
+an open handle on the SQLite file and on `query_engine-windows.dll.node`. That is what made
+`bunx prisma generate` fail `EPERM` throughout 2026-09-10 until the app was stopped.
 
 ### Phase 3 — « Use it on POS » and the three boxes it unblocks
 
