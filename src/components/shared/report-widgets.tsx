@@ -116,13 +116,18 @@ export function VatBreakdownTable({
 
 export function TopProductsList({
   items,
+  // L-77 (R2.2): the same list renders menus as well as products, so the empty
+  // state has to be able to say which. Defaulted, so every existing call site
+  // is unchanged.
+  emptyLabel = "Aucun produit vendu.",
 }: {
   items: { name: string; quantity: number; total: number }[];
+  emptyLabel?: string;
 }) {
   if (items.length === 0) {
     return (
       <p className="rounded-lg border border-dashed border-border bg-muted/30 px-3 py-4 text-center text-xs text-muted-foreground">
-        Aucun produit vendu.
+        {emptyLabel}
       </p>
     );
   }

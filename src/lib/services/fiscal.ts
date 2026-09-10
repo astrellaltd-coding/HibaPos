@@ -40,6 +40,7 @@ import {
   periodCashMovementsWhere,
   type TopProduct,
   type GivenAwayProduct,
+  type TopMenu,
 } from "@/lib/services/aggregate";
 import { TX_FISCAL } from "@/lib/tx-options";
 import { SOFTWARE_NAME, SOFTWARE_VERSION } from "@/lib/version";
@@ -355,6 +356,26 @@ type PeriodAgg = {
   // in a sealed document.
   givenAwayCount: number;
   givenAwayProducts: GivenAwayProduct[];
+  // L-77 (R2.2): « how many Menu Chill did I sell? » — the question a menu's
+  // exploded component lines could not answer. Counted once per `comboGroupId`
+  // and identified by `comboProductId`, never by the menu's name.
+  //
+  // THIS GROWS THE SEALED `dataJson`, exactly as `givenAwayProducts` did above,
+  // and for the same reason it is done NOW: zero closes of any granularity have
+  // ever been sealed, so there is nothing to accommodate and no second vintage.
+  // The first sealed close fixes this shape for good. `close-timing.test.ts`
+  // pins the key list precisely so a payload cannot grow by accident, and is
+  // amended in the same commit.
+  //
+  // THE PER-SHIFT `CLOTURE_Z` JOURNAL PAYLOAD IS DELIBERATELY NOT GROWN.
+  // Operator's decision, 2026-09-10: a menu count carries no tax — the VAT of a
+  // menu lives on its component lines and its justification in
+  // `OrderItem.referencePrice` (R2.3) — so it does not buy a fourth permanent
+  // growth of the fiscal chain's per-shift entry. It is sealed at the day,
+  // month and year, which is the granularity an inspection reads, and shown
+  // live on the shift screen. Nothing is lost either way: no order is ever
+  // deleted, so the count is always recomputable.
+  topMenus: TopMenu[];
 };
 
 async function aggregatePeriod(from: Date, to: Date): Promise<PeriodAgg> {
@@ -407,6 +428,7 @@ async function aggregatePeriod(from: Date, to: Date): Promise<PeriodAgg> {
     topProducts: agg.topProducts,
     givenAwayCount: agg.givenAwayCount,
     givenAwayProducts: agg.givenAwayProducts,
+    topMenus: agg.topMenus,
   };
 }
 

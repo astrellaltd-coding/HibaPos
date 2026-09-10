@@ -548,11 +548,28 @@ describe("period closes carry their refunds (L-26)", () => {
     // re-verified below rather than assumed: both tables still hold ZERO rows.
     // The key list is edited deliberately, per batch, and never adjusted to
     // make a run go green.
+    //
+    // AMENDED 2026-09-10 (Phase 2, R2.2 / L-77). A FIFTH time, and the second
+    // one an operator asked for rather than a defect forcing: the payload gains
+    // `topMenus`, so a period can answer « how many Menu Chill did I sell? ».
+    // A menu explodes into one line per component at checkout, so before this
+    // it appeared in a sealed close only as its parts.
+    //
+    // Safe for exactly the same reason as every amendment above and no other,
+    // re-verified two lines up rather than assumed: **both tables still hold
+    // ZERO rows.** The first sealed close fixes this shape permanently.
+    //
+    // The operator was given the cost with the choice and picked the middle
+    // option: the day / month / year close payload carries menus, and the
+    // per-shift `CLOTURE_Z` EVENT payload deliberately does NOT — a menu count
+    // carries no tax, so it does not buy a fourth growth of the fiscal chain's
+    // per-shift entry. `menu-reporting.test.ts` pins that absence, so adding it
+    // "for symmetry" has to be a decision too.
     expect(Object.keys(payload).sort()).toEqual([
       "cardTotal", "cashInTotal", "cashMovementsCount", "cashOutTotal", "cashTotal",
       "cutoffHour", "discountsTotal", "givenAwayCount", "givenAwayProducts", "month",
-      "period", "perpetual", "refundsCount", "salesCount", "salesTotal", "topProducts",
-      "totalRefunded", "vatBreakdown", "vatTotal", "voucherTotal", "year",
+      "period", "perpetual", "refundsCount", "salesCount", "salesTotal", "topMenus",
+      "topProducts", "totalRefunded", "vatBreakdown", "vatTotal", "voucherTotal", "year",
     ]);
     // L-57's figure is the one BOFiP names, and it must be the measured
     // perpetual total rather than the period's own.

@@ -66,6 +66,10 @@ export const GET = withAuth(
     givenAwayCount: agg.givenAwayCount,
     givenAwayItemsCount: agg.givenAwayItemsCount,
     givenAwayProducts: agg.givenAwayProducts,
+    // L-77 (R2.2): « how many Menu Chill did I sell? ». Beside `topProducts`,
+    // never instead of it — that list is what left the kitchen, this one is
+    // what the customer ordered.
+    topMenus: agg.topMenus,
   });
   },
   { roles: ["SUPER_ADMIN", "MANAGER"] },

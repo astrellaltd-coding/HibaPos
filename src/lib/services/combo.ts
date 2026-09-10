@@ -148,6 +148,17 @@ export type ComboAllocatedLine = {
   supplements: number;
   /** `allocatedShare + supplements` — the unit price this line books at. */
   unitPrice: number;
+  /**
+   * L-78 (R2.3) — the WEIGHT this share was computed from: the component's
+   * standalone catalogue price for this order type (policy § 2).
+   *
+   * `allocatedShare` is the result of the division; this is its input, and the
+   * two together are what make the division checkable with a calculator years
+   * later, after the catalogue has moved. **Null on the § 4 fallback line**,
+   * where the forfait was NOT divided — there is no weight to justify, and 0
+   * would be a figure nobody computed.
+   */
+  referencePrice: number | null;
   vatRate: number;
   optionsJson: string | null;
   addOnsJson: string | null;
@@ -228,6 +239,10 @@ export function allocateCombo(args: {
           allocatedShare: Math.max(0, forfait),
           supplements,
           unitPrice: Math.max(0, forfait) + supplements,
+          // § 4 performed no division, so there is no weight that justifies
+          // one. `reason` above says why, and the null says the same thing in
+          // the column a report reads.
+          referencePrice: null,
           vatRate: rate,
           optionsJson: components.length
             ? JSON.stringify(
@@ -254,6 +269,8 @@ export function allocateCombo(args: {
       allocatedShare: shares[i],
       supplements: c.supplements,
       unitPrice: shares[i] + c.supplements,
+      // The weight `apportion` was handed, stored beside the share it produced.
+      referencePrice: c.referencePrice,
       vatRate: c.vatRate,
       optionsJson: c.optionsJson,
       addOnsJson: c.addOnsJson,

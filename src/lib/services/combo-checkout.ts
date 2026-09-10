@@ -310,6 +310,12 @@ export async function priceComboItem(args: {
       comboGroupId: groupId,
       comboName: menu.name,
       comboPrice: forfait,
+      // R2.2 — the menu's identity, on every line of the group INCLUDING the
+      // single line the § 4 fallback produces, so a fallback menu still counts
+      // as the menu it was rather than as an unattributable line.
+      comboProductId: menu.id,
+      // R2.3 — the weight, or null where no division happened.
+      referencePrice: l.referencePrice,
     })),
   };
 }

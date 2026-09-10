@@ -12,6 +12,7 @@ import {
   shiftCashMovementsWhere,
   type TopProduct,
   type GivenAwayProduct,
+  type TopMenu,
 } from "@/lib/services/aggregate";
 import { nextZReportNumber } from "@/lib/services/sequence";
 import { appendFiscalEvent, perpetualSnapshot } from "@/lib/services/fiscal";
@@ -74,6 +75,13 @@ export type SalesReport = {
   givenAwayCount: number;
   givenAwayItemsCount: number;
   givenAwayProducts: GivenAwayProduct[];
+  // L-77 (R2.2): menus sold in the shift. Shown on the shift screen and on the
+  // X report; **not** written into the sealed `ZReport` row and not into the
+  // `CLOTURE_Z` journal payload — operator's decision, 2026-09-10. See the note
+  // on `PeriodAgg.topMenus` in `fiscal.ts` for why, and note that a Z report
+  // already treats `givenAwayProducts` the same way: computed and shown, never
+  // sealed into a column.
+  topMenus: TopMenu[];
 };
 
 /**
@@ -146,6 +154,7 @@ export async function computeShiftReport(shiftId: string, client: Db = db): Prom
     givenAwayCount: agg.givenAwayCount,
     givenAwayItemsCount: agg.givenAwayItemsCount,
     givenAwayProducts: agg.givenAwayProducts,
+    topMenus: agg.topMenus,
   };
 }
 

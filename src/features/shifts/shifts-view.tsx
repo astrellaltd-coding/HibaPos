@@ -352,6 +352,11 @@ type ZReportSummary = {
   cashVariance: number;
   vatBreakdown: Record<string, { ht: number; vat: number; ttc: number }>;
   topProducts: { productId: string | null; name: string; quantity: number; total: number }[];
+  // L-77 (R2.2) — menus sold, counted once per menu and identified by
+  // `comboProductId`. Beside `topProducts`, which counts the components a
+  // menu explodes into, and beside `itemsCount`, which counts a menu as one
+  // article. The three answer different questions and all three are right.
+  topMenus: { comboProductId: string | null; name: string; quantity: number; total: number }[];
   generatedAt: string;
 };
 
@@ -753,6 +758,8 @@ function XReportDialog({
 
             <h3 className="mb-2 mt-5 text-sm font-semibold text-foreground">Top produits</h3>
             <TopProductsList items={report.topProducts} />
+            <h3 className="mb-2 mt-5 text-sm font-semibold text-foreground">Menus composés</h3>
+            <TopProductsList items={report.topMenus} emptyLabel="Aucun menu vendu." />
           </div>
         ) : (
           <div className="flex h-24 items-center justify-center text-sm text-muted-foreground">

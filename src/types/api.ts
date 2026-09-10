@@ -284,6 +284,11 @@ export type XReportDto = {
   expectedCash: number;
   vatBreakdown: Record<string, { ht: number; vat: number; ttc: number }>;
   topProducts: { productId: string | null; name: string; quantity: number; total: number }[];
+  // L-77 (R2.2) — menus sold, counted once per menu and identified by
+  // `comboProductId`. Beside `topProducts`, which counts the components a
+  // menu explodes into, and beside `itemsCount`, which counts a menu as one
+  // article. The three answer different questions and all three are right.
+  topMenus: { comboProductId: string | null; name: string; quantity: number; total: number }[];
   // DD-20 / L-50 (Batch 7.4a) — what was GIVEN AWAY, beside what was sold.
   // A give-away is a 100 % discount settled with the OFFERT tender; it is
   // never inside `topProducts` or the sales counts, by the operator's choice.

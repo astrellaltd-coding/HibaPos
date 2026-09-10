@@ -98,6 +98,19 @@ export type CheckoutItem = {
   comboGroupId?: string | null;
   comboName?: string | null;
   comboPrice?: number | null;
+  /**
+   * L-77 (R2.2) — the menu's IDENTITY, beside `comboName`, which is its label.
+   * Reports count menus by this. `comboName` is a snapshot of a string and two
+   * menus could share one, which is L-76 exactly, one level up.
+   */
+  comboProductId?: string | null;
+  /**
+   * L-78 (R2.3) — the allocation's EVIDENCE: this component's standalone
+   * catalogue price for this order type, the weight its share was computed
+   * from. Null on an ordinary line and on a menu that took the policy's § 4
+   * fallback, where the forfait was not divided at all.
+   */
+  referencePrice?: number | null;
 };
 
 export type CheckoutPayment = {
@@ -232,6 +245,11 @@ export async function createOrderInTransaction(input: CheckoutInput): Promise<Or
             comboGroupId: item.comboGroupId ?? null,
             comboName: item.comboName ?? null,
             comboPrice: item.comboPrice ?? null,
+            // R2.2 / R2.3, and null on an ordinary line for the same reason as
+            // the three above: the menu this line belongs to, and the catalogue
+            // price its share of the forfait was weighed against.
+            comboProductId: item.comboProductId ?? null,
+            referencePrice: item.referencePrice ?? null,
             optionsJson: item.optionsJson,
             addOnsJson: item.addOnsJson,
             notes: item.notes,

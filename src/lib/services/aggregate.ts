@@ -64,6 +64,26 @@ export type AggregatableItem = {
   quantity: number;
   lineTotal: number;
   vatRate: number | null;
+  /**
+   * L-77 (R2.2) — the three columns that make a menu composé countable.
+   *
+   * A menu is sold at one forfait and BOOKED as one line per component, because
+   * components carry different rates and `vatRate` is the only place a rate
+   * lives. `comboGroupId` is one cuid shared by the lines of ONE menu on ONE
+   * order, so it is what says « these four lines are one Menu Chill » — two
+   * Menu Chill on the same ticket get two different ids. The fallback path sets
+   * it too, on its single line, so a menu that could not be divided still
+   * counts as one menu.
+   *
+   * `comboProductId` is the menu's IDENTITY and `comboName` its label. Menus
+   * are counted by the first and displayed by the second, for L-76's reason one
+   * level up: a name is a snapshot of a string and two menus could share one.
+   *
+   * All optional: absent on every ordinary line, and on a hand-built fixture.
+   */
+  comboGroupId?: string | null;
+  comboName?: string | null;
+  comboProductId?: string | null;
 };
 
 /**
@@ -134,6 +154,75 @@ export type GivenAwayProduct = {
   quantity: number;
 };
 
+/**
+ * One row of `topMenus` — L-77 (R2.2). « 4 × Menu Chill, 3 × Menu Eco ».
+ *
+ * ── WHY THIS LIST HAS TO EXIST SEPARATELY ────────────────────────────────────
+ * A menu explodes into one line per component at checkout, so before this it
+ * appeared in reports only as its parts. That left two figures inside one
+ * report disagreeing for every combo order: `itemsCount` counts a menu as ONE
+ * article (`orders/route.ts` — « the menu is what the customer bought and what
+ * the ticket's N articles counts ») while `topProducts` counts its three
+ * components. **Neither is wrong and neither changed here.** They answer
+ * different questions — what the customer bought, and what left the kitchen —
+ * and the third question, « how many Menu Chill did I sell? », had no answer at
+ * all. This is that answer, beside the other two rather than instead of either.
+ *
+ * `quantity` counts MENUS, not component lines. `total` is the net those menus'
+ * lines actually carried, after the order's discount and after any refund — the
+ * same basis as `TopProduct.total`, so the two lists sit in the same money.
+ */
+export type TopMenu = {
+  comboProductId: string | null;
+  name: string;
+  quantity: number;
+  total: number;
+};
+
+/** One menu on one order: the lines it booked, and how many of it were sold. */
+type MenuGroup = {
+  /** Identity first, label only if the identity is gone — L-76's rule. */
+  key: string;
+  comboProductId: string | null;
+  name: string;
+  quantity: number;
+  /** Indices into `order.items`, so the caller can read the right `lineNets`. */
+  indices: number[];
+};
+
+/**
+ * The menus an order booked, each with the lines that belong to it.
+ *
+ * Grouped by `comboGroupId` — one cuid per menu per order — which is what makes
+ * two Menu Chill on one ticket count as two and not as one. A line with no
+ * `comboGroupId` is an ordinary sale and is not here at all.
+ *
+ * `quantity` is taken from the group's first line rather than summed across
+ * them: `combo-checkout.ts` writes the SAME `quantity` on every line of a group
+ * (a cart line of 2× Menu Chill books each component with `quantity: 2`), so
+ * summing would multiply the menu count by its number of components.
+ */
+function menuGroupsOf(order: AggregatableOrder): MenuGroup[] {
+  const groups = new Map<string, MenuGroup>();
+  order.items.forEach((item, idx) => {
+    const groupId = item.comboGroupId;
+    if (!groupId) return;
+    const existing = groups.get(groupId);
+    if (existing) {
+      existing.indices.push(idx);
+      return;
+    }
+    groups.set(groupId, {
+      key: item.comboProductId ?? item.comboName ?? groupId,
+      comboProductId: item.comboProductId ?? null,
+      name: item.comboName ?? item.productName,
+      quantity: item.quantity,
+      indices: [idx],
+    });
+  });
+  return [...groups.values()];
+}
+
 export type PeriodAggregate = {
   /** Net of refunds — what the customers actually paid, in cents. */
   salesTotal: number;
@@ -161,6 +250,8 @@ export type PeriodAggregate = {
   refundsCount: number;
   vatBreakdown: VatBreakdown;
   topProducts: TopProduct[];
+  /** L-77 (R2.2): menus sold, most-sold first. Empty when nothing was a menu. */
+  topMenus: TopMenu[];
   /** Per-day sales, net of refunds, keyed YYYY-MM-DD in local time. */
   byDay: { date: string; sales: number; orders: number; items: number }[];
 
@@ -350,6 +441,8 @@ export function aggregateOrders<T extends AggregatableOrder>(
   // L-76 (R2.1): keyed by `productKey(item)` — the product's id, or its name
   // only when the id is gone. NOT by name, which is not unique.
   const productAgg: Record<string, TopProduct> = {};
+  // L-77 (R2.2): menus, counted once per `comboGroupId` and keyed by identity.
+  const menuAgg: Record<string, TopMenu> = {};
   const days: Record<string, { date: string; sales: number; orders: number; items: number }> = {};
   // DD-20: kept in their own accumulators, never mixed into the ones above.
   let givenAwayCount = 0;
@@ -408,6 +501,21 @@ export function aggregateOrders<T extends AggregatableOrder>(
         // so a correction must not change how many of a product went out.
         productAgg[key].total += after.lineNets[idx] - before.lineNets[idx];
       });
+
+      // L-77: a menu's correction follows the same rule as a product's — the
+      // money moves, the count does not. Refunding a Menu Chill does not un-sell
+      // it, and a negative menu count would be its own kind of wrong.
+      for (const group of menuGroupsOf(order)) {
+        menuAgg[group.key] ??= {
+          comboProductId: group.comboProductId,
+          name: group.name,
+          quantity: 0,
+          total: 0,
+        };
+        for (const idx of group.indices) {
+          menuAgg[group.key].total += after.lineNets[idx] - before.lineNets[idx];
+        }
+      }
 
       if (opts.createdAtOf) {
         // Dated by the last of this period's refunds on the order — the moment
@@ -468,6 +576,24 @@ export function aggregateOrders<T extends AggregatableOrder>(
       productAgg[key].total += netLineTotal;
     });
 
+    // L-77 (R2.2). Deliberately NOT derived from `topProducts`: a menu's rows
+    // there are its components, and there is no way back from three component
+    // rows to « one Menu Chill ». `comboGroupId` is the only thing that says
+    // which lines were one menu, so the count is taken from the order's lines
+    // directly, beside the product loop rather than inside it.
+    for (const group of menuGroupsOf(order)) {
+      menuAgg[group.key] ??= {
+        comboProductId: group.comboProductId,
+        name: group.name,
+        quantity: 0,
+        total: 0,
+      };
+      menuAgg[group.key].quantity += group.quantity;
+      for (const idx of group.indices) {
+        menuAgg[group.key].total += after.lineNets[idx];
+      }
+    }
+
     if (opts.createdAtOf) {
       const key = dayKey(opts.createdAtOf(order));
       days[key] ??= { date: key, sales: 0, orders: 0, items: 0 };
@@ -518,6 +644,17 @@ export function aggregateOrders<T extends AggregatableOrder>(
           b.quantity - a.quantity ||
           a.name.localeCompare(b.name) ||
           (a.productId ?? "").localeCompare(b.productId ?? ""),
+      )
+      .slice(0, topProductsLimit),
+    // Same three-way sort as `topProducts`, and for the same reason: once two
+    // rows can share a name, identity has to break the last tie or the row
+    // order depends on which order was read first.
+    topMenus: Object.values(menuAgg)
+      .sort(
+        (a, b) =>
+          b.quantity - a.quantity ||
+          a.name.localeCompare(b.name) ||
+          (a.comboProductId ?? "").localeCompare(b.comboProductId ?? ""),
       )
       .slice(0, topProductsLimit),
     byDay: Object.values(days).sort((a, b) => a.date.localeCompare(b.date)),

@@ -258,6 +258,8 @@ function XReportTab() {
       <section>
         <h3 className="mb-2 text-sm font-semibold text-foreground">Top produits</h3>
         <TopProductsList items={data?.topProducts ?? []} />
+        <h3 className="mb-2 mt-5 text-sm font-semibold text-foreground">Menus composés</h3>
+        <TopProductsList items={data?.topMenus ?? []} emptyLabel="Aucun menu vendu." />
       </section>
 
       <GivenAway
@@ -495,6 +497,11 @@ type SalesReport = {
   voucherTotal: number;
   days: { date: string; sales: number; orders: number; items: number }[];
   topProducts: { productId: string | null; name: string; quantity: number; total: number }[];
+  // L-77 (R2.2) — menus sold, counted once per menu and identified by
+  // `comboProductId`. Beside `topProducts`, which counts the components a
+  // menu explodes into, and beside `itemsCount`, which counts a menu as one
+  // article. The three answer different questions and all three are right.
+  topMenus: { comboProductId: string | null; name: string; quantity: number; total: number }[];
   // DD-20 / L-50 (Batch 7.4a) — beside the sales, never inside them.
   givenAwayCount: number;
   givenAwayItemsCount: number;
@@ -748,6 +755,10 @@ function SalesTab() {
               </h3>
               <div className="scroll-thin max-h-72 overflow-y-auto">
                 <TopProductsList items={data.topProducts} />
+                <h3 className="mb-3 mt-5 text-sm font-semibold text-foreground">
+                  Menus composés
+                </h3>
+                <TopProductsList items={data.topMenus} emptyLabel="Aucun menu vendu." />
                 <GivenAway
                   count={data.givenAwayCount}
                   items={data.givenAwayItemsCount}
