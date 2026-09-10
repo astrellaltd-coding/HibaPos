@@ -25,6 +25,43 @@ nobody may break.
 
 ## Completed in this cycle
 
+### R0.1 — the first restorable backup this installation has ever had
+**Done:** 2026-09-10 · **Commit:** *(this commit)* · **Finding:** L-46 (High half closed)
+
+**What changed:** no code. The **operator** created the backup from the Sauvegardes screen —
+`createBackup()` writes a `Backup` row, which is a production write Claude does not make.
+
+**How it was verified**, read-only and in this order:
+1. The `Backup` row exists: `hibapos-backup-2026-09-10T20-42-30-159Z.dbenc`, 733 228 bytes,
+   `encrypted=1`, with `imagesPath` pointing at `hibapos-media-4b5ed80dca201113.enc`.
+2. Both files are on disk — the database and **49 MB of catalogue images**.
+3. **It decrypts under the current key**, via `scripts/decrypt-backup.ts` into the session
+   scratchpad. Its sha256 came back
+   `1b49743e6ef9e1c2647caf81e9d8d40234d3086b4890b35d045f67f237188ed4` — **identical to the
+   checksum recorded in the row**. AES-GCM authenticates, so this cannot be a false positive.
+4. The decrypted file is valid SQLite: `integrity_check` ok, **0** foreign-key errors.
+5. Its contents are complete: 81 products, 14 categories, 6 menus composés with 19 slots /
+   6 whitelist rows / 7 option rules, 10 option groups, 49 choices, 21 add-ons, 2 users,
+   18 settings, 12 migrations.
+6. The decrypted plaintext copy was **deleted** — an unencrypted production database is not
+   left lying in a temp directory.
+
+**Why it mattered:** every one of the nine older files in `db/backups/` predates the
+2026-09-07 secret rotation and no longer decrypts, and the `Backup` table was empty, so the
+application listed none of them. Until this ran, the catalogue — which `CLAUDE.md` calls
+irreplaceable — existed only as `db/custom.db`, its OneDrive history, and seven plaintext
+snapshots.
+
+**Left behind:** **a backup nobody has opened is a hope, not a copy** — verify by decrypting,
+never by seeing a file appear. And the operator still has to get a copy of this one **off
+this machine**: a backup on the same disk as the database survives neither a disk failure nor
+a ransomware event.
+
+*Measured in passing: `Product` moved 80 → 81. The operator created `5 nuggets test`
+(Croustillants, 5,00 €, `active=0`, `available=0`) while testing. It is invisible on the till
+and harmless — recorded as **L-81** rather than deleted, because the catalogue is the
+operator's and safety rule 1 says record, do not fix.*
+
 ### PHASE 1 — the documents tell the truth again
 **Done:** 2026-09-10 · **Commits:** `cb8534a`, `54eb3d4`, `aaf885a`, `7a25ca7` · **Findings:** none
 

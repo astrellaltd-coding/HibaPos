@@ -17,16 +17,18 @@ Completed work lives in **`REMEDIATION_DONE.md`**. This file only ever shows out
 **Overall:** NOT READY FOR PRODUCTION. The software is essentially complete; what remains is
 a short list of real defects, a documentation reconciliation, and hardware.
 
-**Current phase:** **Phase 0 — make the data survivable.** Nothing has started.
+**Current phase:** **Phase 2 — the reporting batch.** Approved 2026-09-10, not yet started.
 
-**Current task:** **R0.1** — the operator takes a backup from the Sauvegardes screen; Claude
-verifies it read-only afterwards. Claude works Phase 1 onward in the meantime.
+**Current task:** **R2.1** — key product aggregation by identity, not by name.
+**Phase 2 is APPROVED to start** (operator, 2026-09-10), including R2.2's `comboProductId`.
 
-**Blocked:** R0.2, R0.3 and R0.4 wait on R0.1 — nothing is deleted until a restorable copy
-exists. Everything from Phase 1 down can start immediately.
+**Phase 1 is COMPLETE. R0.1 is COMPLETE** — the first restorable backup this installation
+has ever had, taken by the operator and verified 2026-09-10. R0.2 / R0.3 / R0.4 were blocked
+on it and are now free, **but they are Phase 0 and need their own go-ahead**: § 2's rule is
+that a phase boundary stops the work.
 
-**Awaiting the operator:** a verified backup (R0.1), and the accountant's written line on
-the VAT allocation method (§ 8).
+**Awaiting the operator:** getting a copy of the verified backup **off this machine**, and
+the accountant's written line on the VAT allocation method (§ 8).
 
 **Deployment is deferred.** The app will ship as a **Tauri v2 native application**, and that
 migration has its own plan which does not exist yet. Everything about installing on a
@@ -226,11 +228,11 @@ something going wrong.
 | Trading tables | **All zero.** Order, OrderItem, Payment, Receipt, Refund, Shift, ZReport, FiscalEvent, GrandTotal, DailyClose, MonthlyClose, AnnualClose, CashMovement, Customer, Table. |
 | Fiscal counters | `0 / 0 / 0 / 0` (receipt / shift / Z / event). Journal **empty**. |
 | Fiscal chain | **Empty and UNKEYED**, which is correct here. Arming is the restaurant machine's step, after its own reset. |
-| Catalogue | **80 products in 14 categories**, verified intact through the reset. **6 menus composés · 19 slots · 6 whitelist rows · 7 option rules.** All 17 drinks in `Canette`/`Bouteilles` correctly resolve to 5,5 % à emporter and 10 % sur place. |
+| Catalogue | **81 products in 14 categories** *(was 80 until 2026-09-10, when the operator created `5 nuggets test` — inactive and unavailable, so invisible on the till; see L-81)*, verified intact through the reset. **6 menus composés · 19 slots · 6 whitelist rows · 7 option rules.** All 17 drinks in `Canette`/`Bouteilles` correctly resolve to 5,5 % à emporter and 10 % sur place. |
 | Accounts | Two: `manager` (MANAGER) and `admin` (SUPER_ADMIN, the developer's). `CASHIER` was removed from the product. Both must re-enter their own PIN for a discount above 20 % and for **every** refund. |
 | Journal mode | `delete`, not WAL — the guard refuses WAL on this OneDrive path, deliberately. It will switch to WAL the first time the database sits under a non-synced root. |
 | Settings | `factice=true`, `printerEnabled=true`, `printerHost=""`, `printerConnection` **absent** (defaults to `network`). So every print attempt today answers *« Renseignez l'adresse IP »*, and an IP was never the answer — the Sunso WTP-801 is on USB type-B. Setting `printerConnection=usb` and picking the queue is R6.4. |
-| Backups | **`Backup` table empty. Nine files (~126 MB) on disk, all pre-rotation, none decrypts.** There is no restorable copy of this database. See R0.1. |
+| Backups | **One verified restorable backup, 2026-09-10** — `hibapos-backup-2026-09-10T20-42-30-159Z.dbenc` (733 228 B) plus `hibapos-media-4b5ed80dca201113.enc` (49 MB of images). Decrypted under the current key, sha256 matched the recorded checksum exactly, `integrity_check` ok, 0 FK errors, full catalogue present. **The nine older files (~126 MB) still do not decrypt** — all pre-rotation — and R0.2 deletes them. |
 
 ---
 
@@ -255,11 +257,12 @@ A `DONE` row leaves this file for `REMEDIATION_DONE.md`.
 
 ### Phase 0 — Make the data survivable
 
-*There is no restorable backup of this database. Everything else waits behind this.*
+*R0.1 is done — a verified, restorable backup now exists (2026-09-10). The three deletions
+below were blocked on it and are now free, **but they are their own phase and need their own
+go-ahead.** The operator should still get a copy of that backup off this machine.*
 
 | ID | Status | Task |
 |---|---|---|
-| **R0.1** | `OPERATOR` | **Take a backup under the current keys and prove it opens.** The **operator** creates it from the Sauvegardes screen — `createBackup()` writes a `Backup` row, which is a production write Claude does not make. Claude then verifies read-only: the row exists, the file is on disk, and it decrypts with `scripts/decrypt-backup.ts` against its recorded checksum. Then get it off this machine. **A backup nobody has opened is a hope, not a copy.** |
 | **R0.2** | `TODO` | **Delete the nine dead backup files** in `db/backups/` (~126 MB). Three legacy `.json` and three `.dbenc`/`.uploads.enc` pairs, all pre-rotation. **Strictly after R0.1.** |
 | **R0.3** | `TODO` | **Delete `HibaPOS-copie-essai/`** (492 files, 58 MB), after recording its four pre-positioned settings in `REMEDIATION_DONE.md`: `factice=false`, `printerEnabled=false`, `printerConnection="usb"`, `printerQueue=""`. Verified 2026-09-10 to hold nothing unique. |
 | **R0.4** | `TODO` | **Remove `db/custom.db.before-dupfix-2026-09-08`** — a second plaintext production database on a OneDrive-synced path. Check it against `../db-snapshots/` first; it may be the only copy of that state. |
@@ -337,9 +340,10 @@ rule 1). Audit IDs are never renamed.
 | **L-79** | Low | A failed `tar` import silently produces an image-less backup with no journal entry. | R4.1 |
 | **L-80** | Low | `CartAddOn.id` is nullable but the checkout schema requires a string. Latent, not live. | R4.2 |
 | **L-71** | Low | The sliding session tracker logs a Prisma error for a write it deliberately ignores. | R4.3 |
+| **L-81** | Cosmetic | A test product, `5 nuggets test` (Croustillants, 5,00 €), was created in the live catalogue on 2026-09-10 and left `active=0` / `available=0`. Invisible on the till and harmless, but the catalogue is meant to be real work only — and it is now inside the verified backup. Delete it with the operator, or keep it deliberately. | none |
 | **L-39** | Cosmetic | Fourteen catalogue names carry stray whitespace and render indented on the till. | R4.4 |
 | **L-69** | Medium | Three products bundle a sealed drink into one fixed price taxed wholly at 10 %, the opposite treatment from the six menus. Over-declares, so it errs safe. | R3.3 |
-| **L-46** | **High** | `Backup` holds zero rows while nine files sit on disk — and since the 2026-09-07 rotation none of them decrypts. **There is no restorable backup.** | R0.1, R0.2 |
+| **L-46** | Low | ◐ **Half closed 2026-09-10.** The High half is gone: a verified restorable backup now exists, decrypted under the current key with its checksum matched. What remains is housekeeping — nine pre-rotation files (~126 MB) still sit in `db/backups/`, still do not decrypt, and are still listed by nothing. | R0.2 |
 | **L-75** | Deferred | The app cannot run on a 32-bit Windows: both Prisma engines are `machine 0x8664` and Bun is x64/ARM64 only. **Carried to the Tauri v2 phase**, where the runtime and the packaging are both decided. No software fix at this layer. | none |
 | **L-05** | Deferred | `output: "standalone"` was dropped; whether to reinstate it deliberately is open. | none |
 | **L-11** | Deferred | Two payment tolerances disagree (`paid < total - 1` vs `- 0.01`, both on integer cents); dialog resets run on uncleaned timers. `payment-dialog.tsx:86,128,377`. | none |

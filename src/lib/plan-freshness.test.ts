@@ -93,8 +93,8 @@ describe("plan freshness — the plan and the done file may not disagree", () =>
     // rather than `> 0`: the previous parser skipped four rows and `> 0` was
     // satisfied by the nine it could see.
     const src = plan();
-    expect(taskStatuses(src).size).toBe(22);
-    expect(openFindings(src).size).toBe(15);
+    expect(taskStatuses(src).size).toBe(21);
+    expect(openFindings(src).size).toBe(16);
     expect(done()).toContain("# HibaPOS France — Completed Work");
   });
 
