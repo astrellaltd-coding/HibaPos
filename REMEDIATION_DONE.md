@@ -199,6 +199,102 @@ masking an `orderNumber` field `CheckoutInput` does not have; both casts were re
   name alone, so two identity-keyed rows now read as two identical labels on screen and in
   the CSV. The figures are right and the label is the remaining half.
 
+### PHASE 2 MIGRATION — `OrderItem.comboProductId` and `OrderItem.referencePrice`
+**Done:** 2026-09-10 · **Commit:** `b50f97c` · **Findings:** carries R2.2's and R2.3's columns
+
+ONE migration for the whole phase, so the operator runs `prisma migrate deploy` against
+production **once**. Both columns nullable, neither with a `DEFAULT`, because null is
+meaningful in both — `comboProductId` null means « not part of a menu », `referencePrice`
+null means « no prorata happened here ». A `DEFAULT 0` on the second would assert a
+catalogue price of nothing; same argument and same treatment as `perpetualSalesTotal`.
+
+Hand-written. `prisma migrate diff --from-migrations prisma/migrations --to-schema-datamodel
+prisma/schema.prisma` reports **no difference detected**.
+
+**How it was verified — the rehearsal.** Applied to a copy, never to production. The copy was
+taken with `VACUUM INTO` through a **read-only** connection rather than by copying bytes,
+because a dev server was writing to the live file at the time and a byte copy can catch a
+torn page. Fingerprint diff over every table before and after — row counts, column order,
+indexes, `FiscalCounter`, `GrandTotal`, every fiscal event hash, every sealed row, every
+order line, the catalogue, `integrity_check`, FK errors — reports **exactly three
+differences, all intended**:
+
+| | before | after |
+|---|---|---|
+| `OrderItem` columns | 16 | 18 — **appended**, every existing column unchanged *in place* |
+| `_prisma_migrations` rows | 12 | 13 |
+
+`integrity_check` ok and 0 FK errors on both sides. Production re-read afterwards and
+**untouched**: still 16 `OrderItem` columns, still 12 migrations, no `-wal`/`-shm` beside it.
+
+**Left behind:** **the operator must stop the app before running this.** A running
+`next dev` / `next start` holds an open handle on the SQLite file and on
+`query_engine-windows.dll.node` — it is what made `bunx prisma generate` fail `EPERM`
+throughout this session.
+
+### R2.2 + R2.3 — menus are countable, and their VAT split is justifiable
+**Done:** 2026-09-10 · **Commit:** `4d504be` · **Findings:** L-77, L-78 (both closed)
+
+One commit for both: they share `b50f97c`'s migration, they touch the same five lines of the
+combo checkout path, and one test file covers both.
+
+**What changed — R2.2 / L-77.** A menu is sold at one forfait and booked as one line per
+component, because `OrderItem.vatRate` is the only place a rate lives. `comboGroupId` /
+`comboName` / `comboPrice` tie those lines back together and **the receipt renderer was
+their only reader**, so « how many Menu Chill did I sell? » had no answer anywhere.
+`comboProductId` is the menu's identity — counting by `comboName` would have reproduced
+L-76 one level up. `aggregateOrders` gains `topMenus`, grouped by `comboGroupId` and counted
+in both the sale branch and the correction branch, with `topProducts`' rule: a refund moves
+the money and never the count.
+
+**`itemsCount` and `topProducts` are unchanged, and that is the resolution rather than a gap
+in it.** The plan named their disagreement — one counts a menu as one article, the other its
+three components. Neither is wrong; they answer different questions, and the third question
+had no answer at all. Pinned in a test so a later batch that "fixes the disagreement" has to
+do it deliberately.
+
+**What changed — R2.3 / L-78.** `referencePrice` stores each component's standalone
+catalogue price for the order type: the *weight* the forfait was divided in proportion to,
+beside the share the division produced. Null where no division happened.
+
+**The operator's decision, 2026-09-10 — where menus are sealed.** Presented as three options
+with the permanence of each stated. Chosen: **the day / month / year close payload, beside
+the give-away figures, plus the reports and shift screens. The per-shift `CLOTURE_Z` journal
+payload is deliberately NOT grown a fourth time** — a menu count carries no tax (a menu's VAT
+lives on its component lines, its justification now in `referencePrice`), and no order is
+ever deleted, so the count stays recomputable. `close-timing.test.ts`'s pinned key list was
+amended deliberately in the same commit, with both zero-row preconditions **re-verified, not
+assumed**. The absence from `CLOTURE_Z` is pinned too.
+
+**How it was verified:** `src/lib/services/menu-reporting.test.ts`, 16 tests, 1257 → 1273 —
+the count moved only by tests added, and `README.md`'s pinned figure with it. Driven through
+`POST /api/orders`, `closeDay` and `computeShiftReport`, never over the pure allocator:
+`combo-allocation.test.ts` would go on passing if nothing stored the result, which is the
+defect Batch 5.8 shipped and 3.12 shipped again.
+
+**The revert — ten properties, each alone and in both directions. All ten are caught.** Two
+survived the first pass and were **real gaps, not no-ops**:
+
+1. **Grouping by `comboGroupId` vs by the menu product** is distinguishable *only* when two
+   of the same menu sit on ONE ticket — on separate orders the two groupings agree, and
+   every test sold one menu per order. Added that case; the reverted code reports **one**
+   Menu Chill for two.
+2. **The correction branch was never exercised** — no test had a refund at all. Added a
+   cross-period refund on a menu. Same class of gap as R2.1's, found the same way.
+
+**Left behind:**
+- **`topMenus` is in the sealed close payload and NOT in `CLOTURE_Z`.** Both halves are
+  decisions, both are pinned, and both freeze at the first real close.
+- **A menu's identity must be on *every* line of its group**, the fallback's single line
+  included, or a menu that could not be divided stops being countable as a menu.
+- **`referencePrice` is null where no prorata happened.** Null is the statement. Do not
+  backfill it and do not default it to 0.
+- **A new finding, L-83**, raised and not fixed (safety rule 1): `/api/reports/z` never sends
+  `givenAwayCount`, `givenAwayItemsCount` or `givenAwayProducts`, yet `ZReportDto` declares
+  all three and the Z detail panel renders them — so they are `undefined` at runtime today.
+  Found while deciding where to put `topMenus`; `topMenus` was deliberately kept out of that
+  DTO rather than becoming a fourth instance of the same defect.
+
 ---
 
 ## Carried forward — the 2026-09-03 → 2026-09-09 remediation

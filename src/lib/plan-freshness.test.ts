@@ -93,10 +93,15 @@ describe("plan freshness — the plan and the done file may not disagree", () =>
     // rather than `> 0`: the previous parser skipped four rows and `> 0` was
     // satisfied by the nine it could see.
     const src = plan();
-    // 21 → 20 on 2026-09-10: R2.1's row moved to `REMEDIATION_DONE.md`. The
-    // findings count is unchanged at 16 — L-76 closed with it and L-82 opened.
-    expect(taskStatuses(src).size).toBe(20);
-    expect(openFindings(src).size).toBe(16);
+    // Both counts are edited only after measuring what actually moved against
+    // the previous commit, never adjusted to make a run go green.
+    //
+    // 2026-09-10, Phase 2, in two steps:
+    //   21 → 20 tasks, 16 findings — R2.1 done; L-76 closed, L-82 opened.
+    //   20 → 18 tasks, 16 → 15 findings — R2.2 and R2.3 done; L-77 and L-78
+    //   closed, L-83 opened.
+    expect(taskStatuses(src).size).toBe(18);
+    expect(openFindings(src).size).toBe(15);
     expect(done()).toContain("# HibaPOS France — Completed Work");
   });
 
