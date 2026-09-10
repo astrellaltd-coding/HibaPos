@@ -38,6 +38,8 @@ import {
   periodOrdersWhere,
   periodAggregateOptions,
   periodCashMovementsWhere,
+  type TopProduct,
+  type GivenAwayProduct,
 } from "@/lib/services/aggregate";
 import { TX_FISCAL } from "@/lib/tx-options";
 import { SOFTWARE_NAME, SOFTWARE_VERSION } from "@/lib/version";
@@ -337,7 +339,7 @@ type PeriodAgg = {
   cashOutTotal: number; // cents
   cashMovementsCount: number;
   vatBreakdown: VatBreakdown;
-  topProducts: { name: string; quantity: number; total: number }[]; // total in cents
+  topProducts: TopProduct[]; // total in cents
   // DD-20 / L-50 (Batch 7.4a): what was GIVEN AWAY in the period, beside what
   // was sold — never inside `salesCount`, which is the operator's choice.
   //
@@ -352,7 +354,7 @@ type PeriodAgg = {
   // `itemsCount`, so a give-away item count would be the only one of its kind
   // in a sealed document.
   givenAwayCount: number;
-  givenAwayProducts: { name: string; quantity: number }[];
+  givenAwayProducts: GivenAwayProduct[];
 };
 
 async function aggregatePeriod(from: Date, to: Date): Promise<PeriodAgg> {

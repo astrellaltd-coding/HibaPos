@@ -250,7 +250,7 @@ export type DashboardDto = {
   cardSales: number;
   currentShift: ShiftDto | null;
   hourly: { hour: number; sales: number; orders: number }[];
-  topProducts: { name: string; quantity: number; total: number }[];
+  topProducts: { productId: string | null; name: string; quantity: number; total: number }[];
   topCategories: { name: string; color: string; revenue: number; quantity: number }[];
   paymentBreakdown: { method: string; amount: number; count: number }[];
   recentOrders: OrderDto[];
@@ -283,13 +283,13 @@ export type XReportDto = {
   openingFloat: number;
   expectedCash: number;
   vatBreakdown: Record<string, { ht: number; vat: number; ttc: number }>;
-  topProducts: { name: string; quantity: number; total: number }[];
+  topProducts: { productId: string | null; name: string; quantity: number; total: number }[];
   // DD-20 / L-50 (Batch 7.4a) — what was GIVEN AWAY, beside what was sold.
   // A give-away is a 100 % discount settled with the OFFERT tender; it is
   // never inside `topProducts` or the sales counts, by the operator's choice.
   givenAwayCount: number;
   givenAwayItemsCount: number;
-  givenAwayProducts: { name: string; quantity: number }[];
+  givenAwayProducts: { productId: string | null; name: string; quantity: number }[];
   generatedAt: string;
 };
 
@@ -326,13 +326,13 @@ export type ZReportDto = {
   closingFloat: number;
   cashVariance: number;
   vatBreakdown: Record<string, { ht: number; vat: number; ttc: number }>;
-  topProducts: { name: string; quantity: number; total: number }[];
+  topProducts: { productId: string | null; name: string; quantity: number; total: number }[];
   // DD-20 / L-50 (Batch 7.4a) — what was GIVEN AWAY, beside what was sold.
   // A give-away is a 100 % discount settled with the OFFERT tender; it is
   // never inside `topProducts` or the sales counts, by the operator's choice.
   givenAwayCount: number;
   givenAwayItemsCount: number;
-  givenAwayProducts: { name: string; quantity: number }[];
+  givenAwayProducts: { productId: string | null; name: string; quantity: number }[];
   fiscalEventId: string | null;
 };
 

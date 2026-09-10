@@ -41,11 +41,42 @@ import type { OrderStatus } from "@prisma/client";
 import { OFFERT } from "@/lib/tender-policy";
 
 export type AggregatableItem = {
+  /**
+   * L-76 (R2.1) — the product's IDENTITY, which is what the per-product
+   * aggregation below keys on. `productName` is a snapshot of the label at
+   * sale time and is not unique: this catalogue carries three live pairs
+   * sharing a name at different prices (Coca, Fanta and Orangina each exist
+   * as a 1,50 € canette and a 3,50 € bouteille), so keying by name merged two
+   * different products into one row — and that row is sealed into a Z report
+   * that can never be corrected.
+   *
+   * Nullable because `OrderItem.productId` is: the relation is
+   * `onDelete: SetNull`, so deleting a product from the catalogue detaches the
+   * sales it made without rewriting them. A row that has lost its id falls
+   * back to the name, which is the best identity still on the record, and is
+   * exactly what `reports/products/route.ts` has always done.
+   *
+   * Optional so a hand-built fixture need not supply one; every Prisma row has
+   * the column, and `AGGREGATE_INCLUDE`'s `items: true` already selects it.
+   */
+  productId?: string | null;
   productName: string;
   quantity: number;
   lineTotal: number;
   vatRate: number | null;
 };
+
+/**
+ * The key a product aggregates under — L-76 (R2.1).
+ *
+ * One function rather than four call sites, because the two accumulators below
+ * (`topProducts` and `givenAwayProducts`) and the two branches that feed each
+ * of them must key identically or a correction lands in a different bucket
+ * from the sale it corrects.
+ */
+function productKey(item: AggregatableItem): string {
+  return item.productId ?? item.productName;
+}
 
 export type AggregatablePayment = { method: string | null; amount: number };
 export type AggregatableRefund = {
@@ -74,6 +105,35 @@ export type AggregatableOrder = {
   refunds: AggregatableRefund[];
 };
 
+/**
+ * One row of `topProducts` — L-76 (R2.1).
+ *
+ * `productId` is carried because these rows are SEALED, into `ZReport
+ * .topProductsJson` and into every close payload. Once the aggregation keys by
+ * identity, a period that sold both Cocas produces two rows both labelled
+ * « Coca », and a sealed document that states two different figures under one
+ * label with nothing to tell them apart is its own kind of unreadable. The id
+ * is the thing that distinguishes them, so the document records it.
+ *
+ * Null for a line whose product has since been deleted from the catalogue —
+ * see `AggregatableItem.productId`. Same shape as the rows
+ * `reports/products/route.ts` returns, so the two reports now agree on what a
+ * product row IS as well as on how it is counted.
+ */
+export type TopProduct = {
+  productId: string | null;
+  name: string;
+  quantity: number;
+  total: number;
+};
+
+/** DD-20's give-away row. Identity-keyed for the same reason as `TopProduct`. */
+export type GivenAwayProduct = {
+  productId: string | null;
+  name: string;
+  quantity: number;
+};
+
 export type PeriodAggregate = {
   /** Net of refunds — what the customers actually paid, in cents. */
   salesTotal: number;
@@ -100,7 +160,7 @@ export type PeriodAggregate = {
    *  40 € refund and a day with eight 5 € refunds are different days. */
   refundsCount: number;
   vatBreakdown: VatBreakdown;
-  topProducts: { name: string; quantity: number; total: number }[];
+  topProducts: TopProduct[];
   /** Per-day sales, net of refunds, keyed YYYY-MM-DD in local time. */
   byDay: { date: string; sales: number; orders: number; items: number }[];
 
@@ -125,7 +185,7 @@ export type PeriodAggregate = {
   /** Items on those orders. */
   givenAwayItemsCount: number;
   /** What was given away, most-given first — the "which dishes" half of DD-20. */
-  givenAwayProducts: { name: string; quantity: number }[];
+  givenAwayProducts: GivenAwayProduct[];
 };
 
 /**
@@ -287,12 +347,14 @@ export function aggregateOrders<T extends AggregatableOrder>(
   let discountsTotal = 0;
   let totalRefunded = 0;
   const vatBreakdown: VatBreakdown = {};
-  const productAgg: Record<string, { name: string; quantity: number; total: number }> = {};
+  // L-76 (R2.1): keyed by `productKey(item)` — the product's id, or its name
+  // only when the id is gone. NOT by name, which is not unique.
+  const productAgg: Record<string, TopProduct> = {};
   const days: Record<string, { date: string; sales: number; orders: number; items: number }> = {};
   // DD-20: kept in their own accumulators, never mixed into the ones above.
   let givenAwayCount = 0;
   let givenAwayItemsCount = 0;
-  const givenAwayAgg: Record<string, { name: string; quantity: number }> = {};
+  const givenAwayAgg: Record<string, GivenAwayProduct> = {};
 
   // Payments and refunds are taken across EVERY order whose sale is in the
   // period, including fully refunded ones: their payment and their refund
@@ -340,10 +402,11 @@ export function aggregateOrders<T extends AggregatableOrder>(
 
       order.items.forEach((item, idx) => {
         addVatMoveToBreakdown(vatBreakdown, before.lineNets[idx], after.lineNets[idx], item.vatRate ?? 10);
-        productAgg[item.productName] ??= { name: item.productName, quantity: 0, total: 0 };
+        const key = productKey(item);
+        productAgg[key] ??= { productId: item.productId ?? null, name: item.productName, quantity: 0, total: 0 };
         // Revenue moves, quantity does not: nothing was sold or un-sold here,
         // so a correction must not change how many of a product went out.
-        productAgg[item.productName].total += after.lineNets[idx] - before.lineNets[idx];
+        productAgg[key].total += after.lineNets[idx] - before.lineNets[idx];
       });
 
       if (opts.createdAtOf) {
@@ -383,8 +446,9 @@ export function aggregateOrders<T extends AggregatableOrder>(
         givenAwayCount += 1;
         givenAwayItemsCount += order.itemCount;
         for (const item of order.items) {
-          givenAwayAgg[item.productName] ??= { name: item.productName, quantity: 0 };
-          givenAwayAgg[item.productName].quantity += item.quantity;
+          const key = productKey(item);
+          givenAwayAgg[key] ??= { productId: item.productId ?? null, name: item.productName, quantity: 0 };
+          givenAwayAgg[key].quantity += item.quantity;
         }
       }
       continue;
@@ -398,9 +462,10 @@ export function aggregateOrders<T extends AggregatableOrder>(
     order.items.forEach((item, idx) => {
       const netLineTotal = after.lineNets[idx];
       addVatMoveToBreakdown(vatBreakdown, 0, netLineTotal, item.vatRate ?? 10);
-      productAgg[item.productName] ??= { name: item.productName, quantity: 0, total: 0 };
-      productAgg[item.productName].quantity += item.quantity;
-      productAgg[item.productName].total += netLineTotal;
+      const key = productKey(item);
+      productAgg[key] ??= { productId: item.productId ?? null, name: item.productName, quantity: 0, total: 0 };
+      productAgg[key].quantity += item.quantity;
+      productAgg[key].total += netLineTotal;
     });
 
     if (opts.createdAtOf) {
@@ -442,14 +507,29 @@ export function aggregateOrders<T extends AggregatableOrder>(
     totalRefunded,
     refundsCount: refunds.length,
     vatBreakdown,
+    // L-76 (R2.1): the name is no longer a unique tiebreak — two rows can
+    // legitimately share one — so identity breaks the last tie. Without it the
+    // order of two equal-quantity rows called « Coca » would fall back to the
+    // order the orders happened to arrive in, and a sealed document should not
+    // have a row order that depends on that.
     topProducts: Object.values(productAgg)
-      .sort((a, b) => b.quantity - a.quantity || a.name.localeCompare(b.name))
+      .sort(
+        (a, b) =>
+          b.quantity - a.quantity ||
+          a.name.localeCompare(b.name) ||
+          (a.productId ?? "").localeCompare(b.productId ?? ""),
+      )
       .slice(0, topProductsLimit),
     byDay: Object.values(days).sort((a, b) => a.date.localeCompare(b.date)),
     givenAwayCount,
     givenAwayItemsCount,
     givenAwayProducts: Object.values(givenAwayAgg)
-      .sort((a, b) => b.quantity - a.quantity || a.name.localeCompare(b.name))
+      .sort(
+        (a, b) =>
+          b.quantity - a.quantity ||
+          a.name.localeCompare(b.name) ||
+          (a.productId ?? "").localeCompare(b.productId ?? ""),
+      )
       .slice(0, topProductsLimit),
   };
 }

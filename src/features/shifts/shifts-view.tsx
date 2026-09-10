@@ -351,7 +351,7 @@ type ZReportSummary = {
   closingFloat: number;
   cashVariance: number;
   vatBreakdown: Record<string, { ht: number; vat: number; ttc: number }>;
-  topProducts: { name: string; quantity: number; total: number }[];
+  topProducts: { productId: string | null; name: string; quantity: number; total: number }[];
   generatedAt: string;
 };
 

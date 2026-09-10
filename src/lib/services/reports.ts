@@ -10,6 +10,8 @@ import {
   shiftOrdersWhere,
   shiftAggregateOptions,
   shiftCashMovementsWhere,
+  type TopProduct,
+  type GivenAwayProduct,
 } from "@/lib/services/aggregate";
 import { nextZReportNumber } from "@/lib/services/sequence";
 import { appendFiscalEvent, perpetualSnapshot } from "@/lib/services/fiscal";
@@ -64,14 +66,14 @@ export type SalesReport = {
   openingFloat: number; // cents
   expectedCash: number; // cents
   vatBreakdown: VatBreakdown;
-  topProducts: { name: string; quantity: number; total: number }[]; // total in cents
+  topProducts: TopProduct[]; // total in cents
   // DD-20 / L-50 (Batch 7.4a): what this till gave away, beside what it sold.
   // Never inside `salesCount` or `topProducts` — the operator chose that so
   // "average spend per meal" stays truthful and "top products" keeps meaning
   // what SOLD.
   givenAwayCount: number;
   givenAwayItemsCount: number;
-  givenAwayProducts: { name: string; quantity: number }[];
+  givenAwayProducts: GivenAwayProduct[];
 };
 
 /**

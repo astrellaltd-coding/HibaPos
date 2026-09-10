@@ -494,11 +494,11 @@ type SalesReport = {
   cardTotal: number;
   voucherTotal: number;
   days: { date: string; sales: number; orders: number; items: number }[];
-  topProducts: { name: string; quantity: number; total: number }[];
+  topProducts: { productId: string | null; name: string; quantity: number; total: number }[];
   // DD-20 / L-50 (Batch 7.4a) — beside the sales, never inside them.
   givenAwayCount: number;
   givenAwayItemsCount: number;
-  givenAwayProducts: { name: string; quantity: number }[];
+  givenAwayProducts: { productId: string | null; name: string; quantity: number }[];
 };
 
 function SalesTab() {
