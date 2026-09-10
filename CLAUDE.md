@@ -1,18 +1,51 @@
 # HibaPOS France — read this first
 
-This repository runs a real French restaurant's point of sale, under fiscal record-keeping obligations. Two documents govern all work here.
+A point-of-sale system for a French restaurant, under fiscal record-keeping obligations.
+Next.js 16 + React 19 + Prisma/SQLite. **It has never traded. Nothing has shipped.**
 
-1. Open `REMEDIATION_PLAN.md` and read **everything above its first stage heading** before doing anything. It says where to resume, what is waiting on whom, and what must not be broken. **Then read one more thing: `REMEDIATION_RECORD.md` → *Methods established by earlier batches*** — nine methods this project learned the hard way, and the only part of the record that is required reading rather than evidence. It lived in the plan's front matter until 2026-09-07 and moved when that front matter hit its size ceiling; it did not become optional by moving. The rest of the record is the verbatim evidence for every completed batch: slice it by heading, do not read it whole.
-2. Never run `bunx vitest`, `npx vitest` or `git clean`, and never run a script in `scripts/` without reading it and the plan's *Immediate warnings* first. **`bun run test:e2e` was on this list and came off it on 2026-09-07**, because it was fixed by Batch 6.3 and this rule had simply never been updated — for two days it contradicted the plan's own warning 2. It is safe, and it is safe for reasons you can check in about a minute before running it: `tests/e2e/env.ts` refuses any database path outside the OS temp directory *before* anything is created or wiped; `playwright.config.ts` runs `next start` with an environment it passes explicitly, so the real `.env` is never loaded; and `tests/e2e/00-disposable-database.spec.ts` runs first and fails the whole suite if the server answers with a production operator. **If any of those three is gone, the suite is dangerous again** — it used to write orders and sealed Z reports into the production hash chain — so check, then run.
-3. Never write to `db/custom.db` or to real menu data. Validate on a scratch copy with **both** `DATABASE_URL` and `HIBAPOS_DATA_DIR` overridden (record → *Methods established by earlier batches*).
-4. `prisma migrate deploy` against production, killing processes and edits to the live catalogue are the operator's actions: prepare, rehearse, verify, then hand over the exact command. `git push` only when the user asks for it in the session.
-5. Do one batch, record it as the plan's *HOW TO USE THIS FILE* says, commit, and stop.
-6. **THE OWNER GETS A TRIAL COPY — reinstated 2026-09-09, reversing the cancellation of that morning.** The owner keeps taking real money on his existing till; a copy of HibaPOS goes to him so he can **simulate his selling like real sales**, tell us what is wrong, and we improve before the final release. Earlier drafts of this rule said the trial was cancelled and that no copy goes to the restaurant. **That is no longer true, and this rule is the current one.**
+## How to work here
 
-   **The operator chose to run the trial with FACTICE OFF**, deliberately, so the chain and the hashing behave exactly as they will in production. **The consequence is the most important sentence in this file: « they will not be used fiscally » is an intention the software cannot enforce.** Every simulated sale is journalled as a genuine `VENTE`, sealed into the hash chain, counted by the fiscal counters and added to the grand total — `factice` is **not** one of `computeEventHash`'s inputs, so nothing in the journal distinguishes a trial sale from a real one. **The wipe is what makes them non-fiscal, and there is no per-sale undo:** `Order` and `Receipt` carry no factice flag at all, only `FiscalEvent` does.
+1. **Open `REMEDIATION_PLAN.md` and read all of it.** It is the only plan — the current
+   task, the working loop, the methods, the invariants, the open findings. Finished work is
+   in `REMEDIATION_DONE.md`: read it to learn *how* something was done, never to find out
+   what to do next.
 
-   **Therefore § 6 runs TWICE, and the second one is not optional:** once here before the copy is shipped, so the owner starts clean — and **again on the owner's machine at the end of the trial, before the first real sale**, followed by arming the chain key (§ 6e) and only then § 6f. A trial that ends without that second wipe opens the restaurant with phantom trading sealed into its journal.
+2. **Do one item from the plan.** Only what is in that item. Anything else you notice goes
+   into the plan's *Open findings* table — you do not fix it now.
 
-   **From the moment that copy is installed, the restaurant's database is the master.** Any menu, price or setting the owner edits during the trial exists only there. **Never ship a second fresh copy over it** — changes travel by `.zscripts\update.ps1 -Apply` from then on, never by copying a database.
+3. **Then, in this order:** `bun run test` · `bun run typecheck` · `bun run lint` — all three
+   green. Commit. Push. Move the item's row into `REMEDIATION_DONE.md` with its commit sha
+   and how you verified it. Update *Current task* at the top of the plan. Stop and report.
 
-   For the small work there is a third document, `docs/CHANGES-LOG.md`: a UI tweak, a label, a small feature gets a row there instead of a batch, one change per commit, each reversible on its own. **Anything touching money, VAT, the fiscal journal, the chains, closes, archives, backups or authentication is still a batch** and still goes through the plan. The commissioning sequence is `docs/mise-en-service.md`; **its § 6 now runs TWICE** — once before the trial copy ships and once on the owner’s machine before the first real sale (rule 6) — and § 6f is the moment every rule here tightens. *(This sentence said “exactly once” until 2026-09-09; the trial is what changed it.)*
+## The five things you must not do
+
+- **Never write to `db/custom.db` or to real menu data.** Work on a scratch copy with
+  **both** `DATABASE_URL` and `HIBAPOS_DATA_DIR` overridden, and prove which database the
+  server has open before the first write (plan § 2, *Scratch copy*).
+- **Never run `bunx vitest`, `npx vitest`, or `git clean`.** `bun run test` is the runner.
+- **Never delete or weaken a test to make something pass.** If a pinned number fails, the
+  number is what to check.
+- **Never claim French fiscal or legal compliance.** Not from a passing test, not anywhere.
+- **Never edit this file without asking the operator first.** It changes whenever the
+  project needs it to, but the operator decides what it says. Bring the exact text and wait.
+
+## Two things only the operator does
+
+`bunx prisma migrate deploy` against production, and edits to the live catalogue. Prepare
+the change, rehearse it on a copy, verify it, then hand over the exact command.
+
+## Where things stand
+
+The software is essentially complete and has never been deployed. **Deployment is deferred:
+the app will ship as a Tauri v2 native application, and that migration has its own plan
+which does not exist yet.** Anything about installing on a Windows till, kiosk launchers or
+commissioning sessions was retired on 2026-09-10 — if you find some, it is stale.
+
+What still has to happen before the restaurant's first real sale is fiscal, not technical,
+and it is in the plan under *Before the first real sale*. `scripts/pre-golive-reset.ts`
+empties the fiscal journal; it runs **once**, after testing and before the first genuine
+sale, and the operator runs it.
+
+`bun run test:e2e` is safe — it builds its own disposable database under the OS temp
+directory and refuses to start otherwise. The plan's § 5 says what makes it safe and what
+would make it dangerous again.
