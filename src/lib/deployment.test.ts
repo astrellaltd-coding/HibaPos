@@ -222,7 +222,11 @@ describe("the server launcher refuses a bun it cannot see (Batch 1.4b)", () => {
     expect(src).toContain("INTROUVABLE");
     expect(src).toMatch(/-ServerAccount/);
     expect(src).toMatch(/PATH systeme/);
-    expect(src).toContain("mise-en-service.md");
+    // Was `mise-en-service.md` until 2026-09-10, when the commissioning runbook
+    // was retired with the Windows-till deployment model. The assertion is not
+    // dropped: what it guards is that the refusal names somewhere to GO, and a
+    // pointer to a deleted file is worse than none.
+    expect(src).toContain("REMEDIATION_PLAN.md");
   });
 
   it("logs WHICH bun it found even when it succeeds", () => {
@@ -278,7 +282,7 @@ describe("the server launcher refuses a repo that was never built (Batch 1.4c)",
     expect(guardBlock, "the build guard does not call Fail").toMatch(/Fail @"/);
     expect(guardBlock).toContain("bun run build");
     expect(guardBlock).toContain("build.ps1");
-    expect(guardBlock).toContain("mise-en-service.md");
+    expect(guardBlock).toContain("REMEDIATION_PLAN.md");
   });
 });
 

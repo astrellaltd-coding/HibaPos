@@ -123,7 +123,7 @@ if (-not $env:DATABASE_URL)   { Fail "DATABASE_URL absente." }
 # --- refusal 4: bun must be on this account's PATH --------------------------
 # Checked before the database and the migrations because nothing below works
 # without it, and because this is the failure the commissioning runbook calls
-# the most likely one: `docs/mise-en-service.md` section 0. The same three ways
+# the most likely one. The same three ways
 # out are printed by `install-windows.ps1`'s dry run.
 $bunCmd  = Get-Command bun  -ErrorAction SilentlyContinue
 $bunxCmd = Get-Command bunx -ErrorAction SilentlyContinue
@@ -141,7 +141,7 @@ UTILISATEUR est invisible pour SYSTEM. Trois options, au choix :
   a) installer bun pour toute la machine, hors profil utilisateur ;
   b) reenregistrer la tache avec -ServerAccount <compte> ;
   c) copier bun.exe dans C:\HibaPOS\bin et ajouter ce dossier au PATH systeme.
-Voir .zscripts\install-windows.ps1 et docs\mise-en-service.md section 0.
+Voir .zscripts\install-windows.ps1 et REMEDIATION_PLAN.md.
 "@
 }
 Write-Log ("bun found: {0}" -f $bunCmd.Source)
@@ -163,7 +163,7 @@ Depuis le dossier d'installation ($ProjectDir) :
 ou, tout en un :
     powershell -ExecutionPolicy Bypass -File .zscripts\build.ps1
 Puis relancez la tache : Start-ScheduledTask -TaskName "HibaPOS Server"
-Voir docs\mise-en-service.md section 0b.
+Voir REMEDIATION_PLAN.md.
 "@
 }
 Write-Log ("production build present: {0}" -f (Get-Content $BuildId -Raw).Trim())
