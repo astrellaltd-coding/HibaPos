@@ -1,13 +1,35 @@
 # Change log — final tweaks, and everything after go-live
 
-**Where we are — rewritten 2026-09-09, because the original framing went stale.**
-The application is **not installed**, **§ 6 has not run**, and **nothing has
-traded**. Delivery did not happen on the evening of 2026-09-08 as the first
-version of this paragraph said. **The plan is to finish the work here, then
-install the finished application over an AnyDesk session and run
-`docs/mise-en-service.md` — § 6 included — at that point.** No copy goes to the
-restaurant before then. *(A three-day parallel trial on the owner's existing till
-was considered on 2026-09-08 and **cancelled on 2026-09-09**.)*
+**Where we are — rewritten 2026-09-10. The paragraph this replaces is kept
+below, because two of its statements are now wrong in different ways.**
+
+The application is **not installed**, the fiscal reset has **not** run, and
+**nothing has traded**. What changed on 2026-09-10:
+
+- **The client trial is dropped**, for the second and final time. No copy goes
+  to the restaurant before the final version. *(The paragraph below said the
+  trial was "cancelled on 2026-09-09" — which was true when written, then
+  false when it was reinstated later that same day, and is true again now for
+  an unrelated reason. It is retired rather than edited.)*
+- **The Windows-till deployment model is withdrawn.** The app will ship as a
+  **Tauri v2 native application**. `docs/mise-en-service.md` — the
+  commissioning runbook the paragraph below points at — was retired that day
+  and no longer exists. What still has to happen before the first real sale is
+  fiscal, not technical, and it lives in `REMEDIATION_PLAN.md`.
+- **`REMEDIATION_PLAN.md` and `REMEDIATION_RECORD.md` were consolidated** into
+  `REMEDIATION_PLAN.md` (outstanding work) and `REMEDIATION_DONE.md` (finished
+  work).
+
+Retired verbatim, 2026-09-10:
+
+> **Where we are — rewritten 2026-09-09, because the original framing went stale.**
+> The application is **not installed**, **§ 6 has not run**, and **nothing has
+> traded**. Delivery did not happen on the evening of 2026-09-08 as the first
+> version of this paragraph said. **The plan is to finish the work here, then
+> install the finished application over an AnyDesk session and run
+> `docs/mise-en-service.md` — § 6 included — at that point.** No copy goes to the
+> restaurant before then. *(A three-day parallel trial on the owner's existing till
+> was considered on 2026-09-08 and **cancelled on 2026-09-09**.)*
 
 This file carries on either side of that, because the reason for keeping it is
 the same: if a screen misbehaves in the restaurant, there should be one short
