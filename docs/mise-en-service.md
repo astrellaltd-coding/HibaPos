@@ -9,13 +9,21 @@ at the till. Everything the owner has to *see* or *touch* is marked **[OWNER]**.
 
 > ## The one step that cannot be undone
 >
-> **§ 6 empties the fiscal journal. It runs once, before the restaurant's first
-> real sale, and never after one.** From that sale onwards the journal is
+> **§ 6 empties the fiscal journal. It runs before the restaurant's first real
+> sale, and never after one.**
+>
+> ⚠ **It now runs TWICE, corrected 2026-09-09.** Once on the developer machine
+> before the trial copy ships — done 2026-09-10 — and **again on the owner's
+> machine at the end of his trial, before his first real sale**. The trial runs
+> with FACTICE **off** by the operator's decision, so nothing in the journal
+> distinguishes a trial sale from a real one and the second run is what makes
+> them non-fiscal. `CLAUDE.md` rule 6 carries the full statement. From that sale onwards the journal is
 > append-only and clearing it is precisely the deletion
 > `docs/attestation-conformite.md` states is impossible.
 >
 > Everything rung up before § 6 — every demo, every test print — **must have
-> FACTICE on** (§ 4). FACTICE does *not* keep a sale out of the journal; nothing
+> FACTICE on** (§ 4), **except the owner's trial copy**, which the operator
+> decided on 2026-09-09 to run with it off so his tickets are not stamped. FACTICE does *not* keep a sale out of the journal; nothing
 > can, and a mode that could would be a fraud tool. It stamps the ticket
 > *FACTICE — SIMULATION / TICKET NON VALABLE* and flags the journal row, so § 6
 > deletes it cleanly and no test ticket can ever be mistaken for a real one.
@@ -28,10 +36,10 @@ at the till. Everything the owner has to *see* or *touch* is marked **[OWNER]**.
 |---|---|
 | ⚠ **Bun installed machine-wide** — not under a user profile | **The most likely way this session goes wrong**, and **the development machine FAILS this check** — measured 2026-09-07, see below. The server task runs as `SYSTEM`, which cannot see `%USERPROFILE%\.bun` or `%APPDATA%\npm`. **The failure used to be silent**: the task « runs », the launcher never found bun, the till never came up. **Batch 1.4b made it loud** — the launcher now refuses *before* it uses bun, writes a `FATAL` line naming the account and both commands, and prints the three ways out; it also logs which bun it found when it succeeds, so `server.log` answers this question either way. **Check it before travelling** with `where bun`. **What was measured here:** bun resolves to `%APPDATA%\npm\bun.ps1` and `%APPDATA%\npm` sits on the **user** PATH only — the machine PATH has no bun at all — which is exactly the case `SYSTEM` cannot see. The real binary is `%APPDATA%\npm\node_modules\bun\bin\bun.exe`, 98 MB, which is what makes option (c) a two-minute fix. The installer's dry run offers all three: machine-wide install, `-ServerAccount <compte>`, or that `bun.exe` copied into `C:\HibaPOS\bin` with that folder added to the **system** PATH — read that warning, do not scroll past it. |
 | ⚠ **The `.env` you carry must be the ROTATED one** | `SESSION_SECRET` and `BACKUP_ENCRYPTION_KEY` were rotated 2026-09-07. Carrying an older `.env` means the backups written on the till cannot be opened with the keys anyone holds. **This one PASSES on the development machine** — verified 2026-09-07 against the pre-rotation copy: both values are 64 characters and both differ from it. § 6a re-checks it at the step that depends on it, and has the command. |
-| ~~The printer’s **IP address**~~ — **NOT NEEDED, corrected 2026-09-09** | The printer is on a **USB type-B cable**, not the network (Batch 1.3d). No IP to fix, no DHCP lease to worry about. What replaces it: the **printer driver**, installed on the till over AnyDesk — **§ 4a.1**, which carries the `pnputil` commands to move the package from the developer machine. |
+| ~~The printer’s **IP address**~~ — **NOT NEEDED, corrected 2026-09-09** | The printer is on a **USB type-B cable**, not the network (Batch 1.3d). No IP to fix, no DHCP lease to worry about. What replaces it: the **printer driver**, installed on the till over remote access (RustDesk since 2026-09-10; AnyDesk before it) — **§ 4a.1**, which carries the `pnputil` commands to move the package from the developer machine. |
 | ~~The printer on the **same network**~~ — **the printer plugged into the till by USB**, powered, with paper | Same correction. What matters instead: `Get-Printer` on the till must show a queue whose `PortName` starts with **`USB`**. A queue parked on `COM1:` looks fine, accepts the job, reports success and prints nothing (§ 4a.1). |
 | A **second volume** for `BACKUP_LOCATION` — USB drive, NAS share, anything not the system disk | A backup on the same disk as the database is not a backup (C-06). |
-| The repository on the machine, plus dependencies and a **production build** | **This is § 0b, and it is more than one step** — the code comes from git, but `db/custom.db` and the rotated `.env` are carried by hand, and `bun install` / `prisma generate` / `bun run build` all have to happen before § 2's reboot. |
+| The app folder on the machine, plus dependencies and a **production build** | **This is § 0b, and it is more than one step.** Since 2026-09-10 the code travels as a **57 MB folder of only what runs** — no plans, no docs, no tests — copied over remote access; the till needs no git. `db\custom.db` and the rotated `.env` are carried separately, and `bun install` / `prisma generate` / `bun run build` all have to happen before § 2's reboot. |
 | **[OWNER]** available at the till for §§ 4 and 7 | Somebody has to watch paper come out and a drawer open — that is § 4's print and drawer test, and § 7's trading day. *(Read §§ 3 and 7 until 2026-09-08; § 3 is the FACTICE switch, which needs nobody watching.)* |
 
 **Not needed yet:** `FISCAL_CHAIN_KEY`. It is generated in § 6e, after the reset, and never before — and it is **not** one of the two secrets already rotated — § 6a only *checks* those now.
@@ -81,14 +89,69 @@ fetch code, install dependencies, or build. Nothing else did either, and § 0
 compressed all of it into "the repository on the machine" — which is how the gap
 stayed invisible until it was looked for (DOC-17, 2026-09-08).
 
+### The minimal install — what actually goes on the till (2026-09-10)
+
+**The till gets the files that RUN the app and nothing else.** No
+`REMEDIATION_PLAN.md`, no `REMEDIATION_RECORD.md` (1 MB on its own), no
+`IMPLEMENTATION_PLAN.md`, no `CLAUDE.md`, no `docs/`, no `tests/`, and no
+`*.test.ts` anywhere under `src/`. Two reasons, and the second is the one that
+matters: the restaurant does not need them, and a document whose first line
+reads **« Overall: NOT READY FOR PRODUCTION »** should not be sitting on the
+owner's till where he can open it.
+
+**`update.ps1 -NoGit` exists for exactly this shape** — its own comment says
+*"skip the git step when the code arrives some other way (a zip over remote
+access, which is likely for a machine with no git)"*. So a minimal, git-less
+install is a supported path, not a workaround. The till needs no git at all.
+
+**MEASURED, not listed from memory (2026-09-10).** The tree below was staged,
+then `bun install` (569 packages), `bunx prisma generate` and `bun run build`
+were run inside it, then it was started and driven over HTTP: `GET /api` → 200,
+`GET /api/auth/profiles` returned the carried catalogue's two accounts,
+`GET /api/print/printers` refused unauthenticated with 401, and
+`/manifest.webmanifest` served — so the PWA icon works from it too. Finally
+`defaultSpoolerScriptPath()` was resolved from inside the tree and
+`listWindowsPrinters()` returned the real queues, which is the one runtime
+dependency on `.zscripts` and the easiest thing to leave out by accident.
+
+| Goes on the till | Why |
+|---|---|
+| `src/` **minus every `*.test.ts` and `__snapshots__/`** | the application |
+| `public/` | the catalogue photographs and the PWA icons |
+| `prisma/` | schema and migrations — `migrate deploy` needs them |
+| `scripts/` | the operator's toolbox ON the till: `pre-golive-reset.ts` for § 6, `decrypt-backup.ts` for a restore |
+| `.zscripts/` | the launchers, the installer, `update.ps1` — **and `print-raw.ps1`, which the app spawns at runtime for every ticket** |
+| `package.json`, `bun.lock` | dependencies |
+| `next.config.ts`, `tsconfig.json`, `postcss.config.mjs`, `components.json`, `eslint.config.mjs` | the build reads all five |
+| `.env.example` | reference only, no secrets |
+
+**Left behind:** every root `*.md`, `docs/`, `tests/`, `playwright.config.ts`,
+`vitest.config.ts`, `test-setup.ts`, `bunfig.toml` (test-runner config only),
+`.github/`.
+
+**Carried separately, never inside the code folder:** `db\custom.db` and
+`.env`. The package is deliberately shipped with neither, and it was checked
+for both before it left — a `.env` or a database inside the code folder is how
+a secret reaches a machine nobody meant to put it on.
+
+**Size:** 57 MB, 489 files, of which about 49 MB is the product photographs.
+
+**If the code ever arrives by git instead**, everything above still applies —
+the exclusions are about what the restaurant needs to hold, not about how it
+travels.
+
+---
+
 ### What comes from git, and what you carry by hand
 
-The repository carries **579 tracked files, including the 139 catalogue images
-(47.7 MB)**. Two things it deliberately does not:
+**What travels is the prepared `app\` folder — 57 MB, 489 files** — not the git
+repository (579 tracked files, of which the plans and the record alone are
+1.4 MB). The two things it deliberately does **not** contain, and which you
+carry separately:
 
 | Carry by hand | Size | Why it is not in git |
 |---|---|---|
-| **`db/custom.db`** | **704 KB** | `/db/` is gitignored. **This is the restaurant's real catalogue and it exists nowhere else** — 78 products, their options and their VAT rates. Warning 4: treat it as irreplaceable. |
+| **`db/custom.db`** | **884 736 bytes** | `/db/` is gitignored. **The restaurant's real catalogue** — 80 products, 6 composed menus, their options and VAT rates. ⚠ **Check the SHA-256, not the size.** SQLite frees pages for reuse rather than returning them, so a wiped database is byte-for-byte the same SIZE as one full of orders: `(Get-FileHash <path> -Algorithm SHA256).Hash`. *(This row said 704 KB and 78 products until 2026-09-10.)* |
 | **`.env`** — the one rotated 2026-09-07 | 279 B | `.env*` is gitignored except `.env.example`. § 0's second prerequisite is about this file. |
 
 **That is the whole manual transfer: about 705 KB.** Do **not** copy
@@ -102,7 +165,10 @@ the first restorable one.
 
 ```powershell
 # 1. the code
-git clone <remote> C:\HibaPOS-app        # or copy the working tree
+#    copy the prepared folder over remote access:
+#      <transfer>\app\*   ->   C:\HibaPOS-app\
+#    57 MB / 489 files, ONLY what runs: no plans, no docs, no tests,
+#    no .env and no database. The till needs no git at all.
 cd C:\HibaPOS-app
 
 # 2. the two carried files, BEFORE anything else
@@ -128,10 +194,15 @@ two.
       launcher refuses loudly** and names the three commands above in
       `server.log` (refusal 5) — but it is a much better morning if it never
       fires.
-- [ ] `db\custom.db` is the **704 KB** file from the development machine, not a
-      new one. Check the size before going further: nothing here will create a
-      database, and a wrong path is answered by a refusal rather than an empty
-      till (L-59).
+- [ ] `db\custom.db` is the right file from the development machine, not a new
+      one — and **check its SHA-256, not its size**:
+      `(Get-FileHash C:\HibaPOS-app\db\custom.db -Algorithm SHA256).Hash`.
+      SQLite frees deleted pages for reuse rather than returning them, so the
+      wiped copy and one full of orders are **the same number of bytes** — a
+      size check cannot tell them apart and would pass on either. *(This line
+      said « the 704 KB file … check the size » until 2026-09-10.)* Nothing here
+      will create a database, and a wrong path is answered by a refusal rather
+      than an empty till (L-59).
 - [ ] **`DATABASE_URL` rewritten for THIS machine** — see the warning below. The
       carried `.env` points at the development machine.
 
@@ -282,7 +353,7 @@ which is not this restaurant's. Set the connection first, then do § 4.
 declares its hardware as `USBPRINT\SUNSOWTP-800036C` in `sunso.inf` — a USB
 printer-class device. Windows always drives those through a print queue.
 
-### 4a.1 — Install the driver on the till (over AnyDesk)
+### 4a.1 — Install the driver on the till (over RustDesk)
 
 The owner cannot do this; the developer does it remotely. **The driver is
 already installed on the developer machine**, so the package can travel.
@@ -294,7 +365,7 @@ pnputil /export-driver oem*.inf C:\HibaPOS-driver
 pnputil /enum-drivers | Select-String -Context 3,3 "sunso"
 ```
 
-Copy that folder to the till (AnyDesk file transfer), then, **as
+Copy that folder to the till (RustDesk file transfer), then, **as
 administrator** on the till:
 
 ```powershell
