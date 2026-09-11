@@ -286,9 +286,8 @@ go-ahead.** The operator should still get a copy of that backup off this machine
 | **R0.3** | `TODO` | **Delete `HibaPOS-copie-essai/`** (492 files, 58 MB), after recording its four pre-positioned settings in `REMEDIATION_DONE.md`: `factice=false`, `printerEnabled=false`, `printerConnection="usb"`, `printerQueue=""`. Verified 2026-09-10 to hold nothing unique. |
 | **R0.4** | `TODO` | **Remove `db/custom.db.before-dupfix-2026-09-08`** — a second plaintext production database on a OneDrive-synced path. Check it against `../db-snapshots/` first; it may be the only copy of that state. |
 
-*Phase 2 (the reporting batch) is complete and its migration applied — R2.1 `c9b9d23`,
-`b50f97c`, R2.2 + R2.3 `4d504be`. Full record in `REMEDIATION_DONE.md`; what it left behind
-is in § 3.*
+*Phase 2 is complete and its migration applied (`c9b9d23`, `b50f97c`, `4d504be`). Record in
+`REMEDIATION_DONE.md`; what it left behind is in § 3.*
 
 ### Phase 3 — « Use it on POS » — **R3.1 and R3.2 COMPLETE 2026-09-10** (`16e3415`)
 
@@ -309,37 +308,37 @@ is in § 3; its measured limit is **L-84** (a display rule, not a guard). Full r
 lands **the app cannot read its catalogue at all** — the generated client already expects
 `showOnPos`, so every product query fails.
 
-*Why the first attempt missed it: the deploy run on 2026-09-10 at 23:22 succeeded and applied
-**Phase 2's** migration. This file's SQL was not created until **23:35**. Every one of those
-console runs says `13 migrations found`; a run made after 23:35 says **14**. That count is
-the tell.*
+*Two attempts (2026-09-10, 2026-09-11) reported success and applied **Phase 2's** migration
+instead; this file's SQL did not exist until 23:35 on the 10th. `N migrations found` is the
+only tell — 13 means the old one, 14 means this one. Full account in `REMEDIATION_DONE.md`.*
 
-**1 — Take a restore point. Not optional.** Nothing on disk matches production's bytes: the
-newest encrypted backup (21:42) predates the 23:22 Phase 2 apply, so restoring it would undo
-Phase 2 too. App stopped and `journal_mode = delete`, so one file is the whole database:
+**1 — A restore point is not optional**, and nothing on disk currently matches production's
+bytes: the newest encrypted backup (21:42) predates the 23:22 Phase 2 apply, so restoring it
+would undo Phase 2 too. **2 — Nothing may hold the file** (no `node`/`bun`/`next`, no
+`-wal`/`-shm`/`-journal`). The script below does both, and refuses rather than continue.
 
-```
-Copy-Item db\custom.db ..\db-snapshots\custom.db.pre-r31-2026-09-11
-```
-
-Check the copy reads sha256 `47b33148dcbe081609ec24728662a32285e2252e3ed5f02dbde9c81178775c94`.
-It goes in `../db-snapshots/`, a **sibling** of the repo — § 2's rule.
-
-**2 — Confirm nothing holds the file:** no `node`/`bun`/`next` process, nothing on port 3000,
-no `-wal`/`-shm`/`-journal` beside `db/custom.db`. Check at the moment you run it.
-
-**3 — Run exactly this:**
+**3 — Run this. It says plainly whether it worked:**
 
 ```
-bunx prisma migrate deploy
+bun scripts/apply-migration.ts --apply --expect ../db-snapshots/r31-acceptance/fp-r31-after.json
 ```
 
-⚠ **Three destructive scripts sit beside `db:deploy` in `package.json`** — `db:migrate`
-(`migrate dev`, can offer to reset on drift), `db:reset` (drops everything, then seeds) and
-`db:push-force` (`--accept-data-loss`). None is ever right here.
+Dry run without `--apply`. It refuses if any node/bun process is running or a `-wal`/`-shm`/
+`-journal` sits beside the database; takes and sha-verifies the restore point itself; runs
+`prisma migrate deploy`; then names the migration actually applied and ends in
+**`✅ APPLIED AND VERIFIED`** or **`❌ NOT WHAT WAS EXPECTED`**. Re-running it after success
+prints `NOTHING PENDING`, so it is safe to run twice.
 
-Expect `14 migrations found` and `Applying migration 20260910233000_product_show_on_pos`. The
-whole migration is `ALTER TABLE "Product" ADD COLUMN "showOnPos" BOOLEAN NOT NULL DEFAULT true;`
+*It exists because `prisma migrate deploy` prints the same large green banner whichever
+migration it applied — twice in a row that banner was read as success for the wrong one.*
+
+The bare command still works if you prefer it (`bunx prisma migrate deploy` — expect
+`14 migrations found` and `Applying migration 20260910233000_product_show_on_pos`), but then
+do steps 1 and 2 by hand. ⚠ **Three destructive scripts sit beside `db:deploy` in
+`package.json`** — `db:migrate` (`migrate dev`, can offer to reset on drift), `db:reset`
+(drops everything, then seeds) and `db:push-force` (`--accept-data-loss`). None is ever right
+here. The whole migration is
+`ALTER TABLE "Product" ADD COLUMN "showOnPos" BOOLEAN NOT NULL DEFAULT true;`
 
 **4 — Verify, and NOT with a `SELECT`.** SQLite treats an unresolvable double-quoted
 identifier as a **string literal**, so `SELECT "showOnPos" FROM "Product"` returns the text
@@ -347,12 +346,10 @@ identifier as a **string literal**, so `SELECT "showOnPos" FROM "Product"` retur
 column exists. Use `PRAGMA table_info("Product")` (expect 18, `showOnPos` last) and
 `SELECT COUNT(*) FROM _prisma_migrations` (expect 14).
 
-**The real acceptance test.** The rehearsal ran from a copy fingerprint-identical to
-production's current content, using this exact `migration.sql` (sha256 `793a1b1c…82b3`,
-unchanged). So production fingerprinted *after* should equal the rehearsed after-state with
-**zero** differences. Script and both fingerprints are kept in `../db-snapshots/r31-acceptance/`:
-`bun run ../db-snapshots/r31-acceptance/fingerprint.ts db/custom.db > after.json`, then diff
-against `fp-r31-after.json`.
+**The real acceptance test** is the `--expect` flag above: the rehearsal ran from a copy
+fingerprint-identical to production's current content, so production fingerprinted *after*
+must equal the rehearsed after-state with **zero** differences. The script does that
+comparison; artefacts are in `../db-snapshots/r31-acceptance/`.
 
 **At risk if it goes wrong:** the **catalogue**, not the fiscal record — every trading and
 fiscal table holds zero rows. Non-zero: 81 products, 14 categories, 596 audit rows, the
@@ -363,10 +360,9 @@ not abort before it starts; no failed or rolled-back row to resolve; and `showOn
 **only** drift between `prisma/schema.prisma` and production, so this one command is the
 whole fix.
 
-**OneDrive is not running**, so no cloud version history is being captured — it is not a
-fallback restore path, which is why step 1 matters. When it next starts it will upload the
-changed file; a later « restore previous version » from the web UI would silently revert
-this migration and re-break the client.
+**OneDrive was not running**, so no cloud version history covers this — it is not a fallback
+restore path. And once it resumes, a later « restore previous version » from the web UI would
+silently revert the migration and re-break the client.
 
 #### R3.3 handover — the operator's procedure
 
@@ -386,21 +382,19 @@ and only à emporter. **The figures were not computed on the side:** `hidden-pro
 builds this shape and *sells it through `POST /api/orders`*, asserting the booked `vatTotal`,
 both rates, both `referencePrice` values and the unchanged total.
 
-**Do it in the catalogue editor, not in SQL.** The editor runs `validateComboShape` and
-`validateComboAgainstCatalogue`, which exist precisely to refuse a menu that would sell
-wrong; raw SQL bypasses both. For each of the three:
+**In the catalogue editor, not in SQL** — the editor runs `validateComboShape` and
+`validateComboAgainstCatalogue`, which refuse a menu that would sell wrong; SQL bypasses
+both. For each of the three:
 
-1. **New product** — the food half. Name it `Box 15 (sans boisson)` (etc.), category
-   **Croustillants**, price the figure above, TVA 10 %. **Turn « Vendre en caisse » OFF.**
-   That is R3.1's switch: it keeps the half off the till grid while leaving it sellable
-   inside the menu.
-2. **Edit the existing product** — `Box 15` itself. Leave its name, its price and its
-   category alone; the price *is* the forfait. Turn it into a **menu composé**.
-3. **Slot 1**, « Box 15 » — source category **Croustillants**, quantity 1, with **exactly one
-   choice**: the hidden food half. One choice means the cashier is never asked.
-4. **Slot 2**, « Boisson » — source category **Bouteilles** for Box 15 and Box 35,
-   **Canette** for Tenders box. Quantity 1, no explicit choices, so the whole category is
-   offered — the same shape the six existing menus already use.
+1. **New product**, the food half: `Box 15 (sans boisson)` etc., category **Croustillants**,
+   the price above, TVA 10 %, and **« Vendre en caisse » OFF** — R3.1's switch, which keeps
+   it off the grid while leaving it sellable inside the menu.
+2. **Edit the existing product** (`Box 15`): leave name, price and category alone — the price
+   *is* the forfait — and make it a **menu composé**.
+3. **Slot 1**, « Box 15 »: from **Croustillants**, quantity 1, **exactly one choice** (the
+   hidden half), so the cashier is never asked.
+4. **Slot 2**, « Boisson »: from **Bouteilles** (Box 15, Box 35) or **Canette** (Tenders
+   box), quantity 1, no explicit choices — the shape the six existing menus use.
 
 **Check afterwards, on one sale of each, à emporter:** two lines, not one; food at 10 % and
 drink at 5,5 %; the two totals summing to the forfait; the ticket total unchanged. A drink at

@@ -481,6 +481,59 @@ not a dormant state — it is a broken one, and the handover must say so.
 - **The plan is at its 40 960-byte ceiling.** Retiring Phase 2's section and the 2026-09-10
   history brought it back under; the next addition needs a matching retirement.
 
+### VERIFICATION (2nd) — still not applied, and a script so it cannot happen a third time
+**Done:** 2026-09-11 · **Commit:** *(adds `scripts/apply-migration.ts`)*
+**Amends:** the verification entry above, which corrected the first attempt.
+
+**Measured again, and unchanged in every respect:** production sha256 `47b33148…`, mtime
+still **2026-09-10 23:22:11.277**, 17 `Product` columns, 13 migration rows,
+`PRAGMA schema_version` still **167** — the pre-`ALTER` value. The file has not been written
+since the Phase 2 migration.
+
+**Two new lines of evidence, neither available the first time:**
+1. **PSReadLine's history file has not been written since 23:22 on the 10th**, and its last
+   entry is the old `bunx prisma migrate deploy`. No command has been typed in a ConsoleHost
+   PowerShell since. *(It records only ConsoleHost sessions, so this corroborates rather than
+   proves.)*
+2. **Every SQLite database on the machine was enumerated** — all roots under `Work`,
+   `Desktop`, `Documents`, `C:\HibaPOS`, `C:\HibaPOS-transfer`, excluding `node_modules`.
+   **Not one has `showOnPos`; not one has 14 migrations.** The migration has not been applied
+   anywhere, to any copy. That closes the « it landed somewhere else » hypothesis for good.
+
+**What was done about it.** Reporting « still not applied » a second time would have been
+true and useless. The failure is not in the command, it is in the loop around it:
+`prisma migrate deploy` prints the same large green banner whichever migration it applied,
+and the only thing distinguishing them is the small `N migrations found` line above it.
+
+`scripts/apply-migration.ts` makes the operation one step with an unmissable verdict. Dry run
+unless `--apply`, per this directory's convention. It refuses if any node/bun process runs or
+a `-wal`/`-shm`/`-journal` sits beside the database; takes and sha-verifies a restore point
+into `../db-snapshots/` and will not continue without one; runs `prisma migrate deploy`; then
+**names the migration actually applied** and ends in `✅ APPLIED AND VERIFIED` or
+`❌ NOT WHAT WAS EXPECTED`. With `--expect` it diffs the result against the rehearsal's
+fingerprint and demands zero material differences.
+
+**Rehearsed end to end on a scratch copy of production**: applied `20260910233000_product_show_on_pos`,
+17 → 18 `Product` columns, 13 → 14 migrations, and *« Fingerprint: IDENTICAL to the rehearsed
+post-migration state »*. Both refusal paths exercised (a `-wal` present; already-up-to-date).
+Production re-read afterwards and untouched.
+
+**One implementation note worth keeping.** The script reads through Prisma's
+`$queryRawUnsafe`, not `bun:sqlite`. Importing `bun:sqlite` needs Bun's types, and pulling
+those in project-wide collides with Node's `ReadableStream` in `app/uploads/[...path]/route.ts`
+— `tsc` went green→red→green establishing that. Reading through Prisma also means the file
+cannot address a path of its own even by accident. **It uses only raw queries and never a
+Prisma model**, deliberately: between preparing a migration and applying it the generated
+client expects a column the database lacks, so `product.findMany()` would fail there for that
+reason alone.
+
+**Left behind:**
+- **`scripts/apply-migration.ts` is the way to apply a migration here.** It is general, not
+  R3.1-specific.
+- **A green « successfully applied » banner is not evidence of applying the migration you
+  meant.** `N migrations found` is the tell, and it is easy to miss.
+- **The plan is at its 40 960-byte ceiling again.** Every addition now needs a retirement.
+
 ---
 
 ## Carried forward — the 2026-09-03 → 2026-09-09 remediation
