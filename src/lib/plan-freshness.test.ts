@@ -115,7 +115,13 @@ describe("plan freshness — the plan and the done file may not disagree", () =>
     //   Phase 0 and Phase 6 remain, neither started.
     //   2026-09-11, Phase 0: tasks 8 → 5 (R0.2, R0.3, R0.4), findings 11 → 10
     //   (L-46 closed with them). Only Phase 6's five OPERATOR rows remain.
-    expect(taskStatuses(src).size).toBe(5);
+    //   2026-09-11, Phase 7 OPENED on the operator's instruction: tasks 5 → 7
+    //   (R7.1 seals the give-away figures into the Z report — L-83; R7.2 renames
+    //   the two « Coca » products — L-82). This count goes UP because real work
+    //   was added, which is the one direction that is not a weakened assertion.
+    //   FINDINGS STAY AT 10: L-83 and L-82 were given an OWNER, not closed. They
+    //   leave § 7 when they are fixed, and this number drops to 8 then — not now.
+    expect(taskStatuses(src).size).toBe(7);
     expect(openFindings(src).size).toBe(10);
     expect(done()).toContain("# HibaPOS France — Completed Work");
   });

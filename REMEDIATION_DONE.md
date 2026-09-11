@@ -1103,3 +1103,38 @@ orphaned 22 more. Operator's call, 2026-09-11.*
 - **18 files in `src/components/ui/`, and there is no barrel.** No `index.ts` anywhere under
   `src/`, so a component's only reachable path is a direct import — which is what made the
   orphan analysis decidable.
+
+---
+
+## Retired from the plan's § 7 on 2026-09-11 — closed findings
+
+*§ 7 is the register of what is OPEN. These two were closed and were still sitting in it.*
+
+**Dissolved by the reset of 2026-09-10, and closed:** **L-14** (receipts archived at 80
+columns — `Receipt` now holds zero rows) and **L-60** (eighteen orders carrying no
+`fiscalEventId` — `Order` now holds zero rows). Neither can recur: both depended on rows the
+reset deleted, and every order written from now on is journalled.
+
+
+---
+
+## Retired from the plan's § 5 on 2026-09-11 — two applied scripts
+
+*Both had run and are idempotent; § 5 keeps a one-line pointer. What they check before
+writing is worth keeping, so it is kept here.*
+
+| `scripts/trim-catalogue-names.ts` | ✅ R4.4's trim. **Refuses** if trimming would make two siblings share a name. Addresses rows by **id**, never by name. Already applied; re-running prints `NOTHING TO TRIM`. |
+| `scripts/build-box-menus.ts` | ✅ R3.3's rebuild. Runs `validateComboShape` and `validateComboAgainstCatalogue` — the checks the catalogue editor runs and raw SQL bypasses — **before** writing, then prices each finished menu through the real `priceComboItem` and refuses to report success unless the booked VAT matches. Already applied; re-running reports « déjà un menu composé ». |
+
+---
+
+## Retired from the plan's front matter on 2026-09-11
+
+*How this plan came to exist — a past action, and the plan is for outstanding work.*
+
+It replaced `REMEDIATION_PLAN.md` (2 173 lines) and `REMEDIATION_RECORD.md` (5 595 lines) on
+2026-09-10, at the operator's instruction. Everything load-bearing from those two files —
+the nine methods, the hard invariants, the open findings, the answered decisions — was
+carried across into this document. The originals are recoverable in full from git
+(`git show HEAD~1:REMEDIATION_RECORD.md`); nothing was lost, only retired.
+

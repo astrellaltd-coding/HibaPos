@@ -2,12 +2,6 @@
 
 **This is the only plan. Read it top to bottom before touching anything.**
 
-It replaced `REMEDIATION_PLAN.md` (2 173 lines) and `REMEDIATION_RECORD.md` (5 595 lines) on
-2026-09-10, at the operator's instruction. Everything load-bearing from those two files —
-the nine methods, the hard invariants, the open findings, the answered decisions — was
-carried across into this document. The originals are recoverable in full from git
-(`git show HEAD~1:REMEDIATION_RECORD.md`); nothing was lost, only retired.
-
 Completed work lives in **`REMEDIATION_DONE.md`**. This file only ever shows outstanding work.
 
 ---
@@ -18,13 +12,16 @@ Completed work lives in **`REMEDIATION_DONE.md`**. This file only ever shows out
 this plan is fixed. What stands between here and ready is **fiscal first** — R6.1, R6.2 and
 R6.3 — but not *only* fiscal: R6.4 (printer driver and queue) and R6.5 (a backup on a second
 volume) are technical, and § 7's ten findings are open, six of them code-level. None of the
-ten blocks a first sale. *(This line used to read « entirely fiscal … every code defect is
-fixed », which § 7 of this same file contradicts.)*
+ten blocks a first sale.
 
 **Phases 0, 1, 2, 3, 4 and 5 are COMPLETE and applied**, including both operator items
-(R3.3 and R4.4, 2026-09-11) and both migrations. **Only Phase 6 remains**: five steps, all
-the operator's, in an order that is not a preference — arming the chain key before the reset
-makes the reset refuse.
+(R3.3 and R4.4, 2026-09-11) and both migrations.
+
+**Two phases remain, and Phase 7 runs FIRST.** Phase 7 (two rows, opened 2026-09-11) changes
+what a Z report seals, and that shape is free only while zero closes exist. Phase 6 (five
+rows, all the operator's) ends in real trading, which is what creates the first close. Doing
+Phase 6 first would mean racing the freeze. Within Phase 6 the order is not a preference
+either — arming the chain key before the reset makes the reset refuse.
 
 **Current task: none.** Phase 6 needs its own go-ahead — § 2's rule is that a phase boundary
 stops the work.
@@ -274,7 +271,7 @@ something going wrong.
   as well as loading `tar`, and **both** the plaintext `.tar.gz` and the incomplete `.enc`
   are unlinked (`backup.ts:356-357`). The reuse check is `existsSync(encPath)` on the
   **`.enc`** (`:326`), so it is the `.enc` unlink that defends it; the `.tar.gz` unlink is
-  hygiene. *(This line named only the `.tar.gz`, which is the one that does not.)*
+  hygiene.
 - **A reordered line carries REAL catalogue choice ids** (R4.7), resolved by name against the
   catalogue. `choiceId: ""` matches nothing in `pricing.ts` and silently drops the option.
 - **`sellableAlone` and `slotProducts` are a PAIR, and the asymmetry is deliberate.**
@@ -295,10 +292,10 @@ is responsible for saying when it was taken; where one does, believe the row, no
 
 | Thing | Value |
 |---|---|
-| Tests | **1312 pass, 0 fail**, 109 files. **Wall time varies wildly — 160 s to 510 s** on the same tree; it is not a regression signal, so do not chase it. `typecheck` and `lint` clean. **Zero `prisma:error` blocks** in a clean run, down from twelve (R4.3 + R4.6). **Nothing pins this table** — `readme-counts.test.ts` reads `README.md` and only `README.md`, so it pins the same 1312 *there*; the 109 is pinned nowhere. If these drift, no test fails. Re-measure. |
+| Tests | **1312 pass, 0 fail**, 109 files. **Wall time varies by 4x on the same tree — 135 s to 510 s observed**; not a regression signal, do not chase it. The `expect()` total drifts a little between runs too (4051-4070), for the same reason. `typecheck` and `lint` clean. **Zero `prisma:error` blocks** in a clean run, down from twelve (R4.3 + R4.6). **Nothing pins this table** — `readme-counts.test.ts` reads `README.md` and only `README.md`, so it pins the same 1312 *there*; the 109 is pinned nowhere. If these drift, no test fails. Re-measure. |
 | e2e | **13 passed** (measured 2026-09-07, not re-run since). `bun run test:e2e` is **safe** — see § 5. |
 | Production DB | sha256 `c265e6ffdea8f3795f8a9ed104827d677c14afa75f7f3e486c419146bb25ea28`, 884 736 bytes, app stopped. `integrity_check` ok, 0 FK errors, **14 migrations, none pending**, **18 `Product` and 18 `OrderItem` columns**. |
-| How to check it | **A sha is only a baseline while nothing is running** — a signed-in session used to write `Session.lastActivityAt` on every request; since R4.6 it writes at most once a minute, but it still writes. If the app may be up, check *structure*, not the hash. **File SIZE is not evidence**: an `ADD COLUMN` leaves it unchanged, measured. The sha256, the mtime and `PRAGMA schema_version` are what move. |
+| How to check it | **A sha is only a baseline while nothing is running** — a signed-in session still writes `Session.lastActivityAt`, at most once a minute since R4.6. If the app may be up, check *structure*, not the hash. **File SIZE is not evidence**: an `ADD COLUMN` leaves it unchanged, measured. The sha256, the mtime and `PRAGMA schema_version` are what move. |
 | Trading tables | **All zero.** Order, OrderItem, Payment, Receipt, Refund, Shift, ZReport, FiscalEvent, GrandTotal, DailyClose, MonthlyClose, AnnualClose, CashMovement, Customer, Table. |
 | Fiscal counters | `0 / 0 / 0 / 0` (receipt / shift / Z / event). Journal **empty**. |
 | Fiscal chain | **Empty and UNKEYED**, which is correct here. Arming is R6.2, after R6.1's reset and never before. |
@@ -306,9 +303,9 @@ is responsible for saying when it was taken; where one does, believe the row, no
 | Accounts | Two: `manager` (MANAGER) and `admin` (SUPER_ADMIN, the developer's). `CASHIER` was removed from the product. Both must re-enter their own PIN for a discount above 20 % and for **every** refund. |
 | Journal mode | `delete`, not WAL — the guard refuses WAL on this OneDrive path, deliberately. It will switch to WAL the first time the database sits under a non-synced root. |
 | Settings | `factice=true`, `printerEnabled=true`, `printerHost=""`, `businessDayCutoffHour=5`. **`printerConnection` and `printerQueue` are both absent**, so `printerConnection` defaults to `network` and every print attempt answers *« Renseignez l'adresse IP »* — and an IP was never the answer, the Sunso WTP-801 is on USB type-B. Setting both is **R6.4**. |
-| Backups | **TWO verified restorable backups**, both in `db/backups/` (3 files, 49 MB): `hibapos-backup-2026-09-10T20-42-30-159Z.dbenc` and `hibapos-backup-2026-09-11T12-40-36-138Z.dbenc`, sharing one `hibapos-media-4b5ed80dca201113.enc` (49 MB of images — the fingerprint was unchanged, so the second reused it). **Both were decrypted to verify**, not assumed. The 2026-09-11 one matches production table for table. The nine pre-rotation files were deleted by R0.2. |
+| Backups | **TWO verified restorable backups**, both in `db/backups/` (3 files, 49 MB): one from 2026-09-10 20:42 UTC and one from 2026-09-11 12:40 UTC, sharing a single media archive (49 MB — the fingerprint was unchanged, so the second reused it). **Both were decrypted to verify**, not assumed; the 2026-09-11 one matches production table for table. R0.2 deleted the nine pre-rotation files. |
 | ⚠ Backup gap | **Both backups sit on the same disk as the database they protect.** One failure takes all three. Getting a copy off this machine is still **awaiting the operator**. |
-| Other copies | `../db-snapshots/` holds **14 plaintext databases**, 11 MB: 13 loose snapshots plus `real-data.db` in `real-data-backup.pre-cents-port.2026-09-01T17-13-56Z/`, which still carries a `-wal`/`-shm` pair. Also `r31-acceptance/`'s fingerprints. *(Said 13 until 2026-09-11 and never named that directory. This row inventories every unencrypted copy of real catalogue data on this disk — a missed one is the error it cannot afford.)* `../HibaPOS-docs-archive/` holds **three** files: the two R0.3 would have destroyed, plus a `README.md` mapping which runbook sections are live. **Read it before Phase 6, not the runbook cold** (§ 1). |
+| Other copies | `../db-snapshots/` holds **14 plaintext databases**, 11 MB: 13 loose snapshots plus `real-data.db` in `real-data-backup.pre-cents-port.2026-09-01T17-13-56Z/`, which still carries a `-wal`/`-shm` pair. Also `r31-acceptance/`'s fingerprints. *(This row inventories every unencrypted copy of real catalogue data on this disk; it said 13 until 2026-09-11.)* `../HibaPOS-docs-archive/` holds **three** files: the two R0.3 would have destroyed, plus a `README.md` mapping which runbook sections are live. **Read it before Phase 6, not the runbook cold** (§ 1). |
 
 ---
 
@@ -320,29 +317,27 @@ is responsible for saying when it was taken; where one does, believe the row, no
 | `bun run typecheck` | ✅ `tsc --noEmit`, covers `scripts/`. |
 | `bun run lint` | ✅ `eslint .`, covers `scripts/`. |
 | `bun run build` | ✅ Requires `SESSION_SECRET` in env or it throws at import. |
-| `bun run test:e2e` | ✅ **Safe, and verify it stays so.** Three properties make it safe: `tests/e2e/env.ts` refuses any database path outside the OS temp directory *before* anything is created; `playwright.config.ts` runs `next start` with an env it passes explicitly, so the real `.env` is never loaded; and `tests/e2e/00-disposable-database.spec.ts` runs first and fails the suite if a production operator answers `GET /api/auth/profiles`. **If any of those three is gone, this suite is dangerous again** — it used to write orders and sealed Z reports into the production hash chain. |
+| `bun run test:e2e` | ✅ **Safe, and verify it stays so.** Three properties make it safe: `tests/e2e/env.ts` refuses a database path outside the OS temp directory *before* anything is created; `playwright.config.ts` passes `next start` an explicit env, so the real `.env` never loads; and `00-disposable-database.spec.ts` runs first and fails the suite if a production operator answers `GET /api/auth/profiles`. **If any of the three is gone this suite is dangerous again** — it used to write orders and sealed Z reports into the production chain. |
 | `bunx vitest` / `npx vitest` | ❌ Refuses to run, by design (`vitest.config.ts` throws at import — this one already defends itself). |
 | `git clean` | ❌ Never. |
 | `bun run db:reset` · `db:push-force` · `db:push` · `db:seed` · `db:migrate` · `db:deploy` | ❌ **Never, from this directory.** They read `.env`, whose `DATABASE_URL` is an absolute path to `db/custom.db` — **the live catalogue**. `db:reset` drops and re-seeds; `db:push-force` is `--accept-data-loss`. **Nothing guards any of them.** Schema changes go through `scripts/apply-migration.ts`. Fine on a scratch copy with **both** env vars overridden. |
 | `bun run dev` · `.zscripts/dev.ps1` · `bun run start` | ❌ **Never, from this directory** — same reason. `dev.ps1` also runs `db:deploy` and `db:seed` when `db/custom.db` is absent. Use `bunx next start` on the scratch copy (§ 2). |
 
-*Added 2026-09-11. Until then the only ❌ entries were `bunx vitest` — which already refuses
-on its own — and `git clean`, while the commands that could actually destroy the catalogue
-were missing from the register a session is told to trust.*
+*Added 2026-09-11: until then this register listed no refusal for any command that could
+actually destroy the catalogue.*
 
-**The three operator scripts added on 2026-09-11. Every one is a DRY RUN unless given
-`--apply`, takes its own sha-verified restore point into `../db-snapshots/`, and verifies
-itself afterwards rather than reporting success on an exit code.**
+**The operator scripts. Every one is a DRY RUN unless given `--apply`, takes its own
+sha-verified restore point into `../db-snapshots/`, and verifies itself afterwards instead
+of trusting an exit code.**
 
-> **The ✅ on these three means « fit for purpose », not « harmless ».** All three derive
-> their target from `DATABASE_URL`, which is the live database — given `--apply` they
-> write to it. They are the operator's to run. That is a different ✅ from `bun run test`.
+> **✅ here means « fit for purpose », not « harmless ».** They derive their target from
+> `DATABASE_URL` — the live database — and with `--apply` they write to it. The operator's
+> to run. A different ✅ from `bun run test`.
 
 | Script | What it is for |
 |---|---|
 | `scripts/apply-migration.ts` | ✅ **How a migration is applied here from now on.** Refuses if any node/bun process is running or a `-wal`/`-shm`/`-journal` sits beside the database; **names the migration it actually applied**; ends `✅ APPLIED AND VERIFIED` or `❌`. It exists because `prisma migrate deploy` prints the same green banner whichever migration it ran, and that was misread twice. `--expect <fingerprint.json>` diffs the result against a rehearsal. |
-| `scripts/trim-catalogue-names.ts` | ✅ R4.4's trim. **Refuses** if trimming would make two siblings share a name. Addresses rows by **id**, never by name. Already applied; re-running prints `NOTHING TO TRIM`. |
-| `scripts/build-box-menus.ts` | ✅ R3.3's rebuild. Runs `validateComboShape` and `validateComboAgainstCatalogue` — the checks the catalogue editor runs and raw SQL bypasses — **before** writing, then prices each finished menu through the real `priceComboItem` and refuses to report success unless the booked VAT matches. Already applied; re-running reports « déjà un menu composé ». |
+| `scripts/trim-catalogue-names.ts` · `scripts/build-box-menus.ts` | ✅ **Both already applied** (R4.4, R3.3) and idempotent — re-running prints `NOTHING TO TRIM` / « déjà un menu composé ». What each one checks before writing is in `REMEDIATION_DONE.md`. |
 | `scripts/pre-golive-reset.ts` | ⚠ **R6.1. Runs ONCE, and never after a genuine sale.** The operator's, not Claude's. |
 
 ---
@@ -355,6 +350,17 @@ A `DONE` row leaves this file for `REMEDIATION_DONE.md`.
 *Phases 0-5 are complete; their records are in `REMEDIATION_DONE.md`. Nothing from them is
 outstanding except the two items under § 1 « Awaiting the operator ». Their four blocks were
 moved out on 2026-09-11 — this section is for work that remains.*
+
+### Phase 7 — Two reporting defects — **RUNS BEFORE PHASE 6**
+
+*Numbered 7 because it was opened last (operator, 2026-09-11); it runs **first**. R7.1 changes
+what a Z report seals, and the sealed shape is free only while zero closes exist — it freezes
+at the first real close, and Phase 6 ends in real trading.*
+
+| ID | Status | Task |
+|---|---|---|
+| **R7.1** | `TODO` | **Seal the give-away figures into the Z report — closes L-83.** `ZReportDto` declares `givenAwayCount`/`givenAwayItemsCount`/`givenAwayProducts`; the GET in `api/reports/z` maps stored columns only and sends none of them, and `ZReport` has no column for them. `GivenAway` (`reports-view.tsx:143`) opens `if (!count) return null` — `undefined` is falsy, so the « Offerts » block is **silently absent** from every sealed Z report rather than erroring. **Operator's decision 2026-09-11: seal them**, mirroring `topProductsJson` — a sealed figure stays what it was; a recomputed one follows whatever the aggregator says that day. Nullable, and nothing to backfill (zero Z reports). Rehearse the migration here; the operator applies it with `apply-migration.ts`. Test what the **route sends** and what a Z report **reads back out of the database**, not the aggregator alone — and keep the X report working. |
+| **R7.2** | `OPERATOR` | **Rename the two « Coca » products — closes L-82.** Two rows are named exactly `Coca`: 1,50 € in *Canette*, 3,50 € in *Bouteilles*. R2.1 already keys the aggregation by `productId`, so the **figures were always right** — only the label was ambiguous, on screen and in the CSV. Operator's choice 2026-09-11: distinct catalogue names rather than a code-side label. **Residual, recorded not fixed:** reports still label by name, so two products sharing one would read as one again. |
 
 ### Phase 6 — Before the first real sale
 
@@ -373,9 +379,8 @@ held four rows.)*
 | **R6.4** | `OPERATOR` | **Configure the printer:** install the driver, set `printerConnection=usb`, then pick the queue from the list in Réglages. **There is nothing to re-enable** — `printerEnabled` is `true` in production today and has never been turned off; this row used to end « then re-enable `printerEnabled` », sending the operator to look for a switch that is already where it should be. Today `printerConnection` and `printerQueue` are both **absent**, so it defaults to `network` with an empty host and every print answers *« Renseignez l'adresse IP »* — and an IP was never the answer. **The procedure is `../HibaPOS-docs-archive/runbook-complet.md` § 4a** — the `pnputil` export/install commands and the hardware id `USBPRINT\SUNSOWTP-800036C` from `sunso.inf`. It is the only place the steps are written down — read `../HibaPOS-docs-archive/README.md` first to see which of its sections are still live. |
 | **R6.5** | `OPERATOR` | **Point `BACKUP_LOCATION` at a second volume.** Unset, backups land beside the database on the same disk, so one failure takes the data and every copy of it together. |
 
-**What is NOT here, deliberately:** the till hardware, the Windows install, the kiosk
-launcher, the pre-built tree and the update path. All of that belongs to the Tauri v2
-migration and none of it is this plan's business.
+**Not here, deliberately:** the till hardware, the Windows install, the kiosk launcher, the
+pre-built tree, the update path. All of it belongs to the Tauri v2 migration.
 
 ## 7. OPEN FINDINGS
 
@@ -384,21 +389,16 @@ rule 1). Audit IDs are never renamed.
 
 | ID | Severity | Finding | Owner |
 |---|---|---|---|
-| **L-82** | Cosmetic | The product list renders the name alone (`src/components/shared/report-widgets.tsx:141`, `src/lib/csv-export.ts:54`), so the two rows R2.1 correctly separates read as two identical « Coca » labels on screen and in the CSV. Figures right, label ambiguous. `productId` is in the payload, so a fix has what it needs; the open question is what a human should see. | none |
-| **L-83** | Low | `/api/reports/z` never sends `givenAwayCount`/`givenAwayItemsCount`/`givenAwayProducts`, yet `ZReportDto` declares all three and `reports-view.tsx:445` renders them — `undefined` at runtime. The sealed row has no column for them, so the DTO promises what no route can serve. `topMenus` was kept out rather than become a fourth instance. Routes are not typed against their DTOs, so the compiler cannot see it. | none |
+| **L-82** | Cosmetic | The product list renders the name alone (`src/components/shared/report-widgets.tsx:141`, `src/lib/csv-export.ts:54`), so the two rows R2.1 correctly separates read as two identical « Coca » labels on screen and in the CSV. Figures right, label ambiguous. `productId` is in the payload, so the figures are right; the operator chose distinct catalogue names over a code-side label. | R7.2 |
+| **L-83** | Low | `/api/reports/z` never sends `givenAwayCount`/`givenAwayItemsCount`/`givenAwayProducts`, yet `ZReportDto` declares all three and `reports-view.tsx:445` renders them — `undefined` at runtime. The sealed row has no column for them, so the DTO promises what no route can serve. `topMenus` was kept out rather than become a fourth instance. Routes are not typed against their DTOs, so the compiler cannot see it. | R7.1 |
 | **L-84** | Low | `showOnPos` is a display rule, not a guard: `orders/route.ts` checks only `active`/`available`, so a request naming a hidden product directly is still booked. Not a fraud vector (the till is the only client, at the real catalogue price), but « cannot be sold alone » is true of the interface, not the API. Pinned by `hidden-product.test.ts`, so closing it is a decision. | none |
 | **L-81** | Cosmetic | A test product, `5 nuggets test` (Croustillants, 5,00 €), was created in the live catalogue on 2026-09-10 and left `active=0` / `available=0`. Invisible on the till and harmless, but the catalogue is meant to be real work only — and it is now inside the verified backup. Delete it with the operator, or keep it deliberately. | none |
 | **L-75** | Deferred | The app cannot run on a 32-bit Windows: both Prisma engines are `machine 0x8664` and Bun is x64/ARM64 only. **Carried to the Tauri v2 phase**, where the runtime and the packaging are both decided. No software fix at this layer. | none |
 | **L-05** | Deferred | `output: "standalone"` was dropped; whether to reinstate it deliberately is open. Still true — no `output` key — but deferred to nothing. **Carried to the Tauri v2 phase**, like L-75: its premise (a Windows-till Node install) is retired and packaging is decided there. | none |
-| **L-11** | Deferred | Two payment tolerances disagree (`paid < total - 1` vs `- 0.01`, both on integer cents); dialog resets run on uncleaned timers. `src/components/pos/payment-dialog.tsx` — timer `:93`, `- 1` at `:152`, `- 0.01` at `:451` (re-measured 2026-09-11; the old `86,128,377` pointed at nothing). | none |
+| **L-11** | Deferred | Two payment tolerances disagree (`paid < total - 1` vs `- 0.01`, both on integer cents); dialog resets run on uncleaned timers. `src/components/pos/payment-dialog.tsx` — timer `:93`, `- 1` at `:152`, `- 0.01` at `:451`. | none |
 | **L-47** | Open | The app renders its login screen even with a valid session **in the in-app browser pane**, so no browser walkthrough reaches an authenticated view. Four data points; never reproduced outside that pane. | none |
 | **L-51** | Low | `backup.ts` reads the whole uploads archive into memory to encrypt it — **49 293 837 bytes across 147 files**, measured 2026-09-11, not the "few MiB" its comment once claimed. The figure grows with the catalogue; `backup.ts:14-27` carries its own dated measurement and drifts the same way. | none |
 | **L-52** | **External** | `LOI n° 2026-534 du 25 juin 2026, art. 87` requires archived data restituted in a format set by the administration, in force 27 June 2026. **No format has been published.** Nothing to build until one exists. | none |
-
-**Dissolved by the reset of 2026-09-10, and closed:** **L-14** (receipts archived at 80
-columns — `Receipt` now holds zero rows) and **L-60** (eighteen orders carrying no
-`fiscalEventId` — `Order` now holds zero rows). Neither can recur: both depended on rows the
-reset deleted, and every order written from now on is journalled.
 
 ---
 
