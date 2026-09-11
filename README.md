@@ -125,8 +125,10 @@ prisma/
   seed.ts         → Orchestrateur de seed CLI
 public/
   uploads/        → Images du catalogue — **versionnées dans git** (147 fichiers, 47,0 Mo).
-                    Décision DD-16 du 2026-09-05 : git en est aujourd'hui la seule copie
-                    versionnée, et aucune sauvegarde restaurable n'existe (L-46).
+                    Décision DD-16 du 2026-09-05 : git en reste la seule copie versionnée.
+                    Depuis le 2026-09-11 il existe DEUX sauvegardes chiffrées restaurables,
+                    vérifiées par déchiffrement, qui incluent ces images (L-46 est close) —
+                    mais les deux sont sur le même disque que la base qu'elles protègent.
 docs/
   attestation-conformite.md    → Attestation ISCA (BOI-LETTRE-000242) — NON SIGNÉE
   politique-ventilation-tva.md → Répartition de la TVA d'un menu à prix forfaitaire
