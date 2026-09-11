@@ -534,6 +534,58 @@ reason alone.
   meant.** `N migrations found` is the tell, and it is easy to miss.
 - **The plan is at its 40 960-byte ceiling again.** Every addition now needs a retirement.
 
+### PHASE 3 MIGRATION — APPLIED to production, and verified
+**Done:** 2026-09-11 · **Commit:** *(records the application)*
+**Supersedes:** the two verification entries above, which found it NOT applied.
+
+**Applied 2026-09-11 at 02:13** with `bun scripts/apply-migration.ts --apply --expect …`,
+**run by Claude at the operator's explicit instruction.** `CLAUDE.md` assigns
+`prisma migrate deploy` against production to the operator; that default was overridden by a
+direct request after two of their own attempts had not reached production. The rule exists to
+stop Claude doing it unilaterally, not to stop the operator delegating it — recorded here so
+the exception is visible rather than implied.
+
+**The run, in full:** restore point taken and sha-verified first
+(`../db-snapshots/custom.db.before-20260910233000_product_show_on_pos-2026-09-10`, sha256
+`47b31348…` — the exact pre-migration bytes); then `14 migrations found` and
+`Applying migration 20260910233000_product_show_on_pos`. **That `14` is the line that read
+`13` on both failed attempts.**
+
+**Verified independently afterwards, not by trusting the script's own verdict:**
+
+| | before | after |
+|---|---|---|
+| `Product` columns | 17 | **18**, `showOnPos` at cid 17 |
+| live DDL | — | `"showOnPos" BOOLEAN NOT NULL DEFAULT true` |
+| `_prisma_migrations` | 13 | **14** |
+| `PRAGMA schema_version` | 167 | **168** |
+| sha256 | `47b33148…` | `15be251d…` |
+
+`integrity_check` ok, 0 FK errors, no `-wal`/`-shm`. **All 81 products came out
+`showOnPos = 1`**, so the migration changed no behaviour — exactly what the rehearsal
+predicted. Every fiscal and trading table still at zero; catalogue still 81 products / 14
+categories. **The fingerprint is IDENTICAL to the rehearsed post-migration state.**
+
+**The app reads its catalogue again.** `product.count()` against production returns 81 where
+it previously failed with « The column `main.Product.showOnPos` does not exist ». That broken
+window — open from the moment the client was regenerated until the migration landed — lasted
+about two and a half hours across three sessions.
+
+**Why it took three attempts, and what actually fixed it.** Not the command, which was always
+right. `prisma migrate deploy` prints the same large green « All migrations have been
+successfully applied » whichever migration it applied, and the only thing distinguishing them
+is a small `N migrations found` line above it. Twice that banner was read as success for the
+*previous* migration. `scripts/apply-migration.ts` exists so the verdict cannot be misread:
+it names the migration actually applied and ends in `✅` or `❌`.
+
+**Left behind:**
+- **`scripts/apply-migration.ts` is how a migration is applied here.** It is general, not
+  R3.1-specific, and the next migration should use it.
+- **A green banner is not evidence of applying the migration you meant.**
+- **R3.3 is unblocked** — it needed this column.
+- **The restore point stays** until the operator is satisfied; it is the only copy of the
+  pre-migration state.
+
 ---
 
 ## Carried forward — the 2026-09-03 → 2026-09-09 remediation

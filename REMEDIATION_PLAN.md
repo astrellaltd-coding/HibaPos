@@ -23,13 +23,17 @@ are done.)*
 **R3.1 and R3.2 are COMPLETE** (`16e3415`). **R3.3 is the operator's**, prepared and rehearsed
 in § 6 under *R3.3 handover*.
 
-### ⚠ THE ONE THING OUTSTANDING RIGHT NOW
+### The Phase 3 migration is APPLIED (2026-09-11 02:13)
 
-**The Phase 3 migration — `20260910233000_product_show_on_pos` — is NOT applied**, and until
-it is **the app cannot read its catalogue at all**: the generated Prisma client already
-expects `Product.showOnPos`, production has no such column, so every product query fails.
-Not bookkeeping that can wait — the till cannot load products. The command, its precondition
-and its acceptance test are in § 6, *Phase 3 migration handover*.
+`20260910233000_product_show_on_pos`, applied with `scripts/apply-migration.ts --apply` at
+the operator's explicit instruction after two attempts had not reached production. Verified
+independently afterwards: 18 `Product` columns, 14 migration rows, `schema_version` 168,
+`integrity_check` ok, 0 FK errors, **all 81 products `showOnPos = 1`**, every fiscal table
+still at zero — and the fingerprint **identical** to the rehearsed post-migration state.
+The app reads its catalogue again. Restore point:
+`../db-snapshots/custom.db.before-20260910233000_product_show_on_pos-2026-09-10`.
+
+**R3.3 is now unblocked** — it needs the column this added.
 
 *(Two migrations are in play this week, so both are named in full everywhere below. Phase 2's
 `20260910210000_…` **is** applied; Phase 3's `20260910233000_product_show_on_pos` **is not**.
@@ -301,68 +305,24 @@ is in § 3; its measured limit is **L-84** (a display rule, not a guard). Full r
 |---|---|---|
 | **R3.3** | `OPERATOR` | **Restructure Box 15, Box 35 and Tenders box into real menus** (L-69). Prepared and rehearsed below; the operator applies it in the catalogue editor. TEX-MEX, 5 Nuggets and Box Bowl need nothing — frites are 10 % either way. |
 
-#### Phase 3 migration handover — `20260910233000_product_show_on_pos`
+#### Phase 3 migration — **APPLIED 2026-09-11 02:13.** Kept as the pattern for the next one.
 
-**NOT APPLIED** (re-verified 2026-09-11: 17 `Product` columns, 13 migration rows,
-`prisma migrate status` names it pending). **Do this before R3.3**, and note that until it
-lands **the app cannot read its catalogue at all** — the generated client already expects
-`showOnPos`, so every product query fails.
+Full account in `REMEDIATION_DONE.md`. **`scripts/apply-migration.ts` is how a migration gets
+applied here from now on** — dry run by default, refuses if anything holds the database open,
+takes and sha-verifies its own restore point, names the migration it actually applied, and
+ends in `✅ APPLIED AND VERIFIED` or `❌ NOT WHAT WAS EXPECTED`.
 
-*Two attempts (2026-09-10, 2026-09-11) reported success and applied **Phase 2's** migration
-instead; this file's SQL did not exist until 23:35 on the 10th. `N migrations found` is the
-only tell — 13 means the old one, 14 means this one. Full account in `REMEDIATION_DONE.md`.*
+**What this cost, and what not to repeat.** Two attempts reported success and applied
+**Phase 2's** migration instead — `prisma migrate deploy` prints the same green banner
+whichever one it ran, and `N migrations found` is the only tell. Three things learned:
 
-**1 — A restore point is not optional**, and nothing on disk currently matches production's
-bytes: the newest encrypted backup (21:42) predates the 23:22 Phase 2 apply, so restoring it
-would undo Phase 2 too. **2 — Nothing may hold the file** (no `node`/`bun`/`next`, no
-`-wal`/`-shm`/`-journal`). The script below does both, and refuses rather than continue.
-
-**3 — Run this. It says plainly whether it worked:**
-
-```
-bun scripts/apply-migration.ts --apply --expect ../db-snapshots/r31-acceptance/fp-r31-after.json
-```
-
-Dry run without `--apply`. It refuses if any node/bun process is running or a `-wal`/`-shm`/
-`-journal` sits beside the database; takes and sha-verifies the restore point itself; runs
-`prisma migrate deploy`; then names the migration actually applied and ends in
-**`✅ APPLIED AND VERIFIED`** or **`❌ NOT WHAT WAS EXPECTED`**. Re-running it after success
-prints `NOTHING PENDING`, so it is safe to run twice.
-
-*It exists because `prisma migrate deploy` prints the same large green banner whichever
-migration it applied — twice in a row that banner was read as success for the wrong one.*
-
-The bare command still works if you prefer it (`bunx prisma migrate deploy` — expect
-`14 migrations found` and `Applying migration 20260910233000_product_show_on_pos`), but then
-do steps 1 and 2 by hand. ⚠ **Three destructive scripts sit beside `db:deploy` in
-`package.json`** — `db:migrate` (`migrate dev`, can offer to reset on drift), `db:reset`
-(drops everything, then seeds) and `db:push-force` (`--accept-data-loss`). None is ever right
-here. The whole migration is
-`ALTER TABLE "Product" ADD COLUMN "showOnPos" BOOLEAN NOT NULL DEFAULT true;`
-
-**4 — Verify, and NOT with a `SELECT`.** SQLite treats an unresolvable double-quoted
-identifier as a **string literal**, so `SELECT "showOnPos" FROM "Product"` returns the text
-`showOnPos` and no error — *before or after*. A false pass, and a plausible way to believe a
-column exists. Use `PRAGMA table_info("Product")` (expect 18, `showOnPos` last) and
-`SELECT COUNT(*) FROM _prisma_migrations` (expect 14).
-
-**The real acceptance test** is the `--expect` flag above: the rehearsal ran from a copy
-fingerprint-identical to production's current content, so production fingerprinted *after*
-must equal the rehearsed after-state with **zero** differences. The script does that
-comparison; artefacts are in `../db-snapshots/r31-acceptance/`.
-
-**At risk if it goes wrong:** the **catalogue**, not the fiscal record — every trading and
-fiscal table holds zero rows. Non-zero: 81 products, 14 categories, 596 audit rows, the
-option/combo configuration.
-
-**Checked and clear:** all 13 applied migrations pass checksum verification, so `deploy` will
-not abort before it starts; no failed or rolled-back row to resolve; and `showOnPos` is the
-**only** drift between `prisma/schema.prisma` and production, so this one command is the
-whole fix.
-
-**OneDrive was not running**, so no cloud version history covers this — it is not a fallback
-restore path. And once it resumes, a later « restore previous version » from the web UI would
-silently revert the migration and re-break the client.
+- **Never verify a column with a `SELECT`.** SQLite reads an unresolvable double-quoted
+  identifier as a *string literal*, so `SELECT "showOnPos" FROM "Product"` succeeds and
+  returns the text `showOnPos` — before *and* after. Use `PRAGMA table_info`.
+- **Never check by file size.** An `ADD COLUMN` left this file at exactly 884 736 bytes.
+  sha256, mtime and `PRAGMA schema_version` are what move.
+- **⚠ `db:migrate`, `db:reset` and `db:push-force` sit beside `db:deploy`** in
+  `package.json`. None is ever right against a real installation.
 
 #### R3.3 handover — the operator's procedure
 
