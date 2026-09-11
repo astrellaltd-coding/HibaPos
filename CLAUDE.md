@@ -37,6 +37,10 @@ scripts/apply-migration.ts --apply --expect <name>`**, **not** `bunx prisma migr
 The bare command prints the same green banner whichever migration it ran, and was misread as
 applied twice when it was not.
 
+Since 2026-09-11 the **application** also applies pending migrations itself at startup,
+behind a backup it creates and then re-opens to verify (PREP-4). That is the app on its own
+machine; the rule above is about you.
+
 ## Where things stand
 
 The software is essentially complete and has never been deployed. **Deployment is deferred:

@@ -17,9 +17,60 @@ be edited is not evidence of anything.
 **What changed:** files touched and the substance of the change.
 **How it was verified:** the tests, the revert, the measurement. Not "tests pass" —
 which tests, and what would have failed without the fix.
-**Left behind:** any constraint this creates. Copy it into the plan's § 3 if it is one
-nobody may break.
+**Left behind:** any constraint this creates. If it is one nobody may break, copy it into
+`docs/INVARIANTS.md` — NOT into the plan, which retires when Phase 6 closes.
 ```
+
+---
+
+## Index
+
+*Built from the `###` headings below. `plan-freshness.test.ts` pins it against the real
+headings, so it cannot go stale silently: append an entry and you must add its line here, or
+that test fails. Headings inside the fenced template above are deliberately excluded.*
+**Completed in this cycle**
+
+- R0.1 — the first restorable backup this installation has ever had
+- PHASE 1 — the documents tell the truth again
+- CONSOLIDATION — one plan, one done file, and a simplified CLAUDE.md
+- Deployment withdrawn — the app will ship as Tauri v2
+- R2.1 — a product aggregates under its identity, not under its label
+- PHASE 2 MIGRATION — `OrderItem.comboProductId` and `OrderItem.referencePrice`
+- R2.2 + R2.3 — menus are countable, and their VAT split is justifiable
+- PHASE 2 MIGRATION — APPLIED to production, and verified
+- R3.1 + R3.2 — « Use it on POS »: hidden from one grid, withdrawn from nothing
+- VERIFICATION — the Phase 3 migration was NOT applied, and two documents were wrong
+- VERIFICATION (2nd) — still not applied, and a script so it cannot happen a third time
+- PHASE 3 MIGRATION — APPLIED to production, and verified
+- R4.1 + R4.2 + R4.3 — small correctness, and three findings they turned up
+- R4.5 + R4.6 + R4.7 — the three findings Phase 4 turned up, fixed
+- R4.4 + R3.3 — the two operator items, applied to production
+- PHASE 5 — Cleanup: four strays, 27 interface files, 29 dependencies
+- PHASE 0 — R0.2, R0.3, R0.4: the dead data is gone, the unique data is not
+- R7.1 — the give-away figures are sealed into the Z report, and sent
+- R7.1 MIGRATION — APPLIED to production, and verified
+- R7.2 — no two products in this catalogue share a name — **PHASE 7 COMPLETE**
+- L-81 — `5 nuggets test`: prepared and rehearsed, the operator's to run
+- SECURITY — `SESSION_SECRET` rotated after it leaked into a session transcript
+- CORRECTION to the L-81 entry above — `scripts/delete-product.ts` already existed
+- CORRECTION — `scripts/rotate-secrets.ts` exists, and its docblock argued for data loss
+- PHASE 6 OPENED — the five preconditions, measured read-only
+- R6.5 (half) — the catalogue is on the Desktop, and why that is not yet enough
+- PREP-1 — `next dev` binds loopback, and a fresh install starts safe
+- PREP-2 — a catalogue can leave one install and enter another
+- PREP-3 — an install makes its own secrets, and shows the two that must leave the machine
+- PREP-4 — migrations apply themselves at startup, behind a backup that has been opened
+
+**Carried forward — the 2026-09-03 → 2026-09-09 remediation**
+
+- Closed without a batch
+
+**Retired from the plan's § 6 on 2026-09-11**
+
+- Phase 0 — Make the data survivable — **COMPLETE 2026-09-11**
+- Phase 3 — « Use it on POS » — **COMPLETE 2026-09-11**
+- Phase 4 — Small correctness — **COMPLETE 2026-09-11**
+- Phase 5 — Cleanup — **COMPLETE 2026-09-11**
 
 ---
 

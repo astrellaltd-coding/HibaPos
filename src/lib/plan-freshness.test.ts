@@ -209,6 +209,46 @@ describe("plan freshness — the plan and the done file may not disagree", () =>
     ).toEqual([]);
   });
 
+  it("the done file's index names every entry in it, and invents none", () => {
+    // Added 2026-09-11, when the done file passed 100 KB and § 3's invariants
+    // moved to `docs/INVARIANTS.md`. An index is only useful if it is true, and
+    // a hand-maintained one in THIS project goes stale — that is the whole
+    // reason `readme-counts.test.ts` exists. So it is pinned both ways: an
+    // entry missing from the index fails, and an index line naming an entry
+    // that is not there fails too.
+    //
+    // Headings inside the fenced template at the top are excluded, because the
+    // template's `### <ID> — …` placeholder is not an entry. The first draft of
+    // this index counted it and listed a 36th entry that does not exist.
+    const src = done();
+    const lines = src.split("\n");
+
+    const headings: string[] = [];
+    let inFence = false;
+    for (const line of lines) {
+      if (line.trim().startsWith("```")) {
+        inFence = !inFence;
+        continue;
+      }
+      if (!inFence && line.startsWith("### ")) headings.push(line.slice(4).trim());
+    }
+
+    const start = src.indexOf("## Index");
+    const end = src.indexOf("## Completed in this cycle");
+    expect(start, "the done file has no Index section").toBeGreaterThan(-1);
+    const indexed = src
+      .slice(start, end)
+      .split("\n")
+      .filter((l) => l.startsWith("- "))
+      .map((l) => l.slice(2).trim());
+
+    expect(headings.length, "no entries found — the parser broke").toBeGreaterThan(20);
+    const missing = headings.filter((h) => !indexed.includes(h));
+    const invented = indexed.filter((i) => !headings.includes(i));
+    expect(missing, `entries missing from the index: ${missing.join(" · ")}`).toEqual([]);
+    expect(invented, `index names entries that do not exist: ${invented.join(" · ")}`).toEqual([]);
+  });
+
   it("the plan still fits in one read", () => {
     // § 1 tells a session to read this file top to bottom before touching
     // anything. The retired plan reached 2 173 lines and its record 5 595,
