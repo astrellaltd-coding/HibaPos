@@ -23,14 +23,16 @@ export type CheckoutItemIntent = {
   quantity: number;
   notes: string | null;
   optionIds: string[];
-  addons: { addonId: string | null; quantity: number }[];
+  // L-80 (R4.2): `string`, matching the checkout schema. Was `string | null`,
+  // which described a request the server refuses.
+  addons: { addonId: string; quantity: number }[];
   /** Present only on a menu composé, in SLOT ORDER — the order the server's
    *  `expandSlots` produces and validates against. */
   components?: {
     slotId: string;
     productId: string;
     optionIds: string[];
-    addons: { addonId: string | null; quantity: number }[];
+    addons: { addonId: string; quantity: number }[];
   }[];
 };
 

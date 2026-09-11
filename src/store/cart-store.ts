@@ -24,7 +24,21 @@ export type CartOption = {
   pickupPriceModifier?: number | null;
   deliveryPriceModifier?: number | null;
 };
-export type CartAddOn = { id: string | null; name: string; price: number };
+/**
+ * L-80 (R4.2) — `id` is NOT nullable, and that is a constraint the compiler can
+ * now enforce rather than a convention it could not see.
+ *
+ * The checkout schema requires `addonId: z.string()`, because the server
+ * re-reads every add-on's price from the catalogue by id. A null id therefore
+ * describes a request the server refuses — the types permitted one and the
+ * compiler could not say so.
+ *
+ * An id-less add-on is a real thing, but only in a SNAPSHOT: `combo-checkout.ts`
+ * writes `{ id: null, name: "Supplément …" }` so a ticket can print what an
+ * extra was for. `cartAddOnsFromSnapshot` in `order-parsers.ts` is the one
+ * boundary where such a snapshot becomes cart content, and it drops them.
+ */
+export type CartAddOn = { id: string; name: string; price: number };
 
 /**
  * One component of a menu composé, configured on its own (Batch 5.9).

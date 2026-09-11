@@ -59,7 +59,7 @@ import { useAppStore } from "@/store/app-store";
 import { downloadReceipt } from "@/lib/receipt";
 import { PAYMENT_LABELS, ORDER_TYPE_LABELS } from "@/lib/order-labels";
 import { OrderStatusBadge } from "@/components/shared/order-status-badge";
-import { safeParseOptions, safeParseAddOns } from "@/lib/order-parsers";
+import { safeParseOptions, safeParseAddOns, cartAddOnsFromSnapshot } from "@/lib/order-parsers";
 import { StepUpPinDialog, type StepUpConfirmation } from "@/components/pos/step-up-pin-dialog";
 import type { SettingsDto } from "@/types/api";
 // uuid replaced with built-in crypto.randomUUID()
@@ -318,11 +318,11 @@ export function OrdersView() {
           priceModifier: o.priceModifier ?? 0,
           dineInPriceModifier: o.priceModifier ?? 0,
         })),
-        addOns: addOns.map((a) => ({
-          id: a.id ?? null,
-          name: a.name,
-          price: a.price,
-        })),
+        // L-80 (R4.2): the ONE place a snapshot add-on becomes cart content.
+        // An add-on with no catalogue id cannot be re-priced by the server, so
+        // it is dropped here rather than carried into a checkout the server
+        // would refuse. See `cartAddOnsFromSnapshot`.
+        addOns: cartAddOnsFromSnapshot(addOns),
         vatRate: 10, // default; the checkout API recomputes from product if available
         notes: item.notes,
       });

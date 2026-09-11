@@ -586,6 +586,98 @@ it names the migration actually applied and ends in `✅` or `❌`.
 - **The restore point stays** until the operator is satisfied; it is the only copy of the
   pre-migration state.
 
+### R4.1 + R4.2 + R4.3 — small correctness, and three findings they turned up
+**Done:** 2026-09-11 · **Findings:** L-79, L-80, L-71 closed; **L-85, L-86, L-87 opened**
+
+Investigated with four parallel agents, one per item, then implemented and revert-verified
+by hand. Every claim an agent made was re-checked against the code before it was acted on;
+two were wrong and are recorded below.
+
+**R4.1 / L-79 — the silent image-less backup.** `ensureMediaArchive` caught a failed
+`tar` import with `console.warn` — the only `console.*` in a 1054-line file where every other
+soft failure goes to `logTechnical` — and returned `null`, which is *also* what it returns for
+« there is nothing to archive ». The two were indistinguishable in the `Backup` row, the audit
+entry and the API response. Now: `{ unavailable: reason }` with a `WARN` technical-log row
+naming the consequence (« UNIQUEMENT la base de données »), a `mediaUnavailable` key on the
+audit entry and on the return. **No migration.** The pattern was copied, not invented —
+`restoreUploadsArchive` already answers the identical failure with `{ failed }`.
+
+*Plan correction:* the plan said « no record ». There **is** a record — `audit
+("BACKUP_CREATED", …)` writes `mediaIncluded: false`. The accurate statement is that the
+record could not distinguish a broken archiver from an empty media directory and carried no
+reason. That is why one of the five tests pins the *negative* case, or the fix would
+degenerate into warning on every backup.
+
+*Also learned:* `mediaSources` puts `db/fiscal-archives/` in the same archive, so a failed
+`tar` silently dropped the **annual fiscal archive** from the backup set too.
+
+**R4.2 / L-80 — the cart add-on identifier.** `CartAddOn.id` was `string | null`,
+`checkout-intent` propagated it, and the checkout schema requires `z.string()` — types that
+described a request the server refuses. Narrowed to `string`, with the drop at the single
+boundary where snapshot data becomes cart content (`orders-view.tsx`'s reorder path, via the
+new `cartAddOnsFromSnapshot`). **Not** filtered at the intent boundary: the line would still
+display and still be folded into `computeCartTotals`, so the client would tender a total the
+server does not compute — trading a zod 400 for « Paiement incorrect », which is worse.
+`combo-checkout.ts` still writes `{ id: null }` into `addOnsJson` deliberately, so a ticket
+can name a surcharge; that is a snapshot, not cart content, and a test pins it.
+
+**R4.3 / L-71 — the session tracker's false error.** `db.session.update(…).catch(() => {})`
+throws on no-match (P2025) and **Prisma logs from its engine before the promise rejects**, so
+the `.catch()` swallowed a rejection whose log was already written. `updateMany` matches zero
+rows and resolves — no throw, therefore no log. Proved side by side on a scratch copy before
+being written. `destroySession` eight lines below already used `deleteMany` for this reason.
+
+*Measured at suite level, which is the honest evidence:* « No record was found for an update »
+went **4 → 0**, which is the half this fix owns. Total `prisma:error` went **12 → 7-8** — the
+remainder are socket timeouts from the *same* line contending for SQLite's single write lock,
+and they vary run to run because they depend on contention. That half is **L-86**.
+
+**What the tests can and cannot prove, stated rather than glossed.** Prisma's engine writes
+past both `console.error` and `process.stderr.write`, so **no test in this process can assert
+the absence of the log**. The file says so and asserts the mechanism instead.
+
+**Three test-design problems, all found by running the revert:**
+
+1. **A vacuous source assertion.** The first R4.3 check sliced `auth.ts` from « Touch
+   lastActivityAt » to the first `"catch"` — which lands inside the *comment*, not the code.
+   It asserted prose, passed against the reverted code, and was caught only by the revert.
+   Source assertions now strip comments first.
+2. **`mock.module` is process-wide.** The first R4.1 test mocked `tar`; `bun run test` runs
+   every file in one process, so it **broke three real tests in `backup-restore.test.ts`**. A
+   test that breaks other tests is not a test. Replaced with an injected `TarLoader`
+   defaulting to the real import — the convention this file already uses for `BackupPaths`.
+   (Also measured: a *synchronous* throwing factory does not make a dynamic import reject;
+   only an `async` one does. Neither is usable here.)
+3. **`mediaSources` counts a directory that merely EXISTS**, so « nothing to archive » needs
+   the directories absent, not empty.
+
+**The revert — thirteen properties across the three items, each alone and in both directions.
+All thirteen are caught** (R4.1: 4, R4.2: 4, R4.3: 1, plus the four re-run after the vacuous
+assertion was fixed).
+
+**R4.4 prepared** — `scripts/trim-catalogue-names.ts`, dry-run by default. Measured
+independently of the plan and it agrees exactly: fourteen rows, all single ASCII spaces, one
+trailing and thirteen leading. Refuses if trimming would collide two siblings (none), takes a
+sha-verified restore point, addresses rows by **id**, verifies after. Rehearsed on a copy: 14
+trimmed, 0 left, every row count unchanged, idempotent on re-run.
+
+**Left behind — three new findings, none of them fixed (safety rule 1):**
+- **L-85**: `tar.c`/`encryptFile`/`fs.stat` are in no try/catch, so a media-archiving failure
+  fails the *whole* backup including the database half that already succeeded. R4.1 fixed the
+  silent half; this one is loud and fatal, and guarding it changes behaviour.
+- **L-86**: `Session.lastActivityAt` is written every authenticated request and read by
+  nothing. Removing the touch would take the remaining Prisma noise to zero and remove a
+  write from a single-writer SQLite till — but it deletes a feature.
+- **L-87**: reordering is broken for any product with a required option group, and the code
+  comment asserts the opposite of what the server does.
+
+**A cost measured and then RETRACTED.** An intermediate run took 806 s and was written up as
+a regression from R4.1's real-scrypt backup tests. It was not: that run was contended by
+other `bun test` processes started alongside it. Measured clean, the suite is **181 s for
+1303 tests**, against ~160 s for 1288 before — about +20 s for 15 tests, five of which do real
+scrypt and a `VACUUM INTO`. The lesson is the measurement discipline, not the number: do not
+time a suite while running anything else against the same database.
+
 ---
 
 ## Carried forward — the 2026-09-03 → 2026-09-09 remediation

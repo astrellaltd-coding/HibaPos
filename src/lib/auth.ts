@@ -276,7 +276,32 @@ export async function getSession(): Promise<SessionWithUser | null> {
     },
   };
   // Touch lastActivityAt (sliding activity tracker). Best-effort, non-blocking.
-  db.session.update({ where: { id: payload.sessionId }, data: { lastActivityAt: new Date() } }).catch(() => {});
+  //
+  // L-71 (R4.3) — `updateMany`, NOT `update`, and the difference is the whole
+  // finding. `update` THROWS when no row matches (Prisma P2025), and Prisma
+  // logs that error from its engine *before* the promise rejects — so the
+  // `.catch()` below swallows the rejection while the log has already been
+  // written. Three of those blocks appeared in every clean test run, and
+  // `db.ts` enables `["error"]` in production too, so they also reach the log
+  // file the runbook tells an operator to read first: a scary-looking Prisma
+  // error for a write this code deliberately does not care about.
+  //
+  // `updateMany` matches zero rows and resolves with `{ count: 0 }`. No throw,
+  // therefore no log — measured side by side, not assumed. Semantics are
+  // identical here because `id` is the primary key, so the match is at most one
+  // row either way. `destroySession` eight lines below already uses
+  // `deleteMany` for exactly this reason; this makes the pair consistent.
+  //
+  // The `.catch()` stays: it covers a real database failure (locked file, disk
+  // error), which is still not worth failing an authenticated request over.
+  //
+  // **The session row can genuinely be absent in production**, so this is not a
+  // test artefact: `log-retention.ts` deletes expired sessions, and a request
+  // already in flight when that runs, or racing a logout, arrives here with a
+  // valid signed token and no row.
+  db.session
+    .updateMany({ where: { id: payload.sessionId }, data: { lastActivityAt: new Date() } })
+    .catch(() => {});
   return sessionWithUser;
 }
 

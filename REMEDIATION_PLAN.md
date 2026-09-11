@@ -19,9 +19,9 @@ a short list of real defects and the four fiscal steps before the first real sal
 documentation reconciliation was Phase 1 and is done; the reporting defects were Phase 2 and
 are done.)*
 
-**Current phase:** **Phase 3 — « Use it on POS ».** Opened by the operator 2026-09-10.
-**R3.1 and R3.2 are COMPLETE** (`16e3415`). **R3.3 is the operator's**, prepared and rehearsed
-in § 6 under *R3.3 handover*.
+**Current phase:** **Phase 4 — small correctness.** Opened 2026-09-11. **R4.1, R4.2 and R4.3
+are COMPLETE; R4.4 is the operator's** (§ 6). Phase 3's **R3.3 is also still the operator's**
+— both handovers are in § 6, both prepared and rehearsed.
 
 ### The Phase 3 migration is APPLIED (2026-09-11 02:13)
 
@@ -41,9 +41,9 @@ An earlier version of this header said « the migration is APPLIED » in bold wi
 which, twenty lines below « PREPARED, NOT APPLIED » about the other — corrected here rather
 than left standing, because it is the natural thing for a skimming reader to get wrong.)*
 
-**Current task:** **none for Claude.** Phase 3's code is done; **R3.3 and the Phase 3
-migration are the operator's.** Phase 4 needs its own go-ahead — § 2's rule is that a phase
-boundary stops the work.
+**Current task:** **none for Claude.** Phase 4's code is done. **Two operator items are
+outstanding: R3.3 and R4.4**, both with a rehearsed script or procedure in § 6. Phase 5 needs
+its own go-ahead — § 2's rule is that a phase boundary stops the work.
 
 **Phase 2 is DONE and fully applied** (2026-09-10). What it changed, and what it left
 behind, is in § 6 and in `REMEDIATION_DONE.md`.
@@ -231,6 +231,12 @@ something going wrong.
 - **The table auto-link/auto-free branches** in `checkout.ts` and `refund.ts` are unreachable
   today and stay. Do not delete them without reopening DD-09.
 - **`round2` in `money.ts`** is retained though the fiscal path no longer uses it.
+- **A media failure is journalled and never silent** (R4.1). `null` from `ensureMediaArchive`
+  means « nothing to archive »; `{ unavailable }` means « could not archive ». Never conflate.
+- **`CartAddOn.id` is `string`** (R4.2) — the checkout schema requires it. An id-less add-on
+  is legal only in a *snapshot*; `cartAddOnsFromSnapshot` is the one boundary into the cart.
+- **The session activity touch uses `updateMany`, never `update`** (R4.3): `update` throws on
+  no-match and Prisma logs before the `.catch()` runs.
 - **`sellableAlone` and `slotProducts` are a PAIR, and the asymmetry is deliberate.**
   `pos-grid.ts` consults `showOnPos`; `combo-builder.ts` **does not**. That is what lets a
   food-only menu component exist without appearing on the till to be sold alone. Unifying
@@ -361,14 +367,36 @@ drink at 5,5 %; the two totals summing to the forfait; the ticket total unchange
 10 % à emporter means the slot points at the wrong category. The till button does not move or
 change name — pressing it now asks which drink.
 
-### Phase 4 — Small correctness
+### Phase 4 — Small correctness — **R4.1 / R4.2 / R4.3 COMPLETE 2026-09-11**
+
+*Records in `REMEDIATION_DONE.md`; what they established is in § 3 with the other invariants.*
 
 | ID | Status | Task |
 |---|---|---|
-| **R4.1** | `TODO` | **L-79 — journal the silent image-less backup.** `backup.ts:270-275` catches a failed `tar` import with a bare `console.warn` and completes the backup with no images and no record, in a file where every other failure is journalled. It matters more now the till carries a *copied* `node_modules`. |
-| **R4.2** | `TODO` | **L-80 — tighten the cart add-on identifier.** `cart-store.ts:25` types `id` as `string \| null`, `checkout-intent.ts` propagates it, and the checkout schema requires a string — so the types permit a request the server refuses. No live path produces one, but the compiler cannot see it and the failure mode is a 400 on a real customer's checkout. |
-| **R4.3** | `TODO` | **L-71 — silence the session tracker's false error.** `auth.ts:279` fires a fire-and-forget `session.update` and swallows the rejection, but Prisma logs it first. It appears three times in a clean test run and lands in the log file the runbook tells an operator to read first. |
-| **R4.4** | `OPERATOR` | **L-39 — trim the fourteen catalogue names carrying stray whitespace.** Ten `CategoryOptionChoice` and three `CategoryAddOn` with a leading space, plus the group `"Sauces "` with a trailing one. They render as indented labels on the till. *(The old plan said thirteen and missed the trailing one.)* Claude prepares the exact statements; the operator applies them. |
+| **R4.4** | `OPERATOR` | **L-39 — trim the fourteen catalogue names carrying stray whitespace.** Prepared and rehearsed; run the script below. |
+
+#### R4.4 handover — `scripts/trim-catalogue-names.ts`
+
+**Measured 2026-09-11, independently of the plan's own count, and it agrees exactly:**
+fourteen rows, every one a single ASCII space (0x20) — one `CategoryOptionGroup` **trailing**
+(«Sauces ») and thirteen **leading**: ten `CategoryOptionChoice`, three `CategoryAddOn`. No
+tabs, no NBSP, no zero-width characters. Nothing else in the catalogue is dirty.
+
+```
+bun scripts/trim-catalogue-names.ts            # list what would change
+bun scripts/trim-catalogue-names.ts --apply    # change it, take a restore point, verify
+```
+
+Dry run by default. It **refuses** if trimming would make two siblings share a name (checked:
+none), takes and sha-verifies a restore point into `../db-snapshots/` first, addresses rows
+by **id** and never by name, then re-reads and reports `✅ TRIMMED AND VERIFIED`. Re-running
+prints `NOTHING TO TRIM`.
+
+**Rehearsed** on a copy: 14 trimmed, 0 left, every row count unchanged, `integrity_check` ok,
+0 FK errors, idempotent on a second run. **Safe because nothing matches these names by text**
+— the references that exist are test fixtures and `seed.ts`, which build their own clean
+rows, and `normalizeGroupName()` already trims for option inheritance (its doc comment names
+« Sauces » as the case it absorbs).
 
 ### Phase 5 — Cleanup
 
@@ -407,10 +435,10 @@ rule 1). Audit IDs are never renamed.
 |---|---|---|---|
 | **L-82** | Cosmetic | The product list renders the name alone (`report-widgets.tsx:136`, `csv-export.ts:53`), so the two rows R2.1 correctly separates read as two identical « Coca » labels on screen and in the CSV. Figures right, label ambiguous. `productId` is in the payload, so a fix has what it needs; the open question is what a human should see. | none |
 | **L-83** | Low | `/api/reports/z` never sends `givenAwayCount`/`givenAwayItemsCount`/`givenAwayProducts`, yet `ZReportDto` declares all three and `reports-view.tsx:445` renders them — `undefined` at runtime. The sealed row has no column for them, so the DTO promises what no route can serve. `topMenus` was kept out rather than become a fourth instance. Routes are not typed against their DTOs, so the compiler cannot see it. | none |
+| **L-85** | Medium | `backup.ts:316-321` — `tar.c`, `encryptFile` and `fs.stat` sit in **no try/catch**, so a media-archiving failure (disk full, permissions, a file vanishing mid-archive) propagates out of `createBackup` and **fails the whole backup, including the database half that already succeeded**. The restore side wraps its `tar.x`. R4.1 fixed the *import* failure, which was silent; this one is loud and fatal, and widening the guard would change behaviour — recorded, not taken. | none |
+| **L-86** | Low | `Session.lastActivityAt` is written on **every authenticated request** and read by **nothing** (`expiresAt` governs expiry). It costs a write per request on a single-writer SQLite till, and is the sole source of every `prisma:error` in a clean run — 12 before R4.3, 8 after, the rest socket timeouts from the same line contending for the write lock. Removing the touch would take that to zero. Not done: it deletes a feature, and whether an idle-timeout policy is wanted is the operator's call. | none |
+| **L-87** | Medium | Reordering is broken for any product with a **required** option group. `orders-view.tsx:317` sets `choiceId: ""` with the comment « server recomputes by product at checkout »; `pricing.ts:233` filters catalogue choices by `selectedOptionIds.has(c.id)`, so `""` matches nothing — options are silently dropped, and `pricing.ts:239` then refuses the whole line with « Option obligatoire manquante ». The comment asserts the opposite of what the server does. Found while doing R4.2, which touches the same block. | none |
 | **L-84** | Low | `showOnPos` is a display rule, not a guard: `orders/route.ts` checks only `active`/`available`, so a request naming a hidden product directly is still booked. Not a fraud vector (the till is the only client, at the real catalogue price), but « cannot be sold alone » is true of the interface, not the API. Pinned by `hidden-product.test.ts`, so closing it is a decision. | none |
-| **L-79** | Low | A failed `tar` import silently produces an image-less backup with no journal entry. | R4.1 |
-| **L-80** | Low | `CartAddOn.id` is nullable but the checkout schema requires a string. Latent, not live. | R4.2 |
-| **L-71** | Low | The sliding session tracker logs a Prisma error for a write it deliberately ignores. | R4.3 |
 | **L-81** | Cosmetic | A test product, `5 nuggets test` (Croustillants, 5,00 €), was created in the live catalogue on 2026-09-10 and left `active=0` / `available=0`. Invisible on the till and harmless, but the catalogue is meant to be real work only — and it is now inside the verified backup. Delete it with the operator, or keep it deliberately. | none |
 | **L-39** | Cosmetic | Fourteen catalogue names carry stray whitespace and render indented on the till. | R4.4 |
 | **L-69** | Medium | Three products bundle a sealed drink into one fixed price taxed wholly at 10 %, the opposite treatment from the six menus. Over-declares, so it errs safe. | R3.3 |

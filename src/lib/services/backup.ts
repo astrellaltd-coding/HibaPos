@@ -259,20 +259,64 @@ async function mediaFingerprint(base: string, entries: string[]): Promise<string
  * when there is nothing to archive. Several `Backup` rows may point at the
  * same file — deletion is reference-counted accordingly.
  */
+type MediaArchive = { filename: string; bytes: number; reused: boolean };
+/** L-79 (R4.1): the archive could not be built. Distinct from `null`, which
+ *  means there was nothing to archive — see `ensureMediaArchive`. */
+type MediaUnavailable = { unavailable: string };
+
+/**
+ * How `tar` is loaded. Injected for the same reason `BackupPaths` is: the
+ * failure this function has to handle — the package not loading — cannot be
+ * produced any other way in a test.
+ *
+ * `mock.module("tar", …)` was tried first and REJECTED as an approach: bun's
+ * module mocks are process-wide, and `bun run test` runs every file in one
+ * process, so mocking `tar` broke three real tests in `backup-restore.test.ts`.
+ * Measured, not feared. An injected default keeps production on the real
+ * dynamic import and leaves every other test alone.
+ */
+export type TarLoader = () => Promise<typeof import("tar")>;
+const loadTar: TarLoader = () => import("tar") as Promise<typeof import("tar")>;
+
 async function ensureMediaArchive(
   backupDir: string,
   paths: { uploadsDir: string; archivesDir: string },
   secret: string,
-): Promise<{ filename: string; bytes: number; reused: boolean } | null> {
+  tarLoader: TarLoader = loadTar,
+): Promise<MediaArchive | MediaUnavailable | null> {
   const { base, entries } = mediaSources(paths);
+  // NULL means « there is nothing to archive » and is a completely successful
+  // backup. It must stay distinguishable from the failure below — conflating
+  // the two is exactly L-79.
   if (entries.length === 0) return null;
 
   let tar: typeof import("tar") | null = null;
   try {
-    tar = (await import("tar")) as typeof import("tar");
-  } catch {
-    console.warn("[backup] tar package not installed — media excluded from backup.");
-    return null;
+    tar = await tarLoader();
+  } catch (e) {
+    // L-79 (R4.1). This was `console.warn(...)` and `return null` — the only
+    // `console.*` call in this file, and a return value indistinguishable from
+    // « nothing to archive ». So a backup that silently contained no images at
+    // all was recorded, in the audit log and in the `Backup` row, exactly like
+    // one from an installation with no images: `mediaIncluded: false` either
+    // way. The operator had no way to learn the difference.
+    //
+    // `restoreUploadsArchive` above already answers this same failure with
+    // `{ failed: … }`; this is the create side catching up, not a new pattern.
+    //
+    // WARN, not ERROR, and that is this file's own convention rather than a
+    // judgement: ERROR is used where a journal entry that should exist could
+    // not be written, WARN where the operation completed but degraded. The
+    // database backup DID succeed — only the media are missing.
+    const reason = e instanceof Error ? e.message : String(e);
+    await logTechnical(
+      "WARN",
+      "backup-service",
+      `Sauvegarde : archive média ignorée — le paquet « tar » n'a pas pu être chargé (${reason}). ` +
+        `Cette sauvegarde contient UNIQUEMENT la base de données ; les images et les archives ` +
+        `fiscales n'y sont pas.`,
+    );
+    return { unavailable: reason };
   }
 
   const fingerprint = await mediaFingerprint(base, entries);
@@ -367,6 +411,9 @@ async function restoreUploadsArchive(
 export async function createBackup(
   userId: string | null,
   paths: BackupPaths = defaultBackupPaths(),
+  /** L-79 (R4.1): injected only so a test can make the `tar` import fail. The
+   *  default is the real dynamic import, so production is unchanged. */
+  tarLoader: TarLoader = loadTar,
 ) {
   const { backupDir, uploadsDir, archivesDir } = paths;
   await ensureDir(backupDir);
@@ -392,7 +439,7 @@ export async function createBackup(
   const checksum = await sha256OfFile(plainDbPath);
 
   // Media archive (uploads + fiscal archives), reused when unchanged.
-  const media = await ensureMediaArchive(backupDir, { uploadsDir, archivesDir }, secret);
+  const media = await ensureMediaArchive(backupDir, { uploadsDir, archivesDir }, secret, tarLoader);
 
   // Encrypt the DB snapshot.
   const encDbFilename = `hibapos-backup-${stamp}.dbenc`;
@@ -400,7 +447,12 @@ export async function createBackup(
   await encryptFile(plainDbPath, encDbPath, secret);
   await fs.unlink(plainDbPath);
 
-  const imagesPath = media?.filename ?? null;
+  // L-79: three outcomes now, not two. `archived` is the success case; a
+  // `unavailable` reason is a degraded backup; `null` is an installation with
+  // no media, which is not a problem at all.
+  const archived: MediaArchive | null = media && "filename" in media ? media : null;
+  const mediaUnavailable: string | null = media && "unavailable" in media ? media.unavailable : null;
+  const imagesPath = archived?.filename ?? null;
 
   const encStat = await fs.stat(encDbPath);
   const sizeBytes = encStat.size;
@@ -425,9 +477,12 @@ export async function createBackup(
       filename: encDbFilename,
       size: sizeBytes,
       encrypted: true,
-      mediaIncluded: media != null,
-      mediaReused: media?.reused ?? false,
-      mediaBytes: media?.bytes ?? 0,
+      mediaIncluded: archived != null,
+      mediaReused: archived?.reused ?? false,
+      mediaBytes: archived?.bytes ?? 0,
+      // L-79: present ONLY when the archive could not be built, so an audit
+      // entry without this key still means what it always meant.
+      ...(mediaUnavailable ? { mediaUnavailable } : {}),
       backupDir,
     },
     userId,
@@ -436,9 +491,12 @@ export async function createBackup(
   const pruned = await pruneBackups(userId, paths);
 
   return Object.assign(backup, {
-    media: media
-      ? { filename: media.filename, bytes: media.bytes, reused: media.reused }
+    media: archived
+      ? { filename: archived.filename, bytes: archived.bytes, reused: archived.reused }
       : null,
+    // L-79: the caller can tell a degraded backup from a complete one. Null on
+    // every backup that was not degraded, which is every backup today.
+    mediaUnavailable,
     pruned,
   });
 }
