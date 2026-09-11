@@ -222,11 +222,33 @@ async function verify(r: Resolved, foodId: string): Promise<string[]> {
     orderBy: { price: "asc" },
   });
 
+  // ANSWER THE REQUIRED OPTION GROUPS, as a cashier does.
+  //
+  // `Croustillants` carries a REQUIRED « Sauces » group, which the hidden food
+  // component inherits — so the till asks for a sauce inside the menu, exactly
+  // as it asks today when Box 15 is rung up as an ordinary product. A first
+  // rehearsal passed no options and was refused « Option obligatoire manquante :
+  // Sauces », which was the pricing being right and the rehearsal being
+  // unrealistic. The menu governs no group (`optionRules: []`), so
+  // `askedGroups` still shows every one of them to the cashier.
+  //
+  // Every sauce is `priceModifier = 0` (measured), so answering adds nothing:
+  // the customer still pays exactly the forfait, which the totals below assert.
+  const foodProduct = await db.product.findUniqueOrThrow({
+    where: { id: foodId },
+    select: { categoryId: true, inheritCategoryGlobals: true },
+  });
+  const requiredGroups = await db.categoryOptionGroup.findMany({
+    where: { categoryId: foodProduct.categoryId, required: true },
+    include: { choices: { orderBy: { sortOrder: "asc" }, take: 1 } },
+  });
+  const foodOptionIds = requiredGroups.flatMap((g) => g.choices.map((c) => c.id));
+
   for (const orderType of ["TAKEAWAY", "DINE_IN"] as const) {
     const priced = await priceComboItem({
       menu,
       components: [
-        { slotId: slots[0].id, productId: foodId, optionIds: [], addons: [] },
+        { slotId: slots[0].id, productId: foodId, optionIds: foodOptionIds, addons: [] },
         { slotId: slots[1].id, productId: drink.id, optionIds: [], addons: [] },
       ],
       quantity: 1,
