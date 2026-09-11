@@ -26,6 +26,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { useAppStore } from "@/store/app-store";
+import { CatalogueTransferCard } from "@/features/admin/catalogue-transfer-card";
 import { Settings, Save, Loader2, Store, Calculator, Printer, FlaskConical } from "lucide-react";
 
 export function SettingsView() {
@@ -55,6 +57,7 @@ export function SettingsView() {
 }
 
 function SettingsForm({ initial }: { initial: SettingsDto }) {
+  const isSuperAdmin = useAppStore((st) => st.user)?.role === "SUPER_ADMIN";
   const qc = useQueryClient();
   const [form, setForm] = useState<SettingsDto>(initial);
 
@@ -543,6 +546,12 @@ function SettingsForm({ initial }: { initial: SettingsDto }) {
               ) : null}
             </CardContent>
           </Card>
+
+          {/* Catalogue transfer (2026-09-11). SUPER_ADMIN only, matching the two
+              routes it calls — a MANAGER seeing these buttons would meet a 403.
+              It sits OUTSIDE the settings form on purpose: it acts immediately
+              and has nothing to do with the Enregistrer button below. */}
+          {isSuperAdmin ? <CatalogueTransferCard /> : null}
 
           <Separator />
 

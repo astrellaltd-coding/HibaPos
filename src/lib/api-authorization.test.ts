@@ -54,6 +54,12 @@ const EXPECTED_ROLES: Record<string, string[] | null> = {
   // test failure rather than a quiet regression.
   "settings:GET": ["SUPER_ADMIN", "MANAGER"],
   "reports/x:GET": ["SUPER_ADMIN", "MANAGER"],
+  // Catalogue transfer (2026-09-11). The export hands over every product,
+  // price and menu structure in one request — the class of read DD-22 made
+  // `users:GET` and `backups:GET` SUPER_ADMIN for. The import writes the thing
+  // every price is read from. Neither is a till operator's business.
+  "catalog/export:GET": ["SUPER_ADMIN"],
+  "catalog/import:POST": ["SUPER_ADMIN"],
 };
 
 /** Every route.ts under src/app/api, as a path relative to that root. */
@@ -130,6 +136,11 @@ describe("T-03 — every API route declares an authorization gate", () => {
     "orders/[id]/reprint:POST": ["SUPER_ADMIN", "MANAGER"], // journalled REIMPRESSION
     "users:POST": "inline",
     "settings:PUT": "inline",
+    // 2026-09-11: writes every row of the catalogue. It refuses unless all ten
+    // catalogue tables are empty, and refuses INSIDE the transaction, so a
+    // refusal leaves nothing behind — but the gate is what stops it being
+    // reachable by a till operator in the first place.
+    "catalog/import:POST": ["SUPER_ADMIN"],
   };
 
   it("keeps every destructive route authenticated, with its declared gate pinned", async () => {
@@ -162,7 +173,14 @@ describe("T-03 — every API route declares an authorization gate", () => {
     const narrower = Object.entries(DESTRUCTIVE).filter(
       ([, expected]) => expected !== "inline" && expected.length < ROLES.length,
     );
-    expect(narrower.map(([key]) => key)).toEqual(["backups/[id]/restore:POST"]);
+    // Two since 2026-09-11. `catalog/import:POST` joined the restore button,
+    // and the pairing is the right one: both replace a whole body of data
+    // rather than editing a row of it. The list is asserted exactly so that a
+    // THIRD arrival is a failure here and gets the same look.
+    expect(narrower.map(([key]) => key).sort()).toEqual([
+      "backups/[id]/restore:POST",
+      "catalog/import:POST",
+    ]);
   });
 
   it("records that closing a caisse is deliberately open to any role", async () => {
@@ -235,6 +253,8 @@ describe("T-03 — every API route declares an authorization gate", () => {
   "catalog/categories/[id]:DELETE": "INLINE",
   "catalog/categories/[id]:GET": "ANY",
   "catalog/categories/[id]:PUT": "INLINE",
+  "catalog/export:GET": "SUPER_ADMIN",
+  "catalog/import:POST": "SUPER_ADMIN",
   "catalog/products:GET": "ANY",
   "catalog/products:POST": "INLINE",
   "catalog/products/[id]:DELETE": "INLINE",
@@ -361,7 +381,12 @@ describe("T-03 — every API route declares an authorization gate", () => {
     // picker. ANY, INLINE and SUPER_ADMIN are unmoved, which is this
     // assertion earning its keep: it is the proof that adding a route did not
     // also widen an existing gate.
-    expect(counts).toEqual({ BOTH: 31, ANY: 26, INLINE: 14, SUPER_ADMIN: 7 });
+    // AMENDED 2026-09-11 (catalogue transfer): SUPER_ADMIN 7 -> 9, the two new
+    // routes `catalog/export:GET` and `catalog/import:POST`. **BOTH, ANY and
+    // INLINE are unmoved**, and that is this assertion doing its job — it is
+    // the proof that two routes were added and no existing gate was widened to
+    // make room for them.
+    expect(counts).toEqual({ BOTH: 31, ANY: 26, INLINE: 14, SUPER_ADMIN: 9 });
   });
 
   it("matches the expected gate wherever one is pinned", async () => {

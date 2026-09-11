@@ -1605,6 +1605,113 @@ told the difference.)
 - **Still unanswered:** whether the restaurant's machine gives remote Windows admin rights,
   which decides whether the installer can do the driver unattended.
 
+### PREP-2 — a catalogue can leave one install and enter another
+**Done:** 2026-09-11 · **Commit:** *(this commit)* · **Finding:** none new
+**Authorised by:** the operator's « go ahead with export/import », on the design agreed in the
+same exchange: ten tables, images excluded, `Setting` excluded, ids preserved, replace into an
+empty catalogue only.
+
+**What it is for.** The restaurant gets a **fresh install** in France keeping this catalogue.
+Nothing could carry it: no script exported catalogue data, `csv-export.ts` covers the
+dashboard, `/api/seed` seeds a DEMO catalogue. The only route was to carry `db/custom.db`
+itself, which is not a fresh install.
+
+**What shipped.** `src/lib/services/catalogue-transfer.ts`, two routes
+(`GET /api/catalog/export`, `POST /api/catalog/import`, both SUPER_ADMIN), and a card in
+Réglages so install day runs **no commands** — the whole point of the exercise.
+
+| Decision | What was built |
+|---|---|
+| ten tables, dependency order | `CATALOGUE_TABLES`, 266 rows on the live catalogue |
+| images excluded | every image column holds a PATH, and those 147 files are tracked in git (DD-16), so they arrive with the app. The export **reports** any referenced file missing from disk, at export time |
+| `Setting` excluded | the printer queue and `factice` belong to an install, not a catalogue; carrying them is how a fresh install arrives live and pointed at the wrong printer |
+| ids preserved | R2.1 counts everything under identity; a regenerated id is a catalogue no past sale can be matched against |
+| replace-into-empty only | refuses unless **all ten** tables are empty. One stray `Category` collides on its unique name and takes the import down halfway |
+
+**Two things the design gained while being built.**
+
+1. **A pre-flight reference check.** `CATALOGUE_REFERENCES` names all fourteen foreign keys of
+   the ten tables, and a file whose references do not resolve *within itself* is refused in
+   French, naming the reference, **before a database round trip**. It replaced a test that
+   broke a foreign key and asserted the transaction rolled back — see below.
+2. **Categories are inserted in two passes.** `Category.parentId` points at Category, so every
+   row goes in without its parent and a second pass sets it. That makes the import independent
+   of the order categories happen to sit in the file, at any depth. A topological sort would
+   work and would fail on a cycle this cannot even notice.
+
+**How it was verified.**
+
+- **22 tests**, driven over the two routes through `route-harness` and read back **out of the
+  database**, because what a fresh install ends up holding is the claim. The fixture is
+  structurally complete: a nested category, per-product options, category globals, an add-on,
+  and a menu composé with a slot, a filler and an option rule.
+- **A drift guard on the travelling columns.** Each table's field list is compared against the
+  database's own `PRAGMA table_info`; a column added to `Product` and not added to the list
+  would silently not travel, and the fresh install would be quietly missing a field. It fails
+  instead. `updatedAt` is the only exclusion, and it is excluded everywhere.
+- **Six one-property reverts.** No two-pass → nesting breaks. Emptiness check narrowed to
+  `Product` → the stray-category refusal breaks. Ids regenerated → 7 tests break. No
+  pre-flight → both dangling-reference refusals break. No audit call → the audit test breaks.
+- **`bun run test` 1348 pass / 0 fail, 112 files**, zero `prisma:error`; `typecheck` and `lint`
+  clean. `README.md` 1326 → 1348.
+
+**AND IT WAS RUN FOR REAL, on a production build against a copy of the live catalogue.**
+Tests over a harness are not a feature working. `bun run build` (BUILD_ID newer than every
+source, and the build listing names both new routes), then `bunx next start -p 3090 -H
+127.0.0.1` with `DATABASE_URL` and `HIBAPOS_DATA_DIR` on a scratch copy:
+
+- **Which database it had open was PROVED before any write.** A marker user
+  `MARQUEUR-COPIE-JETABLE` was written into the copy and came back from the pre-auth
+  `GET /api/auth/profiles`. The copy also carried a PIN chosen for it — never a production
+  one — so the whole walkthrough ran unattended.
+- **Export:** HTTP 200, `content-disposition: attachment`, `cache-control: no-store`,
+  **103 722 bytes**, `migration: 20260911160000_zreport_given_away`, **266 rows** across the
+  ten tables, and **`missingImages: 0`** — every one of the 80 referenced images is on disk.
+- **Refusal:** importing into the populated catalogue answered **409** naming all ten tables,
+  and left 84 products / 14 categories untouched.
+- **Round trip:** the catalogue was emptied, then the file imported — **HTTP 200, 266 rows**.
+  Products, categories, combo slots and option rules all came back **byte-identical** to a
+  fingerprint taken before the wipe, `integrity_check` ok, 0 FK errors, **80 products on the
+  POS grid**, the six nested categories with their parents, **zero duplicate names**, and
+  `Coca 1.5L` at 350 — R7.2's renames intact through the round trip.
+- Production's sha256 and mtime unchanged throughout; the server stopped with `taskkill`, port
+  free, no node/bun left running, and every scratch copy deleted.
+
+**A test that proved less than its name, and what replaced it.** The first version of « rolls
+the WHOLE import back » broke a foreign key and asserted the rollback. It passed — but it was
+testing that `db.$transaction` works, which is Prisma's claim and not this module's, and it
+cost a `prisma:error` block on every suite run (« Foreign key constraint violated on the
+foreign key » — no table, no row, no id). A clean run has **zero** of those and that number is
+worth more. So the module now refuses first, with a message naming the reference, and the
+transaction stays as defence in depth, deliberately not asserted.
+
+**A second one, found by a revert surviving.** « two exports of one catalogue are
+byte-identical » was green with `ORDER BY id` removed: SQLite returns rows in rowid order
+consistently for an unchanged table, so two consecutive exports match either way. The plan's
+method calls that a question, not a verdict — and the answer was that the test was weaker than
+its name. It now inserts a category whose id sorts FIRST, writes it LAST, and asserts every
+table comes out in id order. The revert fails against it.
+
+**The authorization matrix took four edits, and every one of them is the point.**
+`api-authorization.test.ts` requires that every authenticated handler be named in `GATES`
+exactly, so two new routes are two visible security decisions: `EXPECTED_ROLES` (both
+SUPER_ADMIN), `DESTRUCTIVE` (`catalog/import:POST` — it writes every row of the catalogue),
+`GATES`, and the gate-count assertion **SUPER_ADMIN 7 → 9 with BOTH, ANY and INLINE
+unmoved** — which is that assertion's whole purpose: the proof that routes were added and no
+existing gate was widened to make room. The « only the restore button is narrower than the
+whole role model » list is now two, and the pairing is right: both replace a whole body of
+data rather than editing a row of it.
+
+**Left behind:**
+- **Import is replace-into-empty and stays that way** unless the operator asks otherwise.
+  Merging means deciding what to do about two products with one name, and L-82 is what that
+  decision looks like when it is made by accident.
+- **The export does not carry images and must not start to.** 48 MB in a JSON file, to move
+  files that ship in git anyway.
+- **Next, on the agreed order:** first-run key generation with a screen for the two recordable
+  keys, then auto-migrate-with-backup.
+- **Still unanswered:** whether the restaurant's machine gives remote Windows admin rights.
+
 ---
 
 ## Carried forward — the 2026-09-03 → 2026-09-09 remediation
