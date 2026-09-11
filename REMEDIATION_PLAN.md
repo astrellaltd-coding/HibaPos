@@ -44,8 +44,8 @@ verified restorable). Full measurements in `REMEDIATION_DONE.md`.*
 | **R6.1** reset | **§ 6d** (§ 6a-6c precede it) | **Would delete 0 rows** — all sixteen tables on the script's `DELETION_ORDER` empty, counter already `0/0/0/0`. **A decision, not a step**: it earns its existence only if test trading happens first. Irreversible; runs once, never after a genuine sale. |
 | **R6.2** arm the key | **§ 6e** | `FISCAL_CHAIN_KEY` absent, so the reset's guard 1 passes. Follows R6.1. |
 | **R6.3** FACTICE off | **§ 6f**. ~~§ 3~~ turns it **on** | `factice=true`. Last of the three. |
-| **R6.4** printer | **§ 4a**, then § 4 | **BLOCKED ON HARDWARE.** `SUNSO WTP-800` queue exists on **`COM1:`**, `Error`; **no `USBPRINT` device, no USB port** — not plugged in. § 4a: a `COM1:` queue « prints nothing and reports success ». |
-| **R6.5** backup off-machine | **§ 6b** | **BLOCKED ON HARDWARE.** One volume: `C:`. `BACKUP_LOCATION` unset. |
+| **R6.4** printer | **§ 4a**, then § 4 | **INSTALL-DAY, IN FRANCE — not doable from here.** The printer is in the restaurant; the éditeur works from Tunisia (V-10) with remote access on install day. This machine's `SUNSO WTP-800` queue sits on **`COM1:`**, `Error`, with no `USBPRINT` device — a developer artefact, not the restaurant's state. § 4a: a `COM1:` queue « prints nothing and reports success ». |
+| **R6.5** backup off-machine | **§ 6b** | **TWO HALVES.** The restaurant's `BACKUP_LOCATION` is install-day. Separately and **now**: one volume (`C:`) holds the only catalogue and both backups — § 1's oldest item, and the only Phase 6 work actionable from Tunisia. |
 
 ### Awaiting the operator
 
@@ -62,13 +62,13 @@ verified restorable). Full measurements in `REMEDIATION_DONE.md`.*
 
 ### Deployment is deferred
 
-The app will ship as a **Tauri v2 native application**, and that migration has its own plan
-which does not exist yet. Everything about installing on a Windows till — the commissioning
-session, the kiosk launcher, the pre-built tree, the 32-bit hardware problem — was retired on
-2026-09-10. **The model is retired; the files are not.** `.zscripts/` still holds eight
-tracked `.ps1` files, and `deployment.test.ts` pins their existence and encoding (16 of the
-1312 runs); `print-raw.ps1` is live — R6.4 needs it. « Retired » does not mean « gone »: do
-not delete them to make this prose true. Phase 6 is **fiscal and applies whatever the app is packaged as**.
+Tauri v2, and that migration's plan does not exist yet. The Windows-till install was retired
+2026-09-10 — **the model is retired, the files are not**: `.zscripts/`'s eight `.ps1` files
+are pinned by `deployment.test.ts`, and `print-raw.ps1` is live for R6.4. Phase 6 is fiscal
+whatever the packaging — but **which machine and which database** it applies to is open, and
+the Tauri plan owns it. The éditeur is in **Tunisia** (V-10); the restaurant and its printer
+are in France. `FISCAL_CHAIN_KEY` is in `.env` and `factice` is in the database, so the two
+do not travel together.
 
 **Last updated:** 2026-09-11, after Phases 0 and 5 closed and a staleness sweep of every
 governing document. § 4's numbers were re-measured at 13:55 that day, not carried forward.
@@ -422,7 +422,7 @@ Kept as one-liners so nobody re-litigates them. Full rationale is in git history
 | ID | Decision |
 |---|---|
 | DD-01 | ESC/POS over raw TCP:9100 as primary, behind a transport interface; USB RAW added later. |
-| DD-02 | ~~Application data lives at `C:\HibaPOS\data`.~~ **Never implemented, and now moot.** `HIBAPOS_DATA_DIR` is unset, so `paths.ts` returns the working directory, and `.env` points `DATABASE_URL` inside the repository. `paths.ts:31` holds that path only as `RECOMMENDED_DATA_DIR`. The move was a step of the Windows-till model retired 2026-09-10; where data lives is now the Tauri phase's decision. |
+| DD-02 | ~~Data lives at `C:\HibaPOS\data`.~~ **Never implemented, moot.** `HIBAPOS_DATA_DIR` unset, so `paths.ts` returns the working directory; `:31` keeps that path only as `RECOMMENDED_DATA_DIR`. Where data lives is the Tauri phase's decision. |
 | DD-03 | No sealed row carried the wrong VAT key — the premise was an audit assumption. |
 | DD-05 | Out-of-order period closes are **refused**. A close must follow the last sealed one. |
 | DD-06 | No LAN access. The server binds `127.0.0.1`. |
