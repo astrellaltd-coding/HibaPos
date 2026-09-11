@@ -153,12 +153,21 @@ describe("L-10 — every control has a name a screen reader can read", () => {
 
   it("every icon-only Button has an accessible name", () => {
     // `size="icon"` renders a square with no text, so without a name a screen
-    // reader announces "button" and nothing else. The one exception is
-    // ui/calendar.tsx's day button, which takes its name from the day number
-    // react-day-picker passes through {...props} — a real name, not a gap.
+    // reader announces "button" and nothing else.
+    //
+    // AMENDED 2026-09-11 (Phase 5 / R5.2). There used to be a
+    // `rel(file).endsWith("ui/calendar.tsx")` skip here, exempting that file's
+    // day button — which took its name from the day number `react-day-picker`
+    // passed through `{...props}`. `ui/calendar.tsx` was one of the 27
+    // orphaned interface files R5.2 deleted, so the skip could never fire
+    // again: a dead branch and a comment describing a file that no longer
+    // exists. **Nothing asserted the skip was still needed**, so the suite
+    // stayed green either way and the deletion's own gate could not see it.
+    // Removed rather than left, so the exemption list is only ever things that
+    // exist. If an icon-only Button without a name is ever legitimate again,
+    // add the skip back WITH a test that fails when it becomes unnecessary.
     const offenders: string[] = [];
     for (const file of FILES) {
-      if (rel(file).endsWith("ui/calendar.tsx")) continue;
       const src = readFileSync(file, "utf8");
       for (const { at, tag } of elements(src, "Button")) {
         if (!/size="icon"/.test(tag)) continue;

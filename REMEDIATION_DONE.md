@@ -848,6 +848,42 @@ total fell 151 → 150, measured before deleting.
   happened.
 - **There is no barrel under `src/`.** That is what made the orphan analysis decidable, and it
   is worth keeping true.
+- **`tw-animate-css` is in `devDependencies`** and is now the sole source of every animation
+  class the app renders. Correct for Next.js — CSS is processed at build time — but it means a
+  production-visible dependency lives in the dev block. Verified from the ARTIFACT, not
+  inferred: the post-deletion stylesheet `.next/static/chunks/161110f86bb488b2.css` contains
+  `animate-in`, `fade-in-0`, `zoom-in-95`, `slide-in-from-top-2`, `animate-pulse`, `--tw-enter`.
+- **`tsconfig.tsbuildinfo` comes back.** R5.1 deleted it; every `bun run typecheck` regenerates
+  it. It is gitignored, so its deletion was cosmetic and is not a state anyone should expect to
+  persist.
+
+**AMENDED 2026-09-11, after an adversarial pass reported.** Two things the batch's own gates
+could not see:
+
+1. **`touch-and-labels.test.ts` carried a whole-file exemption for a file R5.2 deleted.** Line
+   161 was `if (rel(file).endsWith("ui/calendar.tsx")) continue;`, exempting that file's
+   icon-only day button from the accessible-name assertion. **Nothing asserted the skip was
+   still needed**, so the suite stayed green with the file gone and all four gates passed over
+   a dead branch plus a comment describing a module that no longer existed. Removed, and the
+   test still passes — which proves no surviving file needed the exemption. *`calendar.tsx:189`
+   held the only `<Button` in all 45 original ui/ files, which is why the total fell 151 → 150.*
+2. **The plan's R5.3 row stated a coupling that did not exist.** « Strictly after R5.2 or the
+   remaining files stop typechecking » — but none of the 27 deleted files imported any of the
+   seven. Their third-party imports were `recharts`, `react-day-picker`, `cmdk`, `vaul`,
+   `react-hook-form`, `input-otp`, `react-resizable-panels` and sixteen `@radix-ui` packages.
+   The real coupling runs the other way: R5.2 is what *created* the 22 extra orphans. The order
+   was still right, for the opposite reason.
+
+**Four keep-traps, all avoided** — each a package shared between a deleted file and a kept one:
+`recharts` (deleted `chart.tsx`, but `dashboard-view.tsx:41` and `reports-view.tsx:43` import it
+directly), `@radix-ui/react-dialog` (deleted `sheet.tsx`, kept `dialog.tsx`),
+`@radix-ui/react-label` (deleted `form.tsx`, kept `label.tsx` with 15 importers) and
+`@radix-ui/react-slot` (deleted `breadcrumb.tsx`/`form.tsx`, kept `badge.tsx`/`button.tsx`).
+
+**CI's install step was the failure mode the project's own loop cannot see**, and it is closed:
+both jobs run `bun install --frozen-lockfile`, which fails if `package.json` and the lockfile
+disagree. `bun.lock` was genuinely regenerated — 41 package entries removed, none added, and a
+closure check over every surviving entry reported 0 unresolved dependencies.
 
 ---
 
