@@ -125,7 +125,15 @@ describe("plan freshness — the plan and the done file may not disagree", () =>
     //   left § 7 with it, which is the drop the line above predicted, half of it.
     //   The other half is L-82, which stays: R7.2 is the operator's and is not
     //   done. Phase 7 therefore still has a row, and this is 6 rather than 5.
-    expect(taskStatuses(src).size).toBe(6);
+    //   2026-09-11, R7.2 done and PHASE 7 COMPLETE: tasks 6 → 5 — the whole
+    //   Phase 7 section left § 6, so what remains is Phase 6's five OPERATOR
+    //   rows and nothing else. Findings stay at 9 because two moved in opposite
+    //   directions in the same commit: L-82 closed (no product shares a name
+    //   any more) and **L-88 opened** (the day-close slip prints no give-away
+    //   line, though `DailyClose` seals one). A count that does not move is the
+    //   case this pin is weakest at, so: 9 is L-88·L-84·L-81·L-75·L-05·L-11·
+    //   L-47·L-51·L-52, and L-82 is gone from that list.
+    expect(taskStatuses(src).size).toBe(5);
     expect(openFindings(src).size).toBe(9);
     expect(done()).toContain("# HibaPOS France — Completed Work");
   });

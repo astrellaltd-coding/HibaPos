@@ -1123,6 +1123,139 @@ errors, journal mode still `delete`.
 - **Three sealed columns exist that no Z report has ever written**, because zero Z reports
   exist. The first real close is what fills them, and the shape is frozen from that moment.
 
+### R7.2 — no two products in this catalogue share a name — **PHASE 7 COMPLETE**
+**Done:** 2026-09-11 · **Commit:** *(records an operator edit and its verification)*
+**Finding:** L-82 closed · **Opened:** L-88
+
+**What the operator did.** Renamed the three colliding pairs in the live catalogue, adding
+`1.5L` to the *Bouteilles* row of each: `Coca`/**`Coca 1.5L`**, `Fanta`/**`Fanta 1.5L`**,
+`Orangina`/**`Orangina 1.5L`**. Three pairs, not the one L-82's row named — the other two
+were found while measuring for R7.1 and reported before the edit.
+
+**Verified read-only against the live database, not against the report:**
+
+- **Zero duplicate names in the whole catalogue**, not merely among the six. `SELECT name,
+  COUNT(*) … HAVING COUNT(*)>1` returns nothing. That is the condition L-82 was about, and it
+  is now true of all 84 products rather than of three pairs.
+- **No case-insensitive near-collision either** — checked separately, because a report labels
+  by name and `Coca` beside `coca` would read as two rows that look like one mistake.
+- **Longest name in the catalogue: 26 characters** (`Tenders box (sans boisson)`), against
+  the **36** at which a ticket article line would begin to wrap. The three new names are 9,
+  10 and 13 characters. Nothing wraps.
+- **Zero names carry stray whitespace**, so R4.4's result survives the edit.
+- 84 products in 14 categories with 80 on the grid — **unchanged**, so this was a rename and
+  not a create-and-delete. Trading tables still all zero; counters still `0/0/0/0`.
+
+**Why the timing was the whole point.** A product's NAME is snapshotted into
+`OrderItem.productName` at sale time and sealed into `topProductsJson` — and, since R7.1
+earlier the same day, into `givenAwayProductsJson`. Had a single real close happened first,
+the old ambiguous labels would be in an immutable document for good. Zero closes existed, so
+nothing was restated. **This is the last moment that was true.**
+
+**What R7.2 did NOT fix, and it is still true.** Reports label by name
+(`report-widgets.tsx:141`, `csv-export.ts:54`). The figures were never at risk — R2.1 keys by
+`productId` — but if two products are ever given the same name again, they will read as one
+row again. The residual was recorded when L-82 was opened and it survives L-82's closure.
+
+**Left behind:**
+- **`Ice Tea` is the only *Bouteilles* row without a `1.5L` suffix**, beside `Ice-Tea Peche`
+  in *Canette*. They do not collide, so nothing is wrong — but the four siblings are no
+  longer consistent with each other. Cosmetic, not recorded as a finding.
+- **L-88 opened** (below), found during R7.1 and recorded on the operator's instruction.
+
+### L-81 — `5 nuggets test`: prepared and rehearsed, the operator's to run
+**Done:** 2026-09-11 · **Commit:** *(adds `scripts/delete-product.ts`)* · **Finding:** L-81,
+still OPEN until it is run
+
+**Why a script existed for none of this.** `DELETE /api/catalog/products/[id]` is a **soft**
+delete — `active: false` and nothing else, deliberately, « to preserve order history
+integrity ». That is the right default, and it is why the app cannot serve this case at all:
+`5 nuggets test` is *already* `active = 0`, so pressing the app's delete button on it changes
+nothing. A row typed into the live catalogue by mistake is the one thing the soft delete
+cannot remove.
+
+**`scripts/delete-product.ts`**, following this directory's conventions: dry run unless
+`--apply`, derives its path only from `DATABASE_URL`, takes a sha-verified restore point,
+and verifies itself afterwards instead of trusting an exit code.
+
+**Five refusals, and each one was exercised on a copy rather than reasoned about:**
+
+| # | Refuses when | Proved by |
+|---|---|---|
+| 1 | the id names no product | `--id notarealid` → refused |
+| 2 | the product is still `active` | a live `Coca` → refused |
+| 3 | anything references it | a product in `ComboSlotChoice`, deactivated first → refused, naming 2 rows |
+| 4 | a **sealed document** names it | a fabricated `DailyClose` carrying the id in `topProductsJson` → refused |
+| 5 | the restore point does not match | sha check, same shape as `apply-migration.ts` |
+
+**Refusal 4 is the one that matters and the one no schema can express.** `topProductsJson`,
+`givenAwayProductsJson` and `dataJson` hold product ids as plain JSON with no foreign key, so
+nothing in the database defends them. Refusal 3 matters for the opposite reason: SQLite would
+have *allowed* most of it — `OrderItem.productId` is `ON DELETE SET NULL`, so past sales
+would quietly lose the identity R2.1 counts them under, and `ComboSlot` is `ON DELETE
+CASCADE`, so deleting a menu product would take its slots with it.
+
+**Rehearsed on a fresh copy of production**: `84 → 83` products, row gone, 0 FK errors,
+`integrity_check` ok, `✅ DELETED AND VERIFIED`. A fingerprint diff over every table, index,
+column order and sealed row shows **exactly one Product row removed and the count 84 → 83, and
+nothing else** — nothing cascaded. Production untouched: sha256 unchanged across the rehearsal.
+
+**Nothing references it today** — 0 rows across `OrderItem.productId`,
+`OrderItem.comboProductId`, `ComboSlot.productId`, `ComboSlotChoice.productId`,
+`OptionGroup.productId`, and 0 of 8 sealed payloads, all of which are empty tables.
+
+**Left behind:**
+- **The command is in the plan's § 1.** The operator runs it.
+- **This is only safe before trading.** Refusals 3 and 4 make it *refuse* afterwards rather
+  than damage anything — but the window in which this row can simply be deleted is open now
+  and closes at the first sale.
+
+### SECURITY — `SESSION_SECRET` rotated after it leaked into a session transcript
+**Done:** 2026-09-11 · **Commit:** *(no tracked file changed — `.env` is gitignored)*
+**Finding:** none recorded; the leak was this session's own
+
+**What happened.** While re-measuring baselines, `.env` was printed through a filter that
+redacted values matching `SECRET` on the **value** side and not on the key side. The
+`DATABASE_URL` line was the target; `SESSION_SECRET` went past the filter in plaintext and is
+in the session transcript. `BACKUP_ENCRYPTION_KEY` was excluded by a second filter and did
+**not** leak. The operator was told in the same report and chose to rotate.
+
+**What it protects.** `SESSION_SECRET` keys the HMAC-SHA-256 that signs session cookies
+(`auth.ts:170`). Holding it lets someone forge a session cookie for any user — but only
+against a server they can reach, and this one binds `127.0.0.1` (DD-06) and has never been
+deployed. The exposure was real and its reachable blast radius was nil.
+
+**How it was rotated, without Claude seeing the new value.** A script generated 32 random
+bytes as hex — the shape `auth.ts`'s own error message recommends — and wrote it in place.
+It never printed either value. The evidence it changed is an 8-character sha256 prefix of
+each: `ffcdc855…` → `9920c879…`.
+
+**The real hazard was never `SESSION_SECRET`.** `BACKUP_ENCRYPTION_KEY` lives in the same
+279-byte file, and damaging that line would make both verified backups permanently
+undecryptable — the worst outcome available in this repository. So the rotation backed the
+file up and verified the copy byte-for-byte *before* writing, rewrote exactly one line, and
+then asserted that **every other line was byte-identical**: `lines changed: [1]`, which is a
+complete proof that `DATABASE_URL` and `BACKUP_ENCRYPTION_KEY` are untouched. No backup
+decryption was needed to establish that, and none was run.
+
+**Verified afterwards at the runtime**, not just in the file: the process reads
+`SESSION_SECRET` as 64 characters matching `/^[0-9a-f]{64}$/`, with no stray quotes, passing
+`auth.ts`'s ≥32 guard, and `createHmac("sha256", …)` signs with it. `DATABASE_URL` still
+parses as a `file:` URL and `BACKUP_ENCRYPTION_KEY` is still 64 characters.
+
+**Left behind:**
+- **One `Session` row is now unverifiable** and its holder must sign in again. The row was
+  not deleted — the cookie simply fails its HMAC check, which is what rotation means.
+- **`.env.bak-before-session-rotation-2026-09-11` sits beside `.env`**, gitignored by the
+  `.env*` rule. It holds the OLD session secret — already public in the transcript — and the
+  *same* backup key `.env` holds, so it is a recovery path rather than a new exposure. Delete
+  it once a sign-in has been confirmed.
+- **The plan's § 3 invariant now reads « rotated 2026-09-11 »**, not 2026-09-07.
+- **Redacting by value is not redacting.** The filter matched `.*SECRET.*` against the whole
+  line's right-hand side and let a line through whose KEY was the secret's name. Match on the
+  key, or print `grep -oE '^[A-Z_]+='` and nothing else — which is how `.env` was inspected
+  for the rest of this session.
+
 ---
 
 ## Carried forward — the 2026-09-03 → 2026-09-09 remediation
@@ -1274,6 +1407,10 @@ orphaned 22 more. Operator's call, 2026-09-11.*
 columns — `Receipt` now holds zero rows) and **L-60** (eighteen orders carrying no
 `fiscalEventId` — `Order` now holds zero rows). Neither can recur: both depended on rows the
 reset deleted, and every order written from now on is journalled.
+
+**Closed by R7.2 on 2026-09-11:** **L-82** — the three pairs sharing a name were renamed in the catalogue, and no two products share a name any more. Its residual (reports label by name) survives the closure and is recorded in the R7.2 entry.
+
+**Opened by R7.1 on 2026-09-11:** **L-88** — the day-close paper slip prints no give-away line though `DailyClose` seals one. Recorded on the operator's instruction, not fixed.
 
 **Closed by R7.1 on 2026-09-11:** **L-83** — `/api/reports/z` sent none of the three
 give-away fields `ZReportDto` declares, and `ZReport` had no column for them. Both halves are

@@ -14,20 +14,21 @@ R6.3 — but not *only* fiscal: R6.4 (printer driver and queue) and R6.5 (a back
 volume) are technical, and § 7's nine findings are open, five of them code-level. None of the
 nine blocks a first sale.
 
-**Phases 0, 1, 2, 3, 4 and 5 are COMPLETE and applied**, including both operator items
-(R3.3 and R4.4, 2026-09-11) and both migrations.
+**Phases 0, 1, 2, 3, 4, 5 and 7 are COMPLETE and applied**, including all four operator
+items (R3.3, R4.4, R7.2, and R7.1's migration — all 2026-09-11) and all three migrations.
 
-**Phase 7's code is done. One operator row is left in it, and Phase 6 has not opened.**
-R7.1 landed 2026-09-11 and **its migration is applied and verified**: a Z report now seals
-the give-away figures. **R7.2 is the operator's**, and it belongs before the first close for
-the reason R7.1 did — a product's NAME is sealed into `topProductsJson` and now into
-`givenAwayProductsJson`, and a sealed document cannot be corrected afterwards. Phase 6 (five
-rows, all the operator's) ends in real trading, which is what creates that first close. Its
-own order is not a preference either — arming the chain key before the reset makes the reset
-refuse.
+**PHASE 7 IS COMPLETE (2026-09-11) and Phase 6 is the only one left.** R7.1 sealed the
+give-away figures into the Z report and its migration is applied and verified; R7.2 renamed
+the colliding products, and **no two products in the catalogue share a name any more**. Both
+landed before the first close, which is the whole reason the phase ran first: a product's
+name is sealed into `topProductsJson` and into `givenAwayProductsJson`, and a sealed document
+cannot be corrected afterwards.
 
-**Current task: none.** R7.2 and Phase 6 each need the operator. § 2's rule is that a phase
-boundary stops the work.
+**Phase 6 (five rows, all the operator's) ends in real trading.** Its order is not a
+preference — arming the chain key before the reset makes the reset refuse.
+
+**Current task: none.** Phase 6 needs its own go-ahead — § 2's rule is that a phase boundary
+stops the work.
 
 ### Before anyone starts Phase 6
 
@@ -57,6 +58,10 @@ boundary stops the work.
 
 ### Awaiting the operator
 
+- **Delete `5 nuggets test` (L-81), prepared and rehearsed.** With the app stopped:
+  `bun scripts/delete-product.ts --id cmtvwzr050004n368crvp0mw3 --apply`. Dry run without
+  `--apply`. Rehearsed on a copy 2026-09-11: 84 → 83 products, 0 FK errors, `integrity_check`
+  ok, and a fingerprint diff over every table showing that one row and nothing else.
 - **A copy of a verified backup OFF THIS MACHINE.** There are two, both verified by
   decryption, and **both sit on the same disk as the database they protect** — one failure
   takes all three. This is the oldest open item in the plan and the only one that is about
@@ -244,7 +249,7 @@ something going wrong.
 - **No PIN or secret value has ever been seen by Claude, and none is recorded anywhere.** Do
   not ask for one and do not write one down. `PUBLISHED_DEFAULT_PINS` in `src/lib/auth.ts`
   refuses the two values this repository publishes about itself.
-- **`.env` carried to the till must be the one rotated 2026-09-07.**
+- **`.env` carried to the till must be the one rotated 2026-09-11.** `SESSION_SECRET` was rotated that day (it had leaked into a session transcript); `DATABASE_URL` and `BACKUP_ENCRYPTION_KEY` were proved byte-identical across the rewrite, so **the two verified backups still decrypt**. The pre-rotation file is beside it as `.env.bak-before-session-rotation-2026-09-11`.
 - **Arm `FISCAL_CHAIN_KEY` only on an empty journal**, after the reset and before the first
   real sale. Arming onto a journal holding unkeyed events is refused by design.
 
@@ -298,12 +303,12 @@ row, not this line.*
 |---|---|
 | Tests | **1320 pass, 0 fail**, 110 files. **Wall time varies by 4x on the same tree — 135 s to 510 s observed**; not a regression signal, do not chase it. The `expect()` total drifts a little between runs too (**4124** after R7.1's eight tests; 4051-4070 before them). `typecheck` and `lint` clean. **Zero `prisma:error` blocks** in a clean run, down from twelve (R4.3 + R4.6). **Nothing pins this table** — `readme-counts.test.ts` reads `README.md` and only `README.md`, so it pins the same 1320 *there*; the 110 is pinned nowhere. If these drift, no test fails. Re-measure. |
 | e2e | **13 passed** (measured 2026-09-07, not re-run since). `bun run test:e2e` is **safe** — see § 5. |
-| Production DB | sha256 `515523640b377ae7baf56aebd3fe31ad99499422296bd6cce2d5522a0c15b72b`, 884 736 bytes, app stopped — **re-measured 16:25 on 2026-09-11, after R7.1's migration**. `integrity_check` ok, 0 FK errors, **15 migrations, none pending**, **18 `Product`, 18 `OrderItem` and 28 `ZReport` columns**. `schema_version` 171. *(The size did not move: an `ADD COLUMN` leaves it alone. The sha did — `c265e6ff…` was the pre-migration value.)* |
+| Production DB | sha256 `0d304ee79ad3b06adb0b89542a8906bf706f85868ae56035b8c600e3f9083cdb`, 884 736 bytes, app stopped — **re-measured 16:33 on 2026-09-11**, after R7.1's migration AND R7.2's renames. `integrity_check` ok, 0 FK errors, **15 migrations, none pending**, **18 `Product`, 18 `OrderItem` and 28 `ZReport` columns**, `schema_version` 171. *(It moved twice on 2026-09-11: `c265e6ff…` → `51552364…` at the migration, → this at the renames. The SIZE never moved through either. Expect it to move again — the operator edits the catalogue between sessions.)* |
 | How to check it | **A sha is only a baseline while nothing is running** — a signed-in session still writes `Session.lastActivityAt`, at most once a minute since R4.6. If the app may be up, check *structure*, not the hash. **File SIZE is not evidence**: an `ADD COLUMN` leaves it unchanged, measured. The sha256, the mtime and `PRAGMA schema_version` are what move. |
 | Trading tables | **All zero.** Order, OrderItem, Payment, Receipt, Refund, Shift, ZReport, FiscalEvent, GrandTotal, DailyClose, MonthlyClose, AnnualClose, CashMovement, Customer, Table. |
 | Fiscal counters | `0 / 0 / 0 / 0` (receipt / shift / Z / event). Journal **empty**. |
 | Fiscal chain | **Empty and UNKEYED**, which is correct here. Arming is R6.2, after R6.1's reset and never before. |
-| Catalogue | **84 products in 14 categories.** **9 menus composés · 25 slots · 9 whitelist rows · 7 option rules.** 17 active drinks in `Canette`/`Bouteilles`, all resolving to 5,5 % à emporter and 10 % sur place. **80 products on the till grid**: 84 less the 3 hidden components R3.3 created (`showOnPos = 0`) and `5 nuggets test`, which is still `active = 0` (L-81). **0 names carry stray whitespace** since R4.4. |
+| Catalogue | **84 products in 14 categories.** **9 menus composés · 25 slots · 9 whitelist rows · 7 option rules.** 17 active drinks in `Canette`/`Bouteilles`, all resolving to 5,5 % à emporter and 10 % sur place. **NO two products share a name** since R7.2 (2026-09-11) — the three pairs became `Coca`/`Coca 1.5L`, `Fanta`/`Fanta 1.5L`, `Orangina`/`Orangina 1.5L`. **Longest name 26 characters**, against the 36 at which a ticket line would wrap. **80 products on the till grid**: 84 less the 3 hidden components R3.3 created (`showOnPos = 0`) and `5 nuggets test`, which is still `active = 0` (L-81). **0 names carry stray whitespace** since R4.4. |
 | Accounts | Two: `manager` (MANAGER) and `admin` (SUPER_ADMIN, the developer's). `CASHIER` was removed from the product. Both must re-enter their own PIN for a discount above 20 % and for **every** refund. |
 | Journal mode | `delete`, not WAL — the guard refuses WAL on this OneDrive path, deliberately. It will switch to WAL the first time the database sits under a non-synced root. |
 | Settings | `factice=true`, `printerEnabled=true`, `printerHost=""`, `businessDayCutoffHour=5`. **`printerConnection` and `printerQueue` are both absent**, so `printerConnection` defaults to `network` and every print attempt answers *« Renseignez l'adresse IP »* — and an IP was never the answer, the Sunso WTP-801 is on USB type-B. Setting both is **R6.4**. |
@@ -342,6 +347,7 @@ of trusting an exit code.**
 |---|---|
 | `scripts/apply-migration.ts` | ✅ **How a migration is applied here from now on.** Refuses if any node/bun process is running or a `-wal`/`-shm`/`-journal` sits beside the database; **names the migration it actually applied**; ends `✅ APPLIED AND VERIFIED` or `❌`. It exists because `prisma migrate deploy` prints the same green banner whichever migration it ran, and that was misread twice. `--expect <fingerprint.json>` diffs the result against a rehearsal. |
 | `scripts/trim-catalogue-names.ts` · `scripts/build-box-menus.ts` | ✅ **Both already applied** (R4.4, R3.3) and idempotent — re-running prints `NOTHING TO TRIM` / « déjà un menu composé ». What each one checks before writing is in `REMEDIATION_DONE.md`. |
+| `scripts/delete-product.ts` | ✅ **Hard-deletes ONE product row, by `--id`** (2026-09-11, L-81 — the app's own delete is SOFT, `active=false`, and removes no row). Refuses unless the product exists, is already inactive, has **no** FK reference (`OrderItem` is `SET NULL`, `ComboSlot` is `CASCADE` — SQLite would have allowed the damage), is named in **no sealed payload** — the guard no schema can express — and the restore point verifies. Every refusal exercised on a copy. |
 | `scripts/pre-golive-reset.ts` | ⚠ **R6.1. Runs ONCE, and never after a genuine sale.** The operator's, not Claude's. |
 
 ---
@@ -351,21 +357,9 @@ of trusting an exit code.**
 Status values: `TODO` · `IN PROGRESS` · `DONE` · `BLOCKED` · `OPERATOR` · `ASK FIRST`.
 A `DONE` row leaves this file for `REMEDIATION_DONE.md`.
 
-*Phases 0-5 are complete; their records are in `REMEDIATION_DONE.md`. Nothing from them is
-outstanding except the two items under § 1 « Awaiting the operator ». Their four blocks were
-moved out on 2026-09-11 — this section is for work that remains.*
-
-### Phase 7 — One reporting defect left, and it is the operator's — **BEFORE PHASE 6**
-
-*Numbered 7 because it was opened last (operator, 2026-09-11); it runs **first**. R7.1 is
-done and its migration applied 16:19 on 2026-09-11 (`REMEDIATION_DONE.md`). **R7.2 is what
-is left**, and it is before Phase 6 for R7.1's reason: a product's NAME is sealed into
-`topProductsJson` and now into `givenAwayProductsJson`, and both freeze at the first real
-close.*
-
-| ID | Status | Task |
-|---|---|---|
-| **R7.2** | `OPERATOR` | **Rename the two « Coca » products — closes L-82.** Two rows are named exactly `Coca`: 1,50 € in *Canette*, 3,50 € in *Bouteilles*. R2.1 already keys the aggregation by `productId`, so the **figures were always right** — only the label was ambiguous, on screen and in the CSV. Operator's choice 2026-09-11: distinct catalogue names rather than a code-side label. **Three pairs, not one** (2026-09-11 16:00): `Fanta` and `Orangina` collide identically, 1,50 € *Canette* / 3,50 € *Bouteilles*, all six active and on the grid. **A name must be** unique catalogue-wide (reports label by name; `productKey` falls back to it), **≤ 36 chars** so no ticket line wraps (`receiptWidth` 48, line « 1× NAME » + amount), and free of stray whitespace (R4.4). No code reads the six by name. **Residual, recorded not fixed:** reports still label by name, so two products sharing one would read as one again. |
+*Phases 0-5 and 7 are complete; their records are in `REMEDIATION_DONE.md`. Nothing from
+them is outstanding except the three items under § 1 « Awaiting the operator ». Their five
+blocks were moved out on 2026-09-11 — **Phase 6 is the only work that remains.***
 
 ### Phase 6 — Before the first real sale
 
@@ -394,7 +388,7 @@ rule 1). Audit IDs are never renamed.
 
 | ID | Severity | Finding | Owner |
 |---|---|---|---|
-| **L-82** | Cosmetic | The product list renders the name alone (`src/components/shared/report-widgets.tsx:141`, `src/lib/csv-export.ts:54`), so the two rows R2.1 correctly separates read as two identical « Coca » labels on screen and in the CSV. Figures right, label ambiguous. `productId` is in the payload, so the figures are right; the operator chose distinct catalogue names over a code-side label. | R7.2 |
+| **L-88** | Low | The day's paper slip does not print what was given away. `DailyClose` SEALS `givenAwayCount` and `givenAwayProducts` (`fiscal.ts:357`); `day-close-ticket.ts` has no line for either, though it prints refunds and cash movements under `if (count > 0)` — the same « no permanent zero » rule a give-away line would follow. The sealed record carries the figure; the document the operator files does not. Found during R7.1; omission or decision is written down nowhere. | none |
 | **L-84** | Low | `showOnPos` is a display rule, not a guard: `orders/route.ts` checks only `active`/`available`, so a request naming a hidden product directly is still booked. Not a fraud vector (the till is the only client, at the real catalogue price), but « cannot be sold alone » is true of the interface, not the API. Pinned by `hidden-product.test.ts`, so closing it is a decision. | none |
 | **L-81** | Cosmetic | A test product, `5 nuggets test` (Croustillants, 5,00 €), was created in the live catalogue on 2026-09-10 and left `active=0` / `available=0`. Invisible on the till and harmless, but the catalogue is meant to be real work only — and it is now inside the verified backup. Delete it with the operator, or keep it deliberately. | none |
 | **L-75** | Deferred | The app cannot run on a 32-bit Windows: both Prisma engines are `machine 0x8664` and Bun is x64/ARM64 only. **Carried to the Tauri v2 phase**, where the runtime and the packaging are both decided. No software fix at this layer. | none |
