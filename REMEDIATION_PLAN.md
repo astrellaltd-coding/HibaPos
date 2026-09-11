@@ -18,8 +18,8 @@ nine blocks a first sale.
 (R3.3 and R4.4, 2026-09-11) and both migrations.
 
 **Phase 7's code is done. One operator row is left in it, and Phase 6 has not opened.**
-R7.1 landed 2026-09-11: a Z report now seals the give-away figures, and its migration is
-rehearsed and waiting. **R7.2 is the operator's**, and it belongs before the first close for
+R7.1 landed 2026-09-11 and **its migration is applied and verified**: a Z report now seals
+the give-away figures. **R7.2 is the operator's**, and it belongs before the first close for
 the reason R7.1 did — a product's NAME is sealed into `topProductsJson` and now into
 `givenAwayProductsJson`, and a sealed document cannot be corrected afterwards. Phase 6 (five
 rows, all the operator's) ends in real trading, which is what creates that first close. Its
@@ -57,12 +57,6 @@ boundary stops the work.
 
 ### Awaiting the operator
 
-- **R7.1's migration — prepared and rehearsed, NOT applied.** With the app stopped:
-  `bun scripts/apply-migration.ts --apply --expect ../db-snapshots/r71-acceptance/fp-r71-after.json`.
-  It adds three nullable columns to `ZReport` in place and touches nothing else; the
-  rehearsal's fingerprint diff is three lines and one row, in `REMEDIATION_DONE.md`. The
-  `--expect` file snapshots the catalogue as it stood at 16:00 on 2026-09-11, so a product
-  edited since then reports as a difference that is the operator's and not the migration's.
 - **A copy of a verified backup OFF THIS MACHINE.** There are two, both verified by
   decryption, and **both sit on the same disk as the database they protect** — one failure
   takes all three. This is the oldest open item in the plan and the only one that is about
@@ -304,7 +298,7 @@ row, not this line.*
 |---|---|
 | Tests | **1320 pass, 0 fail**, 110 files. **Wall time varies by 4x on the same tree — 135 s to 510 s observed**; not a regression signal, do not chase it. The `expect()` total drifts a little between runs too (**4124** after R7.1's eight tests; 4051-4070 before them). `typecheck` and `lint` clean. **Zero `prisma:error` blocks** in a clean run, down from twelve (R4.3 + R4.6). **Nothing pins this table** — `readme-counts.test.ts` reads `README.md` and only `README.md`, so it pins the same 1320 *there*; the 110 is pinned nowhere. If these drift, no test fails. Re-measure. |
 | e2e | **13 passed** (measured 2026-09-07, not re-run since). `bun run test:e2e` is **safe** — see § 5. |
-| Production DB | sha256 `c265e6ffdea8f3795f8a9ed104827d677c14afa75f7f3e486c419146bb25ea28`, 884 736 bytes, app stopped. `integrity_check` ok, 0 FK errors, **14 migrations applied and ONE pending** — R7.1's `20260911160000_zreport_given_away` — **18 `Product`, 18 `OrderItem` and 25 `ZReport` columns** (28 after that migration). |
+| Production DB | sha256 `515523640b377ae7baf56aebd3fe31ad99499422296bd6cce2d5522a0c15b72b`, 884 736 bytes, app stopped — **re-measured 16:25 on 2026-09-11, after R7.1's migration**. `integrity_check` ok, 0 FK errors, **15 migrations, none pending**, **18 `Product`, 18 `OrderItem` and 28 `ZReport` columns**. `schema_version` 171. *(The size did not move: an `ADD COLUMN` leaves it alone. The sha did — `c265e6ff…` was the pre-migration value.)* |
 | How to check it | **A sha is only a baseline while nothing is running** — a signed-in session still writes `Session.lastActivityAt`, at most once a minute since R4.6. If the app may be up, check *structure*, not the hash. **File SIZE is not evidence**: an `ADD COLUMN` leaves it unchanged, measured. The sha256, the mtime and `PRAGMA schema_version` are what move. |
 | Trading tables | **All zero.** Order, OrderItem, Payment, Receipt, Refund, Shift, ZReport, FiscalEvent, GrandTotal, DailyClose, MonthlyClose, AnnualClose, CashMovement, Customer, Table. |
 | Fiscal counters | `0 / 0 / 0 / 0` (receipt / shift / Z / event). Journal **empty**. |
@@ -315,7 +309,7 @@ row, not this line.*
 | Settings | `factice=true`, `printerEnabled=true`, `printerHost=""`, `businessDayCutoffHour=5`. **`printerConnection` and `printerQueue` are both absent**, so `printerConnection` defaults to `network` and every print attempt answers *« Renseignez l'adresse IP »* — and an IP was never the answer, the Sunso WTP-801 is on USB type-B. Setting both is **R6.4**. |
 | Backups | **TWO verified restorable backups**, both in `db/backups/` (3 files, 49 MB): one from 2026-09-10 20:42 UTC and one from 2026-09-11 12:40 UTC, sharing a single media archive (49 MB — the fingerprint was unchanged, so the second reused it). **Both were decrypted to verify**, not assumed; the 2026-09-11 one matches production table for table. R0.2 deleted the nine pre-rotation files. |
 | ⚠ Backup gap | **Both backups sit on the same disk as the database they protect.** One failure takes all three. Getting a copy off this machine is still **awaiting the operator**. |
-| Other copies | `../db-snapshots/` holds **14 plaintext databases**, 11 MB: 13 loose snapshots plus `real-data.db` in `real-data-backup.pre-cents-port.2026-09-01T17-13-56Z/`, which still carries a `-wal`/`-shm` pair. Also `r31-acceptance/`'s fingerprints. *(This row inventories every unencrypted copy of real catalogue data on this disk; it said 13 until 2026-09-11.)* `../HibaPOS-docs-archive/` holds **three** files: the two R0.3 would have destroyed, plus a `README.md` mapping which runbook sections are live. **Read it before Phase 6, not the runbook cold** (§ 1). |
+| Other copies | `../db-snapshots/` holds **15 plaintext databases**, 12 MB: 14 loose snapshots plus `real-data.db` in `real-data-backup.pre-cents-port.2026-09-01T17-13-56Z/`, which still carries a `-wal`/`-shm` pair. Also `r31-acceptance/`'s fingerprints. *(This row inventories every unencrypted copy of real catalogue data on this disk; it said 13 until 2026-09-11.)* The newest, `custom.db.before-20260911160000_zreport_given_away-2026-09-11`, is R7.1's restore point — sha256 `c265e6ff…25ea28`, the last pre-migration state. **Keep it.** `r71-acceptance/` holds only fingerprints; its rehearsal copy was deleted. `../HibaPOS-docs-archive/` holds **three** files: the two R0.3 would have destroyed, plus a `README.md` mapping which runbook sections are live. **Read it before Phase 6, not the runbook cold** (§ 1). |
 
 ---
 
@@ -364,7 +358,7 @@ moved out on 2026-09-11 — this section is for work that remains.*
 ### Phase 7 — One reporting defect left, and it is the operator's — **BEFORE PHASE 6**
 
 *Numbered 7 because it was opened last (operator, 2026-09-11); it runs **first**. R7.1 is
-done (`REMEDIATION_DONE.md`); its migration is rehearsed and waiting, in § 1. **R7.2 is what
+done and its migration applied 16:19 on 2026-09-11 (`REMEDIATION_DONE.md`). **R7.2 is what
 is left**, and it is before Phase 6 for R7.1's reason: a product's NAME is sealed into
 `topProductsJson` and now into `givenAwayProductsJson`, and both freeze at the first real
 close.*

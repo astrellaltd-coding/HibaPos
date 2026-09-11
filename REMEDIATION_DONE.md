@@ -1073,6 +1073,56 @@ as the datasource. Only then was the rehearsal run.
   Cocas. Nothing in `src/` or `scripts/` references any of the six by name, so a rename
   breaks nothing — `seed.ts` mentions « Fanta 33cl », and `db:seed` is forbidden here anyway.
 
+### R7.1 MIGRATION — APPLIED to production, and verified
+**Done:** 2026-09-11 · **Commit:** *(records a verification; no behaviour change)*
+**Finding:** none
+
+**What the operator did.** Ran `bun scripts/apply-migration.ts --apply` against production at
+**16:19:06** on 2026-09-11 and reported it a success. **Verified from the data, not from the
+report** — this installation has twice believed a migration was applied when it was not, and
+both times the belief was reasonable.
+
+**It was genuinely applied, on five independent readings:**
+
+| Check | Before | After |
+|---|---|---|
+| sha256 | `c265e6ff…25ea28` | **`51552364…c15b72b`** |
+| mtime | 2026-09-11 13:40:36 | **16:19:06** |
+| size | 884 736 bytes | 884 736 — **unchanged, as predicted** |
+| `_prisma_migrations` | 14 rows | **15**, last `20260911160000_zreport_given_away`, 0 rolled back |
+| `ZReport` columns | 25 | **28** — cids 25/26/27, all `notnull=0 default=null` |
+| `schema_version` | 168 | **171** — the number the rehearsal predicted |
+
+`finished_at` = 1789139946111 ms, which is 16:19:06 local — the same instant as the file's
+mtime, so the write that moved the file is the migration and not something else.
+
+**The size not moving is the point, not a worry.** § 4 has said since Phase 3 that file size
+is not evidence: an `ADD COLUMN` leaves it alone, measured. The sha256, the mtime and
+`PRAGMA schema_version` are what move, and all three did.
+
+**The decisive check: production's fingerprint is IDENTICAL to the rehearsal's.** The same
+`fingerprint.ts` was run against the live file, read-only, and diffed against
+`fp-r71-after.json` — every table, every index, every column order, every sealed row, every
+fiscal event hash, `integrity_check`, `foreign_key_check`, the catalogue by id and price, and
+`_prisma_migrations`. **Zero differences.** Production is in exactly the state the rehearsal
+on a copy produced, which is the strongest form this check takes: it says both that the
+migration ran and that nothing else did.
+
+**And nothing else moved.** All fifteen trading tables still zero, counters still `0/0/0/0`,
+84 products in 14 categories with 80 on the grid, two users, `integrity_check` ok, 0 FK
+errors, journal mode still `delete`.
+
+**Left behind:**
+- **`../db-snapshots/custom.db.before-20260911160000_zreport_given_away-2026-09-11` is the
+  restore point and its sha256 is `c265e6ff…25ea28`** — verified as the exact pre-migration
+  state. It is now the only copy of production before R7.1. **Keep it.** It takes the
+  loose-snapshot count in § 4 from 13 to 14.
+- **`r71-acceptance/` keeps its two fingerprints and `fingerprint.ts`, and nothing else.**
+  They are what made this verification a diff rather than an argument, and they are what a
+  future migration should copy.
+- **Three sealed columns exist that no Z report has ever written**, because zero Z reports
+  exist. The first real close is what fills them, and the shape is frozen from that moment.
+
 ---
 
 ## Carried forward — the 2026-09-03 → 2026-09-09 remediation
