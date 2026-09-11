@@ -221,9 +221,8 @@ something going wrong.
 - **Applying a migration to production and editing the live catalogue are the operator's
   actions.** Prepare, rehearse, verify, hand over the exact command. **The command is `bun
   scripts/apply-migration.ts --apply --expect <name>`**, not `bunx prisma migrate deploy` —
-  see § 5. The rule is unchanged; only the command is. *(`CLAUDE.md` line 34 still names the
-  bare `bunx prisma migrate deploy`; changing that file needs the operator's say-so, so it
-  is listed under § 7 rather than edited.)*
+  see § 5. The rule is unchanged; only the command is, and `CLAUDE.md` says
+  the same since 2026-09-11.
 - Stop any server you started with `taskkill //PID <pid> //T //F`. A leftover `next start`
   holds `query_engine-windows.dll.node` and makes `bunx prisma generate` fail `EPERM`.
   Ports 3021–3026, 3033/3034, 3040–3043, 3050–3052, 3060–3065 and 3070–3083 are spoken for.

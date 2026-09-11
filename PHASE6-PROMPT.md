@@ -68,10 +68,11 @@ a menu of options.
 
 ## Open at handover — not part of Phase 6, but do not lose them
 
-**Three claims in `CLAUDE.md` are stale, and that file needs the operator's approval to
-change.** The exact replacement text is prepared in this session's final report. The most
-important is line 34: it still names `bunx prisma migrate deploy` as the handover command,
-which is the command this project deliberately stopped using.
+**`CLAUDE.md` is current as of 2026-09-11** — three stale claims in it were corrected with
+the operator's approval, so read it as written. It now names `bun scripts/apply-migration.ts`
+as the handover command (not `bunx prisma migrate deploy`), says that the retired Windows-till
+*model* did not delete the `.zscripts/` files that `deployment.test.ts` still pins, and records
+that `pre-golive-reset.ts` already ran on 2026-09-10.
 
 **Ten open findings**, none blocking a first sale, in the plan's § 7:
 L-82 · L-83 · L-84 · L-81 · L-75 · L-05 · L-11 · L-47 · L-51 · L-52.
@@ -81,6 +82,6 @@ plan that could pick one up. That is worth deciding rather than inheriting.
 **Two items awaiting the operator**, both in § 1: a copy of a verified backup off this
 machine, and the accountant's written line on the VAT allocation method (`VAT-METHOD`).
 
-**The plan is 40 589 bytes against its 40 960-byte ceiling** — 371 to spare. The next
+**The plan is 40 465 bytes against its 40 960-byte ceiling** — 495 to spare. The next
 session to add anything substantial to it must retire something into `REMEDIATION_DONE.md`
 first. That is what the ceiling is for; do not raise it.

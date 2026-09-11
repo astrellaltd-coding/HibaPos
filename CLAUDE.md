@@ -31,8 +31,11 @@ Next.js 16 + React 19 + Prisma/SQLite. **It has never traded. Nothing has shippe
 
 ## Two things only the operator does
 
-`bunx prisma migrate deploy` against production, and edits to the live catalogue. Prepare
-the change, rehearse it on a copy, verify it, then hand over the exact command.
+Applying a migration to production, and edits to the live catalogue. Prepare the change,
+rehearse it on a copy, verify it, then hand over the exact command — which is **`bun
+scripts/apply-migration.ts --apply --expect <name>`**, **not** `bunx prisma migrate deploy`.
+The bare command prints the same green banner whichever migration it ran, and was misread as
+applied twice when it was not.
 
 ## Where things stand
 
@@ -41,10 +44,18 @@ the app will ship as a Tauri v2 native application, and that migration has its o
 which does not exist yet.** Anything about installing on a Windows till, kiosk launchers or
 commissioning sessions was retired on 2026-09-10 — if you find some, it is stale.
 
-What still has to happen before the restaurant's first real sale is fiscal, not technical,
-and it is in the plan under *Before the first real sale*. `scripts/pre-golive-reset.ts`
-empties the fiscal journal; it runs **once**, after testing and before the first genuine
-sale, and the operator runs it.
+**The model is retired; the files are not.** `.zscripts/` still holds eight tracked `.ps1`
+files that `deployment.test.ts` pins, and `print-raw.ps1` is live — R6.4 needs it. Do not
+delete them to make this prose true.
+
+What still has to happen before the restaurant's first real sale is **fiscal first** —
+R6.1, R6.2 and R6.3, in that order — but **R6.4 (the printer) and R6.5 (a backup volume) are
+technical**, not fiscal. It is in the plan under *Before the first real sale*.
+
+`scripts/pre-golive-reset.ts` empties the fiscal journal; it runs **once**, after testing and
+before the first genuine sale, and the operator runs it. **It already ran on 2026-09-10**, so
+R6.1's target is an empty database today — every trading table is at zero and the counters
+are 0/0/0/0. Whether it needs to run again is a decision, not a step.
 
 `bun run test:e2e` is safe — it builds its own disposable database under the OS temp
 directory and refuses to start otherwise. The plan's § 5 says what makes it safe and what
