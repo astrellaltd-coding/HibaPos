@@ -31,21 +31,24 @@ preference — arming the chain key before the reset makes the reset refuse.
 step — it would delete nothing today. R6.4 and R6.5 are blocked on hardware. Measurements
 below.
 
-### Phase 6 — measured on opening it, 2026-09-11 16:45
+### Phase 6 — where each row stands, 2026-09-11
 
-*`../HibaPOS-docs-archive/README.md` maps `runbook-complet.md` section by section and stays
-the thing to read before the runbook: two thirds of it is the Windows-till install retired
-2026-09-10. **§ 6a/6b/6c are stale** — scheduled tasks, `C:\HibaPOS-secrets-backup\`, and
-§ 6b's claim the backups are unrestorable (R0.2 deleted those three; the two on disk are
-verified restorable). Full measurements in `REMEDIATION_DONE.md`.*
+*Measurements and the runbook mapping are in `REMEDIATION_DONE.md` under « PHASE 6 OPENED ».
+`../HibaPOS-docs-archive/README.md` maps `runbook-complet.md`; **its § 6a/6b/6c are stale**
+(scheduled tasks, `C:\HibaPOS-secrets-backup\`, and a claim the backups are unrestorable).*
 
-| Row | Runbook | State when Phase 6 opened |
-|---|---|---|
-| **R6.1** reset | **§ 6d** (§ 6a-6c precede it) | **Would delete 0 rows** — all sixteen tables on the script's `DELETION_ORDER` empty, counter already `0/0/0/0`. **A decision, not a step**: it earns its existence only if test trading happens first. Irreversible; runs once, never after a genuine sale. |
-| **R6.2** arm the key | **§ 6e** | `FISCAL_CHAIN_KEY` absent, so the reset's guard 1 passes. Follows R6.1. |
-| **R6.3** FACTICE off | **§ 6f**. ~~§ 3~~ turns it **on** | `factice=true`. Last of the three. |
-| **R6.4** printer | **§ 4a**, then § 4 | **INSTALL-DAY, IN FRANCE — not doable from here.** The printer is in the restaurant; the éditeur works from Tunisia (V-10) with remote access on install day. This machine's `SUNSO WTP-800` queue sits on **`COM1:`**, `Error`, with no `USBPRINT` device — a developer artefact, not the restaurant's state. § 4a: a `COM1:` queue « prints nothing and reports success ». |
-| **R6.5** backup off-machine | **§ 6b** | **TWO HALVES.** The restaurant's `BACKUP_LOCATION` is install-day. Separately and **now**: one volume (`C:`) holds the only catalogue and both backups — § 1's oldest item, and the only Phase 6 work actionable from Tunisia. |
+- **R6.1** reset (§ 6d) — **would delete 0 rows**: all sixteen tables on the script's
+  `DELETION_ORDER` are empty and the counter is already `0/0/0/0`. **A decision, not a step.**
+  Irreversible; runs once, never after a genuine sale.
+- **R6.2** arm the key (§ 6e) — `FISCAL_CHAIN_KEY` absent, so the reset's guard 1 passes.
+  An empty journal is armable at any time, so arming EARLY buys nothing and creates a secret
+  to transport. Follows R6.1.
+- **R6.3** FACTICE off (§ 6f — ~~§ 3~~ turns it **on**) — `factice=true`. Last of the three.
+- **R6.4** printer (§ 4a, then § 4) — **the printer is in France; not doable from here.** This
+  machine's `SUNSO WTP-800` queue sits on `COM1:`, `Error`, with no `USBPRINT` device: a
+  developer artefact. § 4a — a `COM1:` queue « prints nothing and reports success ».
+- **R6.5** — the restaurant's `BACKUP_LOCATION` belongs to its install; **this** machine's is
+  set (§ 4). See the backup-gap row for what is still outstanding.
 
 ### Awaiting the operator
 
@@ -53,10 +56,9 @@ verified restorable). Full measurements in `REMEDIATION_DONE.md`.*
   `bun scripts/delete-product.ts --id cmtvwzr050004n368crvp0mw3 --apply`. Dry run without
   `--apply`. Rehearsed on a copy 2026-09-11: 84 → 83 products, 0 FK errors, `integrity_check`
   ok, and a fingerprint diff over every table showing that one row and nothing else.
-- **A copy of a verified backup OFF THIS MACHINE.** There are two, both verified by
-  decryption, and **both sit on the same disk as the database they protect** — one failure
-  takes all three. This is the oldest open item in the plan and the only one that is about
-  losing data rather than getting something wrong.
+- **A FRESH verified backup, off this machine.** The oldest open item in the plan and the
+  only one about losing data rather than getting something wrong. § 4's two backup rows say
+  exactly where it stands and what is left.
 - **The accountant's written line on the VAT allocation method** (§ 8, `VAT-METHOD`). The
   rates are settled and live; the division of a menu's forfait between them is the open claim.
 
@@ -65,10 +67,11 @@ verified restorable). Full measurements in `REMEDIATION_DONE.md`.*
 Tauri v2, and that migration's plan does not exist yet. The Windows-till install was retired
 2026-09-10 — **the model is retired, the files are not**: `.zscripts/`'s eight `.ps1` files
 are pinned by `deployment.test.ts`, and `print-raw.ps1` is live for R6.4. Phase 6 is fiscal
-whatever the packaging — but **which machine and which database** it applies to is open, and
-the Tauri plan owns it. The éditeur is in **Tunisia** (V-10); the restaurant and its printer
-are in France. `FISCAL_CHAIN_KEY` is in `.env` and `factice` is in the database, so the two
-do not travel together.
+whatever the packaging, and the operator settled **where** on 2026-09-11: **a FRESH install in
+France, retaining this catalogue** — the éditeur is in Tunisia (V-10), the restaurant and its
+printer are in France. So R6.1-R6.3 belong to that install, not to this machine, and
+**nothing in the app exports or imports a catalogue today** — carrying it is unsolved.
+`FISCAL_CHAIN_KEY` is in `.env`, `factice` is in the database: they do not travel together.
 
 **Last updated:** 2026-09-11, after Phases 0 and 5 closed and a staleness sweep of every
 governing document. § 4's numbers were re-measured at 13:55 that day, not carried forward.
@@ -303,8 +306,8 @@ row, not this line.*
 | Accounts | Two: `manager` (MANAGER) and `admin` (SUPER_ADMIN, the developer's). `CASHIER` was removed from the product. Both must re-enter their own PIN for a discount above 20 % and for **every** refund. |
 | Journal mode | `delete`, not WAL — the guard refuses WAL on this OneDrive path, deliberately. It will switch to WAL the first time the database sits under a non-synced root. |
 | Settings | `factice=true`, `printerEnabled=true`, `printerHost=""`, `businessDayCutoffHour=5`. **`printerConnection` and `printerQueue` are both absent**, so `printerConnection` defaults to `network` and every print attempt answers *« Renseignez l'adresse IP »* — and an IP was never the answer, the Sunso WTP-801 is on USB type-B. Setting both is **R6.4**. |
-| Backups | **TWO verified restorable backups**, both in `db/backups/` (3 files, 49 MB): one from 2026-09-10 20:42 UTC and one from 2026-09-11 12:40 UTC, sharing a single media archive (49 MB — the fingerprint was unchanged, so the second reused it). **Both were decrypted to verify**, not assumed; the 2026-09-11 one matches production table for table. R0.2 deleted the nine pre-rotation files. |
-| ⚠ Backup gap | **Both backups sit on the same disk as the database they protect.** One failure takes all three. Getting a copy off this machine is still **awaiting the operator**. |
+| Backups | **TWO verified restorable backups** (3 files, 49 MB): 2026-09-10 20:42 and 2026-09-11 12:40 UTC, sharing one media archive; **both decrypted to verify**, not assumed. R0.2 deleted the nine pre-rotation files. **`BACKUP_LOCATION` set 2026-09-11** to `~/OneDrive/Desktop/HibaPOS-Sauvegardes`; both were copied there sha-verified and the copy **decrypts** — which also proves `BACKUP_ENCRYPTION_KEY` survived that day's `SESSION_SECRET` rotation, by use and not by argument. |
+| ⚠ Backup gap | **Still open, now for two reasons.** The Desktop is inside OneDrive so it does sync off the machine — but **OneDrive was not running** when this was set. And **both copies predate the R7.1 migration and the R7.2 renames** (14 migrations, 25 `ZReport` columns, `Coca`/`Fanta`/`Orangina` still doubled), so they hold the superseded catalogue. **A FRESH backup is the outstanding action**, and it is the operator's — `createBackup` is a production write. |
 | Other copies | `../db-snapshots/` holds **15 plaintext databases**, 12 MB: 14 loose snapshots plus `real-data.db` in `real-data-backup.pre-cents-port.2026-09-01T17-13-56Z/`, which still carries a `-wal`/`-shm` pair. Also `r31-acceptance/`'s fingerprints. *(This row inventories every unencrypted copy of real catalogue data on this disk; it said 13 until 2026-09-11.)* The newest, `custom.db.before-20260911160000_zreport_given_away-2026-09-11`, is R7.1's restore point — sha256 `c265e6ff…25ea28`, the last pre-migration state. **Keep it.** `r71-acceptance/` holds only fingerprints; its rehearsal copy was deleted. `../HibaPOS-docs-archive/` holds **three** files: the two R0.3 would have destroyed, plus a `README.md` mapping which runbook sections are live. **Read it before Phase 6, not the runbook cold** (§ 1). |
 
 ---

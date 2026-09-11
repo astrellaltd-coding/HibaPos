@@ -1449,6 +1449,64 @@ rotation means.
 - **R6.5 needs a volume.** A drive letter or a USB stick; nothing else is blocking it.
 - **Nothing in this entry is evidence of French fiscal or legal compliance.**
 
+### R6.5 (half) — the catalogue is on the Desktop, and why that is not yet enough
+**Done:** 2026-09-11 · **Commit:** *(the config edit changed no tracked file — `.env` is gitignored)*
+**Finding:** none recorded — one gap reported to the operator, below
+
+**The operator's instruction:** « back up the catalogue on the desktop for the moment, and
+then I will take it to a disk drive. »
+
+**What was done.** `BACKUP_LOCATION` was added to `.env` pointing at
+`C:/Users/einer/OneDrive/Desktop/HibaPOS-Sauvegardes`, and the three existing backup files —
+two `.dbenc` and the shared 49 MB media archive — were copied there. **Each copy's sha256
+matches the original**, and the 2026-09-11 one was **decrypted from the new location** and
+reported « Format SQLite valide ».
+
+**That decrypt is also the direct proof the rotation was safe.** Earlier the same day
+`SESSION_SECRET` was rotated in the same file, and the argument that `BACKUP_ENCRYPTION_KEY`
+survived was byte-identity of its line. This opens a real backup under the current key — by
+use rather than by argument.
+
+**The `.env` edit was made with the rotation's rigour**, because the hazard in that file is
+unchanged: back up first and verify the copy, add one line, then assert every pre-existing
+line is byte-identical and that exactly one line was added. It was: 3 lines to 4, the three
+original lines unchanged, `BACKUP_ENCRYPTION_KEY` and `DATABASE_URL` among them.
+
+**WHY THIS IS ONLY HALF, and both halves matter:**
+
+1. **The Desktop is inside OneDrive** — `[Environment]::GetFolderPath('Desktop')` resolves
+   under `$env:OneDrive` — so a file there does sync off the machine, which is what the plan's
+   oldest open item asks for. But the **OneDrive process was NOT running** when this was set,
+   so nothing has synced yet. Until it does, all three copies are still on `C:` beside the
+   database they protect, which is the same failure mode as before, in a new folder.
+2. **The copied backups are SUPERSEDED.** Measured by decrypting the newest one rather than
+   assumed: it carries **14 migrations** (last `product_show_on_pos`), **25 `ZReport`
+   columns**, and `Coca` / `Fanta` / `Orangina` **still doubled**. Production now has 15
+   migrations, 28 columns and no duplicate name. So the newest backup predates both R7.1's
+   migration (16:19) and R7.2's renames (16:33) — it holds the very catalogue the renames
+   replaced, which is the opposite of « retain the catalogue because it is the correct one ».
+
+**So the outstanding action is a FRESH backup**, and it is the operator's: `createBackup()`
+writes a `Backup` row, which is a production write. It will land in the Desktop folder by
+itself now. Verifying it afterwards is read-only and is this session's to do.
+
+#### Reported, not recorded as a plan item: nothing exports or imports a catalogue
+
+The operator settled the install question on 2026-09-11: **a fresh install in France,
+retaining this catalogue.** Checked against the code rather than assumed — **there is no
+mechanism for that today.** None of the sixteen scripts exports or imports catalogue data;
+`src/lib/csv-export.ts` exports the dashboard only; and `/api/seed` seeds
+`services/seed.ts`'s DEMO catalogue (« Fanta 33cl » at 20 % VAT), not this restaurant's.
+DD-16 records that the catalogue IMAGES are tracked in git and that this is « currently their
+only versioned copy » — the catalogue DATA has no versioned copy at all, only `db/custom.db`
+and the encrypted backups.
+
+So « fresh install, keep the catalogue » has no path today except carrying `db/custom.db`
+itself, which is not a fresh install. **Deliberately NOT added to this plan**: the operator's
+instruction of 2026-09-11 is that the Tauri v2 conversion stays out of `REMEDIATION_PLAN.md`,
+and this gap exists only to serve it. Written down here so it exists somewhere, and reported
+to the operator in the same breath rather than left as a surprise for install day.
+
 ---
 
 ## Carried forward — the 2026-09-03 → 2026-09-09 remediation
