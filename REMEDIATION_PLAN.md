@@ -42,7 +42,8 @@ below.
   Irreversible; runs once, never after a genuine sale.
 - **R6.2** arm the key (§ 6e) — `FISCAL_CHAIN_KEY` absent, so the reset's guard 1 passes.
   An empty journal is armable at any time, so arming EARLY buys nothing and creates a secret
-  to transport. Follows R6.1.
+  to transport. Follows R6.1. **A BUTTON since 2026-09-11**, not a `.env` edit
+  (`POST /api/setup/chain-key`): counts `FiscalEvent` rows, refuses if any, shows the key once.
 - **R6.3** FACTICE off (§ 6f — ~~§ 3~~ turns it **on**) — `factice=true`. Last of the three.
 - **R6.4** printer (§ 4a, then § 4) — **the printer is in France; not doable from here.** This
   machine's `SUNSO WTP-800` queue sits on `COM1:`, `Error`, with no `USBPRINT` device: a

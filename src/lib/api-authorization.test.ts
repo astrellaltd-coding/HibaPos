@@ -60,6 +60,15 @@ const EXPECTED_ROLES: Record<string, string[] | null> = {
   // every price is read from. Neither is a till operator's business.
   "catalog/export:GET": ["SUPER_ADMIN"],
   "catalog/import:POST": ["SUPER_ADMIN"],
+  // First-run key handling (2026-09-11). `setup/secrets:GET` is the ONE route
+  // in this application that returns a secret value, deliberately — a backup
+  // key that exists only on the machine it protects is not a backup key. It
+  // returns only keys nobody has recorded yet, and answers with nothing once
+  // they have. `setup/chain-key:POST` arms the fiscal chain key (DD-25), which
+  // is irreversible for the journal that follows it.
+  "setup/secrets:GET": ["SUPER_ADMIN"],
+  "setup/secrets:POST": ["SUPER_ADMIN"],
+  "setup/chain-key:POST": ["SUPER_ADMIN"],
 };
 
 /** Every route.ts under src/app/api, as a path relative to that root. */
@@ -141,6 +150,9 @@ describe("T-03 — every API route declares an authorization gate", () => {
     // refusal leaves nothing behind — but the gate is what stops it being
     // reachable by a till operator in the first place.
     "catalog/import:POST": ["SUPER_ADMIN"],
+    // Arming the chain key cannot be undone for the journal written after it:
+    // re-arming would orphan every hash already computed under the first key.
+    "setup/chain-key:POST": ["SUPER_ADMIN"],
   };
 
   it("keeps every destructive route authenticated, with its declared gate pinned", async () => {
@@ -180,6 +192,7 @@ describe("T-03 — every API route declares an authorization gate", () => {
     expect(narrower.map(([key]) => key).sort()).toEqual([
       "backups/[id]/restore:POST",
       "catalog/import:POST",
+      "setup/chain-key:POST",
     ]);
   });
 
@@ -306,6 +319,9 @@ describe("T-03 — every API route declares an authorization gate", () => {
   "reports/z:POST": "BOTH",
   "settings:GET": "BOTH",
   "settings:PUT": "INLINE",
+  "setup/chain-key:POST": "SUPER_ADMIN",
+  "setup/secrets:GET": "SUPER_ADMIN",
+  "setup/secrets:POST": "SUPER_ADMIN",
   "shifts:GET": "ANY",
   "shifts:POST": "ANY",
   "shifts/[id]/close:POST": "ANY",
@@ -386,7 +402,9 @@ describe("T-03 — every API route declares an authorization gate", () => {
     // INLINE are unmoved**, and that is this assertion doing its job — it is
     // the proof that two routes were added and no existing gate was widened to
     // make room for them.
-    expect(counts).toEqual({ BOTH: 31, ANY: 26, INLINE: 14, SUPER_ADMIN: 9 });
+    // AMENDED 2026-09-11 (first-run keys): SUPER_ADMIN 9 -> 12, the three new
+    // `setup/*` routes. BOTH, ANY and INLINE unmoved again.
+    expect(counts).toEqual({ BOTH: 31, ANY: 26, INLINE: 14, SUPER_ADMIN: 12 });
   });
 
   it("matches the expected gate wherever one is pinned", async () => {

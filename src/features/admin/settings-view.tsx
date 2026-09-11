@@ -28,6 +28,7 @@ import {
 import { toast } from "sonner";
 import { useAppStore } from "@/store/app-store";
 import { CatalogueTransferCard } from "@/features/admin/catalogue-transfer-card";
+import { FirstRunKeysCard } from "@/features/admin/first-run-keys-card";
 import { Settings, Save, Loader2, Store, Calculator, Printer, FlaskConical } from "lucide-react";
 
 export function SettingsView() {
@@ -551,6 +552,12 @@ function SettingsForm({ initial }: { initial: SettingsDto }) {
               routes it calls — a MANAGER seeing these buttons would meet a 403.
               It sits OUTSIDE the settings form on purpose: it acts immediately
               and has nothing to do with the Enregistrer button below. */}
+          {/* First-run keys (2026-09-11). Renders itself away when there is
+              nothing outstanding, so it is only ever on screen when a key
+              needs recording or the chain key is unarmed. SUPER_ADMIN, like
+              the routes it calls. */}
+          {isSuperAdmin ? <FirstRunKeysCard /> : null}
+
           {isSuperAdmin ? <CatalogueTransferCard /> : null}
 
           <Separator />

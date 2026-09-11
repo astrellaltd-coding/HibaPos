@@ -10,11 +10,33 @@ import { runPinDerivation } from "@/lib/pin-hash-queue";
 const SESSION_COOKIE = "hibapos_session";
 const SESSION_TTL_MS = 1000 * 60 * 60 * 12; // 12 hours
 
-// SESSION_SECRET must be provided via environment variable.
-// No fallback — the app refuses to start without it.
-const SESSION_SECRET = process.env.SESSION_SECRET;
+// SESSION_SECRET — the environment first, then the install's own store.
+//
+// CHANGED 2026-09-11. This was `process.env.SESSION_SECRET` with a
+// module-level throw and the comment « No fallback — the app refuses to start
+// without it ». That was right for a hand-deployed install, where a missing
+// secret meant somebody had skipped a step. The app now ships as an installer,
+// and there a missing secret means nobody has run yet: refusing to start is
+// refusing to be installed.
+//
+// **The environment still wins**, so the existing install — which holds this
+// in `.env` — reaches exactly the same value by exactly the same path, and
+// `scripts/rotate-secrets.ts` remains how it is rotated. Only an install with
+// no value at all now makes one, into `<dataDir>/db/secrets.json`.
+//
+// Resolved HERE rather than in `instrumentation.ts`'s `register()`: that hook
+// is async and this is a module-level constant, so a route module imported
+// during startup could reach this line first. The file's own zod-locale
+// comment records that ordering problem.
+//
+// BOTH GUARDS SURVIVE: the app still cannot run without a usable secret, and
+// still refuses one under 32 characters. `resolveSecret` raises the second,
+// naming the variable and never the value.
+import { resolveSecret } from "@/lib/services/secret-store";
+
+const SESSION_SECRET = resolveSecret("SESSION_SECRET").value;
 if (!SESSION_SECRET) {
-  throw new Error("SESSION_SECRET environment variable is required.");
+  throw new Error("SESSION_SECRET could not be resolved or generated.");
 }
 if (SESSION_SECRET.length < 32) {
   throw new Error(
