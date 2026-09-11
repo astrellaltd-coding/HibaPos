@@ -1,4 +1,11 @@
 ==============================================================================
+*** HISTORICAL SNAPSHOT — 2026-09-06. DO NOT READ AS CURRENT. ***
+*** Superseded by the pre-go-live reset of 2026-09-10: every trading table  ***
+*** is now empty and the fiscal counters are 0/0/0/0, not the figures in    ***
+*** sections [2] and [3] below. Kept as the record of what was verified on  ***
+*** the date in the filename. For where things stand, read                  ***
+*** REMEDIATION_PLAN.md section 4.                                          ***
+==============================================================================
 BATCH 8.1 — LIVE DATABASE VERIFICATION (read-only)
 file: C:/Users/einer/OneDrive/Desktop/Work/HibaFood/The App/db/custom.db
 run : 2026-09-06T21:04:35.323Z

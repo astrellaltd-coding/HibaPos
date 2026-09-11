@@ -6,17 +6,22 @@ Système de point de vente (POS) pour restaurant, **construit selon les exigence
 > **Ce dépôt n'établit pas la conformité, et cette ligne disait le contraire jusqu'au
 > 2026-09-05.** La conformité résulte de l'attestation de l'éditeur
 > (`docs/attestation-conformite.md`, modèle BOI-LETTRE-000242) ; une fausse attestation est
-> un délit pénal (3 ans, 45 000 €). Trois questions restent ouvertes et **aucun test
-> automatisé ne peut y répondre** : la suffisance d'une chaîne de hachage non signée, le
-> format de l'archive annuelle, et l'obligation ou non de journaliser l'ouverture
-> automatique du tiroir-caisse. Elles relèvent d'un tiers qualifié.
+> un délit pénal (3 ans, 45 000 €). **Quatre** questions restent ouvertes et **aucun test
+> automatisé ne peut y répondre.** Trois relèvent d'un tiers qualifié : la suffisance
+> d'une chaîne de hachage non signée (V-01), le format de l'archive annuelle (V-02), et ce
+> qu'un ticket doit porter de plus (V-03) — l'obligation ou non de journaliser l'ouverture
+> automatique du tiroir-caisse est enregistrée séparément sous V-13. La quatrième,
+> **VAT-METHOD**, relève du **comptable du restaurant** : la base de ventilation d'un menu
+> à prix forfaitaire entre 10 % et 5,5 %, à confirmer **par écrit**
+> (`docs/politique-ventilation-tva.md`). Le registre qui fait foi est
+> `docs/conformite-isca-map.md` § 9.
 
 ## Stack
 
 - **Framework** : Next.js 16 (App Router, single-route SPA)
 - **UI** : React 19 + Tailwind CSS 4 + shadcn/shadcn-ui
 - **État** : Zustand (persisté) + TanStack Query
-- **Base de données** : SQLite via Prisma ORM — le mode **WAL est appliqué au démarrage** (`src/lib/db-pragmas.ts`), **sauf** si le fichier se trouve dans un dossier synchronisé (OneDrive, Dropbox, Google Drive, iCloud), où il est délibérément refusé : un agent de synchronisation qui remonte un `-wal` périmé corrompt la base. *L'installation actuelle est sous OneDrive et tourne donc en journal rollback (re-vérifié 2026-09-07, octet 18 = 1) ; elle passera en WAL au premier démarrage après le déplacement vers `C:\HibaPOS\data`.*
+- **Base de données** : SQLite via Prisma ORM — le mode **WAL est appliqué au démarrage** (`src/lib/db-pragmas.ts`), **sauf** si le fichier se trouve dans un dossier synchronisé (OneDrive, Dropbox, Google Drive, iCloud), où il est délibérément refusé : un agent de synchronisation qui remonte un `-wal` périmé corrompt la base. *L'installation actuelle est sous OneDrive et tourne donc en journal rollback (re-vérifié 2026-09-07, octet 18 = 1) ; elle passera en WAL au premier démarrage où la base se trouvera sous une racine **non synchronisée** — c'est la condition que teste le garde-fou, et non un chemin particulier. Aucun déplacement n'est planifié : voir DD-02 ci-dessous.*
 - **Authentification** : Sessions serveur signées (cookies httpOnly) + PIN (scrypt N=2^17) + révocation par session
 - **Monnaie** : Calculs en **centimes entiers** (Int) bout-en-bout — aucun drift flottant (exigence de calcul pour la TVA)
 - **Fiscalité** : Journal fiscal permanent chaîné par hash (SHA-256), grand total perpétuel enregistré dans chaque clôture, clôtures de caisse / du jour / mensuelles / annuelles, mode FACTICE, archive annuelle ouverte
@@ -38,9 +43,12 @@ Copiez `.env.example` en `.env` et renseignez :
 
 ```ini
 # Chemin relatif : valable pour un poste de développement.
-# L'installation de production utilise un chemin ABSOLU (vérifié 2026-09-05).
-# DD-02 a retenu `C:\HibaPOS\data` comme emplacement final ; le déplacement
-# physique fait partie du lot 1.4 et n'a pas encore eu lieu.
+# CE DÉPÔT utilise un chemin ABSOLU vers db/custom.db, qui est la base VIVE.
+# DD-02 avait retenu `C:\HibaPOS\data` comme emplacement final, dans le cadre
+# du modèle d'installation Windows RETIRÉ le 2026-09-10. L'application ne
+# déplace rien d'elle-même : HIBAPOS_DATA_DIR n'est pas défini, donc
+# paths.ts renvoie le répertoire courant. Le sujet appartient désormais à la
+# phase Tauri v2, qui n'a pas encore de plan.
 DATABASE_URL="file:./db/custom.db?_fk=1&_busy_timeout=5000"
 SESSION_SECRET="votre-secret-tres-long-ici"   # min 32 caractères (openssl rand -hex 32)
 BACKUP_ENCRYPTION_KEY="une-autre-cle-de-32-caracteres"  # min 32 caractères
@@ -48,12 +56,20 @@ BACKUP_ENCRYPTION_KEY="une-autre-cle-de-32-caracteres"  # min 32 caractères
 
 ## Base de données
 
-```bash
-# Pousser le schéma + générer le client Prisma
-bun run db:push
+> ⛔ **Ne lancez aucune des deux commandes ci-dessous sur ce dépôt.** `.env` pointe
+> `DATABASE_URL` sur `db/custom.db` — **la base vive du restaurant**, avec son catalogue
+> réel. `db:push` la réécrit d'après le schéma sans passer par une migration, `db:seed`
+> y réinjecte des comptes. Elles ne valent que pour une **copie de travail** dont
+> `DATABASE_URL` **et** `HIBAPOS_DATA_DIR` ont tous deux été redéfinis.
+>
+> Cette base a **14 migrations appliquées** : ici, le schéma se change par migration, et
+> une migration s'applique avec `bun scripts/apply-migration.ts` — jamais avec `db:push`.
+> Voir `REMEDIATION_PLAN.md` § 5.
 
-# Seeder (utilisateur super-admin + gérant par défaut)
-bun run db:seed
+```bash
+# UNIQUEMENT sur une copie de travail (jamais sur ce dépôt) :
+#   DATABASE_URL="file:/chemin/vers/copie.db" HIBAPOS_DATA_DIR="/chemin/vers/copie" bun run db:push
+#   … puis db:seed pour les comptes par défaut.
 ```
 
 ## Développement
@@ -129,12 +145,23 @@ public/
                     Depuis le 2026-09-11 il existe DEUX sauvegardes chiffrées restaurables,
                     vérifiées par déchiffrement, qui incluent ces images (L-46 est close) —
                     mais les deux sont sur le même disque que la base qu'elles protègent.
-docs/
+docs/                          → sept fichiers ; les voici tous
   attestation-conformite.md    → Attestation ISCA (BOI-LETTRE-000242) — NON SIGNÉE
   politique-ventilation-tva.md → Répartition de la TVA d'un menu à prix forfaitaire
   conformite-isca-map.md       → Chaque exigence ISCA → le code qui l'implémente
   conformite-isca-recherche.md → Les sources (BOFiP, CGI, LNE) derrière la carte
+  CHANGES-LOG.md               → Journal des changements de catalogue et d'UI, avec
+                                 la manœuvre inverse de chacun. Absent de cet arbre
+                                 jusqu'au 2026-09-11 — ce qui explique une partie de
+                                 sa dérive.
   SQLITE_WAL.md                → Pourquoi le WAL est refusé sur un dossier synchronisé
+  verification-8.1-2026-09-06.txt → Relevé read-only du 2026-09-06. HISTORIQUE :
+                                 périmé par la remise à zéro du 2026-09-10.
+scripts/                       → 16 scripts CLI. Tous en dry-run par défaut ;
+                                 `--apply` écrit dans la base que désigne
+                                 DATABASE_URL, c'est-à-dire la base VIVE.
+                                 `apply-migration.ts` est le seul chemin par
+                                 lequel une migration s'applique ici.
 .zscripts/
   print-raw.ps1                → Impression RAW via le spouleur Windows (USB)
 ```

@@ -20,6 +20,13 @@ The application is **not installed**, the fiscal reset has **not** run, and
   `REMEDIATION_PLAN.md` (outstanding work) and `REMEDIATION_DONE.md` (finished
   work).
 
+**Reading a « § 6 » or « § 6f » below.** Every bare section number in this file belongs
+to the commissioning runbook, not to anything in this repository. That document is
+`../HibaPOS-docs-archive/runbook-complet.md` — outside the repo, beside it. Read
+`../HibaPOS-docs-archive/README.md` first: roughly two thirds of the runbook is the
+Windows-till install withdrawn on 2026-09-10, and it maps which sections are still live.
+The live equivalents of § 6 are the plan's Phase 6 rows R6.1-R6.5.
+
 Retired verbatim, 2026-09-10:
 
 > **Where we are — rewritten 2026-09-09, because the original framing went stale.**
@@ -35,9 +42,11 @@ This file carries on either side of that, because the reason for keeping it is
 the same: if a screen misbehaves in the restaurant, there should be one short
 list of what moved, not a `git log` to reverse-engineer under pressure.
 
-**This is NOT the remediation record.** `REMEDIATION_PLAN.md` and
-`REMEDIATION_RECORD.md` govern fiscal and data-integrity work and keep their own
-protocol. This file is for the smaller, later work: UI tweaks, labels, spacing, a
+**This is NOT the remediation record.** `REMEDIATION_PLAN.md` (outstanding work) and
+`REMEDIATION_DONE.md` (finished work) govern fiscal and data-integrity work and keep
+their own protocol. *(Until 2026-09-10 this sentence named `REMEDIATION_RECORD.md`,
+which the bullet above says was consolidated away — the file contradicted itself on the
+same page.)* This file is for the smaller, later work: UI tweaks, labels, spacing, a
 small feature. **If a change touches money, VAT, the fiscal journal, the hash
 chains, closes, archives, backups or authentication, it does not belong here — it
 is a batch, and it goes through the plan.**
@@ -48,10 +57,19 @@ is a batch, and it goes through the plan.**
 
 **This block is a snapshot of 2026-09-08, not a current reading.** It is the
 mark the rows below are measured from and it is deliberately not updated; for
-where things stand now, read `REMEDIATION_PLAN.md`'s front matter. Two figures
-have since moved and are named here so nobody mistakes them for current: the
-suite is **1044** tests, and **11** migrations are applied — the eleventh is
-Batch 3.12's `vatRateTakeaway`.
+where things stand now, read `REMEDIATION_PLAN.md` § 4.
+
+*This paragraph used to name « current » figures of its own (1044 tests, 11 migrations)
+which disagreed with the table directly below it (1217, 12) and with reality (1312, 14 on
+2026-09-11). **A snapshot file cannot carry a live number.** It no longer tries: § 4 of
+the plan is the only place a current figure is written down, and even that says to
+re-measure.*
+
+**Also superseded, everywhere below:** the trading figures. The pre-go-live reset ran on
+2026-09-10, so `Order`, `OrderItem`, `Payment`, `Receipt`, `Refund`, `Shift`,
+`ZReport`, `FiscalEvent`, `DailyClose`, `MonthlyClose`, `AnnualClose` and
+`CashMovement` are **all 0** and the fiscal counters are **0 / 0 / 0 / 0** — not the
+41 / 5 / 4 / 30 the table records.
 
 | | |
 |---|---|
@@ -73,8 +91,11 @@ others.
 The rules below are stricter after one moment, and it is worth being explicit
 about which side of it you are on.
 
-**Before § 6f** — where we are now. The trading data in the database is the
-developer's own test data and § 6 deletes all of it. A mistake here costs test
+**Before § 6f** — still true, but the reset it describes has already happened.
+*(2026-09-11: `pre-golive-reset.ts` ran on 2026-09-10 and every trading table is now
+empty, so there is no developer test data left to delete. FACTICE is still on and nothing
+has traded, which is the part that still holds.)* The trading data in the database was the
+developer's own test data and § 6 deleted all of it. A mistake here costs test
 data, which is why exercising the fiscal flows was safe enough to do repeatedly
 during remediation. **It does not license careless writes to the live database:**
 the *catalogue* in that same file is real, irreplaceable work, and every batch in
@@ -149,8 +170,8 @@ They are listed here instead, newest last. **Claude cannot make these edits**
 | 2026-09-09 | The three *Duo* meals: « Hériter des options & suppléments globaux » turned **off**. | They sit under *Burgers* and were inheriting its *Crudités* and *Frite* groups, asking once for two burgers. | Turn the toggle back on. |
 | 2026-09-09 | Three menu photographs added (`menu_eco`, `menu_chill`, `menu_xxl`). | Preparing the combos. Two of the three have no product yet. | Files are in git (`39a47be`). |
 | 2026-09-09 | *Menu Eco* deactivated. Its price had been overwritten 24,90 → 8,90 by a save while it inherited the Pizzas *Taille* group. Done in the right order, so no phantom size group was created. | The operator is removing it and will create all three menus with Batch 5.9. | Turn *Actif* back on. |
-| **PENDING** | **Deactivate, then hard-delete, the three *Duo* meals** — `Duo Cheeseroyale`, `Duo Chickenroyale`, `Duo Geant Royale`. Turn *Actif* off in each product's editor (no sizes trap — *Burgers* has no size group), then `bun scripts/delete-product.ts "<nom>" --apply` for each. All three have **zero order lines**, so the script permits it. | Operator's decision, 2026-09-09 — they will be recreated as composed products with Batch 5.9, which is the shape they always needed. | **Not undoable from here.** Take a backup first. |
-| **PENDING** | **Hard-delete the *Menu Eco* row** with `bun scripts/delete-product.ts "Menu Eco" --apply`. Rehearsed on a copy 2026-09-09: the row goes, the *Menu* category survives, an `AuditLog` `PRODUCT_HARD_DELETED` is written, 78 → 77 products, integrity ok. | Operator's decision, 2026-09-09 — a deactivated row would otherwise survive § 6 and appear in every listing for the life of the installation. | **Not undoable from here.** Take a backup first; the row can only be recreated by hand. |
+| 2026-09-09 ✅ **DONE** | **Deactivated and hard-deleted the three *Duo* meals** — `Duo Cheeseroyale`, `Duo Chickenroyale`, `Duo Geant Royale`. **Verified gone 2026-09-11** — none of the three names matches a `Product` row. | Operator's decision, 2026-09-09. They were recreated as composed products: `Duo Cheese Royal`, `Duo Chicken Royal` and `Duo Giant Royal` exist today, each with 3 `ComboSlot` rows — the shape they always needed. | Not undoable. Recreate by hand from the combo builder. |
+| 2026-09-11 ⛔ **WITHDRAWN — DO NOT RUN** | ~~Hard-delete the *Menu Eco* row with `bun scripts/delete-product.ts "Menu Eco" --apply`.~~ **Menu Eco was rebuilt, not deleted.** Read-only check 2026-09-11: `active=1`, `showOnPos=1`, **4 `ComboSlot` rows** — it is one of the nine menus composés in the plan's § 4 baselines. Running that command today hard-deletes a live, on-grid menu. | Written 2026-09-09, when *Menu Eco* was a deactivated leftover with a corrupted price. Batch 5.9 rebuilt it as a menu composé instead of removing it, which settled the reason the row existed; nobody came back to strike the instruction. | Nothing to undo — the deletion was never performed. |
 
 ---
 

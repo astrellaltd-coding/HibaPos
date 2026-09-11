@@ -14,8 +14,12 @@ Completed work lives in **`REMEDIATION_DONE.md`**. This file only ever shows out
 
 ## 1. CURRENT STATUS
 
-**Overall:** NOT READY FOR PRODUCTION — and what stands between here and ready is now
-**entirely fiscal**, not technical. Every code defect this plan ever listed is fixed.
+**Overall:** NOT READY FOR PRODUCTION. Every code defect that ever had a **task row** in
+this plan is fixed. What stands between here and ready is **fiscal first** — R6.1, R6.2 and
+R6.3 — but not *only* fiscal: R6.4 (printer driver and queue) and R6.5 (a backup on a second
+volume) are technical, and § 7's ten findings are open, six of them code-level. None of the
+ten blocks a first sale. *(This line used to read « entirely fiscal … every code defect is
+fixed », which § 7 of this same file contradicts.)*
 
 **Phases 0, 1, 2, 3, 4 and 5 are COMPLETE and applied**, including both operator items
 (R3.3 and R4.4, 2026-09-11) and both migrations. **Only Phase 6 remains**: five steps, all
@@ -27,12 +31,26 @@ stops the work.
 
 ### Before anyone starts Phase 6
 
-1. **Read `../HibaPOS-docs-archive/runbook-complet.md`.** Its § 4a is the **only written
-   procedure** for R6.4's printer commissioning — the `pnputil` export/install commands and
-   the hardware id `USBPRINT\SUNSOWTP-800036C` from `sunso.inf`, confirmed with the owner
-   2026-09-09. Its § 6 is R6.1's reset, § 3 is R6.3, § 7 is V-07. The R6 rows in § 6 name the
-   tasks; that document has the steps. It was one command from being deleted by R0.3 — see
-   `REMEDIATION_DONE.md`.
+1. **Read `../HibaPOS-docs-archive/README.md` FIRST, then the runbook.** The archive holds
+   three files, and that README maps `runbook-complet.md` section by section, live against
+   withdrawn — roughly two thirds of it is the Windows-till install retired on 2026-09-10,
+   and its §§ 0/0a/0b/1/2/5 still give instructions that are dangerous to act on (copying a
+   tree to `C:\HibaPOS-app\`, applying an already-applied migration). Do not open the runbook
+   cold.
+
+   **The mapping, corrected 2026-09-11 — the previous version sent R6.3 to the section that
+   does the opposite:**
+
+   | Phase 6 row | Runbook section |
+   |---|---|
+   | R6.1 reset | **§ 6d**, inside § 6 « THE POINT OF NO RETURN » (§ 6a-§ 6c are its prerequisites) |
+   | R6.2 arm the chain key | **§ 6e** — « in this order, or not at all » |
+   | R6.3 FACTICE **off** | **§ 6f**. ~~§ 3~~ — § 3 is « FACTICE **on**, before anything is rung up », the opposite action |
+   | R6.4 printer and drawer | **§ 4a** (driver: `pnputil`, hardware id `USBPRINT\SUNSOWTP-800036C` from `sunso.inf`, confirmed with the owner 2026-09-09), then **§ 4** |
+   | R6.5 backup off the machine | **§ 6b** — the only written form it has |
+   | V-07 first real trading day | **§ 7** |
+
+   It was one command from being deleted by R0.3 — see `REMEDIATION_DONE.md`.
 2. **R6.1 is irreversible.** `scripts/pre-golive-reset.ts --apply` empties the fiscal journal
    and deletes every order, receipt, shift, Z report and close. It runs **once**, after all
    testing and before the first genuine sale, and never after one.
@@ -51,10 +69,13 @@ stops the work.
 The app will ship as a **Tauri v2 native application**, and that migration has its own plan
 which does not exist yet. Everything about installing on a Windows till — the commissioning
 session, the kiosk launcher, the pre-built tree, the 32-bit hardware problem — was retired on
-2026-09-10. Phase 6 is **fiscal and applies whatever the app is packaged as**.
+2026-09-10. **The model is retired; the files are not.** `.zscripts/` still holds eight
+tracked `.ps1` files, and `deployment.test.ts` pins their existence and encoding (16 of the
+1312 runs); `print-raw.ps1` is live — R6.4 needs it. « Retired » does not mean « gone »: do
+not delete them to make this prose true. Phase 6 is **fiscal and applies whatever the app is packaged as**.
 
-**Last updated:** 2026-09-11, after Phases 0 and 5 closed. Every number in § 4 was
-re-measured at 13:55 that day, not carried forward.
+**Last updated:** 2026-09-11, after Phases 0 and 5 closed and a staleness sweep of every
+governing document. § 4's numbers were re-measured at 13:55 that day, not carried forward.
 
 ## 2. HOW TO WORK HERE
 
@@ -110,8 +131,11 @@ fiscal document.)*
   production database in the working tree. Apply to a copy, then diff a fingerprint of every
   fiscal table before and after: row counts, `FiscalCounter`, `GrandTotal`, every event hash,
   sealed rows, order lines, `integrity_check`, FK errors, column order. Only the intended
-  columns and the `_prisma_migrations` row may differ. Then hand the operator the exact
-  `bunx prisma migrate deploy` command. *(Phase 2's went out this way and is applied.)*
+  columns and the `_prisma_migrations` row may differ. Then hand over **`bun
+  scripts/apply-migration.ts --apply --expect <migration_name>`** — not a bare `bunx prisma
+  migrate deploy`. *(Phase 2's went out as the bare command and was reported applied twice
+  when it was not, because `migrate deploy` prints the same green banner whichever
+  migration it ran. The script names what it applied and verifies it; § 5 says why.)*
 - **Prove the test fails on the old code.** Temporarily revert the fix, re-run, confirm the
   new tests fail, restore from a copy taken **before** the revert (`git checkout` on
   uncommitted work throws the change away). Revert **one property at a time**, in **both
@@ -125,7 +149,10 @@ fiscal document.)*
 - **Read-only inspection of live data.** `bun:sqlite` with `readonly: true`. Never load Prisma
   or the WAL startup hook against the production file.
 - **Manual validation against the production build.** `bun run build` then `bunx next start`
-  on the scratch copy. `next dev` is blocked here — it loads the real `.env`. **Check
+  on the scratch copy. **`next dev` is NOT blocked — nothing guards it, and that is the hazard.**
+  It loads the real `.env`, which points at the live database. `.zscripts/dev.ps1` is worse:
+  it runs `db:deploy` and `db:seed` first if `db/custom.db` is missing. Use `bunx next
+  start` on the scratch copy. *(This line used to say it was blocked. Nothing blocks it.)* **Check
   `.next/BUILD_ID` against your source mtimes**: a worked example once ran against a stale
   build and returned a plausible wrong number.
 - **A scratch copy can carry a PIN Claude knows.** Claude cannot type a *production* PIN — the
@@ -180,7 +207,10 @@ something going wrong.
   dev-only guard is what broke the restore: two clients meant two handles on the SQLite file,
   and Windows refuses to rename over an open handle.
 - **Nothing in `scripts/` may open a database path not derived from `DATABASE_URL` or
-  `HIBAPOS_DATA_DIR`.** `git grep "new Database("` is how to check.
+  `HIBAPOS_DATA_DIR`.** `git grep "new Database("` was the check; today it returns exactly
+  one hit and that hit is a *comment* (`scripts/apply-migration.ts:48`). No script uses
+  `bun:sqlite` at all — all sixteen go through `PrismaClient`, so **`git grep "new
+  PrismaClient("` is the check that matches the current risk surface.** Run both.
 - **Every script in `scripts/` is a dry run unless given `--apply`.** Read the header first.
 - **Never run `bunx vitest` or `npx vitest`.** `vitest.config.ts` throws at import, on purpose:
   vitest never loads `test-setup.ts`, which is the only thing pointing `DATABASE_URL` at a
@@ -188,8 +218,12 @@ something going wrong.
 - **Never run `git clean`.**
 - **Never write to `db/custom.db` or to real menu data.** Scratch copy, both env vars
   overridden, marker proved first.
-- **`prisma migrate deploy` against production and edits to the live catalogue are the
-  operator's actions.** Prepare, rehearse, verify, hand over the exact command.
+- **Applying a migration to production and editing the live catalogue are the operator's
+  actions.** Prepare, rehearse, verify, hand over the exact command. **The command is `bun
+  scripts/apply-migration.ts --apply --expect <name>`**, not `bunx prisma migrate deploy` —
+  see § 5. The rule is unchanged; only the command is. *(`CLAUDE.md` line 34 still names the
+  bare `bunx prisma migrate deploy`; changing that file needs the operator's say-so, so it
+  is listed under § 7 rather than edited.)*
 - Stop any server you started with `taskkill //PID <pid> //T //F`. A leftover `next start`
   holds `query_engine-windows.dll.node` and makes `bunx prisma generate` fail `EPERM`.
   Ports 3021–3026, 3033/3034, 3040–3043, 3050–3052, 3060–3065 and 3070–3083 are spoken for.
@@ -219,9 +253,16 @@ something going wrong.
 
 - **`src/features/tables/tables-view.tsx`** is unreachable by design (DD-09 withdrew table
   service). `table-withdrawal.test.ts` asserts the file exists *and* is not wired.
-- **The table auto-link/auto-free branches** in `checkout.ts` and `refund.ts` are unreachable
+- **The table auto-link/auto-free branches** in `src/lib/services/checkout.ts:281-285` and
+  `src/lib/services/refund.ts:167-168` are unreachable
   today and stay. Do not delete them without reopening DD-09.
 - **`round2` in `money.ts`** is retained though the fiscal path no longer uses it.
+- **`tw-animate-css` is the animation plugin, NOT `tailwindcss-animate`.** The names differ
+  by a hyphen; the app imports the first at `globals.css:2`. Removing the wrong one breaks
+  every dialog and dropdown animation **silently** — Tailwind stops generating the classes
+  with no build error. Check CSS, not just TypeScript. *(Left by Phase 5.)*
+- **`tar` stays.** `backup.ts` loads it through a dynamic `import()`, so static analysis
+  cannot see the use. The same trap pointing the other way. *(Left by Phase 5.)*
 - **A media failure is journalled and never silent** (R4.1). `null` from `ensureMediaArchive`
   means « nothing to archive »; `{ unavailable }` means « could not archive ». Never conflate.
 - **`CartAddOn.id` is `string`** (R4.2) — the checkout schema requires it. An id-less add-on
@@ -231,8 +272,10 @@ something going wrong.
   (R4.6) — the value has no reader, and a write per request contends for SQLite's single
   write lock. A clean suite run now has **zero** `prisma:error` blocks, down from twelve.
 - **A media failure never costs the database backup** (R4.5). Building the archive is guarded
-  as well as loading `tar`, and a partial `.tar.gz` is unlinked so the next backup's reuse
-  check cannot mistake it for a good one.
+  as well as loading `tar`, and **both** the plaintext `.tar.gz` and the incomplete `.enc`
+  are unlinked (`backup.ts:356-357`). The reuse check is `existsSync(encPath)` on the
+  **`.enc`** (`:326`), so it is the `.enc` unlink that defends it; the `.tar.gz` unlink is
+  hygiene. *(This line named only the `.tar.gz`, which is the one that does not.)*
 - **A reordered line carries REAL catalogue choice ids** (R4.7), resolved by name against the
   catalogue. `choiceId: ""` matches nothing in `pricing.ts` and silently drops the option.
 - **`sellableAlone` and `slotProducts` are a PAIR, and the asymmetry is deliberate.**
@@ -247,12 +290,13 @@ something going wrong.
 
 ## 4. CURRENT BASELINES — re-measure before trusting any of these
 
-*Every row below was measured on **2026-09-11 at 13:55**, after Phases 0, 2, 3, 4 and 5
-completed and both migrations were applied.*
+*Measured on **2026-09-11 at 13:55**, after Phases 0, 2, 3, 4 and 5 completed and both
+migrations were applied — **except the e2e row, which carries its own older date**. Each row
+is responsible for saying when it was taken; where one does, believe the row, not this line.*
 
 | Thing | Value |
 |---|---|
-| Tests | **1312 pass, 0 fail**, 109 files, ~160 s. `typecheck` and `lint` clean. **Zero `prisma:error` blocks** in a clean run, down from twelve (R4.3 + R4.6). Pinned by `readme-counts.test.ts`, which counts declarations plus declared expansions. |
+| Tests | **1312 pass, 0 fail**, 109 files. **Wall time varies wildly — 160 s to 510 s** on the same tree; it is not a regression signal, so do not chase it. `typecheck` and `lint` clean. **Zero `prisma:error` blocks** in a clean run, down from twelve (R4.3 + R4.6). **Nothing pins this table** — `readme-counts.test.ts` reads `README.md` and only `README.md`, so it pins the same 1312 *there*; the 109 is pinned nowhere. If these drift, no test fails. Re-measure. |
 | e2e | **13 passed** (measured 2026-09-07, not re-run since). `bun run test:e2e` is **safe** — see § 5. |
 | Production DB | sha256 `c265e6ffdea8f3795f8a9ed104827d677c14afa75f7f3e486c419146bb25ea28`, 884 736 bytes, app stopped. `integrity_check` ok, 0 FK errors, **14 migrations, none pending**, **18 `Product` and 18 `OrderItem` columns**. |
 | How to check it | **A sha is only a baseline while nothing is running** — a signed-in session used to write `Session.lastActivityAt` on every request; since R4.6 it writes at most once a minute, but it still writes. If the app may be up, check *structure*, not the hash. **File SIZE is not evidence**: an `ADD COLUMN` leaves it unchanged, measured. The sha256, the mtime and `PRAGMA schema_version` are what move. |
@@ -265,7 +309,7 @@ completed and both migrations were applied.*
 | Settings | `factice=true`, `printerEnabled=true`, `printerHost=""`, `businessDayCutoffHour=5`. **`printerConnection` and `printerQueue` are both absent**, so `printerConnection` defaults to `network` and every print attempt answers *« Renseignez l'adresse IP »* — and an IP was never the answer, the Sunso WTP-801 is on USB type-B. Setting both is **R6.4**. |
 | Backups | **TWO verified restorable backups**, both in `db/backups/` (3 files, 49 MB): `hibapos-backup-2026-09-10T20-42-30-159Z.dbenc` and `hibapos-backup-2026-09-11T12-40-36-138Z.dbenc`, sharing one `hibapos-media-4b5ed80dca201113.enc` (49 MB of images — the fingerprint was unchanged, so the second reused it). **Both were decrypted to verify**, not assumed. The 2026-09-11 one matches production table for table. The nine pre-rotation files were deleted by R0.2. |
 | ⚠ Backup gap | **Both backups sit on the same disk as the database they protect.** One failure takes all three. Getting a copy off this machine is still **awaiting the operator**. |
-| Other copies | `../db-snapshots/` holds 13 plaintext snapshots plus `r31-acceptance/`. `../HibaPOS-docs-archive/` holds the two documents R0.3 would have destroyed — **read `runbook-complet.md` before Phase 6**. |
+| Other copies | `../db-snapshots/` holds **14 plaintext databases**, 11 MB: 13 loose snapshots plus `real-data.db` in `real-data-backup.pre-cents-port.2026-09-01T17-13-56Z/`, which still carries a `-wal`/`-shm` pair. Also `r31-acceptance/`'s fingerprints. *(Said 13 until 2026-09-11 and never named that directory. This row inventories every unencrypted copy of real catalogue data on this disk — a missed one is the error it cannot afford.)* `../HibaPOS-docs-archive/` holds **three** files: the two R0.3 would have destroyed, plus a `README.md` mapping which runbook sections are live. **Read it before Phase 6, not the runbook cold** (§ 1). |
 
 ---
 
@@ -278,12 +322,22 @@ completed and both migrations were applied.*
 | `bun run lint` | ✅ `eslint .`, covers `scripts/`. |
 | `bun run build` | ✅ Requires `SESSION_SECRET` in env or it throws at import. |
 | `bun run test:e2e` | ✅ **Safe, and verify it stays so.** Three properties make it safe: `tests/e2e/env.ts` refuses any database path outside the OS temp directory *before* anything is created; `playwright.config.ts` runs `next start` with an env it passes explicitly, so the real `.env` is never loaded; and `tests/e2e/00-disposable-database.spec.ts` runs first and fails the suite if a production operator answers `GET /api/auth/profiles`. **If any of those three is gone, this suite is dangerous again** — it used to write orders and sealed Z reports into the production hash chain. |
-| `bunx vitest` / `npx vitest` | ❌ Refuses to run, by design. |
+| `bunx vitest` / `npx vitest` | ❌ Refuses to run, by design (`vitest.config.ts` throws at import — this one already defends itself). |
 | `git clean` | ❌ Never. |
+| `bun run db:reset` · `db:push-force` · `db:push` · `db:seed` · `db:migrate` · `db:deploy` | ❌ **Never, from this directory.** They read `.env`, whose `DATABASE_URL` is an absolute path to `db/custom.db` — **the live catalogue**. `db:reset` drops and re-seeds; `db:push-force` is `--accept-data-loss`. **Nothing guards any of them.** Schema changes go through `scripts/apply-migration.ts`. Fine on a scratch copy with **both** env vars overridden. |
+| `bun run dev` · `.zscripts/dev.ps1` · `bun run start` | ❌ **Never, from this directory** — same reason. `dev.ps1` also runs `db:deploy` and `db:seed` when `db/custom.db` is absent. Use `bunx next start` on the scratch copy (§ 2). |
+
+*Added 2026-09-11. Until then the only ❌ entries were `bunx vitest` — which already refuses
+on its own — and `git clean`, while the commands that could actually destroy the catalogue
+were missing from the register a session is told to trust.*
 
 **The three operator scripts added on 2026-09-11. Every one is a DRY RUN unless given
 `--apply`, takes its own sha-verified restore point into `../db-snapshots/`, and verifies
 itself afterwards rather than reporting success on an exit code.**
+
+> **The ✅ on these three means « fit for purpose », not « harmless ».** All three derive
+> their target from `DATABASE_URL`, which is the live database — given `--apply` they
+> write to it. They are the operator's to run. That is a different ✅ from `bun run test`.
 
 | Script | What it is for |
 |---|---|
@@ -299,72 +353,25 @@ itself afterwards rather than reporting success on an exit code.**
 Status values: `TODO` · `IN PROGRESS` · `DONE` · `BLOCKED` · `OPERATOR` · `ASK FIRST`.
 A `DONE` row leaves this file for `REMEDIATION_DONE.md`.
 
-### Phase 0 — Make the data survivable — **COMPLETE 2026-09-11**
-
-*R0.1 (the first restorable backup) 2026-09-10; R0.2 / R0.3 / R0.4 on 2026-09-11. Record in
-`REMEDIATION_DONE.md`. **L-46 closes with them.***
-
-**Two restorable backups now exist**, both verified to decrypt: 2026-09-10 21:42 and
-2026-09-11 12:40. The second was taken before R0.2 deleted anything, and matches production
-table for table. `db/backups/` went 174 MB → 49 MB, and `db/` now holds the live database and
-nothing else.
-
-**Still awaiting the operator: a copy of a verified backup OFF THIS MACHINE.** Both live on
-the same disk as the database they protect, so one failure still takes all three.
-
-**`../HibaPOS-docs-archive/` was created** to hold two documents R0.3 would otherwise have
-destroyed — see its `README.md`. **`runbook-complet.md` holds the only written procedure for
-R6.4's printer commissioning** (the `pnputil` commands and the Sunso hardware id) and for
-R6.1's reset. Read it before starting Phase 6.
-
-### Phase 3 — « Use it on POS » — **COMPLETE 2026-09-11**
-
-*`16e3415` (R3.1/R3.2), migration `20260910233000_product_show_on_pos` applied 02:13, and
-R3.3 built 2026-09-11. Records in `REMEDIATION_DONE.md`.*
-
-**Box 15, Box 35 and the Tenders box are real menus composés.** Each has a hidden food-only
-component (`showOnPos = false`) and a drink slot, so the drink is taxed at **5,5 % à
-emporter** instead of the whole price sitting at 10 %. The customer pays the same forfait.
-
-### Phase 4 — Small correctness — **COMPLETE 2026-09-11**
-
-*Records in `REMEDIATION_DONE.md`; what they established is in § 3 with the other invariants.*
-
-| ID | Status | Task |
-|---|---|---|
-
-### Phase 5 — Cleanup — **COMPLETE 2026-09-11**
-
-*Record in `REMEDIATION_DONE.md`. Four strays deleted, 45 interface files down to 18, and
-**29** dependencies dropped — not the seven the item named, because deleting the components
-orphaned 22 more. Operator's call, 2026-09-11.*
-
-**What it left behind:**
-
-- **`tw-animate-css` is the animation plugin, NOT `tailwindcss-animate`.** The names differ by
-  a hyphen and the app imports the first at `globals.css:2`; the second was declared and used
-  by nothing. The 44 `animate-in` / 34 `fade-in-0` / 26 `zoom-in-95` classes in the remaining
-  components come from `tw-animate-css`. **Removing the wrong one breaks every dialog and
-  dropdown animation silently** — Tailwind simply stops generating the classes, with no build
-  error. Verified by grepping CSS, not just TypeScript.
-- **`tar` stays.** It is loaded by a dynamic `import()` in `backup.ts`, so static analysis
-  cannot see the use. The same trap, pointing the other way.
-- **18 files in `src/components/ui/`, and there is no barrel.** No `index.ts` anywhere under
-  `src/`, so a component's only reachable path is a direct import — which is what made the
-  orphan analysis decidable.
+*Phases 0-5 are complete; their records are in `REMEDIATION_DONE.md`. Nothing from them is
+outstanding except the two items under § 1 « Awaiting the operator ». Their four blocks were
+moved out on 2026-09-11 — this section is for work that remains.*
 
 ### Phase 6 — Before the first real sale
 
-*Not deployment — deployment is the Tauri phase and has its own plan. These four are
-**fiscal**, they apply whatever the app is packaged as, and the order is not a preference:
-arming the chain key before the reset makes the reset refuse.*
+*Not deployment — deployment is the Tauri phase and has its own plan. **These five** apply
+whatever the app is packaged as. **R6.1, R6.2 and R6.3 are fiscal and their order is not a
+preference** — arming the chain key before the reset makes the reset refuse. **R6.4 (printer)
+and R6.5 (a second volume for backups) are technical, not fiscal**, and can be done at any
+point before the first sale. (This line said « these four are fiscal » from when the phase
+held four rows.)*
 
 | ID | Status | Task |
 |---|---|---|
-| **R6.1** | `OPERATOR` | **Run `scripts/pre-golive-reset.ts --apply` — once.** *(Step-by-step in `../HibaPOS-docs-archive/runbook-complet.md` § 6.)* It empties the fiscal journal, deletes every order, receipt, shift, Z report, close and archive, and resets the counters to zero. It **keeps** the catalogue, the users, the settings and the audit log. Everything rung up before it is deleted by it — that is why testing comes first. **This runs once, and never after a genuine sale**: from that point the journal is append-only and clearing it is precisely the deletion `docs/attestation-conformite.md` states is impossible. |
+| **R6.1** | `OPERATOR` | **Run `scripts/pre-golive-reset.ts --apply` — once.** *(Step-by-step in `../HibaPOS-docs-archive/runbook-complet.md` **§ 6d**; §§ 6a-6c are its prerequisites, and § 6b is R6.5.)* It empties the fiscal journal, deletes every order, receipt, shift, Z report, close and archive, and resets the counters to zero. It **keeps** the catalogue, the users, the settings and the audit log. Everything rung up before it is deleted by it — that is why testing comes first. **This runs once, and never after a genuine sale**: from that point the journal is append-only and clearing it is precisely the deletion `docs/attestation-conformite.md` states is impossible. |
 | **R6.2** | `OPERATOR` | **Arm `FISCAL_CHAIN_KEY` — after R6.1, never before.** Every fiscal fingerprint becomes HMAC-SHA-256 instead of plain SHA-256. Arming onto a journal that already holds unkeyed events is refused by design, because a half-keyed chain verifies under neither mode. **Lose this key and the journal cannot be verified at all** — back it up with the same care as `BACKUP_ENCRYPTION_KEY`, and not only on the machine that holds it. |
 | **R6.3** | `OPERATOR` | **Turn FACTICE off.** `factice` is `true` today, which stamps every ticket *SIMULATION* and flags the journal row. Off is the point every rule tightens: from then on every sale is real. |
-| **R6.4** | `OPERATOR` | **Configure the printer:** install the driver, set `printerConnection=usb`, pick the queue from the list in Réglages, then re-enable `printerEnabled`. Today `printerConnection` and `printerQueue` are both **absent**, so it defaults to `network` with an empty host and every print answers *« Renseignez l'adresse IP »* — and an IP was never the answer. **The procedure is `../HibaPOS-docs-archive/runbook-complet.md` § 4a** — the `pnputil` export/install commands and the hardware id `USBPRINT\SUNSOWTP-800036C`. It is the only place the steps are written down. |
+| **R6.4** | `OPERATOR` | **Configure the printer:** install the driver, set `printerConnection=usb`, then pick the queue from the list in Réglages. **There is nothing to re-enable** — `printerEnabled` is `true` in production today and has never been turned off; this row used to end « then re-enable `printerEnabled` », sending the operator to look for a switch that is already where it should be. Today `printerConnection` and `printerQueue` are both **absent**, so it defaults to `network` with an empty host and every print answers *« Renseignez l'adresse IP »* — and an IP was never the answer. **The procedure is `../HibaPOS-docs-archive/runbook-complet.md` § 4a** — the `pnputil` export/install commands and the hardware id `USBPRINT\SUNSOWTP-800036C` from `sunso.inf`. It is the only place the steps are written down — read `../HibaPOS-docs-archive/README.md` first to see which of its sections are still live. |
 | **R6.5** | `OPERATOR` | **Point `BACKUP_LOCATION` at a second volume.** Unset, backups land beside the database on the same disk, so one failure takes the data and every copy of it together. |
 
 **What is NOT here, deliberately:** the till hardware, the Windows install, the kiosk
@@ -378,15 +385,15 @@ rule 1). Audit IDs are never renamed.
 
 | ID | Severity | Finding | Owner |
 |---|---|---|---|
-| **L-82** | Cosmetic | The product list renders the name alone (`report-widgets.tsx:136`, `csv-export.ts:53`), so the two rows R2.1 correctly separates read as two identical « Coca » labels on screen and in the CSV. Figures right, label ambiguous. `productId` is in the payload, so a fix has what it needs; the open question is what a human should see. | none |
+| **L-82** | Cosmetic | The product list renders the name alone (`src/components/shared/report-widgets.tsx:141`, `src/lib/csv-export.ts:54`), so the two rows R2.1 correctly separates read as two identical « Coca » labels on screen and in the CSV. Figures right, label ambiguous. `productId` is in the payload, so a fix has what it needs; the open question is what a human should see. | none |
 | **L-83** | Low | `/api/reports/z` never sends `givenAwayCount`/`givenAwayItemsCount`/`givenAwayProducts`, yet `ZReportDto` declares all three and `reports-view.tsx:445` renders them — `undefined` at runtime. The sealed row has no column for them, so the DTO promises what no route can serve. `topMenus` was kept out rather than become a fourth instance. Routes are not typed against their DTOs, so the compiler cannot see it. | none |
 | **L-84** | Low | `showOnPos` is a display rule, not a guard: `orders/route.ts` checks only `active`/`available`, so a request naming a hidden product directly is still booked. Not a fraud vector (the till is the only client, at the real catalogue price), but « cannot be sold alone » is true of the interface, not the API. Pinned by `hidden-product.test.ts`, so closing it is a decision. | none |
 | **L-81** | Cosmetic | A test product, `5 nuggets test` (Croustillants, 5,00 €), was created in the live catalogue on 2026-09-10 and left `active=0` / `available=0`. Invisible on the till and harmless, but the catalogue is meant to be real work only — and it is now inside the verified backup. Delete it with the operator, or keep it deliberately. | none |
 | **L-75** | Deferred | The app cannot run on a 32-bit Windows: both Prisma engines are `machine 0x8664` and Bun is x64/ARM64 only. **Carried to the Tauri v2 phase**, where the runtime and the packaging are both decided. No software fix at this layer. | none |
-| **L-05** | Deferred | `output: "standalone"` was dropped; whether to reinstate it deliberately is open. | none |
-| **L-11** | Deferred | Two payment tolerances disagree (`paid < total - 1` vs `- 0.01`, both on integer cents); dialog resets run on uncleaned timers. `payment-dialog.tsx:86,128,377`. | none |
+| **L-05** | Deferred | `output: "standalone"` was dropped; whether to reinstate it deliberately is open. Still true — no `output` key — but deferred to nothing. **Carried to the Tauri v2 phase**, like L-75: its premise (a Windows-till Node install) is retired and packaging is decided there. | none |
+| **L-11** | Deferred | Two payment tolerances disagree (`paid < total - 1` vs `- 0.01`, both on integer cents); dialog resets run on uncleaned timers. `src/components/pos/payment-dialog.tsx` — timer `:93`, `- 1` at `:152`, `- 0.01` at `:451` (re-measured 2026-09-11; the old `86,128,377` pointed at nothing). | none |
 | **L-47** | Open | The app renders its login screen even with a valid session **in the in-app browser pane**, so no browser walkthrough reaches an authenticated view. Four data points; never reproduced outside that pane. | none |
-| **L-51** | Low | `backup.ts` reads the whole uploads archive into memory to encrypt it — 47 MB, not the "few MiB" its comment once claimed. | none |
+| **L-51** | Low | `backup.ts` reads the whole uploads archive into memory to encrypt it — **49 293 837 bytes across 147 files**, measured 2026-09-11, not the "few MiB" its comment once claimed. The figure grows with the catalogue; `backup.ts:14-27` carries its own dated measurement and drifts the same way. | none |
 | **L-52** | **External** | `LOI n° 2026-534 du 25 juin 2026, art. 87` requires archived data restituted in a format set by the administration, in force 27 June 2026. **No format has been published.** Nothing to build until one exists. | none |
 
 **Dissolved by the reset of 2026-09-10, and closed:** **L-14** (receipts archived at 80
@@ -398,6 +405,12 @@ reset deleted, and every order written from now on is journalled.
 
 ## 8. EXTERNAL — not ours to close
 
+**This table is a summary, not the register.** The numbered register of open questions is
+`docs/conformite-isca-map.md` § 9, which carries ids this table does not — **V-08** (the
+status flag on a refunded order, and the perpetual total) and **V-10** (a third-country
+éditeur: the text permits it, the practice is unknown) among them. When the two disagree, the
+map is the one that is maintained.
+
 **Nothing in this project, and no test result it produces, is evidence of French fiscal
 compliance.** The attestation regime is the operator's, and `docs/attestation-conformite.md`
 cites art. 441-1 of the code pénal: a false attestation is a criminal offence.
@@ -406,9 +419,10 @@ cites art. 441-1 of the code pénal: a false attestation is a criminal offence.
 |---|---|
 | **V-01 / C-22** | Does an unsigned hash chain suffice for the *inaltérabilité* condition, or is an electronic signature required? |
 | **V-02** | Is the annual archive's format acceptable? See also L-52 — a format may now be prescribed. |
-| **V-03** | Must the automatic cash-drawer opening be journalled? |
+| **V-03** | Is anything further required on a ticket — a per-ticket hash or signature, as NF525-certified software prints? The law names none. |
+| **V-13** | Must the automatic cash-drawer opening be journalled? *(This question was filed under V-03 here until 2026-09-11; `docs/conformite-isca-map.md` § 9 has always had it as V-13.)* |
 | **VAT-METHOD** | **How a fixed menu price is divided between 10 % and 5,5 %.** The rates themselves are settled and live; the division is the open claim. The software apportions by **TTC** standalone catalogue price — defensible, supported by BOFiP's « valeur de marché, **pour le consommateur** », and it errs by over-declaring (measured: 2,16 € vs 2,14 € on Menu Eco à emporter). An HT-weighted alternative is recorded in § 8 of the policy document. **The operator's accountant should confirm the basis in writing.** |
-| **V-07** | A full day of trading on the real hardware. |
+| **V-07** | A full day of trading on the real hardware. **Not external and not un-ownable** — R6.1's row makes it a prerequisite, and `../HibaPOS-docs-archive/runbook-complet.md` § 7 is its written procedure. It sits here because only the restaurant can perform it, not because nobody owns it. |
 
 ---
 
@@ -420,7 +434,7 @@ Kept as one-liners so nobody re-litigates them. Full rationale is in git history
 | ID | Decision |
 |---|---|
 | DD-01 | ESC/POS over raw TCP:9100 as primary, behind a transport interface; USB RAW added later. |
-| DD-02 | Application data lives at `C:\HibaPOS\data`. |
+| DD-02 | ~~Application data lives at `C:\HibaPOS\data`.~~ **Never implemented, and now moot.** `HIBAPOS_DATA_DIR` is unset, so `paths.ts` returns the working directory, and `.env` points `DATABASE_URL` inside the repository. `paths.ts:31` holds that path only as `RECOMMENDED_DATA_DIR`. The move was a step of the Windows-till model retired 2026-09-10; where data lives is now the Tauri phase's decision. |
 | DD-03 | No sealed row carried the wrong VAT key — the premise was an audit assumption. |
 | DD-05 | Out-of-order period closes are **refused**. A close must follow the last sealed one. |
 | DD-06 | No LAN access. The server binds `127.0.0.1`. |

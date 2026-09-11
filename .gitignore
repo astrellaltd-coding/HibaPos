@@ -65,14 +65,20 @@ server.log
 # directory of that name at any depth.
 /db-snapshots/
 
-# `/upload/` is an empty stray directory, ignored for tidiness.
+# `/upload/` was an empty stray directory, ignored for tidiness. It was deleted
+# on 2026-09-11 — KEEP THIS ENTRY ANYWAY: it is what stops the stray from being
+# re-created and committed.
 #
 # It is NOT where the images live, and this comment used to claim that user
 # uploads "must not be committed" — which reads as a policy about
-# `public/uploads/`, where the catalogue's 139 real images (49 MB) sit and
-# ARE tracked. DD-16 (2026-09-05) decided to keep them tracked: git is
-# currently their only version-controlled copy, and no restorable backup
-# exists on the live install (L-46). Do not add public/uploads/ here.
+# `public/uploads/`, where the catalogue's real images sit and ARE tracked:
+# 147 files, 49 293 837 bytes, measured 2026-09-11. DD-16 (2026-09-05) decided
+# to keep them tracked. The reason given here used to be "and no restorable
+# backup exists (L-46)" — L-46 CLOSED on 2026-09-11: two encrypted backups in
+# `db/backups/` have been verified by decryption and their media archive IS
+# `public/uploads/`. They are on the same disk as the database they protect,
+# which is why git still earns its place as the off-tree copy.
+# Do not add public/uploads/ here.
 /upload/
 
 # Z.ai artifacts
@@ -82,7 +88,13 @@ agent-ctx/
 worklog.md
 
 # Playwright output (Batch 6.3). `test-results/` is the default outputDir and
-# holds traces and screenshots of failures; CI uploads it as an artifact. Both
-# are regenerated every run. Anchored, per C-26b.
+# holds traces and screenshots of failures; CI uploads it as an artifact
+# (`.github/workflows/ci.yml`). It is regenerated every run. Anchored, per C-26b.
+#
+# `/playwright-report/` is kept as a guard, not as a description: nothing
+# produces it today, because `playwright.config.ts` sets `reporter: "list"`,
+# which writes no HTML report. Switching to the `html` reporter would create it
+# — that is what this line is here for. (The comment above used to say "Both are
+# regenerated every run", which was true of only one of them.)
 /test-results/
 /playwright-report/

@@ -37,24 +37,31 @@ per database file.
 - After restoring a backup (the restored SQLite file is restored to whatever
   mode it was created with).
 
-## Manual application (dev)
+## Manual application — NOT ON THIS INSTALL
+
+> **This section used to give `sqlite3 .\db\custom.db "PRAGMA
+> journal_mode=WAL;"`. Struck 2026-09-11:** `db/custom.db` is the live till
+> database and this repository sits under OneDrive. Running it would force WAL
+> past the guard in `src/lib/db-pragmas.ts` that refuses it on a synced folder
+> — the refusal this document explains fifteen lines above — and create the
+> `-wal`/`-shm` pair that `scripts/apply-migration.ts` reads as « a process
+> still has the database open » and refuses to run beside.
+>
+> **The application sets the pragma itself, at every boot.** There is nothing
+> to apply by hand, on any install. If some *other* checkout ever needs it,
+> name that checkout's file explicitly — never a relative `.\db\custom.db`,
+> which resolves to production whenever the working directory is this
+> repository.
+
+## Verification — read-only, safe anywhere
 
 ```powershell
-# Requires the sqlite3 CLI on PATH. On Windows install via scoop:
-#   scoop install sqlite
-# Or via Chocolatey:
-#   choco install sqlite
-sqlite3 .\db\custom.db "PRAGMA journal_mode=WAL;"
+bun -e "const {Database}=require('bun:sqlite');const d=new Database(process.argv[1],{readonly:true});console.log(d.query('PRAGMA journal_mode').get());d.close()" .\db\custom.db
 ```
 
-Output: `wal` — the setting is persisted.
-
-## Verification
-
-```powershell
-sqlite3 .\db\custom.db "PRAGMA journal_mode;"
-# Expected output: wal
-```
+On this install the expected output is **`delete`** (rollback journal), not
+`wal` — see the OneDrive refusal above. `wal` here would mean the guard has
+been bypassed.
 
 You should also see two auxiliary files next to the DB once WAL is active:
 

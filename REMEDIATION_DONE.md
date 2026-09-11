@@ -1037,3 +1037,69 @@ The completion history, one line each, newest first:
   the operator's request, and the "app must not be running" guard stopped refusing on a
   server holding a different database.
 - **DOC-15**, **L-04**, **SEC-ROT** — operator actions, completed.
+
+
+---
+
+## Retired from the plan's § 6 on 2026-09-11
+
+*These four blocks described **completed** phases and were sitting in `REMEDIATION_PLAN.md`
+§ 6 THE WORK, which is the section a session reads to find out what remains. The plan's own
+rule — « A `DONE` row leaves this file for `REMEDIATION_DONE.md` » — is three lines above
+where they sat. Phases 1 and 2 had already left; these had not. Moved verbatim. The two
+warnings Phase 5 left behind (`tw-animate-css` and `tar`) were promoted into the plan's § 3
+invariants at the same time, because they are standing traps rather than a record.*
+
+### Phase 0 — Make the data survivable — **COMPLETE 2026-09-11**
+
+*R0.1 (the first restorable backup) 2026-09-10; R0.2 / R0.3 / R0.4 on 2026-09-11. Record in
+`REMEDIATION_DONE.md`. **L-46 closes with them.***
+
+**Two restorable backups now exist**, both verified to decrypt: 2026-09-10 21:42 and
+2026-09-11 12:40. The second was taken before R0.2 deleted anything, and matches production
+table for table. `db/backups/` went 174 MB → 49 MB, and `db/` now holds the live database and
+nothing else.
+
+**Still awaiting the operator: a copy of a verified backup OFF THIS MACHINE.** Both live on
+the same disk as the database they protect, so one failure still takes all three.
+
+**`../HibaPOS-docs-archive/` was created** to hold two documents R0.3 would otherwise have
+destroyed — see its `README.md`. **`runbook-complet.md` holds the only written procedure for
+R6.4's printer commissioning** (the `pnputil` commands and the Sunso hardware id) and for
+R6.1's reset. Read it before starting Phase 6.
+
+### Phase 3 — « Use it on POS » — **COMPLETE 2026-09-11**
+
+*`16e3415` (R3.1/R3.2), migration `20260910233000_product_show_on_pos` applied 02:13, and
+R3.3 built 2026-09-11. Records in `REMEDIATION_DONE.md`.*
+
+**Box 15, Box 35 and the Tenders box are real menus composés.** Each has a hidden food-only
+component (`showOnPos = false`) and a drink slot, so the drink is taxed at **5,5 % à
+emporter** instead of the whole price sitting at 10 %. The customer pays the same forfait.
+
+### Phase 4 — Small correctness — **COMPLETE 2026-09-11**
+
+*Records in `REMEDIATION_DONE.md`; what they established is in § 3 with the other invariants.*
+
+| ID | Status | Task |
+|---|---|---|
+
+### Phase 5 — Cleanup — **COMPLETE 2026-09-11**
+
+*Record in `REMEDIATION_DONE.md`. Four strays deleted, 45 interface files down to 18, and
+**29** dependencies dropped — not the seven the item named, because deleting the components
+orphaned 22 more. Operator's call, 2026-09-11.*
+
+**What it left behind:**
+
+- **`tw-animate-css` is the animation plugin, NOT `tailwindcss-animate`.** The names differ by
+  a hyphen and the app imports the first at `globals.css:2`; the second was declared and used
+  by nothing. The 44 `animate-in` / 34 `fade-in-0` / 26 `zoom-in-95` classes in the remaining
+  components come from `tw-animate-css`. **Removing the wrong one breaks every dialog and
+  dropdown animation silently** — Tailwind simply stops generating the classes, with no build
+  error. Verified by grepping CSS, not just TypeScript.
+- **`tar` stays.** It is loaded by a dynamic `import()` in `backup.ts`, so static analysis
+  cannot see the use. The same trap, pointing the other way.
+- **18 files in `src/components/ui/`, and there is no barrel.** No `index.ts` anywhere under
+  `src/`, so a component's only reachable path is a direct import — which is what made the
+  orphan analysis decidable.

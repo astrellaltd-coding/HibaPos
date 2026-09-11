@@ -81,7 +81,8 @@ Le BOFiP cite également une ventilation fondée sur les **prix de revient**.
 Elle est écartée pour une raison factuelle : **le logiciel ne connaît aucun prix
 d'achat.** Le modèle `Product` ne porte que des prix de vente TTC (`price`,
 `pickupPrice`, `deliveryPrice`). Retenir cette méthode supposerait de saisir et
-de tenir à jour un prix de revient sur chacun des 78 produits.
+de tenir à jour un prix de revient sur chacun des **84** produits (relevé 2026-09-11 ;
+le chiffre est illustratif et l'argument n'en dépend pas).
 
 ## 3. Application constante
 
@@ -277,7 +278,9 @@ réellement.
 **Vérification.** Les neuf cas ont été encaissés de bout en bout sur une copie
 de travail, contre l'application compilée, et relus dans la base : total,
 TVA par taux, HT par taux, et `Σ (net − HT) = TVA` sur chaque commande. Le
-détail figure dans `REMEDIATION_RECORD.md` → *Batch 5.9*.
+détail figure dans `REMEDIATION_DONE.md` → *Batch 5.9*. *(Ce renvoi nommait
+`REMEDIATION_RECORD.md`, consolidé dans `REMEDIATION_DONE.md` le 2026-09-10 ;
+l'ancien fichier reste lisible avec `git show HEAD~1:REMEDIATION_RECORD.md`.)*
 
 ---
 
