@@ -20,6 +20,51 @@ export async function register() {
   const { applyStartupPragmas } = await import("@/lib/db-pragmas");
   const { logTechnical } = await import("@/lib/services/technical-logger");
 
+  // Secrets first: an install with no `.env` has to have a `SESSION_SECRET`
+  // before anything signs a cookie. `auth.ts` resolves it for itself at import
+  // — this only parks the rest in `process.env` for the readers that expect
+  // them there, and reports which were newly made.
+  try {
+    const { bootstrapSecrets } = await import("@/lib/services/secret-store");
+    const { generated } = bootstrapSecrets();
+    if (generated.length) {
+      await logTechnical(
+        "WARN",
+        "startup",
+        `Generated ${generated.join(", ")} for this install. They must be recorded off this machine — Réglages shows them once.`,
+      );
+    }
+  } catch (e) {
+    console.error("[startup] secret bootstrap failed", e);
+  }
+
+  // Then migrations, BEHIND A VERIFIED BACKUP. Deliberately after the pragmas
+  // and before anything serves: a schema the code does not match fails at the
+  // first query, so there is nothing to protect by deferring it.
+  //
+  // It does NOT block startup on a refusal, and that is a judgement, not an
+  // oversight. A till that will not open tells the operator nothing; a till
+  // that opens and says loudly « migration non appliquée, voici pourquoi » can
+  // be diagnosed. The protection is that the schema was not touched.
+  try {
+    const { runStartupMigrationGate } = await import("@/lib/services/startup-migration");
+    const r = await runStartupMigrationGate();
+    if (r.status === "APPLIED") {
+      await logTechnical(
+        "INFO",
+        "startup",
+        `Applied ${r.pending.length} migration(s) behind verified backup ${r.backup}: ${r.pending.join(", ")}.`,
+      );
+    } else if (r.status === "REFUSED_NO_VERIFIED_BACKUP" || r.status === "FAILED_AFTER_MIGRATE") {
+      console.error(`[startup] ${r.reason}`);
+      await logTechnical("ERROR", "startup", r.reason ?? r.status);
+    } else if (r.status === "SKIPPED_NO_MIGRATION_TABLE" && r.reason) {
+      await logTechnical("WARN", "startup", r.reason);
+    }
+  } catch (e) {
+    console.error("[startup] migration gate failed", e);
+  }
+
   try {
     const result = await applyStartupPragmas();
 

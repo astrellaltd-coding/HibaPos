@@ -1832,6 +1832,92 @@ otherwise in a place like this would be a lie that costs something.
   a comment, outside this item. The real enforcement is `fiscal.ts:111` plus the new route.
 - **Next, on the agreed order:** auto-migrate-with-backup at startup.
 
+### PREP-4 — migrations apply themselves at startup, behind a backup that has been opened
+**Done:** 2026-09-11 · **Commit:** *(this commit)* · **Finding:** none new
+**Authorised by:** the operator's « yes to all » on the brainstorm's question — backup first,
+then migrate, hard-stop if the backup fails — and « go ahead with the auto-migrate ».
+
+**This reverses one of the plan's oldest rules, deliberately.** « Applying a migration to
+production is the operator's action » was written because *this project* twice believed a
+migration was applied when it was not, and because `migrate deploy` prints the same green
+banner whichever migration it ran. An installer has nobody to run that command, so a v1.1 over
+a v1.0 either refuses to work or needs a shell — and « no manual commands » is the whole point
+of the Tauri move. The rule's *reason* is kept by making the gate take its verdict from the
+database and never from an exit code.
+
+**The order is the design: backup → verify → migrate → verify.**
+
+#### The backup is the gate, not a courtesy
+
+Nothing is migrated until a backup exists **and has been opened again**. Not « written » —
+written is what a corrupt file also is. `createBackup` snapshots with `VACUUM INTO` and records
+a sha256 of the plaintext; the gate decrypts the encrypted result, checks that sha back, **and
+checks the bytes start `SQLite format 3`**. Both halves are needed: a checksum proves the bytes
+survived, not that they are a database. Any failure and the migration does not run, with the
+reason recorded in French.
+
+A backup taken *afterwards* would be a backup of the thing that went wrong, which is why one
+of the reverts moves it after the deploy and two tests fail.
+
+#### The verdict comes from the database
+
+`migrate deploy` claiming success proves nothing — that is the entire reason
+`scripts/apply-migration.ts` exists. So after applying, the gate re-reads pending migrations,
+`integrity_check` and `foreign_key_check`, and reports `FAILED_AFTER_MIGRATE` naming the backup
+to restore if any of the three disagrees. One test makes `deploy` **lie successfully** — return
+`ok: true` and change nothing — and the gate catches it.
+
+#### What it refuses to touch
+
+A database with **no `_prisma_migrations` table** was built by `prisma db push` — every test
+database here, and any install bootstrapped that way. `migrate deploy` against one would try to
+apply the whole history over an existing schema. Skipped, loudly, and **without taking a
+backup or deploying** (asserted: the injected deps record zero calls).
+
+#### One process only
+
+Two workers booting together would both migrate. A lock file created with `wx` gives one the
+job and the other skips. A lock left by a crashed process would otherwise block every future
+start invisibly, so one older than ten minutes is reclaimed.
+
+#### It does NOT block startup, and that is a judgement
+
+A refusal logs `ERROR` and leaves the schema untouched; the app still starts. `instrumentation.ts`
+already argues this for the pragmas — « a till that will not open is worse » — and the fiscal
+code argues the other half: « a till that stops taking money without saying why is the worst
+version of this. » So it opens and says loudly what it did not do. The protection is that
+nothing was changed, not that nothing was served.
+
+**How it was verified.**
+- **15 tests.** Every dependency that touches the world is injected — taking the backup,
+  opening it, running the deploy — which is `createBackup`'s own `tarLoader` pattern:
+  « injected only so a test can make the import fail. The default is the real dynamic import,
+  so production is unchanged. » **Nothing in the suite runs `migrate deploy` or writes a real
+  backup.** The `_prisma_migrations` table is created and dropped around the tests that need
+  it, and each test gets its own `HIBAPOS_DATA_DIR` under the OS temp directory for the lock.
+- **Six one-property reverts, each caught.** No backup at all → **8 fail**, the broadest, right
+  for the most dangerous mistake available. Backup never opened → 6. Trust the exit code → 2.
+  No lock → 1. Do not skip a `db push` database → 1. Backup after the deploy → 2.
+- **`bun run test` 1381 pass / 0 fail, 114 files**, zero `prisma:error`; `typecheck` and `lint`
+  clean. `README.md` 1366 → 1381.
+
+**Also wired: the secret bootstrap.** `instrumentation.ts` now calls `bootstrapSecrets()` before
+the migration gate, so PREP-3's generated values reach `process.env` for the readers that
+expect them there, and logs a `WARN` naming any that were newly made.
+
+**Left behind, and both matter:**
+- **Whether `bunx prisma migrate deploy` is reachable inside a Tauri bundle is unknown, and it
+  is a packaging question, not this item's.** The gate calls it through an injected dependency
+  precisely so the answer can change without touching the logic. If the CLI is not in the
+  bundle, `deploy` fails, the verdict comes back `FAILED_AFTER_MIGRATE` and the schema is
+  untouched behind a verified backup — which is the correct outcome, not a silent one.
+- **Nothing here has run against a real pending migration.** There is none: production is at 15
+  of 15. The tests cover the logic and the reverts cover the gate; the first real exercise will
+  be the first Tauri update, and it should be watched.
+- **The auto-migrate reverses a plan rule.** § 3's « applying a migration to production is the
+  operator's action » still governs **Claude**, and this does not change that: it is the
+  application migrating its own database on its own machine.
+
 ---
 
 ## Carried forward — the 2026-09-03 → 2026-09-09 remediation

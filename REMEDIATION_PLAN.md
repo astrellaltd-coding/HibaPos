@@ -42,8 +42,8 @@ below.
   Irreversible; runs once, never after a genuine sale.
 - **R6.2** arm the key (§ 6e) — `FISCAL_CHAIN_KEY` absent, so the reset's guard 1 passes.
   An empty journal is armable at any time, so arming EARLY buys nothing and creates a secret
-  to transport. Follows R6.1. **A BUTTON since 2026-09-11**, not a `.env` edit
-  (`POST /api/setup/chain-key`): counts `FiscalEvent` rows, refuses if any, shows the key once.
+  to transport. Follows R6.1. **A BUTTON since 2026-09-11** (`POST /api/setup/chain-key`), not
+  a `.env` edit: it refuses unless the journal is empty, and shows the key once.
 - **R6.3** FACTICE off (§ 6f — ~~§ 3~~ turns it **on**) — `factice=true`. Last of the three.
 - **R6.4** printer (§ 4a, then § 4) — **the printer is in France; not doable from here.** This
   machine's `SUNSO WTP-800` queue sits on `COM1:`, `Error`, with no `USBPRINT` device: a
@@ -218,8 +218,10 @@ something going wrong.
 - **Never run `git clean`.**
 - **Never write to `db/custom.db` or to real menu data.** Scratch copy, both env vars
   overridden, marker proved first.
-- **Applying a migration to production and editing the live catalogue are the operator's
-  actions.** Prepare, rehearse, verify, hand over the exact command. **The command is `bun
+- **Applying a migration to production and editing the live catalogue are not CLAUDE's to
+  do.** Prepare, rehearse, verify, hand over the exact command. *(2026-09-11: the APP now
+  migrates itself at startup behind a verified backup — PREP-4. That is the application on its
+  own machine; this rule is about Claude and is unchanged.)* **The command is `bun
   scripts/apply-migration.ts --apply --expect <name>`**, not `bunx prisma migrate deploy` —
   see § 5. The rule is unchanged; only the command is, and `CLAUDE.md` says
   the same since 2026-09-11.
@@ -296,9 +298,9 @@ row, not this line.*
 
 | Thing | Value |
 |---|---|
-| Tests | **1348 pass, 0 fail**, 112 files. **Wall time varies by 4x on the same tree — 135 s to 510 s observed**; not a regression signal, do not chase it. The `expect()` total drifts a little between runs too (**4296** observed). `typecheck` and `lint` clean. **Zero `prisma:error` blocks** in a clean run, down from twelve (R4.3 + R4.6). **Nothing pins this table** — `readme-counts.test.ts` reads `README.md` and only `README.md`, so it pins the same 1348 *there*; the 112 is pinned nowhere. If these drift, no test fails. Re-measure. |
+| Tests | **1381 pass, 0 fail**, 114 files. **Wall time varies by 4x on the same tree — 135 s to 510 s observed**; not a regression signal, do not chase it. The `expect()` total drifts a little between runs too (**4467** observed). `typecheck` and `lint` clean. **Zero `prisma:error` blocks** in a clean run, down from twelve (R4.3 + R4.6). **Nothing pins this table** — `readme-counts.test.ts` reads `README.md` and only `README.md`, so it pins the same 1381 *there*; the 114 is pinned nowhere. If these drift, no test fails. Re-measure. |
 | e2e | **13 passed** (measured 2026-09-07, not re-run since). `bun run test:e2e` is **safe** — see § 5. |
-| Production DB | sha256 `0d304ee79ad3b06adb0b89542a8906bf706f85868ae56035b8c600e3f9083cdb`, 884 736 bytes, app stopped — **re-measured 16:33 on 2026-09-11**, after R7.1's migration AND R7.2's renames. `integrity_check` ok, 0 FK errors, **15 migrations, none pending**, **18 `Product`, 18 `OrderItem` and 28 `ZReport` columns**, `schema_version` 171. *(It moved twice on 2026-09-11: `c265e6ff…` → `51552364…` at the migration, → this at the renames. The SIZE never moved through either. Expect it to move again — the operator edits the catalogue between sessions.)* |
+| Production DB | sha256 `0d304ee79ad3b06adb0b89542a8906bf706f85868ae56035b8c600e3f9083cdb`, 884 736 bytes, app stopped — **re-measured 16:33 on 2026-09-11**, after R7.1's migration AND R7.2's renames. `integrity_check` ok, 0 FK errors, **15 migrations, none pending**, **18 `Product`, 18 `OrderItem` and 28 `ZReport` columns**, `schema_version` 171. *(It moved twice on 2026-09-11 and the SIZE never moved. Expect it to move again — the operator edits the catalogue between sessions.)* |
 | How to check it | **A sha is only a baseline while nothing is running** — a signed-in session still writes `Session.lastActivityAt`, at most once a minute since R4.6. If the app may be up, check *structure*, not the hash. **File SIZE is not evidence**: an `ADD COLUMN` leaves it unchanged, measured. The sha256, the mtime and `PRAGMA schema_version` are what move. |
 | Trading tables | **All zero.** Order, OrderItem, Payment, Receipt, Refund, Shift, ZReport, FiscalEvent, GrandTotal, DailyClose, MonthlyClose, AnnualClose, CashMovement, Customer, Table. |
 | Fiscal counters | `0 / 0 / 0 / 0` (receipt / shift / Z / event). Journal **empty**. |
@@ -308,7 +310,7 @@ row, not this line.*
 | Journal mode | `delete`, not WAL — the guard refuses WAL on this OneDrive path, deliberately. It will switch to WAL the first time the database sits under a non-synced root. |
 | Settings | `factice=true`, `printerEnabled=true`, `printerHost=""`, `businessDayCutoffHour=5`. **`printerConnection` and `printerQueue` are both absent**, so BOTH come from `DEFAULT_SETTINGS` — and since 2026-09-11 that means **`usb`**, not `network`. So production's effective connection is already USB and a print attempt now answers *« Choisissez l'imprimante Windows »* instead of *« Renseignez l'adresse IP »*, which was never an answer available to this restaurant. **Only the queue is left**, and that is R6.4. |
 | Backups | **TWO verified restorable backups** (3 files, 49 MB): 2026-09-10 20:42 and 2026-09-11 12:40 UTC, sharing one media archive; **both decrypted to verify**, not assumed. R0.2 deleted the nine pre-rotation files. **`BACKUP_LOCATION` set 2026-09-11** to `~/OneDrive/Desktop/HibaPOS-Sauvegardes`; both were copied there sha-verified and the copy **decrypts** — which also proves `BACKUP_ENCRYPTION_KEY` survived that day's `SESSION_SECRET` rotation, by use and not by argument. |
-| ⚠ Backup gap | **Still open, now for two reasons.** The Desktop is inside OneDrive so it does sync off the machine — but **OneDrive was not running** when this was set. And **both copies predate the R7.1 migration and the R7.2 renames** (14 migrations, 25 `ZReport` columns, `Coca`/`Fanta`/`Orangina` still doubled), so they hold the superseded catalogue. **A FRESH backup is the outstanding action**, and it is the operator's — `createBackup` is a production write. |
+| ⚠ Backup gap | **Still open, for two reasons.** The Desktop is inside OneDrive so it does sync off the machine — but **OneDrive was not running** when this was set. And **both copies predate R7.1's migration and R7.2's renames**, so they hold the superseded catalogue. **A FRESH backup is the outstanding action**, and it is the operator's. |
 | Other copies | `../db-snapshots/` holds **15 plaintext databases**, 12 MB: 14 loose snapshots plus `real-data.db` in `real-data-backup.pre-cents-port.2026-09-01T17-13-56Z/`, which still carries a `-wal`/`-shm` pair. Also `r31-acceptance/`'s fingerprints. *(This row inventories every unencrypted copy of real catalogue data on this disk; it said 13 until 2026-09-11.)* The newest, `custom.db.before-20260911160000_zreport_given_away-2026-09-11`, is R7.1's restore point — sha256 `c265e6ff…25ea28`, the last pre-migration state. **Keep it.** `r71-acceptance/` holds only fingerprints; its rehearsal copy was deleted. `../HibaPOS-docs-archive/` holds **three** files: the two R0.3 would have destroyed, plus a `README.md` mapping which runbook sections are live. **Read it before Phase 6, not the runbook cold** (§ 1). |
 
 ---
