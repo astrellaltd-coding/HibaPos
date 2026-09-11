@@ -963,6 +963,116 @@ both after the move. Then the 57 MB `app/` copy and the trial database were dele
   check was about data; it did not cover documents. That is how a 38 KB runbook came within
   one command of being deleted.
 
+### R7.1 — the give-away figures are sealed into the Z report, and sent
+**Done:** 2026-09-11 · **Commit:** `COMMITSHA` · **Finding:** L-83 closed · **Migration:**
+`20260911160000_zreport_given_away` — **prepared and rehearsed, NOT applied**
+
+**What changed.** Three nullable columns on `ZReport` — `givenAwayCount`,
+`givenAwayItemsCount`, `givenAwayProductsJson` — written by `generateZReport` beside
+`topProductsJson` and in the same transaction, and sent by the GET in `api/reports/z`. One
+new test file, `src/lib/services/zreport-given-away.test.ts` (8 tests). `README.md` 1312 →
+1320.
+
+**The defect, and why it was silent rather than loud.** `ZReportDto` has declared all three
+since Batch 7.4a and `reports-view.tsx:445` renders them. Nothing underneath existed: no
+column, no write, no mapping in the route. So `report.givenAwayCount` was `undefined` on the
+client — and `GivenAway` opens `if (!count) return null`, which `undefined` satisfies exactly
+as `0` does. The « Offerts » block was **absent** from every Z report, which is
+indistinguishable from a shift where nothing was given away. Nothing threw and nothing
+logged. **A test asserting « the section is absent » would have passed against the bug**,
+which is why every assertion in the new file is made with a non-zero give-away and checks
+that the property is PRESENT and carries the figure.
+
+**Sealed, not recomputed** — the operator's decision of 2026-09-11, mirroring
+`topProductsJson`. A sealed figure stays what it was at the close; a recomputed one follows
+whatever the aggregator says on the day it is read. The two are indistinguishable on the day
+of the close and diverge afterwards, so one test makes them disagree on purpose: it
+overwrites the sealed columns with figures the orders do not support and checks that the
+route answers the columns (41 / 42 / « Sentinelle ») while `computeShiftReport` still answers
+2 / 3. That is the only assertion that can tell which of the two options was built.
+
+**The `CLOTURE_Z` payload was deliberately NOT grown.** `topProductsJson` is a column and is
+not in that payload either, so mirroring it means the column and only the column — and the
+per-shift entry of the fiscal chain does not take a fourth permanent growth for a figure
+that carries no tax. Pinned, the same way `menu-reporting.test.ts` pins `topMenus`. The
+stale half-sentence in `reports.ts` that said a Z report treats `givenAwayProducts` « the
+same way: computed and shown, never sealed into a column » was corrected rather than left,
+and `topMenus` now stands on `fiscal.ts`'s argument alone.
+
+**How it was verified.**
+- **Eight new tests**, in three groups: what is SEALED — read back out of the database with a
+  fresh `findUniqueOrThrow`, never from the object `generateZReport` returned; what
+  `GET /api/reports/z` SENDS — driven through `route-harness`, because the finding is about a
+  DTO a client reads; and that the X report still computes them LIVE and still MOVES as more
+  are given away, which is the half that was already correct.
+- **Eight one-property reverts, every one caught.** A1/A2/A3 drop one column from the write,
+  B1/B2/B3 drop one field from the route's map. Each failed 3-4 tests and no two failed the
+  same set, so each property is independently load-bearing. **Two tests survived all six**,
+  and neither was left at that: revert D **grows** the `CLOTURE_Z` payload and the pin catches
+  it; revert C makes `computeShiftReport` answer 0 / 0 and the X-report control catches it.
+- **Identity, not label.** The tests ring two products both named « Coca » at 1,50 € and
+  3,50 € — the live collision, which is still live — and assert the sealed JSON carries two
+  rows keyed by `productId`. Sealed under a name, a Z report here would record a give-away of
+  « Coca ×3 » that no product ever had, in a document that cannot be corrected.
+- **The zero case, explicitly.** A shift with no give-aways seals `0 / 0 / "[]"`, not null,
+  and the route sends all three keys. That is the case every ordinary day produces and the
+  one the defect looked exactly like; it cannot be checked by looking at the screen, only at
+  the payload.
+- **`bun run test` 1320 pass / 0 fail, 110 files, 150 s** — up from 1312 by exactly the eight
+  tests added, zero `prisma:error` blocks · `typecheck` clean · `lint` clean.
+
+**The migration, rehearsed.** `prisma migrate diff --from-migrations → --to-schema-datamodel`
+returns « This is an empty migration », so the hand-written SQL is exactly what Prisma would
+generate for this datamodel. Production was then copied to
+`../db-snapshots/r71-acceptance/rehearsal.db` (sha256 verified against the original),
+fingerprinted, and **the operator's own command** — `bun scripts/apply-migration.ts --apply`
+with `DATABASE_URL` pointed at the copy — was run against it: `14 → 15`, `Newly applied
+20260911160000_zreport_given_away`, `schema_version 168 → 171`, `✅ APPLIED AND VERIFIED`.
+
+**The fingerprint diff is three lines and one row**, over every table, index, column order,
+sealed row, event hash, `integrity_check` and FK check:
+
+```
+ZReport columns      25:givenAwayCount:INTEGER:notnull=0:default=null
+                     26:givenAwayItemsCount:INTEGER:notnull=0:default=null
+                     27:givenAwayProductsJson:TEXT:notnull=0:default=null
+_prisma_migrations   14 → 15 rows, the one new row
+```
+
+cids 0-24 are unchanged, so SQLite added the columns **in place** and did not rebuild the
+table — which was the point of hand-writing three `ADD COLUMN`s instead of taking the
+generator's RedefineTables block for a fiscal table. Production's sha256
+(`c265e6ff…25ea28`) and mtime (2026-09-11 13:40:36) are unchanged and no `-wal`/`-shm`
+appeared beside it.
+
+**The env override was proved, not assumed, before production was near it.**
+`apply-migration.ts` spawns `prisma migrate deploy` without an explicit env, and Prisma loads
+`.env` — whose `DATABASE_URL` is the live catalogue. Rather than believe that the process env
+wins, an **empty** `probe.db` under the scratchpad was handed to the read-only `prisma migrate
+status`: it reported **0 applied, 15 pending**, which production is not, and named `probe.db`
+as the datasource. Only then was the rehearsal run.
+
+**Left behind:**
+- **The migration is NOT applied to production.** The command and its caveat are in the
+  plan's § 1.
+- **`--expect ../db-snapshots/r71-acceptance/fp-r71-after.json` is a snapshot of the data as
+  it stood on 2026-09-11 at 16:00.** The fingerprint covers the catalogue, so a product
+  edited between now and the operator's run shows up as a difference — a real one, but theirs
+  and not the migration's. `apply-migration.ts` filters `Session`/`AuditLog`/`TechnicalLog`
+  and nothing else. If it reports differences under `products` or `rowCounts`, read them
+  before assuming the migration misbehaved.
+- **Two rehearsal artefacts were deleted deliberately**, both byte-identical to a production
+  database that is intact and covered by two verified backups: `r71-acceptance/rehearsal.db`,
+  and — this one matters — the restore point `apply-migration.ts` took of the copy at
+  `../db-snapshots/custom.db.before-20260911160000_zreport_given_away-2026-09-11`. **The
+  script refuses to run if that path already exists**, so leaving it would have blocked the
+  operator's real application with a message about overwriting a restore point.
+- **L-82 is untouched, and it is not only the two Cocas.** Measured 2026-09-11 16:00 on
+  production: `Coca`, `Fanta` **and** `Orangina` each exist twice, 1,50 € in *Canette* and
+  3,50 € in *Bouteilles*, all six `active` and on the till grid. R7.2's row names only the
+  Cocas. Nothing in `src/` or `scripts/` references any of the six by name, so a rename
+  breaks nothing — `seed.ts` mentions « Fanta 33cl », and `db:seed` is forbidden here anyway.
+
 ---
 
 ## Carried forward — the 2026-09-03 → 2026-09-09 remediation
@@ -1114,6 +1224,11 @@ orphaned 22 more. Operator's call, 2026-09-11.*
 columns — `Receipt` now holds zero rows) and **L-60** (eighteen orders carrying no
 `fiscalEventId` — `Order` now holds zero rows). Neither can recur: both depended on rows the
 reset deleted, and every order written from now on is journalled.
+
+**Closed by R7.1 on 2026-09-11:** **L-83** — `/api/reports/z` sent none of the three
+give-away fields `ZReportDto` declares, and `ZReport` had no column for them. Both halves are
+fixed and the migration is prepared; see the R7.1 entry above. **L-82 stays open** and keeps
+its owner R7.2.
 
 
 ---

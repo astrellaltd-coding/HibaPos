@@ -121,8 +121,12 @@ describe("plan freshness — the plan and the done file may not disagree", () =>
     //   was added, which is the one direction that is not a weakened assertion.
     //   FINDINGS STAY AT 10: L-83 and L-82 were given an OWNER, not closed. They
     //   leave § 7 when they are fixed, and this number drops to 8 then — not now.
-    expect(taskStatuses(src).size).toBe(7);
-    expect(openFindings(src).size).toBe(10);
+    //   2026-09-11, R7.1 done: tasks 7 → 6 and findings 10 → 9 — L-83 closed and
+    //   left § 7 with it, which is the drop the line above predicted, half of it.
+    //   The other half is L-82, which stays: R7.2 is the operator's and is not
+    //   done. Phase 7 therefore still has a row, and this is 6 rather than 5.
+    expect(taskStatuses(src).size).toBe(6);
+    expect(openFindings(src).size).toBe(9);
     expect(done()).toContain("# HibaPOS France — Completed Work");
   });
 

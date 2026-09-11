@@ -53,6 +53,21 @@ export const GET = withAuth(
       cashVariance: z.cashVariance,
       vatBreakdown: JSON.parse(z.vatBreakdownJson ?? "{}"),
       topProducts: JSON.parse(z.topProductsJson ?? "[]"),
+      // L-83 (R7.1). `ZReportDto` has declared these three since Batch 7.4a and
+      // this map sent none of them, so `report.givenAwayCount` was `undefined`
+      // on the client — and `GivenAway` opens `if (!count) return null`, which
+      // `undefined` satisfies. The block was therefore absent from every Z
+      // report and nothing ever threw. Read back from the columns R7.1 seals,
+      // NOT recomputed from the orders: the row is the document.
+      //
+      // `?? 0` / `?? "[]"` reads a null as « nothing », the same fallback
+      // `topProducts` uses one line above. No row can carry null — the columns
+      // were added when zero `ZReport` rows existed and `generateZReport` has
+      // written all three ever since — so the fallback is a type guarantee for
+      // the DTO's `number`, not a figure anyone will ever see.
+      givenAwayCount: z.givenAwayCount ?? 0,
+      givenAwayItemsCount: z.givenAwayItemsCount ?? 0,
+      givenAwayProducts: JSON.parse(z.givenAwayProductsJson ?? "[]"),
       shift: z.shift,
     })),
   );

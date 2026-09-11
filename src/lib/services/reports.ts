@@ -78,9 +78,14 @@ export type SalesReport = {
   // L-77 (R2.2): menus sold in the shift. Shown on the shift screen and on the
   // X report; **not** written into the sealed `ZReport` row and not into the
   // `CLOTURE_Z` journal payload — operator's decision, 2026-09-10. See the note
-  // on `PeriodAgg.topMenus` in `fiscal.ts` for why, and note that a Z report
-  // already treats `givenAwayProducts` the same way: computed and shown, never
-  // sealed into a column.
+  // on `PeriodAgg.topMenus` in `fiscal.ts` for why.
+  //
+  // This comment used to add « and note that a Z report already treats
+  // `givenAwayProducts` the same way: computed and shown, never sealed into a
+  // column ». That stopped being true with R7.1 (L-83, 2026-09-11): the three
+  // give-away figures ARE sealed into `ZReport` now. `topMenus` still is not,
+  // and the distinction is the operator's, not an accident — so `topMenus` has
+  // lost its companion and stands on `fiscal.ts`'s argument alone.
   topMenus: TopMenu[];
 };
 
@@ -226,6 +231,20 @@ export async function generateZReport(shiftId: string, closingFloat: number, clo
         perpetualSalesTotal: perpetual.totalSales,
         perpetualTotalsJson: JSON.stringify(perpetual),
         topProductsJson: JSON.stringify(report.topProducts),
+        // L-83 (R7.1): sealed beside `topProductsJson`, in the same
+        // transaction, from the same `report`. Before this the three figures
+        // were computed for the X report, declared on `ZReportDto` — and then
+        // dropped on the floor at the close, so the « Offerts » block was
+        // absent from every Z report rather than wrong. The operator's decision
+        // of 2026-09-11 was to SEAL them: a recomputed give-away figure follows
+        // whatever the aggregator says on the day it is read, and a Z report is
+        // the document that says what was true at the close.
+        //
+        // The `CLOTURE_Z` payload below is deliberately NOT grown to match —
+        // `topProductsJson` is not in it either.
+        givenAwayCount: report.givenAwayCount,
+        givenAwayItemsCount: report.givenAwayItemsCount,
+        givenAwayProductsJson: JSON.stringify(report.givenAwayProducts),
         vatBreakdownJson: JSON.stringify(report.vatBreakdown),
       },
     });

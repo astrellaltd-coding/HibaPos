@@ -11,20 +11,23 @@ Completed work lives in **`REMEDIATION_DONE.md`**. This file only ever shows out
 **Overall:** NOT READY FOR PRODUCTION. Every code defect that ever had a **task row** in
 this plan is fixed. What stands between here and ready is **fiscal first** — R6.1, R6.2 and
 R6.3 — but not *only* fiscal: R6.4 (printer driver and queue) and R6.5 (a backup on a second
-volume) are technical, and § 7's ten findings are open, six of them code-level. None of the
-ten blocks a first sale.
+volume) are technical, and § 7's nine findings are open, five of them code-level. None of the
+nine blocks a first sale.
 
 **Phases 0, 1, 2, 3, 4 and 5 are COMPLETE and applied**, including both operator items
 (R3.3 and R4.4, 2026-09-11) and both migrations.
 
-**Two phases remain, and Phase 7 runs FIRST.** Phase 7 (two rows, opened 2026-09-11) changes
-what a Z report seals, and that shape is free only while zero closes exist. Phase 6 (five
-rows, all the operator's) ends in real trading, which is what creates the first close. Doing
-Phase 6 first would mean racing the freeze. Within Phase 6 the order is not a preference
-either — arming the chain key before the reset makes the reset refuse.
+**Phase 7's code is done. One operator row is left in it, and Phase 6 has not opened.**
+R7.1 landed 2026-09-11: a Z report now seals the give-away figures, and its migration is
+rehearsed and waiting. **R7.2 is the operator's**, and it belongs before the first close for
+the reason R7.1 did — a product's NAME is sealed into `topProductsJson` and now into
+`givenAwayProductsJson`, and a sealed document cannot be corrected afterwards. Phase 6 (five
+rows, all the operator's) ends in real trading, which is what creates that first close. Its
+own order is not a preference either — arming the chain key before the reset makes the reset
+refuse.
 
-**Current task: none.** Phase 6 needs its own go-ahead — § 2's rule is that a phase boundary
-stops the work.
+**Current task: none.** R7.2 and Phase 6 each need the operator. § 2's rule is that a phase
+boundary stops the work.
 
 ### Before anyone starts Phase 6
 
@@ -54,6 +57,12 @@ stops the work.
 
 ### Awaiting the operator
 
+- **R7.1's migration — prepared and rehearsed, NOT applied.** With the app stopped:
+  `bun scripts/apply-migration.ts --apply --expect ../db-snapshots/r71-acceptance/fp-r71-after.json`.
+  It adds three nullable columns to `ZReport` in place and touches nothing else; the
+  rehearsal's fingerprint diff is three lines and one row, in `REMEDIATION_DONE.md`. The
+  `--expect` file snapshots the catalogue as it stood at 16:00 on 2026-09-11, so a product
+  edited since then reports as a difference that is the operator's and not the migration's.
 - **A copy of a verified backup OFF THIS MACHINE.** There are two, both verified by
   decryption, and **both sit on the same disk as the database they protect** — one failure
   takes all three. This is the oldest open item in the plan and the only one that is about
@@ -286,15 +295,16 @@ something going wrong.
 
 ## 4. CURRENT BASELINES — re-measure before trusting any of these
 
-*Measured on **2026-09-11 at 13:55**, after Phases 0, 2, 3, 4 and 5 completed and both
-migrations were applied — **except the e2e row, which carries its own older date**. Each row
-is responsible for saying when it was taken; where one does, believe the row, not this line.*
+*Re-measured on **2026-09-11 at 15:50**; every figure below was confirmed unchanged from the
+13:55 reading except the test counts, which R7.1 moved. **The e2e row carries its own older
+date.** Each row is responsible for saying when it was taken; where one does, believe the
+row, not this line.*
 
 | Thing | Value |
 |---|---|
-| Tests | **1312 pass, 0 fail**, 109 files. **Wall time varies by 4x on the same tree — 135 s to 510 s observed**; not a regression signal, do not chase it. The `expect()` total drifts a little between runs too (4051-4070), for the same reason. `typecheck` and `lint` clean. **Zero `prisma:error` blocks** in a clean run, down from twelve (R4.3 + R4.6). **Nothing pins this table** — `readme-counts.test.ts` reads `README.md` and only `README.md`, so it pins the same 1312 *there*; the 109 is pinned nowhere. If these drift, no test fails. Re-measure. |
+| Tests | **1320 pass, 0 fail**, 110 files. **Wall time varies by 4x on the same tree — 135 s to 510 s observed**; not a regression signal, do not chase it. The `expect()` total drifts a little between runs too (**4124** after R7.1's eight tests; 4051-4070 before them). `typecheck` and `lint` clean. **Zero `prisma:error` blocks** in a clean run, down from twelve (R4.3 + R4.6). **Nothing pins this table** — `readme-counts.test.ts` reads `README.md` and only `README.md`, so it pins the same 1320 *there*; the 110 is pinned nowhere. If these drift, no test fails. Re-measure. |
 | e2e | **13 passed** (measured 2026-09-07, not re-run since). `bun run test:e2e` is **safe** — see § 5. |
-| Production DB | sha256 `c265e6ffdea8f3795f8a9ed104827d677c14afa75f7f3e486c419146bb25ea28`, 884 736 bytes, app stopped. `integrity_check` ok, 0 FK errors, **14 migrations, none pending**, **18 `Product` and 18 `OrderItem` columns**. |
+| Production DB | sha256 `c265e6ffdea8f3795f8a9ed104827d677c14afa75f7f3e486c419146bb25ea28`, 884 736 bytes, app stopped. `integrity_check` ok, 0 FK errors, **14 migrations applied and ONE pending** — R7.1's `20260911160000_zreport_given_away` — **18 `Product`, 18 `OrderItem` and 25 `ZReport` columns** (28 after that migration). |
 | How to check it | **A sha is only a baseline while nothing is running** — a signed-in session still writes `Session.lastActivityAt`, at most once a minute since R4.6. If the app may be up, check *structure*, not the hash. **File SIZE is not evidence**: an `ADD COLUMN` leaves it unchanged, measured. The sha256, the mtime and `PRAGMA schema_version` are what move. |
 | Trading tables | **All zero.** Order, OrderItem, Payment, Receipt, Refund, Shift, ZReport, FiscalEvent, GrandTotal, DailyClose, MonthlyClose, AnnualClose, CashMovement, Customer, Table. |
 | Fiscal counters | `0 / 0 / 0 / 0` (receipt / shift / Z / event). Journal **empty**. |
@@ -351,16 +361,17 @@ A `DONE` row leaves this file for `REMEDIATION_DONE.md`.
 outstanding except the two items under § 1 « Awaiting the operator ». Their four blocks were
 moved out on 2026-09-11 — this section is for work that remains.*
 
-### Phase 7 — Two reporting defects — **RUNS BEFORE PHASE 6**
+### Phase 7 — One reporting defect left, and it is the operator's — **BEFORE PHASE 6**
 
-*Numbered 7 because it was opened last (operator, 2026-09-11); it runs **first**. R7.1 changes
-what a Z report seals, and the sealed shape is free only while zero closes exist — it freezes
-at the first real close, and Phase 6 ends in real trading.*
+*Numbered 7 because it was opened last (operator, 2026-09-11); it runs **first**. R7.1 is
+done (`REMEDIATION_DONE.md`); its migration is rehearsed and waiting, in § 1. **R7.2 is what
+is left**, and it is before Phase 6 for R7.1's reason: a product's NAME is sealed into
+`topProductsJson` and now into `givenAwayProductsJson`, and both freeze at the first real
+close.*
 
 | ID | Status | Task |
 |---|---|---|
-| **R7.1** | `TODO` | **Seal the give-away figures into the Z report — closes L-83.** `ZReportDto` declares `givenAwayCount`/`givenAwayItemsCount`/`givenAwayProducts`; the GET in `api/reports/z` maps stored columns only and sends none of them, and `ZReport` has no column for them. `GivenAway` (`reports-view.tsx:143`) opens `if (!count) return null` — `undefined` is falsy, so the « Offerts » block is **silently absent** from every sealed Z report rather than erroring. **Operator's decision 2026-09-11: seal them**, mirroring `topProductsJson` — a sealed figure stays what it was; a recomputed one follows whatever the aggregator says that day. Nullable, and nothing to backfill (zero Z reports). Rehearse the migration here; the operator applies it with `apply-migration.ts`. Test what the **route sends** and what a Z report **reads back out of the database**, not the aggregator alone — and keep the X report working. |
-| **R7.2** | `OPERATOR` | **Rename the two « Coca » products — closes L-82.** Two rows are named exactly `Coca`: 1,50 € in *Canette*, 3,50 € in *Bouteilles*. R2.1 already keys the aggregation by `productId`, so the **figures were always right** — only the label was ambiguous, on screen and in the CSV. Operator's choice 2026-09-11: distinct catalogue names rather than a code-side label. **Residual, recorded not fixed:** reports still label by name, so two products sharing one would read as one again. |
+| **R7.2** | `OPERATOR` | **Rename the two « Coca » products — closes L-82.** Two rows are named exactly `Coca`: 1,50 € in *Canette*, 3,50 € in *Bouteilles*. R2.1 already keys the aggregation by `productId`, so the **figures were always right** — only the label was ambiguous, on screen and in the CSV. Operator's choice 2026-09-11: distinct catalogue names rather than a code-side label. **Three pairs, not one** (2026-09-11 16:00): `Fanta` and `Orangina` collide identically, 1,50 € *Canette* / 3,50 € *Bouteilles*, all six active and on the grid. **A name must be** unique catalogue-wide (reports label by name; `productKey` falls back to it), **≤ 36 chars** so no ticket line wraps (`receiptWidth` 48, line « 1× NAME » + amount), and free of stray whitespace (R4.4). No code reads the six by name. **Residual, recorded not fixed:** reports still label by name, so two products sharing one would read as one again. |
 
 ### Phase 6 — Before the first real sale
 
@@ -390,7 +401,6 @@ rule 1). Audit IDs are never renamed.
 | ID | Severity | Finding | Owner |
 |---|---|---|---|
 | **L-82** | Cosmetic | The product list renders the name alone (`src/components/shared/report-widgets.tsx:141`, `src/lib/csv-export.ts:54`), so the two rows R2.1 correctly separates read as two identical « Coca » labels on screen and in the CSV. Figures right, label ambiguous. `productId` is in the payload, so the figures are right; the operator chose distinct catalogue names over a code-side label. | R7.2 |
-| **L-83** | Low | `/api/reports/z` never sends `givenAwayCount`/`givenAwayItemsCount`/`givenAwayProducts`, yet `ZReportDto` declares all three and `reports-view.tsx:445` renders them — `undefined` at runtime. The sealed row has no column for them, so the DTO promises what no route can serve. `topMenus` was kept out rather than become a fourth instance. Routes are not typed against their DTOs, so the compiler cannot see it. | R7.1 |
 | **L-84** | Low | `showOnPos` is a display rule, not a guard: `orders/route.ts` checks only `active`/`available`, so a request naming a hidden product directly is still booked. Not a fraud vector (the till is the only client, at the real catalogue price), but « cannot be sold alone » is true of the interface, not the API. Pinned by `hidden-product.test.ts`, so closing it is a decision. | none |
 | **L-81** | Cosmetic | A test product, `5 nuggets test` (Croustillants, 5,00 €), was created in the live catalogue on 2026-09-10 and left `active=0` / `available=0`. Invisible on the till and harmless, but the catalogue is meant to be real work only — and it is now inside the verified backup. Delete it with the operator, or keep it deliberately. | none |
 | **L-75** | Deferred | The app cannot run on a 32-bit Windows: both Prisma engines are `machine 0x8664` and Bun is x64/ARM64 only. **Carried to the Tauri v2 phase**, where the runtime and the packaging are both decided. No software fix at this layer. | none |

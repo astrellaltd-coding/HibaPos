@@ -787,22 +787,22 @@ model Receipt {
 // ---------------------------------------------------------------------------
 
 model ZReport {
-  id                  String   @id @default(cuid())
-  shiftId             String   @unique
-  number              Int      @unique
-  generatedAt         DateTime @default(now())
-  salesTotal          Int
-  salesCount          Int
-  vatTotal            Int
-  cashTotal           Int
-  cardTotal           Int
-  voucherTotal        Int
-  discountsTotal      Int
+  id                    String   @id @default(cuid())
+  shiftId               String   @unique
+  number                Int      @unique
+  generatedAt           DateTime @default(now())
+  salesTotal            Int
+  salesCount            Int
+  vatTotal              Int
+  cashTotal             Int
+  cardTotal             Int
+  voucherTotal          Int
+  discountsTotal        Int
   // M-07 (Batch 3.6): the period's corrections. Defaulted so the two existing
   // rows migrate without a rewrite — both predate any refund (there are none
   // in the database at all), so 0 is the true value for them, not a guess.
-  refundsTotal        Int      @default(0)
-  refundsCount        Int      @default(0)
+  refundsTotal          Int      @default(0)
+  refundsCount          Int      @default(0)
   // M-05 (Batch 5.5): the drawer's other movements. `expectedCash` below now
   // accounts for them, so without these an inspector could see that the figure
   // does not equal float + cash − refunds and have nothing to explain it —
@@ -810,13 +810,13 @@ model ZReport {
   // amounts are split into two totals here because a sealed document should
   // state what went in and what went out, not their difference. Defaulted 0:
   // both existing rows predate the feature, so 0 is their true value.
-  cashInTotal         Int      @default(0)
-  cashOutTotal        Int      @default(0)
-  cashMovementsCount  Int      @default(0)
-  openingFloat        Int
-  expectedCash        Int
-  closingFloat        Int
-  cashVariance        Int
+  cashInTotal           Int      @default(0)
+  cashOutTotal          Int      @default(0)
+  cashMovementsCount    Int      @default(0)
+  openingFloat          Int
+  expectedCash          Int
+  closingFloat          Int
+  cashVariance          Int
   // L-57 (Batch 3.8). BOFiP § 170: « Pour chaque clôture, des données
   // cumulatives et récapitulatives, intègres et inaltérables, doivent être
   // calculées et enregistrées … comme le cumul du grand total de la période et
@@ -830,11 +830,36 @@ model ZReport {
   // was the true value for the existing rows. Here 0 would assert that the
   // business had never taken a euro, which is false, and a fiscal document must
   // not carry a figure that was never measured. A missing figure reads missing.
-  perpetualSalesTotal Int? // cents — GrandTotal.totalSales at the seal
-  perpetualTotalsJson String? // the whole GrandTotal snapshot, as sealed
-  topProductsJson     String? // JSON snapshot
-  vatBreakdownJson    String? // {rate: {base, vat, ttc}}
-  fiscalEventId       String? // link to the FiscalEvent (CLOTURE_Z) journal entry (plain id, no FK)
+  perpetualSalesTotal   Int? // cents — GrandTotal.totalSales at the seal
+  perpetualTotalsJson   String? // the whole GrandTotal snapshot, as sealed
+  topProductsJson       String? // JSON snapshot
+  // L-83 (R7.1). DD-20 reports what was GIVEN AWAY beside what was sold, and
+  // `ZReportDto` has declared all three of these since Batch 7.4a — while the
+  // sealed row had no column for them and `GET /api/reports/z` sent none. The
+  // consequence was silence rather than an error: `GivenAway` in
+  // `reports-view.tsx` opens `if (!count) return null`, and `undefined` is
+  // falsy, so the « Offerts » block was simply absent from every Z report.
+  //
+  // SEALED rather than recomputed — the operator's decision, 2026-09-11 —
+  // mirroring `topProductsJson` directly above. A sealed figure stays what it
+  // was at the close; a recomputed one follows whatever the aggregator says on
+  // the day it is read, which is not what a fiscal document is for. The X
+  // report still computes them live, because that is what an X report IS.
+  //
+  // NULLABLE, and nothing to backfill: zero `ZReport` rows exist. Null would
+  // mean « sealed before this column », the same statement
+  // `perpetualSalesTotal` makes above — and after this migration no row can
+  // ever make it, because `generateZReport` writes all three every time.
+  //
+  // The per-shift `CLOTURE_Z` journal payload is deliberately NOT grown: this
+  // mirrors `topProductsJson`, which is a column and is not in that payload
+  // either. `menu-reporting.test.ts` made the same call for `topMenus` on
+  // 2026-09-10 and pinned it; `zreport-given-away.test.ts` pins this one.
+  givenAwayCount        Int?
+  givenAwayItemsCount   Int?
+  givenAwayProductsJson String? // JSON snapshot of GivenAwayProduct[]
+  vatBreakdownJson      String? // {rate: {base, vat, ttc}}
+  fiscalEventId         String? // link to the FiscalEvent (CLOTURE_Z) journal entry (plain id, no FK)
 
   shift Shift @relation(fields: [shiftId], references: [id], onDelete: Restrict)
 }
