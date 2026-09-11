@@ -19,8 +19,8 @@ a short list of real defects and the four fiscal steps before the first real sal
 documentation reconciliation was Phase 1 and is done; the reporting defects were Phase 2 and
 are done.)*
 
-**Current phase:** **none — Phases 2, 3 and 4 are all COMPLETE and applied**, including both
-operator items (R3.3 and R4.4, built 2026-09-11) and both migrations.
+**Current phase:** **none — Phases 2, 3, 4 and 5 are all COMPLETE and applied**, including
+both operator items (R3.3 and R4.4, built 2026-09-11) and both migrations.
 
 ### The Phase 3 migration is APPLIED (2026-09-11 02:13)
 
@@ -40,8 +40,8 @@ An earlier version of this header said « the migration is APPLIED » in bold wi
 which, twenty lines below « PREPARED, NOT APPLIED » about the other — corrected here rather
 than left standing, because it is the natural thing for a skimming reader to get wrong.)*
 
-**Current task:** **none.** What remains is **Phase 0** (three deletions), **Phase 5**
-(cleanup) and **Phase 6** (the four fiscal steps before the first real sale). Each needs its
+**Current task:** **none.** What remains is **Phase 0** (three deletions) and **Phase 6**
+(the four fiscal steps before the first real sale). Neither has been started; each needs its
 own go-ahead — § 2's rule is that a phase boundary stops the work.
 
 **Phase 2 is DONE and fully applied** (2026-09-10). What it changed, and what it left
@@ -321,15 +321,25 @@ emporter** instead of the whole price sitting at 10 %. The customer pays the sam
 | ID | Status | Task |
 |---|---|---|
 
-### Phase 5 — Cleanup
+### Phase 5 — Cleanup — **COMPLETE 2026-09-11**
 
-*Deliberately last, so the diff reaching the till is correctness and not tidying.*
+*Record in `REMEDIATION_DONE.md`. Four strays deleted, 45 interface files down to 18, and
+**29** dependencies dropped — not the seven the item named, because deleting the components
+orphaned 22 more. Operator's call, 2026-09-11.*
 
-| ID | Status | Task |
-|---|---|---|
-| **R5.1** | `TODO` | **Delete four strays:** `db/test.db` (0 bytes), `upload/` (empty; `.gitignore` calls it stray), `test-results/`, `tsconfig.tsbuildinfo`. |
-| **R5.2** | `TODO` | **Remove the 27 orphaned interface components.** Verified: exactly 27 of 45 files in `src/components/ui/` have no importer outside that folder. Template residue. Re-run `touch-and-labels.test.ts` afterwards — it scans that tree. |
-| **R5.3** | `TODO` | **Drop seven unused dependencies:** `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities`, `@hookform/resolvers`, `@tanstack/react-table`, `date-fns`, `tailwindcss-animate`. **Strictly after R5.2** or the remaining files stop typechecking. **Keep `tar`** — it looks unused but is loaded dynamically at `backup.ts:272`. |
+**What it left behind:**
+
+- **`tw-animate-css` is the animation plugin, NOT `tailwindcss-animate`.** The names differ by
+  a hyphen and the app imports the first at `globals.css:2`; the second was declared and used
+  by nothing. The 44 `animate-in` / 34 `fade-in-0` / 26 `zoom-in-95` classes in the remaining
+  components come from `tw-animate-css`. **Removing the wrong one breaks every dialog and
+  dropdown animation silently** — Tailwind simply stops generating the classes, with no build
+  error. Verified by grepping CSS, not just TypeScript.
+- **`tar` stays.** It is loaded by a dynamic `import()` in `backup.ts`, so static analysis
+  cannot see the use. The same trap, pointing the other way.
+- **18 files in `src/components/ui/`, and there is no barrel.** No `index.ts` anywhere under
+  `src/`, so a component's only reachable path is a direct import — which is what made the
+  orphan analysis decidable.
 
 ### Phase 6 — Before the first real sale
 
