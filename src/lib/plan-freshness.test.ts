@@ -113,8 +113,10 @@ describe("plan freshness — the plan and the done file may not disagree", () =>
     //   2026-09-11, Phase 5: tasks 11 → 8 (R5.1, R5.2, R5.3), findings unchanged
     //   at 11 — Phase 5 had no findings of its own. Phases 2-5 are complete;
     //   Phase 0 and Phase 6 remain, neither started.
-    expect(taskStatuses(src).size).toBe(8);
-    expect(openFindings(src).size).toBe(11);
+    //   2026-09-11, Phase 0: tasks 8 → 5 (R0.2, R0.3, R0.4), findings 11 → 10
+    //   (L-46 closed with them). Only Phase 6's five OPERATOR rows remain.
+    expect(taskStatuses(src).size).toBe(5);
+    expect(openFindings(src).size).toBe(10);
     expect(done()).toContain("# HibaPOS France — Completed Work");
   });
 

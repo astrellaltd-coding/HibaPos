@@ -290,20 +290,23 @@ something going wrong.
 Status values: `TODO` · `IN PROGRESS` · `DONE` · `BLOCKED` · `OPERATOR` · `ASK FIRST`.
 A `DONE` row leaves this file for `REMEDIATION_DONE.md`.
 
-### Phase 0 — Make the data survivable
+### Phase 0 — Make the data survivable — **COMPLETE 2026-09-11**
 
-*R0.1 is done — a verified, restorable backup now exists (2026-09-10). The three deletions
-below were blocked on it and are now free, **but they are their own phase and need their own
-go-ahead.** The operator should still get a copy of that backup off this machine.*
+*R0.1 (the first restorable backup) 2026-09-10; R0.2 / R0.3 / R0.4 on 2026-09-11. Record in
+`REMEDIATION_DONE.md`. **L-46 closes with them.***
 
-| ID | Status | Task |
-|---|---|---|
-| **R0.2** | `TODO` | **Delete the nine dead backup files** in `db/backups/` (~126 MB). Three legacy `.json` and three `.dbenc`/`.uploads.enc` pairs, all pre-rotation. **Strictly after R0.1.** |
-| **R0.3** | `TODO` | **Delete `HibaPOS-copie-essai/`** (492 files, 58 MB), after recording its four pre-positioned settings in `REMEDIATION_DONE.md`: `factice=false`, `printerEnabled=false`, `printerConnection="usb"`, `printerQueue=""`. Verified 2026-09-10 to hold nothing unique. |
-| **R0.4** | `TODO` | **Remove `db/custom.db.before-dupfix-2026-09-08`** — a second plaintext production database on a OneDrive-synced path. Check it against `../db-snapshots/` first; it may be the only copy of that state. |
+**Two restorable backups now exist**, both verified to decrypt: 2026-09-10 21:42 and
+2026-09-11 12:40. The second was taken before R0.2 deleted anything, and matches production
+table for table. `db/backups/` went 174 MB → 49 MB, and `db/` now holds the live database and
+nothing else.
 
-*Phase 2 is complete and its migration applied (`c9b9d23`, `b50f97c`, `4d504be`). Record in
-`REMEDIATION_DONE.md`; what it left behind is in § 3.*
+**Still awaiting the operator: a copy of a verified backup OFF THIS MACHINE.** Both live on
+the same disk as the database they protect, so one failure still takes all three.
+
+**`../HibaPOS-docs-archive/` was created** to hold two documents R0.3 would otherwise have
+destroyed — see its `README.md`. **`runbook-complet.md` holds the only written procedure for
+R6.4's printer commissioning** (the `pnputil` commands and the Sunso hardware id) and for
+R6.1's reset. Read it before starting Phase 6.
 
 ### Phase 3 — « Use it on POS » — **COMPLETE 2026-09-11**
 
@@ -370,7 +373,6 @@ rule 1). Audit IDs are never renamed.
 | **L-83** | Low | `/api/reports/z` never sends `givenAwayCount`/`givenAwayItemsCount`/`givenAwayProducts`, yet `ZReportDto` declares all three and `reports-view.tsx:445` renders them — `undefined` at runtime. The sealed row has no column for them, so the DTO promises what no route can serve. `topMenus` was kept out rather than become a fourth instance. Routes are not typed against their DTOs, so the compiler cannot see it. | none |
 | **L-84** | Low | `showOnPos` is a display rule, not a guard: `orders/route.ts` checks only `active`/`available`, so a request naming a hidden product directly is still booked. Not a fraud vector (the till is the only client, at the real catalogue price), but « cannot be sold alone » is true of the interface, not the API. Pinned by `hidden-product.test.ts`, so closing it is a decision. | none |
 | **L-81** | Cosmetic | A test product, `5 nuggets test` (Croustillants, 5,00 €), was created in the live catalogue on 2026-09-10 and left `active=0` / `available=0`. Invisible on the till and harmless, but the catalogue is meant to be real work only — and it is now inside the verified backup. Delete it with the operator, or keep it deliberately. | none |
-| **L-46** | Low | ◐ **Half closed 2026-09-10.** The High half is gone: a verified restorable backup now exists, decrypted under the current key with its checksum matched. What remains is housekeeping — nine pre-rotation files (~126 MB) still sit in `db/backups/`, still do not decrypt, and are still listed by nothing. | R0.2 |
 | **L-75** | Deferred | The app cannot run on a 32-bit Windows: both Prisma engines are `machine 0x8664` and Bun is x64/ARM64 only. **Carried to the Tauri v2 phase**, where the runtime and the packaging are both decided. No software fix at this layer. | none |
 | **L-05** | Deferred | `output: "standalone"` was dropped; whether to reinstate it deliberately is open. | none |
 | **L-11** | Deferred | Two payment tolerances disagree (`paid < total - 1` vs `- 0.01`, both on integer cents); dialog resets run on uncleaned timers. `payment-dialog.tsx:86,128,377`. | none |

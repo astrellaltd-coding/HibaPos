@@ -885,6 +885,84 @@ both jobs run `bun install --frozen-lockfile`, which fails if `package.json` and
 disagree. `bun.lock` was genuinely regenerated — 41 package entries removed, none added, and a
 closure check over every surviving entry reported 0 unresolved dependencies.
 
+### PHASE 0 — R0.2, R0.3, R0.4: the dead data is gone, the unique data is not
+**Done:** 2026-09-11 · **Findings:** L-46 closed
+
+**A fresh backup was taken FIRST**, at the operator's instruction, because R0.2 would
+otherwise have left exactly one restorable copy and it was a day stale — it predated both
+migrations, R3.3, R4.4 and all of Phase 5. Created through the real `createBackup` service
+rather than by starting the app against production:
+`hibapos-backup-2026-09-11T12-40-36-138Z.dbenc`, 737 324 bytes, checksum `2e864d28…`.
+
+**Verified by decrypting it**, not by trusting the exit code: valid SQLite, `integrity_check`
+ok, 0 FK errors, and every table equal to production — 84 products, 14 categories, 39 choices,
+21 add-ons, 25 combo slots, 2 users, 18 settings, **14 migrations, 18 `Product` columns,
+3 hidden components, 9 menus, 0 dirty names**. It captures everything through Phase 5. The
+media archive was REUSED (`reused=true`) because the image fingerprint had not changed, so one
+49 MB file now backs both surviving backups.
+
+**R0.2 — nine dead files deleted, 174 MB → 49 MB.** Verified individually before anything went:
+
+- The three August `.dbenc` **fail AES-GCM authentication** under the current key — decryption
+  was attempted on each, all three refused. Unrecoverable, exactly as the plan said.
+- **Correction to the plan's wording:** the three July `.json` files are *not* encrypted at
+  all, so "does not decrypt" never applied to them. They are plaintext and readable. **Checked
+  for credential material and there is none** — the `users` rows carry id, username, name,
+  role, active and timestamps, no `pinHash`. They held a July snapshot (37 products) and July
+  development trading the pre-golive reset was always going to delete.
+- Two guards ran before the deletion: no filename appeared on both the keep and delete lists,
+  and the `Backup` table referenced none of the nine. Both surviving rows point at the two
+  kept `.dbenc` files and the shared media archive.
+
+**R0.4 — MOVED, not deleted. The plan's own warning was right.**
+`db/custom.db.before-dupfix-2026-09-08` (sha `0db1c015…`) matched **no** snapshot in
+`../db-snapshots/`; it really was the only copy of that state — 78 products, 21 orders,
+3 Z reports, 4 fiscal events. The stated concern was *a second plaintext production database
+sitting in `db/` beside the live one*, and moving it out answers that without destroying a
+unique state. Operator's decision. sha256 identical after the move.
+
+**R0.3 — the four pre-positioned settings, recorded as the item requires**, read from the
+trial copy's own database before it was deleted:
+
+| setting | value |
+|---|---|
+| `factice` | `false` |
+| `printerEnabled` | `false` |
+| `printerConnection` | `"usb"` |
+| `printerQueue` | `""` |
+
+**AND A CORRECTION THAT MATTERS MORE THAN THE DELETION.** R0.3 said the directory was
+"verified 2026-09-10 to hold nothing unique". That was true of its `app/` copy and its
+database — but **`LISEZ-MOI.md` (4,4 KB) and `runbook-complet.md` (38,5 KB) are in neither the
+repository's working tree nor its git history.** Deleting the directory as written would have
+destroyed the only copy of both.
+
+`runbook-complet.md` is 673 lines and **roughly 240 of them are still live**, all of them
+Phase 6's:
+
+- **§ 4a — the printer.** The only written procedure for **R6.4**: `pnputil /export-driver`
+  and `/add-driver`, and the hardware id `USBPRINT\SUNSOWTP-800036C` from `sunso.inf`,
+  confirmed with the owner 2026-09-09. The plan's R6.4 row names the task; this is the only
+  place the steps exist.
+- **§ 6 — the point of no return**: R6.1's pre-golive reset. **§ 3**: R6.3's FACTICE.
+  **§ 7**: V-07's first trading day.
+
+Both moved to **`../HibaPOS-docs-archive/`**, outside the repository, with a `README.md`
+saying what is live and what is withdrawn. Outside deliberately: Phase 1 retired
+`docs/mise-en-service.md` and `.zscripts/README-windows.md` because they describe the
+Windows-till deployment withdrawn in favour of Tauri v2, and most of this runbook describes
+that same world — putting it into `docs/` would reverse that decision. sha256 identical on
+both after the move. Then the 57 MB `app/` copy and the trial database were deleted.
+
+**Left behind:**
+- **`../HibaPOS-docs-archive/runbook-complet.md` is required reading before Phase 6.** R6.4 in
+  particular cannot be done from the plan's one-line row alone.
+- **Still awaiting the operator: a copy of a verified backup off this machine.** Both backups
+  sit on the same disk as the database they protect.
+- **"Verified to hold nothing unique" deserves the question "unique how?"** The 2026-09-10
+  check was about data; it did not cover documents. That is how a 38 KB runbook came within
+  one command of being deleted.
+
 ---
 
 ## Carried forward — the 2026-09-03 → 2026-09-09 remediation
