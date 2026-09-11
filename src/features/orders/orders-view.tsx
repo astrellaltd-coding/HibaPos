@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "@/lib/api-client";
-import type { OrderDto } from "@/types/api";
+import type { OrderDto, ProductDto } from "@/types/api";
 import { PageHeader, EmptyState } from "@/components/shared/empty-state";
 import { Money } from "@/components/shared/money";
 import { Button } from "@/components/ui/button";
@@ -59,7 +59,12 @@ import { useAppStore } from "@/store/app-store";
 import { downloadReceipt } from "@/lib/receipt";
 import { PAYMENT_LABELS, ORDER_TYPE_LABELS } from "@/lib/order-labels";
 import { OrderStatusBadge } from "@/components/shared/order-status-badge";
-import { safeParseOptions, safeParseAddOns, cartAddOnsFromSnapshot } from "@/lib/order-parsers";
+import {
+  safeParseOptions,
+  safeParseAddOns,
+  cartAddOnsFromSnapshot,
+  resolveSnapshotOptions,
+} from "@/lib/order-parsers";
 import { StepUpPinDialog, type StepUpConfirmation } from "@/components/pos/step-up-pin-dialog";
 import type { SettingsDto } from "@/types/api";
 // uuid replaced with built-in crypto.randomUUID()
@@ -172,6 +177,15 @@ export function OrdersView() {
   const { data: settings } = useQuery({
     queryKey: ["settings"],
     queryFn: () => api.get<SettingsDto>("/api/settings"),
+  });
+
+  // L-87 (R4.7) — the catalogue, needed to turn a reordered line's option NAMES
+  // back into the catalogue ids the checkout requires. Same query key as
+  // `pos-view.tsx`, so on a till that has shown the POS screen this is already
+  // in the react-query cache and costs nothing.
+  const { data: catalogue } = useQuery<ProductDto[], ApiError>({
+    queryKey: ["products", "all", true],
+    queryFn: () => api.get<ProductDto[]>("/api/catalog/products?all=1"),
   });
 
   const refundMutation = useMutation({
@@ -292,7 +306,15 @@ export function OrdersView() {
 
   function handleReorder() {
     if (!detail || detail.items.length === 0) return;
+    if (!catalogue) {
+      // L-87: without the catalogue the options cannot be resolved, and adding
+      // the lines without them is the defect this replaced. Better to say so.
+      toast.error("Catalogue en cours de chargement — réessayez dans un instant.");
+      return;
+    }
     clear();
+    /** Options the current catalogue no longer offers — reported, not hidden. */
+    const unresolvable: string[] = [];
     for (const item of detail.items) {
       // M-19 (Batch 5.7c) corrected this comment as well as the shape below.
       // The snapshot stores the modifier AS CHARGED on that order — resolved
@@ -302,6 +324,12 @@ export function OrdersView() {
       // and the server recomputes authoritatively at checkout regardless.
       const options = safeParseOptions(item.optionsJson);
       const addOns = safeParseAddOns(item.addOnsJson);
+      // L-87 (R4.7). The snapshot holds option NAMES; the checkout needs
+      // catalogue ids. Resolve them here — the comment this replaced claimed
+      // the server recomputed them and it does not.
+      const product = catalogue?.find((p) => p.id === item.productId);
+      const { resolved, unresolved } = resolveSnapshotOptions(options, product?.options ?? []);
+      if (unresolved.length > 0) unresolvable.push(`${item.productName} (${unresolved.join(", ")})`);
       addItem({
         uid: crypto.randomUUID(),
         productId: item.productId,
@@ -311,12 +339,12 @@ export function OrdersView() {
         deliveryPrice: null,
         unitPrice: item.unitPrice,
         quantity: item.quantity,
-        options: options.map((o) => ({
+        options: resolved.map((o) => ({
           group: o.group,
           choice: o.choice,
-          choiceId: "", // snapshot has no choice ids; server recomputes by product at checkout
-          priceModifier: o.priceModifier ?? 0,
-          dineInPriceModifier: o.priceModifier ?? 0,
+          choiceId: o.choiceId,
+          priceModifier: o.priceModifier,
+          dineInPriceModifier: o.priceModifier,
         })),
         // L-80 (R4.2): the ONE place a snapshot add-on becomes cart content.
         // An add-on with no catalogue id cannot be re-priced by the server, so
@@ -326,6 +354,15 @@ export function OrdersView() {
         vatRate: 10, // default; the checkout API recomputes from product if available
         notes: item.notes,
       });
+    }
+    // L-87: a line whose option vanished from the catalogue still goes into the
+    // cart, because most of it is still valid — but the cashier is told which
+    // one to re-pick, instead of discovering it as « Option obligatoire
+    // manquante » at payment.
+    if (unresolvable.length > 0) {
+      toast.warning(
+        `Options à revérifier — le catalogue a changé depuis : ${unresolvable.join(" · ")}`,
+      );
     }
     toast.success(`Commande #${detail.number} rechargée dans le panier`);
     setSelectedId(null);

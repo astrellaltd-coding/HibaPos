@@ -328,12 +328,42 @@ async function ensureMediaArchive(
     return { filename: encFilename, bytes: stat.size, reused: true };
   }
 
+  // L-85 (R4.5) — BUILDING the archive is guarded too, not just LOADING `tar`.
+  //
+  // These four statements used to sit outside any `try`, so a failure here —
+  // a full disk, a permission error, a file vanishing mid-archive, a corrupt
+  // source — propagated out of `ensureMediaArchive`, out of `createBackup`, and
+  // **failed the whole backup, including the database half that had already
+  // been snapshotted and encrypted.** Losing the database backup because the
+  // images could not be tarred is the wrong trade in every case: the database
+  // is the part that cannot be reconstructed.
+  //
+  // The restore side has always worked this way — `restoreUploadsArchive` wraps
+  // its `tar.x` and returns `{ failed }` — so this is the create side matching
+  // it, and it reports through the same `{ unavailable }` channel L-79 added.
   const plainPath = path.join(backupDir, `hibapos-media-${fingerprint}.tar.gz`);
-  await tar.c({ gzip: true, file: plainPath, cwd: base, portable: true }, entries);
-  await encryptFile(plainPath, encPath, secret);
-  await fs.unlink(plainPath).catch(() => {});
-  const stat = await fs.stat(encPath);
-  return { filename: encFilename, bytes: stat.size, reused: false };
+  try {
+    await tar.c({ gzip: true, file: plainPath, cwd: base, portable: true }, entries);
+    await encryptFile(plainPath, encPath, secret);
+    await fs.unlink(plainPath).catch(() => {});
+    const stat = await fs.stat(encPath);
+    return { filename: encFilename, bytes: stat.size, reused: false };
+  } catch (e) {
+    const reason = e instanceof Error ? e.message : String(e);
+    // Leave nothing half-written behind: a stray `.tar.gz`, or an `.enc` that
+    // was never completed, would be picked up as a valid reuse by the
+    // `existsSync(encPath)` check above on the NEXT backup.
+    await fs.unlink(plainPath).catch(() => {});
+    await fs.unlink(encPath).catch(() => {});
+    await logTechnical(
+      "WARN",
+      "backup-service",
+      `Sauvegarde : archive média non construite — ${reason}. ` +
+        `Cette sauvegarde contient UNIQUEMENT la base de données ; les images et les archives ` +
+        `fiscales n'y sont pas.`,
+    );
+    return { unavailable: reason };
+  }
 }
 
 /**

@@ -3,7 +3,7 @@ import { readFileSync } from "fs";
 import path from "path";
 import { signInAs, clearCookies } from "@/lib/route-harness";
 import { db } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { getSession, ACTIVITY_TOUCH_INTERVAL_MS } from "@/lib/auth";
 import { hashPin } from "@/lib/auth";
 
 // L-71 (R4.3) — the sliding activity tracker must not log a Prisma error for a
@@ -89,6 +89,40 @@ describe("L-71 — the tracker still does its job", () => {
     await new Promise((r) => setTimeout(r, 200));
     const after = await db.session.findFirstOrThrow({ where: { id: before.id } });
     expect(after.lastActivityAt.getTime()).toBeGreaterThan(Date.now() - 30_000);
+  });
+});
+
+describe("L-86 — but it writes at most once a minute", () => {
+  it("does NOT write again when lastActivityAt is fresh", async () => {
+    // The whole of R4.6. The write had no reader and ran on EVERY authenticated
+    // request, taking SQLite's single write lock each time and contending with
+    // the request's own work — which is what produced the « Socket timeout »
+    // blocks, all from this one line.
+    const row = await db.session.findFirstOrThrow({ where: { userId } });
+    const fresh = new Date(Date.now() - 5_000); // 5s old, well inside the window
+    await db.session.update({ where: { id: row.id }, data: { lastActivityAt: fresh } });
+
+    const session = await getSession();
+    expect(session?.user.username).toBe(username);
+    await new Promise((r) => setTimeout(r, 250));
+
+    const after = await db.session.findFirstOrThrow({ where: { id: row.id } });
+    expect(after.lastActivityAt.getTime()).toBe(fresh.getTime());
+  });
+
+  it("DOES write once the value is older than the interval", async () => {
+    // The other side of the same boundary — a throttle that never writes is not
+    // a throttle, it is a deletion, and the finding explicitly did not ask for
+    // one: `lastActivityAt` is the only record of when a till was last used.
+    const row = await db.session.findFirstOrThrow({ where: { userId } });
+    const stale = new Date(Date.now() - ACTIVITY_TOUCH_INTERVAL_MS - 5_000);
+    await db.session.update({ where: { id: row.id }, data: { lastActivityAt: stale } });
+
+    await getSession();
+    await new Promise((r) => setTimeout(r, 250));
+
+    const after = await db.session.findFirstOrThrow({ where: { id: row.id } });
+    expect(after.lastActivityAt.getTime()).toBeGreaterThan(stale.getTime());
   });
 });
 

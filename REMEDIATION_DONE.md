@@ -678,6 +678,56 @@ other `bun test` processes started alongside it. Measured clean, the suite is **
 scrypt and a `VACUUM INTO`. The lesson is the measurement discipline, not the number: do not
 time a suite while running anything else against the same database.
 
+### R4.5 + R4.6 + R4.7 — the three findings Phase 4 turned up, fixed
+**Done:** 2026-09-11 · **Findings:** L-85, L-86, L-87 closed
+
+Opened by R4.1-R4.3 and fixed on the operator's instruction the same day.
+
+**R4.5 / L-85 — a media failure may not cost the database backup.** `tar.c`,
+`encryptFile` and `fs.stat` sat outside any `try`, so a full disk or a permission error
+propagated out of `createBackup` and failed the **whole** backup — including the database
+half already snapshotted and encrypted. That is the wrong trade in every case: the database
+is the part that cannot be reconstructed. Now guarded, reporting through the same
+`{ unavailable }` channel R4.1 added, and **unlinking the partial `.tar.gz` and `.enc`** —
+otherwise the next backup's `existsSync(encPath)` reuse check would take a half-written
+archive for a good one.
+
+**R4.6 / L-86 — the activity tracker writes at most once a minute.** The finding recorded
+two options: delete the write, or keep it. A third was better and was taken: `getSession`
+**already fetches the session row**, so adding `lastActivityAt` to that existing `select`
+makes the staleness check free. The feature survives — `lastActivityAt` is the only record of
+when a till was last used, which an idle-timeout policy would need — and the write happens
+once a minute instead of once per request.
+
+*The result is better than the finding predicted.* SQLite takes one write lock for the whole
+database, so a fire-and-forget UPDATE on every authenticated request contended with the
+request's own work. **A clean suite run now produces ZERO `prisma:error` blocks, down from
+twelve** — the 4 P2025s went with R4.3 and all 7-8 socket timeouts went with this. The
+remaining noise was not a separate defect; it was the same line.
+
+**R4.7 / L-87 — a reordered line carries real choice ids.** `optionsJson` snapshots option
+NAMES; the reorder path put them in the cart as `choiceId: ""` under a comment claiming the
+server recomputed them. It does not — `pricing.ts` filters by `selectedOptionIds.has(c.id)`,
+so every reordered option was silently dropped, and a product with a REQUIRED group had the
+whole line refused. `resolveSnapshotOptions` matches the snapshot's names against the
+catalogue and returns real ids, **plus the names it could not resolve**, so the cashier is
+told rather than discovering it at payment.
+
+*The match is trimmed and case-folded, and that is load-bearing:* the live catalogue holds
+fourteen names with stray spaces (L-39), and R4.4 trims them. Without folding, fixing L-39
+would silently break reordering for **every order already taken**. Tested in both directions.
+
+**The revert — six properties, each alone and in both directions. All six are caught.** One
+survived the first pass and was a real gap: the leftover-cleanup check was vacuous, because
+the mock's `c()` threw *before* writing anything, so there was nothing to clean up. The mock
+now writes its file and then fails, which is what a real mid-archive failure looks like.
+
+**Left behind:**
+- **`getSession` selects `lastActivityAt`** so the throttle stays free. Removing it from that
+  `select` would reintroduce a query, not just a write.
+- **The reorder match must stay trim/case-insensitive** across the L-39 cleanup.
+- **A partial media archive must be unlinked**, or the next backup reuses it.
+
 ---
 
 ## Carried forward — the 2026-09-03 → 2026-09-09 remediation

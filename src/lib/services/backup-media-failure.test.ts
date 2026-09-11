@@ -154,6 +154,59 @@ describe("L-79 — when tar cannot be loaded", () => {
     expect(audit?.mediaUnavailable).toContain("simulated");
   });
 
+  it("survives the archive BUILD failing, not just the import — L-85", async () => {
+    // R4.5. `tar.c`, `encryptFile` and `fs.stat` used to sit outside any try,
+    // so a full disk, a permission error or a file vanishing mid-archive
+    // propagated out of `createBackup` and **failed the whole backup —
+    // including the database half that had already been snapshotted and
+    // encrypted.** Losing the database backup because the images could not be
+    // tarred is the wrong trade in every case.
+    //
+    // Produced by handing back a `tar` whose `c()` rejects: the import
+    // succeeds, so the L-79 path is not involved and this is genuinely the
+    // build path.
+    // `c()` WRITES ITS FILE and then fails, which is what a real mid-archive
+    // failure looks like — a full disk fills after some output, a source file
+    // vanishes partway. A mock that throws before writing anything leaves
+    // nothing to clean up, so the leftover assertion below would be vacuous:
+    // the first version of this test did exactly that and survived the revert
+    // of the cleanup.
+    const brokenBuild = (async () => ({
+      c: async (opts: { file: string }) => {
+        await fs.writeFile(opts.file, "PARTIAL-ARCHIVE-BYTES");
+        throw new Error("simulated: ENOSPC no space left on device");
+      },
+    })) as unknown as TarLoader;
+
+    await fs.writeFile(path.join(paths.uploadsDir, "produit.webp"), "IMAGE-BYTES");
+    const backup = await createBackup(null, paths, brokenBuild);
+
+    // The database backup completed. That is the whole point.
+    expect(backup.id).toBeTruthy();
+    expect(backup.filename).toMatch(/\.dbenc$/);
+    expect(await db.backup.count()).toBe(1);
+
+    // And it is reported, through the same channel L-79 added.
+    expect(backup.mediaUnavailable).toContain("ENOSPC");
+    expect(backup.media).toBeNull();
+    const warnings = await tarWarnings();
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].level).toBe("WARN");
+    expect(warnings[0].message).toMatch(/UNIQUEMENT la base de données/);
+
+    // Nothing half-written was left behind. A stray `.tar.gz`, or an `.enc`
+    // that was never completed, would be taken for a valid reuse by the
+    // `existsSync(encPath)` check on the NEXT backup.
+    const leftovers = (await fs.readdir(paths.backupDir)).filter(
+      (f) => f.startsWith("hibapos-media-"),
+    );
+    expect(leftovers).toEqual([]);
+    // Specifically: the partial `.tar.gz` `c()` wrote is gone. If it survived,
+    // the NEXT backup's `existsSync(encPath)` reuse check could take a
+    // half-written archive for a good one.
+    expect(leftovers.some((f) => f.endsWith(".tar.gz"))).toBe(false);
+  });
+
   it("KEEPS « nothing to archive » distinct from « could not archive »", async () => {
     // THE WHOLE FINDING, in one test. With neither media directory present,
     // `ensureMediaArchive` returns before it ever touches the loader — so even

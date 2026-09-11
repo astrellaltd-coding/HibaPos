@@ -240,6 +240,14 @@ export async function createSession(payload: Omit<SessionPayload, "exp" | "sessi
   });
 }
 
+/**
+ * How stale `Session.lastActivityAt` must be before the tracker writes again
+ * (L-86 / R4.6). One minute: fine enough to answer « when was this till last
+ * used » to the minute, coarse enough that a busy service does one write a
+ * minute instead of one per request.
+ */
+export const ACTIVITY_TOUCH_INTERVAL_MS = 60_000;
+
 export async function getSession(): Promise<SessionWithUser | null> {
   const store = await cookies();
   const token = store.get(SESSION_COOKIE)?.value;
@@ -251,7 +259,9 @@ export async function getSession(): Promise<SessionWithUser | null> {
   // invalidates the cookie even before its 12h expiry.
   const sessionRow = await db.session.findUnique({
     where: { id: payload.sessionId },
-    select: { expiresAt: true },
+    // L-86 (R4.6): `lastActivityAt` rides along in a query that already runs,
+    // so knowing whether the tracker needs to write costs nothing.
+    select: { expiresAt: true, lastActivityAt: true },
   });
   if (!sessionRow) return null; // revoked
   if (sessionRow.expiresAt < new Date()) return null; // expired
@@ -277,31 +287,34 @@ export async function getSession(): Promise<SessionWithUser | null> {
   };
   // Touch lastActivityAt (sliding activity tracker). Best-effort, non-blocking.
   //
-  // L-71 (R4.3) — `updateMany`, NOT `update`, and the difference is the whole
-  // finding. `update` THROWS when no row matches (Prisma P2025), and Prisma
-  // logs that error from its engine *before* the promise rejects — so the
-  // `.catch()` below swallows the rejection while the log has already been
-  // written. Three of those blocks appeared in every clean test run, and
-  // `db.ts` enables `["error"]` in production too, so they also reach the log
-  // file the runbook tells an operator to read first: a scary-looking Prisma
-  // error for a write this code deliberately does not care about.
+  // L-86 (R4.6) — it now writes AT MOST ONCE PER MINUTE per session, instead of
+  // once per authenticated request.
   //
-  // `updateMany` matches zero rows and resolves with `{ count: 0 }`. No throw,
-  // therefore no log — measured side by side, not assumed. Semantics are
-  // identical here because `id` is the primary key, so the match is at most one
-  // row either way. `destroySession` eight lines below already uses
-  // `deleteMany` for exactly this reason; this makes the pair consistent.
+  // The write had no reader — `expiresAt` governs expiry, and nothing anywhere
+  // consults `lastActivityAt` — so the honest options were to delete it or to
+  // make it cheap. Deleting it would throw away the only record of when a till
+  // was last used, which is the thing an idle-timeout policy would need if one
+  // is ever wanted. Making it cheap costs nothing: the row is ALREADY fetched
+  // four lines above, so the staleness check is free.
   //
-  // The `.catch()` stays: it covers a real database failure (locked file, disk
-  // error), which is still not worth failing an authenticated request over.
+  // Why it mattered. SQLite takes a single write lock for the whole database.
+  // A fire-and-forget UPDATE on every authenticated request contends with the
+  // request's own real work, and that contention is what produced the « Socket
+  // timeout » blocks — 7 to 8 in a clean test run, all from this one line, and
+  // varying run to run precisely because they depend on contention. On the till
+  // it is a write per request for a value nobody reads.
   //
-  // **The session row can genuinely be absent in production**, so this is not a
-  // test artefact: `log-retention.ts` deletes expired sessions, and a request
-  // already in flight when that runs, or racing a logout, arrives here with a
-  // valid signed token and no row.
-  db.session
-    .updateMany({ where: { id: payload.sessionId }, data: { lastActivityAt: new Date() } })
-    .catch(() => {});
+  // `updateMany` rather than `update` is L-71's fix and stays: `update` throws
+  // when no row matches and Prisma logs that from its engine before the
+  // `.catch()` can swallow it. The row can genuinely be gone — `log-retention
+  // .ts` deletes expired sessions, so a request in flight when that runs, or
+  // one racing a logout, arrives here with a valid token and no row.
+  const sinceLastTouch = Date.now() - sessionRow.lastActivityAt.getTime();
+  if (sinceLastTouch >= ACTIVITY_TOUCH_INTERVAL_MS) {
+    db.session
+      .updateMany({ where: { id: payload.sessionId }, data: { lastActivityAt: new Date() } })
+      .catch(() => {});
+  }
   return sessionWithUser;
 }
 

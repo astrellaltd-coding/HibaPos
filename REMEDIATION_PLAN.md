@@ -236,7 +236,14 @@ something going wrong.
 - **`CartAddOn.id` is `string`** (R4.2) — the checkout schema requires it. An id-less add-on
   is legal only in a *snapshot*; `cartAddOnsFromSnapshot` is the one boundary into the cart.
 - **The session activity touch uses `updateMany`, never `update`** (R4.3): `update` throws on
-  no-match and Prisma logs before the `.catch()` runs.
+  no-match and Prisma logs before the `.catch()` runs. And it writes **at most once a minute**
+  (R4.6) — the value has no reader, and a write per request contends for SQLite's single
+  write lock. A clean suite run now has **zero** `prisma:error` blocks, down from twelve.
+- **A media failure never costs the database backup** (R4.5). Building the archive is guarded
+  as well as loading `tar`, and a partial `.tar.gz` is unlinked so the next backup's reuse
+  check cannot mistake it for a good one.
+- **A reordered line carries REAL catalogue choice ids** (R4.7), resolved by name against the
+  catalogue. `choiceId: ""` matches nothing in `pricing.ts` and silently drops the option.
 - **`sellableAlone` and `slotProducts` are a PAIR, and the asymmetry is deliberate.**
   `pos-grid.ts` consults `showOnPos`; `combo-builder.ts` **does not**. That is what lets a
   food-only menu component exist without appearing on the till to be sold alone. Unifying
@@ -367,7 +374,7 @@ drink at 5,5 %; the two totals summing to the forfait; the ticket total unchange
 10 % à emporter means the slot points at the wrong category. The till button does not move or
 change name — pressing it now asks which drink.
 
-### Phase 4 — Small correctness — **R4.1 / R4.2 / R4.3 COMPLETE 2026-09-11**
+### Phase 4 — Small correctness — **R4.1 / R4.2 / R4.3 / R4.5 / R4.6 / R4.7 COMPLETE 2026-09-11**
 
 *Records in `REMEDIATION_DONE.md`; what they established is in § 3 with the other invariants.*
 
@@ -435,9 +442,6 @@ rule 1). Audit IDs are never renamed.
 |---|---|---|---|
 | **L-82** | Cosmetic | The product list renders the name alone (`report-widgets.tsx:136`, `csv-export.ts:53`), so the two rows R2.1 correctly separates read as two identical « Coca » labels on screen and in the CSV. Figures right, label ambiguous. `productId` is in the payload, so a fix has what it needs; the open question is what a human should see. | none |
 | **L-83** | Low | `/api/reports/z` never sends `givenAwayCount`/`givenAwayItemsCount`/`givenAwayProducts`, yet `ZReportDto` declares all three and `reports-view.tsx:445` renders them — `undefined` at runtime. The sealed row has no column for them, so the DTO promises what no route can serve. `topMenus` was kept out rather than become a fourth instance. Routes are not typed against their DTOs, so the compiler cannot see it. | none |
-| **L-85** | Medium | `backup.ts:316-321` — `tar.c`, `encryptFile` and `fs.stat` sit in **no try/catch**, so a media-archiving failure (disk full, permissions, a file vanishing mid-archive) propagates out of `createBackup` and **fails the whole backup, including the database half that already succeeded**. The restore side wraps its `tar.x`. R4.1 fixed the *import* failure, which was silent; this one is loud and fatal, and widening the guard would change behaviour — recorded, not taken. | none |
-| **L-86** | Low | `Session.lastActivityAt` is written on **every authenticated request** and read by **nothing** (`expiresAt` governs expiry). It costs a write per request on a single-writer SQLite till, and is the sole source of every `prisma:error` in a clean run — 12 before R4.3, 8 after, the rest socket timeouts from the same line contending for the write lock. Removing the touch would take that to zero. Not done: it deletes a feature, and whether an idle-timeout policy is wanted is the operator's call. | none |
-| **L-87** | Medium | Reordering is broken for any product with a **required** option group. `orders-view.tsx:317` sets `choiceId: ""` with the comment « server recomputes by product at checkout »; `pricing.ts:233` filters catalogue choices by `selectedOptionIds.has(c.id)`, so `""` matches nothing — options are silently dropped, and `pricing.ts:239` then refuses the whole line with « Option obligatoire manquante ». The comment asserts the opposite of what the server does. Found while doing R4.2, which touches the same block. | none |
 | **L-84** | Low | `showOnPos` is a display rule, not a guard: `orders/route.ts` checks only `active`/`available`, so a request naming a hidden product directly is still booked. Not a fraud vector (the till is the only client, at the real catalogue price), but « cannot be sold alone » is true of the interface, not the API. Pinned by `hidden-product.test.ts`, so closing it is a decision. | none |
 | **L-81** | Cosmetic | A test product, `5 nuggets test` (Croustillants, 5,00 €), was created in the live catalogue on 2026-09-10 and left `active=0` / `available=0`. Invisible on the till and harmless, but the catalogue is meant to be real work only — and it is now inside the verified backup. Delete it with the operator, or keep it deliberately. | none |
 | **L-39** | Cosmetic | Fourteen catalogue names carry stray whitespace and render indented on the till. | R4.4 |
