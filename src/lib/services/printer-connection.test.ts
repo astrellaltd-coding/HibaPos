@@ -66,16 +66,37 @@ describe("resolvePrinter chooses the transport the setting names", () => {
     expect(r.transport.describe()).toBe("192.168.1.50:9100");
   });
 
-  it("an install that predates this batch still resolves to TCP", async () => {
-    // No `printerConnection` row at all — exactly what production holds today.
+  it("an install with a host but NO connection row resolves to USB since 2026-09-11", async () => {
+    // THIS ASSERTED TCP UNTIL 2026-09-11, under the name « an install that
+    // predates this batch still resolves to TCP ». It was Batch 1.3d's upgrade
+    // shim: with no `printerConnection` row, keep resolving as before.
+    //
+    // Reversed with the default, and the irony is worth recording — the shim
+    // asserts precisely the inference L-70 existed to abolish. Batch 1.3d's own
+    // words: « which transport, decided by an explicit setting rather than by
+    // which field happens to be filled ». A stored host implying « network »
+    // IS that inference, kept alive for installs that might be upgraded.
+    //
+    // There is one install, it has never traded, and its `printerHost` is the
+    // empty string — so the scenario this described does not exist, and the
+    // guarantee protected nothing. The transport is now what the setting says,
+    // and absent a setting it is what the default says: USB.
     await storeSettings({ printerEnabled: true, printerHost: "10.0.0.9", printerPort: 9100 });
     const stored = await db.setting.findMany();
     expect(stored.some((s) => s.key === "printerConnection")).toBe(false);
 
     const r = await resolvePrinter();
-    expect(r.ok).toBe(true);
-    if (!r.ok) return;
-    expect(r.transport.describe()).toBe("10.0.0.9:9100");
+    // USB with no queue: refused, and it names the picker rather than the host
+    // it was given — which is the point. A filled-in host no longer decides.
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    // `PrintOutcome` is a three-arm union and its success arm carries neither
+    // `reason` nor `message`, so narrow before reading them.
+    expect(r.outcome.ok).toBe(false);
+    if (r.outcome.ok) return;
+    expect(r.outcome.reason).toBe("NOT_CONFIGURED");
+    expect(r.outcome.message).toContain("imprimante Windows");
+    expect(r.outcome.message).not.toContain("10.0.0.9");
   });
 });
 
@@ -123,8 +144,20 @@ describe("each mode's NOT_CONFIGURED names its own missing field", () => {
 });
 
 describe("the new settings keys", () => {
-  it("default to the behaviour that exists today", () => {
-    expect(DEFAULT_SETTINGS.printerConnection).toBe("network");
+  it("default to USB, which reverses Batch 1.3d on the operator's instruction", () => {
+    // THIS PIN WAS `"network"` UNTIL 2026-09-11, under the name « default to
+    // the behaviour that exists today ». Batch 1.3d chose network so that an
+    // upgrade changed nothing until the operator switched it — an argument
+    // about protecting existing installs.
+    //
+    // It is reversed, not weakened. There is one install, it has never traded,
+    // and it has NO `printerConnection` row — so the default was its effective
+    // value, and that value sent every print attempt to « Renseignez l'adresse
+    // IP » for a printer that has always been on a USB type-B cable. The pin
+    // stays exact; only the decision it records has changed.
+    expect(DEFAULT_SETTINGS.printerConnection).toBe("usb");
+    // Unchanged, and deliberately: the queue cannot be guessed. It is chosen
+    // from the list Windows reports, which is R6.4's remaining half.
     expect(DEFAULT_SETTINGS.printerQueue).toBe("");
   });
 

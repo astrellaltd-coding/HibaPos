@@ -13,9 +13,20 @@ export const DEFAULT_SETTINGS: SettingsInput = {
   defaultVatRate: 10,
   currency: "EUR",
   printerName: "Sunso WTP-801",
-  // Batch 1.3d: "network" is what every existing install already means, so an
-  // upgrade changes nothing until the operator switches it.
-  printerConnection: "network",
+  // USB, since 2026-09-11 (operator). **This reverses Batch 1.3d**, which chose
+  // "network" because it was « what every existing install already means, so an
+  // upgrade changes nothing until the operator switches it ». That argument was
+  // about protecting installs on upgrade; there is exactly one install, it has
+  // never traded, and `printerConnection` is ABSENT from its `Setting` table —
+  // so the default IS its effective value, and the value it defaulted to was
+  // wrong. The restaurant's Sunso WTP-801 is on a USB type-B cable (confirmed
+  // with the owner 2026-09-09), and every print attempt therefore answered
+  // « Renseignez l'adresse IP » — an answer that was never available.
+  //
+  // The consequence is what `fresh-install-defaults.test.ts` pins: a new
+  // install now says « Choisissez l'imprimante Windows », which is a thing the
+  // operator can actually do.
+  printerConnection: "usb",
   printerQueue: "",
   printerHost: "",
   printerPort: 9100,
@@ -24,7 +35,18 @@ export const DEFAULT_SETTINGS: SettingsInput = {
   receiptWidth: 48,
   discountApprovalThreshold: 20,
   autoPrint: false,
-  factice: false,
+  // TRUE since 2026-09-11 (operator), and the direction matters more than the
+  // value. `false` meant a brand-new install treated its very FIRST ticket as a
+  // real fiscal document — before a printer was configured, before anything had
+  // been checked, and with nobody having said « go live ». The stamp is the
+  // safe default and removing it is the deliberate act: R6.3 is « FACTICE off »
+  // for exactly that reason, and it comes last.
+  //
+  // This changes nothing for the only existing install, which stores
+  // `factice=true` as a real row. It changes what a FRESH database means — and
+  // the operator settled on 2026-09-11 that the restaurant gets a fresh install
+  // with this catalogue carried into it.
+  factice: true,
   // DD-24 (Batch 3.8): 05:00, chosen with the operator. The restaurant
   // normally closes before midnight but not always, and a cut-off costs
   // nothing on the nights it does.

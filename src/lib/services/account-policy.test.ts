@@ -180,4 +180,24 @@ describe("DD-06 — the server binds the loopback address only", () => {
     };
     expect(pkg.default.scripts.start).toContain("-H 127.0.0.1");
   });
+
+  it("pins it in the DEV script too — the half this test used to miss", async () => {
+    // Found 2026-09-11 by looking at a running server: `netstat` reported
+    // `0.0.0.0:3000 LISTENING` while the operator had `bun run dev` up against
+    // the live database. `start` carried `-H 127.0.0.1` and `dev` did not, so
+    // DD-06 was true of the production path and false of the one actually being
+    // used — and `GET /api/auth/profiles`, which needs no PIN and lists every
+    // username, was answering on the local network.
+    //
+    // `next.config.ts` also declines to set HSTS *because* of the loopback
+    // binding, so the decision was load-bearing for a second reason.
+    //
+    // The cost of the flag is that the app can no longer be opened from a phone
+    // on the same Wi-Fi. DD-06 and DD-11 say there is one till; that is not a
+    // use this product has.
+    const pkg = (await import("../../../package.json")) as unknown as {
+      default: { scripts: Record<string, string> };
+    };
+    expect(pkg.default.scripts.dev).toContain("-H 127.0.0.1");
+  });
 });

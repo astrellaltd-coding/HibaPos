@@ -1507,6 +1507,104 @@ instruction of 2026-09-11 is that the Tauri v2 conversion stays out of `REMEDIAT
 and this gap exists only to serve it. Written down here so it exists somewhere, and reported
 to the operator in the same breath rather than left as a surprise for install day.
 
+### PREP-1 — `next dev` binds loopback, and a fresh install starts safe
+**Done:** 2026-09-11 · **Commit:** *(this commit)* · **Finding:** none new
+**Authorised by:** the operator's « yes to all, start with the dev fix and defaults », after a
+brainstorm on what a push-button Tauri install needs. **Not** a Phase 6 row — Phase 6 is five
+operator actions and this is code.
+
+**Three one-line changes, and the reason each one is not cosmetic.**
+
+#### 1. `package.json` — `"dev": "next dev -p 3000 -H 127.0.0.1"`
+
+DD-06 says « No LAN access. The server binds `127.0.0.1` ». `start` carried `-H 127.0.0.1`;
+**`dev` did not**, so Next bound `0.0.0.0`. Found by looking at a running server rather than
+at the file: `netstat` reported `0.0.0.0:3000 LISTENING` while the operator had `bun run dev`
+up against the live database, and `GET /api/auth/profiles` — which needs no PIN and returns
+every username — answered from it. `next.config.ts:27` also declines to set HSTS *because* of
+the loopback binding, so the decision was load-bearing twice over.
+
+`account-policy.test.ts` already pinned DD-06 — **and only for `start`**. That is the shape of
+gap this project keeps finding: a decision tested at one of its two sites. The test now covers
+both.
+
+#### 2. `DEFAULT_SETTINGS.factice`: `false` → **`true`**
+
+A brand-new database treated its **first ticket as a real fiscal document** — before a printer
+was configured, before anything was checked, with nobody having said « go live ». The stamp is
+now the default and removing it is the deliberate act, which is what R6.3 has always been.
+
+Changes nothing for the only existing install, which stores `factice=true` as a real row. It
+changes what a FRESH database means — and on 2026-09-11 the operator settled that the
+restaurant gets a fresh install with this catalogue carried into it, which is what made the
+default reachable rather than theoretical.
+
+#### 3. `DEFAULT_SETTINGS.printerConnection`: `"network"` → **`"usb"`**
+
+This **reverses Batch 1.3d**, which chose `network` because it was « what every existing
+install already means, so an upgrade changes nothing until the operator switches it ». That
+argument was about protecting installs on upgrade. There is one install, it has never traded,
+and `printerConnection` is **absent from its `Setting` table** — so the default WAS its
+effective value, and the value it defaulted to was wrong: the Sunso WTP-801 has always been on
+a USB type-B cable (confirmed with the owner 2026-09-09), and every print attempt therefore
+answered *« Renseignez l'adresse IP »*, an answer that was never available.
+
+**A consequence worth noting: this does half of R6.4.** Production's effective connection is
+now USB without a row being written, so R6.4 reduces to picking the queue.
+
+**`printerEnabled` stays `false` and `printerQueue` stays `""`** — deliberately. An
+uncommissioned install should not be attempting to print, and printing never loses a sale, so
+leaving it off costs nothing and removes failures nobody can act on yet. The queue cannot be
+guessed; it is chosen from the list Windows reports.
+
+**How it was verified.**
+
+- **`fresh-install-defaults.test.ts`, 5 new tests**, and they start from a genuinely EMPTY
+  `Setting` table — `expect(await db.setting.count()).toBe(0)` before every assertion, so each
+  one is about a DEFAULT and not about a saved value. They assert **consequences**, because a
+  pin on a constant proves a constant: a ticket rendered through the real checkout and the real
+  renderer carries `FACTICE` and `TICKET NON VALABLE`; a fiscal event written under fresh
+  settings comes back `factice: true`; and `resolvePrinter()` with printing enabled answers
+  *« Choisissez l'imprimante Windows »* and **not** *« adresse IP »*.
+- **Three one-property reverts, each caught, none masking another**: `factice` back to `false`
+  failed 4; `printerConnection` back to `"network"` failed 4; dropping `-H 127.0.0.1` from
+  `dev` failed **exactly 1** — the new DD-06 assertion.
+- **`bun run test` 1326 pass / 0 fail, 111 files**, zero `prisma:error` blocks; `typecheck` and
+  `lint` clean. `README.md` 1320 → 1326.
+
+**Two existing tests failed, and neither was weakened.**
+
+1. **`settings-factice.test.ts` — « leaves the journal entry unmarked when the setting is
+   off »** never turned the setting off. It read `getSettings()` against an empty table and
+   leaned on the default being `false`, so it passed for a reason unrelated to its subject and
+   broke the moment the default moved while the behaviour it names was untouched. It now calls
+   `saveSettings({ factice: false })`, which is what its name always claimed.
+2. **`printer-connection.test.ts` — « an install that predates this batch still resolves to
+   TCP »** was Batch 1.3d's upgrade shim: no `printerConnection` row plus a stored host meant
+   network. Re-pinned to USB, with the irony recorded — **the shim asserts exactly the
+   inference L-70 existed to abolish** (« which transport, decided by an explicit setting
+   rather than by which field happens to be filled »). A stored host implying network IS that
+   inference. Production's `printerHost` is the empty string, so the scenario it protected does
+   not exist.
+
+Both keep exact assertions; only the decisions they record changed, and both say so with a
+date and the superseded text.
+
+**A verification flaw found in passing, and worth writing down.** `bun run typecheck 2>&1 |
+tail -3; echo $?` reports **`tail`'s** exit status, not `tsc`'s. Six TS2339 errors were
+reported as clean by that pattern before being caught in the same run's output. Redirect to a
+file and read `$?` from the command itself. (The earlier runs this session were genuinely
+clean — `tsc` prints its errors to stdout and none appeared — but the check could not have
+told the difference.)
+
+**Left behind:**
+- **The plan's § 4 Settings row said print attempts answer « Renseignez l'adresse IP ».**
+  Corrected: they now answer « Choisissez l'imprimante Windows », and only the queue is left.
+- **Next, on the operator's agreed order:** catalogue export/import, then first-run key
+  generation with a screen for the two recordable keys, then auto-migrate-with-backup.
+- **Still unanswered:** whether the restaurant's machine gives remote Windows admin rights,
+  which decides whether the installer can do the driver unattended.
+
 ---
 
 ## Carried forward — the 2026-09-03 → 2026-09-09 remediation

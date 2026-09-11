@@ -26,12 +26,21 @@ describe("FACTICE mode — settings (L-18)", () => {
     await resetSettings();
   });
 
-  it("defaults to false when no setting row exists", async () => {
+  it("defaults to TRUE when no setting row exists — reversed 2026-09-11", async () => {
     // An install that has never seen the switch must not silently mark real
     // sales as simulations.
-    expect(DEFAULT_SETTINGS.factice).toBe(false);
+    // REVERSED on the operator's instruction, 2026-09-11. This asserted
+    // `false` from Batch 3.1's L-18 onwards, which meant a brand-new database
+    // treated its first ticket as a real fiscal document — before a printer,
+    // before any check, before anyone said « go live ». The stamp is now the
+    // default and REMOVING it is the deliberate act (R6.3, which comes last).
+    // Exact assertion, new decision: not a weakened test.
+    expect(DEFAULT_SETTINGS.factice).toBe(true);
     const settings = await getSettings();
-    expect(settings.factice).toBe(false);
+    expect(settings.factice).toBe(true);
+    // And still with NO row: the default is what answers, not a written value.
+    // That is the half that makes this about a fresh install rather than about
+    // one setting — nothing has to be saved for a new till to be in simulation.
     expect(await db.setting.findUnique({ where: { key: "factice" } })).toBeNull();
   });
 
@@ -85,6 +94,14 @@ describe("FACTICE mode — fiscal journal (L-18)", () => {
   });
 
   it("leaves the journal entry unmarked when the setting is off", async () => {
+    // 2026-09-11: this now TURNS THE SETTING OFF, which its name always
+    // claimed. It never did — it read `getSettings()` against an empty table
+    // and leaned on `DEFAULT_SETTINGS.factice` being `false`. So the test
+    // passed for a reason unrelated to its subject, and the moment the default
+    // was reversed it failed while the behaviour it names was untouched. A test
+    // that depends on a default it is not about is a test that will mislead
+    // somebody once.
+    await saveSettings({ factice: false });
     const settings = await getSettings();
     const ev = await db.$transaction((tx) =>
       appendFiscalEvent(tx, {
