@@ -19,9 +19,8 @@ a short list of real defects and the four fiscal steps before the first real sal
 documentation reconciliation was Phase 1 and is done; the reporting defects were Phase 2 and
 are done.)*
 
-**Current phase:** **Phase 4 — small correctness.** Opened 2026-09-11. **R4.1, R4.2 and R4.3
-are COMPLETE; R4.4 is the operator's** (§ 6). Phase 3's **R3.3 is also still the operator's**
-— both handovers are in § 6, both prepared and rehearsed.
+**Current phase:** **none — Phases 2, 3 and 4 are all COMPLETE and applied**, including both
+operator items (R3.3 and R4.4, built 2026-09-11) and both migrations.
 
 ### The Phase 3 migration is APPLIED (2026-09-11 02:13)
 
@@ -41,9 +40,9 @@ An earlier version of this header said « the migration is APPLIED » in bold wi
 which, twenty lines below « PREPARED, NOT APPLIED » about the other — corrected here rather
 than left standing, because it is the natural thing for a skimming reader to get wrong.)*
 
-**Current task:** **none for Claude.** Phase 4's code is done. **Two operator items are
-outstanding: R3.3 and R4.4**, both with a rehearsed script or procedure in § 6. Phase 5 needs
-its own go-ahead — § 2's rule is that a phase boundary stops the work.
+**Current task:** **none.** What remains is **Phase 0** (three deletions), **Phase 5**
+(cleanup) and **Phase 6** (the four fiscal steps before the first real sale). Each needs its
+own go-ahead — § 2's rule is that a phase boundary stops the work.
 
 **Phase 2 is DONE and fully applied** (2026-09-10). What it changed, and what it left
 behind, is in § 6 and in `REMEDIATION_DONE.md`.
@@ -306,104 +305,21 @@ go-ahead.** The operator should still get a copy of that backup off this machine
 *Phase 2 is complete and its migration applied (`c9b9d23`, `b50f97c`, `4d504be`). Record in
 `REMEDIATION_DONE.md`; what it left behind is in § 3.*
 
-### Phase 3 — « Use it on POS » — **R3.1 and R3.2 COMPLETE 2026-09-10** (`16e3415`)
+### Phase 3 — « Use it on POS » — **COMPLETE 2026-09-11**
 
-*`Product.showOnPos` exists and defaults ON. A product with it off is hidden from the till's
-product grid and from **nothing else** — still in the catalogue, still a legal menu
-component, still refundable, still in every past order and report. The invariant it created
-is in § 3; its measured limit is **L-84** (a display rule, not a guard). Full record in
-`REMEDIATION_DONE.md`.*
+*`16e3415` (R3.1/R3.2), migration `20260910233000_product_show_on_pos` applied 02:13, and
+R3.3 built 2026-09-11. Records in `REMEDIATION_DONE.md`.*
 
-| ID | Status | Task |
-|---|---|---|
-| **R3.3** | `OPERATOR` | **Restructure Box 15, Box 35 and Tenders box into real menus** (L-69). Prepared and rehearsed below; the operator applies it in the catalogue editor. TEX-MEX, 5 Nuggets and Box Bowl need nothing — frites are 10 % either way. |
+**Box 15, Box 35 and the Tenders box are real menus composés.** Each has a hidden food-only
+component (`showOnPos = false`) and a drink slot, so the drink is taxed at **5,5 % à
+emporter** instead of the whole price sitting at 10 %. The customer pays the same forfait.
 
-#### Phase 3 migration — **APPLIED 2026-09-11 02:13.** Kept as the pattern for the next one.
-
-Full account in `REMEDIATION_DONE.md`. **`scripts/apply-migration.ts` is how a migration gets
-applied here from now on** — dry run by default, refuses if anything holds the database open,
-takes and sha-verifies its own restore point, names the migration it actually applied, and
-ends in `✅ APPLIED AND VERIFIED` or `❌ NOT WHAT WAS EXPECTED`.
-
-**What this cost, and what not to repeat.** Two attempts reported success and applied
-**Phase 2's** migration instead — `prisma migrate deploy` prints the same green banner
-whichever one it ran, and `N migrations found` is the only tell. Three things learned:
-
-- **Never verify a column with a `SELECT`.** SQLite reads an unresolvable double-quoted
-  identifier as a *string literal*, so `SELECT "showOnPos" FROM "Product"` succeeds and
-  returns the text `showOnPos` — before *and* after. Use `PRAGMA table_info`.
-- **Never check by file size.** An `ADD COLUMN` left this file at exactly 884 736 bytes.
-  sha256, mtime and `PRAGMA schema_version` are what move.
-- **⚠ `db:migrate`, `db:reset` and `db:push-force` sit beside `db:deploy`** in
-  `package.json`. None is ever right against a real installation.
-
-#### R3.3 handover — the operator's procedure
-
-**The three numbers**, from the operator 2026-09-10 (composition) and the rule they chose,
-*forfait minus the drink*:
-
-| Product | Forfait | Drink | Food component, standalone | TVA à emporter | TVA sur place |
-|---|---|---|---|---|---|
-| **Box 15** | 29,90 € | one **Bouteille** 3,50 € | **26,40 €** | 2,58 € *(was 2,72)* | 2,72 € *(unchanged)* |
-| **Box 35** | 29,90 € | one **Bouteille** 3,50 € | **26,40 €** | 2,58 € *(was 2,72)* | 2,72 € *(unchanged)* |
-| **Tenders box** | 9,90 € | one **Canette** 1,50 € | **8,40 €** | 0,84 € *(was 0,90)* | 0,90 € *(unchanged)* |
-
-**Why this rule is easy to defend:** the two weights sum *exactly* to the forfait, so
-`apportion` returns them unchanged and the drink's share is its own shelf price to the cent —
-no rounding artefact to explain. The customer pays the same either way; only the split moves,
-and only à emporter. **The figures were not computed on the side:** `hidden-product.test.ts`
-builds this shape and *sells it through `POST /api/orders`*, asserting the booked `vatTotal`,
-both rates, both `referencePrice` values and the unchanged total.
-
-**In the catalogue editor, not in SQL** — the editor runs `validateComboShape` and
-`validateComboAgainstCatalogue`, which refuse a menu that would sell wrong; SQL bypasses
-both. For each of the three:
-
-1. **New product**, the food half: `Box 15 (sans boisson)` etc., category **Croustillants**,
-   the price above, TVA 10 %, and **« Vendre en caisse » OFF** — R3.1's switch, which keeps
-   it off the grid while leaving it sellable inside the menu.
-2. **Edit the existing product** (`Box 15`): leave name, price and category alone — the price
-   *is* the forfait — and make it a **menu composé**.
-3. **Slot 1**, « Box 15 »: from **Croustillants**, quantity 1, **exactly one choice** (the
-   hidden half), so the cashier is never asked.
-4. **Slot 2**, « Boisson »: from **Bouteilles** (Box 15, Box 35) or **Canette** (Tenders
-   box), quantity 1, no explicit choices — the shape the six existing menus use.
-
-**Check afterwards, on one sale of each, à emporter:** two lines, not one; food at 10 % and
-drink at 5,5 %; the two totals summing to the forfait; the ticket total unchanged. A drink at
-10 % à emporter means the slot points at the wrong category. The till button does not move or
-change name — pressing it now asks which drink.
-
-### Phase 4 — Small correctness — **R4.1 / R4.2 / R4.3 / R4.5 / R4.6 / R4.7 COMPLETE 2026-09-11**
+### Phase 4 — Small correctness — **COMPLETE 2026-09-11**
 
 *Records in `REMEDIATION_DONE.md`; what they established is in § 3 with the other invariants.*
 
 | ID | Status | Task |
 |---|---|---|
-| **R4.4** | `OPERATOR` | **L-39 — trim the fourteen catalogue names carrying stray whitespace.** Prepared and rehearsed; run the script below. |
-
-#### R4.4 handover — `scripts/trim-catalogue-names.ts`
-
-**Measured 2026-09-11, independently of the plan's own count, and it agrees exactly:**
-fourteen rows, every one a single ASCII space (0x20) — one `CategoryOptionGroup` **trailing**
-(«Sauces ») and thirteen **leading**: ten `CategoryOptionChoice`, three `CategoryAddOn`. No
-tabs, no NBSP, no zero-width characters. Nothing else in the catalogue is dirty.
-
-```
-bun scripts/trim-catalogue-names.ts            # list what would change
-bun scripts/trim-catalogue-names.ts --apply    # change it, take a restore point, verify
-```
-
-Dry run by default. It **refuses** if trimming would make two siblings share a name (checked:
-none), takes and sha-verifies a restore point into `../db-snapshots/` first, addresses rows
-by **id** and never by name, then re-reads and reports `✅ TRIMMED AND VERIFIED`. Re-running
-prints `NOTHING TO TRIM`.
-
-**Rehearsed** on a copy: 14 trimmed, 0 left, every row count unchanged, `integrity_check` ok,
-0 FK errors, idempotent on a second run. **Safe because nothing matches these names by text**
-— the references that exist are test fixtures and `seed.ts`, which build their own clean
-rows, and `normalizeGroupName()` already trims for option inheritance (its doc comment names
-« Sauces » as the case it absorbs).
 
 ### Phase 5 — Cleanup
 
@@ -444,8 +360,6 @@ rule 1). Audit IDs are never renamed.
 | **L-83** | Low | `/api/reports/z` never sends `givenAwayCount`/`givenAwayItemsCount`/`givenAwayProducts`, yet `ZReportDto` declares all three and `reports-view.tsx:445` renders them — `undefined` at runtime. The sealed row has no column for them, so the DTO promises what no route can serve. `topMenus` was kept out rather than become a fourth instance. Routes are not typed against their DTOs, so the compiler cannot see it. | none |
 | **L-84** | Low | `showOnPos` is a display rule, not a guard: `orders/route.ts` checks only `active`/`available`, so a request naming a hidden product directly is still booked. Not a fraud vector (the till is the only client, at the real catalogue price), but « cannot be sold alone » is true of the interface, not the API. Pinned by `hidden-product.test.ts`, so closing it is a decision. | none |
 | **L-81** | Cosmetic | A test product, `5 nuggets test` (Croustillants, 5,00 €), was created in the live catalogue on 2026-09-10 and left `active=0` / `available=0`. Invisible on the till and harmless, but the catalogue is meant to be real work only — and it is now inside the verified backup. Delete it with the operator, or keep it deliberately. | none |
-| **L-39** | Cosmetic | Fourteen catalogue names carry stray whitespace and render indented on the till. | R4.4 |
-| **L-69** | Medium | Three products bundle a sealed drink into one fixed price taxed wholly at 10 %, the opposite treatment from the six menus. Over-declares, so it errs safe. | R3.3 |
 | **L-46** | Low | ◐ **Half closed 2026-09-10.** The High half is gone: a verified restorable backup now exists, decrypted under the current key with its checksum matched. What remains is housekeeping — nine pre-rotation files (~126 MB) still sit in `db/backups/`, still do not decrypt, and are still listed by nothing. | R0.2 |
 | **L-75** | Deferred | The app cannot run on a 32-bit Windows: both Prisma engines are `machine 0x8664` and Bun is x64/ARM64 only. **Carried to the Tauri v2 phase**, where the runtime and the packaging are both decided. No software fix at this layer. | none |
 | **L-05** | Deferred | `output: "standalone"` was dropped; whether to reinstate it deliberately is open. | none |

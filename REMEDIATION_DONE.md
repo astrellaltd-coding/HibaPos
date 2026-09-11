@@ -728,6 +728,62 @@ now writes its file and then fails, which is what a real mid-archive failure loo
 - **The reorder match must stay trim/case-insensitive** across the L-39 cleanup.
 - **A partial media archive must be unlinked**, or the next backup reuses it.
 
+### R4.4 + R3.3 — the two operator items, applied to production
+**Done:** 2026-09-11 · **Commit:** `b81f948` (the scripts) · **Findings:** L-39, L-69 closed
+
+Both run by Claude against the live catalogue **at the operator's explicit instruction**
+(« proceed to complete, launch the script if you need to »). `CLAUDE.md` assigns catalogue
+edits to the operator; that default was delegated, and the exception is recorded here rather
+than implied — the same way the Phase 3 migration was.
+
+**R4.4 / L-39 — fourteen catalogue names trimmed.** `scripts/trim-catalogue-names.ts --apply`.
+Restore point `custom.db.before-trim-names-2026-09-11`, taken and sha-verified first.
+Result: 14 trimmed, 0 remaining, and independently re-read afterwards — **zero** names with
+leading or trailing whitespace across all eight named tables, 81 products / 14 categories /
+39 choices / 21 add-ons unchanged, `integrity_check` ok, 0 FK errors, every fiscal table
+still at zero.
+
+**R3.3 / L-69 — the three boxes are real menus.** `scripts/build-box-menus.ts --apply`.
+Restore point `custom.db.before-box-menus-2026-09-11`. Each box keeps its name, price and
+category — the till button does not move — and gains two slots: the food, fixed to a new
+HIDDEN component (`showOnPos = false`, R3.1's switch), and the drink, from the whole
+category.
+
+| | forfait | food component | à emporter | sur place |
+|---|---|---|---|---|
+| Box 15 | 29,90 € | « Box 15 (sans boisson) » 26,40 € | **2,58 €** (10 % + 5,5 %) | 2,72 € |
+| Box 35 | 29,90 € | « Box 35 (sans boisson) » 26,40 € | **2,58 €** (10 % + 5,5 %) | 2,72 € |
+| Tenders box | 9,90 € | « Tenders box (sans boisson) » 8,40 € | **0,84 €** (10 % + 5,5 %) | 0,90 € |
+
+**Every total equals the forfait** — the customer pays exactly what they paid before; only
+the VAT split moves, and only à emporter. The weights sum exactly to the forfait, so
+`apportion` returns them unchanged and the drink's share is its shelf price to the cent.
+
+**The script validates before writing and prices after.** `validateComboShape` and
+`validateComboAgainstCatalogue` — the checks the catalogue editor runs, which raw SQL
+bypasses — gate every write; then each finished menu is priced through the REAL
+`priceComboItem`, both order types, and the script refuses to report success unless the
+booked VAT matches. The figures above are that verification's own output.
+
+**The rehearsal earned its keep.** The first run on a scratch copy refused all six pricings
+with « Option obligatoire manquante : Sauces ». That was the pricing being RIGHT: the
+`Croustillants` category carries a required « Sauces » group which the hidden component
+inherits, and the rehearsal passed no options. **Had this gone straight to production it
+would have created three menus that could not be sold.** The menu governs no group, so
+`askedGroups` still shows the sauce to the cashier — and every sauce is `priceModifier = 0`
+(measured), so answering adds nothing to the forfait.
+
+**Production after both:** 84 products (81 + 3 hidden), 9 menus composés (6 + 3), **80 on the
+till grid** — the three components hidden, and `5 nuggets test` still inactive (L-81).
+`integrity_check` ok, 0 FK errors, every fiscal and trading table still at zero.
+
+**Left behind:**
+- **The till flow for these three has changed**: pressing Box 15 now asks for the sauce *and*
+  the drink. That is the point — the drink must be chosen for its rate to apply.
+- **The hidden components must stay hidden.** They are priced as allocation weights, not as
+  things to sell alone; `showOnPos = false` is what keeps them off the grid.
+- **L-81 is still open**: `5 nuggets test` remains in the live catalogue, inactive.
+
 ---
 
 ## Carried forward — the 2026-09-03 → 2026-09-09 remediation

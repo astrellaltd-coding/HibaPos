@@ -107,8 +107,11 @@ describe("plan freshness — the plan and the done file may not disagree", () =>
     //   2026-09-11, later the same day: findings 16 → 13, tasks unchanged at 13
     //   — L-85, L-86 and L-87 fixed (R4.5/R4.6/R4.7) on the operator's
     //   instruction. They were opened and closed without ever having a task row.
-    expect(taskStatuses(src).size).toBe(13);
-    expect(openFindings(src).size).toBe(13);
+    //   2026-09-11, both operator items applied: tasks 13 → 11 (R3.3, R4.4) and
+    //   findings 13 → 11 (L-69, L-39 closed with them). Phases 2, 3 and 4 are
+    //   now complete; what is left is Phase 0, Phase 5 and Phase 6.
+    expect(taskStatuses(src).size).toBe(11);
+    expect(openFindings(src).size).toBe(11);
     expect(done()).toContain("# HibaPOS France — Completed Work");
   });
 
