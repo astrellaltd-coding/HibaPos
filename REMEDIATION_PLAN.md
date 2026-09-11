@@ -209,7 +209,7 @@ something going wrong.
 - **Nothing in `scripts/` may open a database path not derived from `DATABASE_URL` or
   `HIBAPOS_DATA_DIR`.** `git grep "new Database("` was the check; today it returns exactly
   one hit and that hit is a *comment* (`scripts/apply-migration.ts:48`). No script uses
-  `bun:sqlite` at all — all sixteen go through `PrismaClient`, so **`git grep "new
+  `bun:sqlite` at all — the fifteen that touch a database go through `PrismaClient`, so **`git grep "new
   PrismaClient("` is the check that matches the current risk surface.** Run both.
 - **Every script in `scripts/` is a dry run unless given `--apply`.** Read the header first.
 - **Never run `bunx vitest` or `npx vitest`.** `vitest.config.ts` throws at import, on purpose:

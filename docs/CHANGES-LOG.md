@@ -172,22 +172,33 @@ They are listed here instead, newest last. **Claude cannot make these edits**
 | 2026-09-09 | *Menu Eco* deactivated. Its price had been overwritten 24,90 → 8,90 by a save while it inherited the Pizzas *Taille* group. Done in the right order, so no phantom size group was created. | The operator is removing it and will create all three menus with Batch 5.9. | Turn *Actif* back on. |
 | 2026-09-09 ✅ **DONE** | **Deactivated and hard-deleted the three *Duo* meals** — `Duo Cheeseroyale`, `Duo Chickenroyale`, `Duo Geant Royale`. **Verified gone 2026-09-11** — none of the three names matches a `Product` row. | Operator's decision, 2026-09-09. They were recreated as composed products: `Duo Cheese Royal`, `Duo Chicken Royal` and `Duo Giant Royal` exist today, each with 3 `ComboSlot` rows — the shape they always needed. | Not undoable. Recreate by hand from the combo builder. |
 | 2026-09-11 ⛔ **WITHDRAWN — DO NOT RUN** | ~~Hard-delete the *Menu Eco* row with `bun scripts/delete-product.ts "Menu Eco" --apply`.~~ **Menu Eco was rebuilt, not deleted.** Read-only check 2026-09-11: `active=1`, `showOnPos=1`, **4 `ComboSlot` rows** — it is one of the nine menus composés in the plan's § 4 baselines. Running that command today hard-deletes a live, on-grid menu. | Written 2026-09-09, when *Menu Eco* was a deactivated leftover with a corrupted price. Batch 5.9 rebuilt it as a menu composé instead of removing it, which settled the reason the row existed; nobody came back to strike the instruction. | Nothing to undo — the deletion was never performed. |
+| 2026-09-11 ✅ **DONE** | **Renamed the three colliding drink pairs**, adding `1.5L` to the *Bouteilles* row of each: `Coca`/**`Coca 1.5L`**, `Fanta`/**`Fanta 1.5L`**, `Orangina`/**`Orangina 1.5L`**. Verified read-only: **zero duplicate names anywhere in the catalogue** (not just the six), no case-insensitive collision, longest name 26 chars against the 36 where a ticket wraps, and 84 products / 14 categories / 80 on the grid unchanged — so a rename, not a rebuild. | R7.2, closing L-82. Reports label by name, so two products sharing one read as a single row; R2.1 already keyed the FIGURES by `productId`, so only the label was ambiguous. Done before the first close, because a name is sealed into `topProductsJson` and into `givenAwayProductsJson`. | Rename them back. Nothing is sealed yet — zero Z reports. |
+| 2026-09-11 ⏳ **PREPARED, NOT RUN** | Hard-delete `5 nuggets test` (Croustillants, 5,00 €, `active=0`) with **`bun scripts/delete-product.ts --id cmtvwzr050004n368crvp0mw3 --apply`**. Rehearsed on a copy: 84 → 83 products, 0 FK errors, `integrity_check` ok, and a fingerprint diff over every table showing that one row and nothing else. | L-81 — a test product typed into the live catalogue on 2026-09-10 and left inactive. The app's own DELETE is a SOFT delete and the row is already inactive, so the button does nothing. | Not undoable; the script takes its own sha-verified restore point into `../db-snapshots/` first. |
 
 ---
 
 ## RULES FOR THIS PHASE, AND THEY ARE NOT NEGOTIABLE
 
-1. **Delivery is tonight, so the cost of a broken screen is a bad first
-   impression in front of the owner.** That is a real cost even before the
-   journal goes live. Small, reversible, tested.
+> **⚠ Two of these were stale until 2026-09-11, and both in a direction that
+> pushes somebody to rush or to accept a wrong number.** Rule 1 said *delivery
+> is tonight*: the client trial was **dropped on 2026-09-10** and nothing ships
+> before the Tauri v2 build. Rule 3 said *1007 is the number to beat*: the suite
+> is **1381** as of 2026-09-11. Both corrected in place. Everything else in this
+> list is still true and still worth obeying.
+
+1. **Nothing ships before the Tauri v2 build**, and the restaurant has never
+   traded — so a broken screen costs a rehearsal, not a customer. That is not a
+   licence to be careless: small, reversible, tested, because the catalogue in
+   `db/custom.db` is real work that exists nowhere else.
 2. **Never write to `db/custom.db`.** Validate on a scratch copy with **both**
    `DATABASE_URL` and `HIBAPOS_DATA_DIR` overridden, and prove which database the
    server has open by reading a marker back from the pre-auth
    `GET /api/auth/profiles` before the first write. The catalogue in that file is
    real work and exists nowhere else.
-3. **`bun run test` before every commit.** 1007 is the number to beat; if it
-   drops, the change is wrong or a test needs writing, and neither is fixed by
-   deleting an assertion.
+3. **`bun run test` before every commit.** **1381** is the number to beat as of
+   2026-09-11; if it drops, the change is wrong or a test needs writing, and
+   neither is fixed by deleting an assertion. The live figure is in
+   `REMEDIATION_PLAN.md` § 4 — believe that, not this line.
 4. **Three tests pin numbers that move when you work** — `readme-counts.test.ts`
    (the README's counts, and it counts loop-generated tests as declared
    *expansions*, so a new `it()` inside a `for` must be declared there),

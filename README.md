@@ -62,9 +62,10 @@ BACKUP_ENCRYPTION_KEY="une-autre-cle-de-32-caracteres"  # min 32 caractères
 > y réinjecte des comptes. Elles ne valent que pour une **copie de travail** dont
 > `DATABASE_URL` **et** `HIBAPOS_DATA_DIR` ont tous deux été redéfinis.
 >
-> Cette base a **14 migrations appliquées** : ici, le schéma se change par migration, et
-> une migration s'applique avec `bun scripts/apply-migration.ts` — jamais avec `db:push`.
-> Voir `REMEDIATION_PLAN.md` § 5.
+> Cette base a **15 migrations appliquées** : ici, le schéma se change par migration, et
+> jamais avec `db:push`. Deux chemins l'appliquent, et un seul est le vôtre :
+> `bun scripts/apply-migration.ts` à la main, ou **l'application elle-même au démarrage**,
+> derrière une sauvegarde créée ET RELUE (PREP-4, 2026-09-11). Voir `REMEDIATION_PLAN.md` § 5.
 
 ```bash
 # UNIQUEMENT sur une copie de travail (jamais sur ce dépôt) :
@@ -157,11 +158,13 @@ docs/                          → sept fichiers ; les voici tous
   SQLITE_WAL.md                → Pourquoi le WAL est refusé sur un dossier synchronisé
   verification-8.1-2026-09-06.txt → Relevé read-only du 2026-09-06. HISTORIQUE :
                                  périmé par la remise à zéro du 2026-09-10.
-scripts/                       → 16 scripts CLI. Tous en dry-run par défaut ;
-                                 `--apply` écrit dans la base que désigne
-                                 DATABASE_URL, c'est-à-dire la base VIVE.
-                                 `apply-migration.ts` est le seul chemin par
-                                 lequel une migration s'applique ici.
+scripts/                       → 15 scripts CLI (+ README.md). Tous en dry-run
+                                 par défaut ; `--apply` écrit dans la base que
+                                 désigne DATABASE_URL, c'est-à-dire la base VIVE.
+                                 `apply-migration.ts` applique une migration À LA
+                                 MAIN ; depuis PREP-4 l'application en applique
+                                 aussi au démarrage, derrière une sauvegarde
+                                 vérifiée. Ce n'est donc plus le seul chemin.
 .zscripts/
   print-raw.ps1                → Impression RAW via le spouleur Windows (USB)
 ```
