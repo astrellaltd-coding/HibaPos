@@ -964,7 +964,7 @@ both after the move. Then the 57 MB `app/` copy and the trial database were dele
   one command of being deleted.
 
 ### R7.1 — the give-away figures are sealed into the Z report, and sent
-**Done:** 2026-09-11 · **Commit:** `COMMITSHA` · **Finding:** L-83 closed · **Migration:**
+**Done:** 2026-09-11 · **Commit:** `7843ad8` · **Finding:** L-83 closed · **Migration:**
 `20260911160000_zreport_given_away` — **prepared and rehearsed, NOT applied**
 
 **What changed.** Three nullable columns on `ZReport` — `givenAwayCount`,
