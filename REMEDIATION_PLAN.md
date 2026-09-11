@@ -27,34 +27,25 @@ cannot be corrected afterwards.
 **Phase 6 (five rows, all the operator's) ends in real trading.** Its order is not a
 preference — arming the chain key before the reset makes the reset refuse.
 
-**Current task: none.** Phase 6 needs its own go-ahead — § 2's rule is that a phase boundary
-stops the work.
+**Current task: PHASE 6, opened by the operator 2026-09-11.** R6.1 is a decision and not a
+step — it would delete nothing today. R6.4 and R6.5 are blocked on hardware. Measurements
+below.
 
-### Before anyone starts Phase 6
+### Phase 6 — measured on opening it, 2026-09-11 16:45
 
-1. **Read `../HibaPOS-docs-archive/README.md` FIRST, then the runbook.** The archive holds
-   three files, and that README maps `runbook-complet.md` section by section, live against
-   withdrawn — roughly two thirds of it is the Windows-till install retired on 2026-09-10,
-   and its §§ 0/0a/0b/1/2/5 still give instructions that are dangerous to act on (copying a
-   tree to `C:\HibaPOS-app\`, applying an already-applied migration). Do not open the runbook
-   cold.
+*`../HibaPOS-docs-archive/README.md` maps `runbook-complet.md` section by section and stays
+the thing to read before the runbook: two thirds of it is the Windows-till install retired
+2026-09-10. **§ 6a/6b/6c are stale** — scheduled tasks, `C:\HibaPOS-secrets-backup\`, and
+§ 6b's claim the backups are unrestorable (R0.2 deleted those three; the two on disk are
+verified restorable). Full measurements in `REMEDIATION_DONE.md`.*
 
-   **The mapping, corrected 2026-09-11 — the previous version sent R6.3 to the section that
-   does the opposite:**
-
-   | Phase 6 row | Runbook section |
-   |---|---|
-   | R6.1 reset | **§ 6d**, inside § 6 « THE POINT OF NO RETURN » (§ 6a-§ 6c are its prerequisites) |
-   | R6.2 arm the chain key | **§ 6e** — « in this order, or not at all » |
-   | R6.3 FACTICE **off** | **§ 6f**. ~~§ 3~~ — § 3 is « FACTICE **on**, before anything is rung up », the opposite action |
-   | R6.4 printer and drawer | **§ 4a** (driver: `pnputil`, hardware id `USBPRINT\SUNSOWTP-800036C` from `sunso.inf`, confirmed with the owner 2026-09-09), then **§ 4** |
-   | R6.5 backup off the machine | **§ 6b** — the only written form it has |
-   | V-07 first real trading day | **§ 7** |
-
-   It was one command from being deleted by R0.3 — see `REMEDIATION_DONE.md`.
-2. **R6.1 is irreversible.** `scripts/pre-golive-reset.ts --apply` empties the fiscal journal
-   and deletes every order, receipt, shift, Z report and close. It runs **once**, after all
-   testing and before the first genuine sale, and never after one.
+| Row | Runbook | State when Phase 6 opened |
+|---|---|---|
+| **R6.1** reset | **§ 6d** (§ 6a-6c precede it) | **Would delete 0 rows** — all sixteen tables on the script's `DELETION_ORDER` empty, counter already `0/0/0/0`. **A decision, not a step**: it earns its existence only if test trading happens first. Irreversible; runs once, never after a genuine sale. |
+| **R6.2** arm the key | **§ 6e** | `FISCAL_CHAIN_KEY` absent, so the reset's guard 1 passes. Follows R6.1. |
+| **R6.3** FACTICE off | **§ 6f**. ~~§ 3~~ turns it **on** | `factice=true`. Last of the three. |
+| **R6.4** printer | **§ 4a**, then § 4 | **BLOCKED ON HARDWARE.** `SUNSO WTP-800` queue exists on **`COM1:`**, `Error`; **no `USBPRINT` device, no USB port** — not plugged in. § 4a: a `COM1:` queue « prints nothing and reports success ». |
+| **R6.5** backup off-machine | **§ 6b** | **BLOCKED ON HARDWARE.** One volume: `C:`. `BACKUP_LOCATION` unset. |
 
 ### Awaiting the operator
 

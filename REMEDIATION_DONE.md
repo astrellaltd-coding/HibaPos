@@ -1339,6 +1339,116 @@ text quoted** so the correction is auditable — and with a line saying that rot
 - **The plan is at 40 957 of its 40 960 bytes — three to spare.** Nothing further can be
   recorded in it without retiring something first.
 
+### PHASE 6 OPENED — the five preconditions, measured read-only
+**Done:** 2026-09-11 · **Commit:** *(records measurements; no behaviour change)*
+**Finding:** none recorded — two hardware blockers and one stale runbook section, all below
+
+**What this is.** Phase 6's five rows are all the operator's to perform. This entry records
+the read-only state each one was in when the phase opened, so that afterwards there is
+something to verify the operator's report against rather than taking it on trust.
+
+**The archive README was read first, then `runbook-complet.md` § 4a, § 6 and § 7** — the
+sections its map calls live.
+
+#### R6.1 — the reset would delete NOTHING today
+
+Measured with `bun:sqlite` read-only, against the **script's own `DELETION_ORDER` and
+`PRESERVED` lists** copied out of `scripts/pre-golive-reset.ts` rather than from the plan's
+prose:
+
+```
+WOULD DELETE   Receipt 0 · OrderItem 0 · Payment 0 · Refund 0 · Order 0 · Customer 0
+               ZReport 0 · CashMovement 0 · Shift 0 · FiscalEvent 0 · DailyClose 0
+               MonthlyClose 0 · AnnualClose 0 · FiscalArchive 0 · GrandTotal 0 · Table 0
+               TOTAL 0
+WOULD KEEP     User 2 · Category 14 · Product 84 · OptionGroup 10 · OptionChoice 49
+               CategoryOptionGroup 8 · CategoryOptionChoice 39 · CategoryAddOn 21
+               ComboSlot 25 · ComboSlotChoice 9 · ComboSlotOptionRule 7 · Setting 18
+               AuditLog 601 · TechnicalLog 9 · Session 1 · Backup 2      TOTAL 899
+FiscalCounter  0 / 0 / 0 / 0 — already the value the reset would write
+```
+
+The fiscal-archives directory **does not exist**, so there are no archive files to delete
+either. **The plan's claim that the reset keeps the catalogue, the users, the settings and the
+audit log is confirmed against the script**: `AuditLog`, `TechnicalLog`, `Session` and
+`Backup` are on the `PRESERVED` list by name, and the script's own header explains why —
+« deleting an audit trail is the exact thing this application forbids everywhere else ».
+
+**So the question the plan poses — « does it still need to run, and what would it destroy » —
+has a measured answer: it would destroy nothing, and it is therefore not needed *now*.** It
+becomes necessary only if trading is rung between now and the first real sale, which is what
+proving the printer (R6.4) and V-07 both require. Put to the operator as a decision.
+
+**Its three guards were checked, not assumed:** `FISCAL_CHAIN_KEY` is absent so guard 1
+passes; the app was not answering on 3000/3001 at the time of the final check so guard 2
+passes; guard 3 is the typed `EFFACER` and the backup question, which only the operator can
+answer.
+
+#### R6.4 — blocked on hardware, in the exact way § 4a warns about
+
+`Get-Printer` on this machine:
+
+```
+SUNSO WTP-800   driver SUNSO WTP-800   PortName COM1:   PrinterStatus Error
+```
+
+And `Get-PnpDevice`: **no `USBPRINT` device at all**, no device of any class matching
+`SUNSOWTP`; the only match is the `PrintQueue` object itself. `Get-PrinterPort` lists
+`COM1:`–`COM5:` and **no `USB00x` port**.
+
+So the driver is installed and the queue exists, but **the printer is not plugged in** —
+Windows never created the USB port. § 4a names this state and why it is the dangerous one:
+
+> Its `PortName` starts with **`USB`** … If it says `COM1:` the driver installed **without**
+> the device attached: replug the cable and re-check. **A queue on `COM1:` prints nothing and
+> reports success.**
+
+A silent failure, not a loud one. Nothing in the app can detect it: the spooler accepts the
+job either way, which is § 4a.3's own limit — « the spooler accepting a job means the bytes
+reached the queue, not that the printer printed ».
+
+#### R6.5 — blocked on hardware
+
+`Get-Volume`: **one volume, `C:`**, 237,1 GB with 81 GB free. No second drive and no
+removable media attached. `BACKUP_LOCATION` is absent from `.env`, so `paths.ts:64` falls
+through to the default beside the database. Both verified backups are therefore on the same
+disk as the database they protect — the plan's oldest open item, unchanged.
+
+#### R6.2 and R6.3 — nothing to measure beyond their preconditions
+
+`FISCAL_CHAIN_KEY` absent; `factice=true`. Both are single operator actions whose order is
+fixed by R6.1.
+
+#### Two things found while measuring, neither part of any row
+
+**1. The app was running against the LIVE database, bound to `0.0.0.0`.** Port 3000 answered
+`{"status":"ok","service":"hibapos"}` and `GET /api/auth/profiles` returned the real `admin`
+and `manager` rows with production ids — so the server had `db/custom.db` open. `netstat`
+showed `0.0.0.0:3000 LISTENING`. It had stopped by the next check, a minute later.
+
+**`bun run start` passes `-H 127.0.0.1`; `bun run dev` does not** (`package.json:7,9`). So
+**DD-06 — « No LAN access. The server binds `127.0.0.1` » — is true of the production path
+and NOT of `dev`**, and `next.config.ts:27` justifies having no HSTS on the strength of that
+binding. § 5 already forbids `bun run dev` from this directory because it loads the real
+`.env`; what is new here is that it is also reachable from the network while it runs. A
+one-word change to `package.json` would make DD-06 true of both paths; not made, because it
+is outside Phase 6's rows (safety rule 1) and is the operator's call.
+
+**2. The database did not move while the app was up.** sha256 `0d304ee7…` and mtime
+16:33:12 were identical before and after, so the § 4 baseline holds. The single `Session`
+row's `lastActivityAt` is 16:32:32 — already inside that sha. That row belongs to `admin`
+and its cookie was signed with the **pre-rotation** `SESSION_SECRET`, so it stops verifying
+at the next restart; the row was not deleted, because failing the HMAC check is what
+rotation means.
+
+**Left behind:**
+- **R6.1 needs a decision before it needs a command.** Its dry run is safe and prints the
+  same tables as above; the runbook asks for them to be recorded, and they are, here.
+- **R6.4 needs the USB type-B cable plugged in**, then `Get-Printer` must show a `USB00x`
+  PortName before anything in Réglages is worth setting. Until then the queue is a trap.
+- **R6.5 needs a volume.** A drive letter or a USB stick; nothing else is blocking it.
+- **Nothing in this entry is evidence of French fiscal or legal compliance.**
+
 ---
 
 ## Carried forward — the 2026-09-03 → 2026-09-09 remediation
