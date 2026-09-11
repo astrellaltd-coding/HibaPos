@@ -405,6 +405,82 @@ Tenders box, à emporter and sur place.
 - **The R3.1 migration is not applied.** Stop the app first; a live `next dev` holds the
   SQLite file and the Prisma query engine open.
 
+### VERIFICATION — the Phase 3 migration was NOT applied, and two documents were wrong
+**Done:** 2026-09-11 · **Commit:** *(doc-only; records a verification and two corrections)*
+**Finding:** none new — but see the two document defects below, both ours
+
+**What was asked:** the operator said they had run the Phase 3 migration and asked for it to
+be verified. **It had not been applied**, and saying so required being sure.
+
+**How it was established** — three independent measurements, then an adversarial pass:
+production's sha256 and mtime unchanged from before the claim; `PRAGMA table_info("Product")`
+= 17 columns, no `showOnPos`; `_prisma_migrations` = 13 rows; and `bunx prisma migrate status`
+(read-only, through the same `.env` the operator's command uses) naming
+`20260910233000_product_show_on_pos` as pending.
+
+**The decisive fact came from the adversarial pass, not from the first look.** Three agents
+were asked to *refute* the conclusion from different angles — direct evidence, an
+alternative target database, and Prisma semantics. All three failed to break it at high
+confidence, and two independently found the same clincher: **production's last write was
+23:22:11 and the R3.1 migration's SQL file was not created until 23:35:33** — thirteen
+minutes later. No run could have applied a file that did not exist.
+
+**Why the operator's belief was reasonable, and this matters.** They *did* run
+`bunx prisma migrate deploy`, it *did* succeed, and it *did* print « All migrations have been
+successfully applied » — at 23:22, applying **Phase 2's** migration. Every console run shows
+`13 migrations found`; a run after 23:35 shows **14**. That count is the only thing
+distinguishing them, and it is small print above a large green banner.
+
+**TWO DOCUMENT DEFECTS, BOTH OURS, both corrected:**
+
+1. **`REMEDIATION_PLAN.md`'s header contradicted itself.** It said « Its migration is
+   PREPARED, NOT APPLIED » about Phase 3 and, twenty lines below, **« The migration is
+   APPLIED. »** in bold about Phase 2 — without naming which migration either sentence meant.
+   `Current task` still read « none — PHASE 2 IS COMPLETE » although HEAD was the Phase 3
+   bookkeeping commit. Introduced in `906a86e`, which replaced the *Current phase* line and
+   left *Current task* stale. **This is at least half of why the operator believed the
+   migration was applied.** Both migrations are now named in full everywhere in that block.
+2. **The plan asserted a file was deleted that still exists.** « `HibaPOS-copie-essai/` is
+   deleted » — measured 2026-09-11: **492 files, 58 MB, still there**, exactly as R0.3 (still
+   `TODO`) describes. The section was retired; the claim was false from the day it was
+   written. `plan-freshness.test.ts` could not catch it — it checks task/finding consistency,
+   not claims about the filesystem.
+
+**A third finding, operational and worth keeping:** between Claude regenerating the Prisma
+client for a prepared migration and the operator applying it, **the app cannot read the
+table that migration touches.** Measured on a copy, never on production: `product.findMany()`
+against production-as-is fails with « The column `main.Product.showOnPos` does not exist »;
+against a migrated copy it returns all 81 products. So a prepared-but-unapplied migration is
+not a dormant state — it is a broken one, and the handover must say so.
+
+**What the adversarial pass added to the handover** that the first draft lacked:
+- **No restore point existed** for production's current bytes. The newest encrypted backup
+  predates the Phase 2 apply, so restoring it would undo Phase 2 as well. A plain file copy
+  to `../db-snapshots/` is now step 1 and marked not optional.
+- **Three destructive npm scripts sit beside `db:deploy`** in `package.json` — `db:migrate`,
+  `db:reset`, `db:push-force`. Named, with a warning.
+- **A `SELECT` gives a FALSE PASS on SQLite.** `SELECT "showOnPos" FROM "Product"` returns
+  the *string* `showOnPos` with no error, before or after the migration, because SQLite reads
+  an unresolvable double-quoted identifier as a string literal. The handover now says to
+  verify with `PRAGMA table_info`, never a `SELECT`.
+- **File SIZE is not evidence.** Measured on a copy: the `ADD COLUMN` leaves the file at
+  exactly 884 736 bytes. An earlier report of this verification cited the unchanged size as
+  part of the proof; it was not proof. The sha256, the mtime and `PRAGMA schema_version` are.
+- **A real acceptance test**, stronger than counting columns: the rehearsal began from a copy
+  fingerprint-identical to production's current content, so production fingerprinted *after*
+  should equal the rehearsed after-state with zero differences. Script and both fingerprints
+  are now kept in `../db-snapshots/r31-acceptance/`, out of the session temp directory that
+  cleanup would eventually delete.
+
+**Left behind:**
+- **Name the migration, every time.** Two migrations a fortnight apart is enough for « the
+  migration » to become ambiguous, and it already cost a round trip.
+- **A prepared migration leaves the app broken until it is applied.** Say it in the handover.
+- **`plan-freshness.test.ts` does not check claims about the filesystem.** Statements like
+  « X is deleted » can rot silently.
+- **The plan is at its 40 960-byte ceiling.** Retiring Phase 2's section and the 2026-09-10
+  history brought it back under; the next addition needs a matching retirement.
+
 ---
 
 ## Carried forward — the 2026-09-03 → 2026-09-09 remediation

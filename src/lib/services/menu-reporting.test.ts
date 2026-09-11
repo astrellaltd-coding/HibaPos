@@ -10,7 +10,8 @@ import { computeShiftReport, generateZReport } from "@/lib/services/reports";
 import { closeDay } from "@/lib/services/fiscal";
 import { ensureFiscalCounter } from "@/lib/services/sequence";
 import { hashPin } from "@/lib/auth";
-import { saveSettings } from "@/lib/services/settings";
+import { saveSettings, getSettings } from "@/lib/services/settings";
+import { businessDayOf } from "@/lib/period";
 import { apportion, sum2 } from "@/lib/money";
 
 // L-77 (R2.2) and L-78 (R2.3) — a menu composé is countable, and its VAT
@@ -500,8 +501,14 @@ describe("L-77 — what is sealed, and what deliberately is not", () => {
     await sellMenu({ menuId: ids.menuChill, pizzaSlot: ids.pizzaSlot, drinkSlot: ids.drinkSlot, price: 1200 });
     await generateZReport(ids.shift, 0, ids.user);
 
+    // The TRADING day, not the calendar day — DD-23/24. Between midnight and the
+    // 05:00 cut-off they differ, and a sale rung at 01:00 belongs to the day
+    // before. An earlier version of this test used the calendar day and passed
+    // for eleven hours a day; it failed the moment the clock crossed midnight,
+    // which is exactly when a real till is still open.
+    const { businessDayCutoffHour } = await getSettings();
     const now = new Date();
-    const day = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    const day = businessDayOf(now, businessDayCutoffHour);
     // Closed from a moment after the trading day has ended, which is what
     // `assertPeriodEnded` requires.
     const close = await closeDay(day, ids.user, false, new Date(now.getTime() + 3 * 86_400_000));

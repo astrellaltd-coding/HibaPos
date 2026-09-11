@@ -23,28 +23,26 @@ are done.)*
 **R3.1 and R3.2 are COMPLETE** (`16e3415`). **R3.3 is the operator's**, prepared and rehearsed
 in § 6 under *R3.3 handover*.
 
-**Its migration is PREPARED, NOT APPLIED** — one boolean, `Product.showOnPos`, NOT NULL
-DEFAULT true. Rehearsed on a copy of the live catalogue: all 81 products come out
-`showOnPos = 1`, so it changes no behaviour on its own. Stop the app, then
-`bunx prisma migrate deploy`. Afterwards `Product` should report **18** columns and
-`_prisma_migrations` **14** rows.
+### ⚠ THE ONE THING OUTSTANDING RIGHT NOW
 
-**Current task:** **none — PHASE 2 IS COMPLETE.** Awaiting the operator's go-ahead for the
-next phase. § 2's rule is that a phase boundary stops the work.
+**The Phase 3 migration — `20260910233000_product_show_on_pos` — is NOT applied**, and until
+it is **the app cannot read its catalogue at all**: the generated Prisma client already
+expects `Product.showOnPos`, production has no such column, so every product query fails.
+Not bookkeeping that can wait — the till cannot load products. The command, its precondition
+and its acceptance test are in § 6, *Phase 3 migration handover*.
 
-**Phase 2 is DONE** (2026-09-10): R2.1 `c9b9d23`, the shared migration `b50f97c`, R2.2 +
-R2.3 `4d504be`. What it changed about sealed documents, all of it **free to change only
-until the restaurant's first real close**:
+*(Two migrations are in play this week, so both are named in full everywhere below. Phase 2's
+`20260910210000_…` **is** applied; Phase 3's `20260910233000_product_show_on_pos` **is not**.
+An earlier version of this header said « the migration is APPLIED » in bold without naming
+which, twenty lines below « PREPARED, NOT APPLIED » about the other — corrected here rather
+than left standing, because it is the natural thing for a skimming reader to get wrong.)*
 
-- `topProducts` / `givenAwayProducts` rows now carry `productId`, and aggregate by identity.
-- The day / month / year close payload gains `topMenus`. The per-shift `CLOTURE_Z` journal
-  payload deliberately does **not** — operator's decision, 2026-09-10.
-- `OrderItem` gains `comboProductId` and `referencePrice`.
+**Current task:** **none for Claude.** Phase 3's code is done; **R3.3 and the Phase 3
+migration are the operator's.** Phase 4 needs its own go-ahead — § 2's rule is that a phase
+boundary stops the work.
 
-**The migration is APPLIED.** The operator ran `bunx prisma migrate deploy` against
-production on 2026-09-10 at 23:22, after stopping the app, and it was verified afterwards
-against the pre-migration fingerprint taken earlier the same session — see § 6, *Phase 2
-handover*. **Phase 2 is closed end to end: nothing about it is outstanding.**
+**Phase 2 is DONE and fully applied** (2026-09-10). What it changed, and what it left
+behind, is in § 6 and in `REMEDIATION_DONE.md`.
 
 **Phase 1 is COMPLETE. R0.1 is COMPLETE** — the first restorable backup this installation
 has ever had, taken by the operator and verified 2026-09-10. R0.2 / R0.3 / R0.4 were blocked
@@ -62,24 +60,6 @@ first real sale is **fiscal, not technical**, and it is § 6's last section.
 
 **Last updated:** 2026-09-10, at the close of Phase 2 — after the operator applied its
 migration to production and it was verified against the pre-migration fingerprint.
-
-### What changed on 2026-09-10, and why this file exists
-
-1. **The client trial is dropped.** No copy goes to the restaurant until the final version.
-   The app is in build phase; nothing has shipped; resets on this machine are free and
-   unlimited. `HibaPOS-copie-essai/` is deleted — it was verified to hold nothing that
-   existed only there.
-2. **§ 6 of `docs/mise-en-service.md` runs ONCE**, not twice. The second run existed only
-   because a FACTICE-off trial would have sealed phantom sales into the journal. The
-   operator initiates it before the final copy ships.
-3. **The developer machine was reset on 2026-09-10.** All trading tables are at zero. The
-   catalogue survived intact and verified.
-4. **The till deployment model is withdrawn.** The app ships as a Tauri v2 native
-   application later, so `docs/mise-en-service.md` and `.zscripts/README-windows.md` are
-   retired. The PowerShell scripts stay: `print-raw.ps1` is live code that
-   `printer-transport.ts` calls, and the rest are covered by `deployment.test.ts`.
-
----
 
 ## 2. HOW TO WORK HERE
 
@@ -186,6 +166,15 @@ something going wrong.
   Never round per-line independently — that is how an order's VAT stops matching its total.
 - **`OrderItem.vatRate` is a snapshot** taken at sale time from `resolveVatRate(product,
   orderType)`. A later catalogue edit must never restate a sale already made.
+- **A thing is counted under its IDENTITY, never under its label** (R2.1/R2.2). Products by
+  `productId`, menus by `comboProductId`; the name is the fallback only when the identity is
+  gone. Names are not unique — three live pairs share one.
+- **`itemsCount` counts a menu as ONE article, `topProducts` counts its components**, and
+  `topMenus` is the third answer beside them. All three are right; none may be "reconciled".
+- **`referencePrice` is null where no prorata happened.** Null is the statement. Never
+  backfill it, never default it to 0.
+- **`topMenus` is in the sealed close payload and NOT in `CLOTURE_Z`** — both halves are
+  operator decisions, both pinned, both freeze at the first real close.
 - **The client's `vatRate` is ignored.** `orders/route.ts` is the only place that decides what
   is booked. A tampered basket cannot choose its own tax.
 - **Nothing may claim fiscal compliance.** Not this file, not a test result, not a document.
@@ -238,6 +227,11 @@ something going wrong.
 - **The table auto-link/auto-free branches** in `checkout.ts` and `refund.ts` are unreachable
   today and stay. Do not delete them without reopening DD-09.
 - **`round2` in `money.ts`** is retained though the fiscal path no longer uses it.
+- **`sellableAlone` and `slotProducts` are a PAIR, and the asymmetry is deliberate.**
+  `pos-grid.ts` consults `showOnPos`; `combo-builder.ts` **does not**. That is what lets a
+  food-only menu component exist without appearing on the till to be sold alone. Unifying
+  them makes L-69's three boxes inexpressible again. Both files say so, pointing at each
+  other, and `hidden-product.test.ts` asserts both halves in one test.
 - **`/api/reports/vat`, `/api/reports/cashiers`, `/api/reports/products`** have no interface
   and are correct, tested and gated. They are the back-ends the reporting work will use.
 
@@ -249,7 +243,7 @@ something going wrong.
 |---|---|
 | Tests | **1288 pass, 0 fail**, 105 files, ~150 s *(1248/102 at the start of Phase 2; +9 `product-identity.test.ts`, +16 `menu-reporting.test.ts`, +15 `hidden-product.test.ts`)*. `typecheck` and `lint` both clean. Pinned by `readme-counts.test.ts`, which counts declarations plus declared expansions. |
 | e2e | **13 passed** (measured 2026-09-07). `bun run test:e2e` is **safe** — see § 5. |
-| Production DB | sha256 `47b33148dcbe081609ec24728662a32285e2252e3ed5f02dbde9c81178775c94`, 884 736 bytes, measured 2026-09-10 at 23:26 **with the app stopped and the Phase 2 migration applied**. `integrity_check` ok, 0 FK errors, **13 migrations**, **18 `OrderItem` columns**, none pending. **A sha is only a baseline while nothing is running** — a signed-in session writes `Session.lastActivityAt` on every request, which is why the earlier `c67b4b0b…` read `7abd7078…` at 22:27 with `next dev` live. If the app may be running, check the *structure*, not the hash. `integrity_check` ok, 0 FK errors, 12 migrations, none pending. **The file did not shrink after the reset** — SQLite frees pages for reuse, so size cannot distinguish a wiped database from a full one. Only the hash can. |
+| Production DB | sha256 `47b33148…`, 884 736 bytes, app stopped, 2026-09-11. `integrity_check` ok, 0 FK errors, **13 migrations**, **17 `Product` / 18 `OrderItem` columns** — Phase 3's migration still pending. **A sha is only a baseline while nothing is running**: a signed-in session writes `Session.lastActivityAt` on every request. If the app may be up, check *structure*, not the hash. **File SIZE is not evidence** — an `ADD COLUMN` leaves it unchanged (measured); the sha256, the mtime and `PRAGMA schema_version` are what move. `integrity_check` ok, 0 FK errors, 12 migrations, none pending. **The file did not shrink after the reset** — SQLite frees pages for reuse, so size cannot distinguish a wiped database from a full one. Only the hash can. |
 | Trading tables | **All zero.** Order, OrderItem, Payment, Receipt, Refund, Shift, ZReport, FiscalEvent, GrandTotal, DailyClose, MonthlyClose, AnnualClose, CashMovement, Customer, Table. |
 | Fiscal counters | `0 / 0 / 0 / 0` (receipt / shift / Z / event). Journal **empty**. |
 | Fiscal chain | **Empty and UNKEYED**, which is correct here. Arming is the restaurant machine's step, after its own reset. |
@@ -292,61 +286,87 @@ go-ahead.** The operator should still get a copy of that backup off this machine
 | **R0.3** | `TODO` | **Delete `HibaPOS-copie-essai/`** (492 files, 58 MB), after recording its four pre-positioned settings in `REMEDIATION_DONE.md`: `factice=false`, `printerEnabled=false`, `printerConnection="usb"`, `printerQueue=""`. Verified 2026-09-10 to hold nothing unique. |
 | **R0.4** | `TODO` | **Remove `db/custom.db.before-dupfix-2026-09-08`** — a second plaintext production database on a OneDrive-synced path. Check it against `../db-snapshots/` first; it may be the only copy of that state. |
 
-### Phase 2 — The reporting batch — **COMPLETE 2026-09-10**
-
-*All three items are in `REMEDIATION_DONE.md` with their shas and how they were verified.
-What they established, and what the phases after them must not undo:*
-
-- **A thing is counted under its identity, never under its label.** Products by `productId`,
-  menus by `comboProductId`. Both fall back to the name only when the identity is gone.
-- **`itemsCount` counts a menu as ONE article and `topProducts` counts its components.**
-  Neither changed; `topMenus` is the third answer beside them. Pinned in a test.
-- **`referencePrice` is null where no prorata happened.** Null is the statement. Never
-  backfill it, never default it to 0.
-
-#### Phase 2 handover — DONE. The operator applied it 2026-09-10 at 23:22.
-
-Prepared and rehearsed in `b50f97c`; **applied to production by the operator** after stopping
-the app, and verified afterwards rather than assumed. `_prisma_migrations` records it as one
-step, not rolled back.
-
-**Verified against the pre-migration fingerprint of production** taken earlier the same
-session. Five differences, every one accounted for:
-
-| | before | after |
-|---|---|---|
-| `OrderItem` columns | 16 | 18 — appended, existing columns unchanged **in place** |
-| `_prisma_migrations` | 12 | 13 |
-| `Session` | 1 | 0 — the operator's session ended with the app |
-| `AuditLog` | 595 | 596 — the row that logged it |
-
-Everything else identical: `FiscalCounter`, `GrandTotal`, every fiscal event hash, every
-sealed table, every order line, all 81 products, every index. `integrity_check` ok, 0 FK
-errors. `comboProductId TEXT` and `referencePrice INTEGER`, both nullable, neither with a
-default — exactly what the rehearsal predicted, and no table rebuild.
-
-**The lesson worth keeping: stop the app first.** A running `next dev` / `next start` holds
-an open handle on the SQLite file and on `query_engine-windows.dll.node`. That is what made
-`bunx prisma generate` fail `EPERM` throughout 2026-09-10 until the app was stopped.
+*Phase 2 (the reporting batch) is complete and its migration applied — R2.1 `c9b9d23`,
+`b50f97c`, R2.2 + R2.3 `4d504be`. Full record in `REMEDIATION_DONE.md`; what it left behind
+is in § 3.*
 
 ### Phase 3 — « Use it on POS » — **R3.1 and R3.2 COMPLETE 2026-09-10** (`16e3415`)
 
 *`Product.showOnPos` exists and defaults ON. A product with it off is hidden from the till's
-product grid and from **nothing else**: still in the catalogue, still a legal filler for a
-menu slot, still refundable, still in every past order and report.*
-
-**The invariant this created, and it is a PAIR:** `pos-grid.ts`'s `sellableAlone` consults
-`showOnPos`; `combo-builder.ts`'s `slotProducts` **deliberately does not**. Both files say so,
-pointing at each other, and `hidden-product.test.ts` asserts both halves in one test.
-Unifying them would make L-69's three boxes inexpressible again.
-
-**Its measured limit, pinned rather than glossed:** `orders/route.ts` still checks only
-`active` and `available`, so a request naming a hidden product **directly** is still booked.
-`showOnPos` is a display rule, not a guard — see **L-84**.
+product grid and from **nothing else** — still in the catalogue, still a legal menu
+component, still refundable, still in every past order and report. The invariant it created
+is in § 3; its measured limit is **L-84** (a display rule, not a guard). Full record in
+`REMEDIATION_DONE.md`.*
 
 | ID | Status | Task |
 |---|---|---|
 | **R3.3** | `OPERATOR` | **Restructure Box 15, Box 35 and Tenders box into real menus** (L-69). Prepared and rehearsed below; the operator applies it in the catalogue editor. TEX-MEX, 5 Nuggets and Box Bowl need nothing — frites are 10 % either way. |
+
+#### Phase 3 migration handover — `20260910233000_product_show_on_pos`
+
+**NOT APPLIED** (re-verified 2026-09-11: 17 `Product` columns, 13 migration rows,
+`prisma migrate status` names it pending). **Do this before R3.3**, and note that until it
+lands **the app cannot read its catalogue at all** — the generated client already expects
+`showOnPos`, so every product query fails.
+
+*Why the first attempt missed it: the deploy run on 2026-09-10 at 23:22 succeeded and applied
+**Phase 2's** migration. This file's SQL was not created until **23:35**. Every one of those
+console runs says `13 migrations found`; a run made after 23:35 says **14**. That count is
+the tell.*
+
+**1 — Take a restore point. Not optional.** Nothing on disk matches production's bytes: the
+newest encrypted backup (21:42) predates the 23:22 Phase 2 apply, so restoring it would undo
+Phase 2 too. App stopped and `journal_mode = delete`, so one file is the whole database:
+
+```
+Copy-Item db\custom.db ..\db-snapshots\custom.db.pre-r31-2026-09-11
+```
+
+Check the copy reads sha256 `47b33148dcbe081609ec24728662a32285e2252e3ed5f02dbde9c81178775c94`.
+It goes in `../db-snapshots/`, a **sibling** of the repo — § 2's rule.
+
+**2 — Confirm nothing holds the file:** no `node`/`bun`/`next` process, nothing on port 3000,
+no `-wal`/`-shm`/`-journal` beside `db/custom.db`. Check at the moment you run it.
+
+**3 — Run exactly this:**
+
+```
+bunx prisma migrate deploy
+```
+
+⚠ **Three destructive scripts sit beside `db:deploy` in `package.json`** — `db:migrate`
+(`migrate dev`, can offer to reset on drift), `db:reset` (drops everything, then seeds) and
+`db:push-force` (`--accept-data-loss`). None is ever right here.
+
+Expect `14 migrations found` and `Applying migration 20260910233000_product_show_on_pos`. The
+whole migration is `ALTER TABLE "Product" ADD COLUMN "showOnPos" BOOLEAN NOT NULL DEFAULT true;`
+
+**4 — Verify, and NOT with a `SELECT`.** SQLite treats an unresolvable double-quoted
+identifier as a **string literal**, so `SELECT "showOnPos" FROM "Product"` returns the text
+`showOnPos` and no error — *before or after*. A false pass, and a plausible way to believe a
+column exists. Use `PRAGMA table_info("Product")` (expect 18, `showOnPos` last) and
+`SELECT COUNT(*) FROM _prisma_migrations` (expect 14).
+
+**The real acceptance test.** The rehearsal ran from a copy fingerprint-identical to
+production's current content, using this exact `migration.sql` (sha256 `793a1b1c…82b3`,
+unchanged). So production fingerprinted *after* should equal the rehearsed after-state with
+**zero** differences. Script and both fingerprints are kept in `../db-snapshots/r31-acceptance/`:
+`bun run ../db-snapshots/r31-acceptance/fingerprint.ts db/custom.db > after.json`, then diff
+against `fp-r31-after.json`.
+
+**At risk if it goes wrong:** the **catalogue**, not the fiscal record — every trading and
+fiscal table holds zero rows. Non-zero: 81 products, 14 categories, 596 audit rows, the
+option/combo configuration.
+
+**Checked and clear:** all 13 applied migrations pass checksum verification, so `deploy` will
+not abort before it starts; no failed or rolled-back row to resolve; and `showOnPos` is the
+**only** drift between `prisma/schema.prisma` and production, so this one command is the
+whole fix.
+
+**OneDrive is not running**, so no cloud version history is being captured — it is not a
+fallback restore path, which is why step 1 matters. When it next starts it will upload the
+changed file; a later « restore previous version » from the web UI would silently revert
+this migration and re-break the client.
 
 #### R3.3 handover — the operator's procedure
 
@@ -359,15 +379,12 @@ Unifying them would make L-69's three boxes inexpressible again.
 | **Box 35** | 29,90 € | one **Bouteille** 3,50 € | **26,40 €** | 2,58 € *(was 2,72)* | 2,72 € *(unchanged)* |
 | **Tenders box** | 9,90 € | one **Canette** 1,50 € | **8,40 €** | 0,84 € *(was 0,90)* | 0,90 € *(unchanged)* |
 
-**Why this rule is the easy one to defend:** the two weights sum *exactly* to the forfait, so
-`apportion` returns them unchanged and the drink's share is its own shelf price to the cent.
-There is no rounding artefact to explain. **The customer pays the same price either way** —
-only the VAT split moves, and only à emporter.
-
-**These figures were not computed on the side.** `hidden-product.test.ts` builds this exact
-shape and *sells it through `POST /api/orders`*, asserting the booked `vatTotal`, both rates,
-both `referencePrice` values and the unchanged total, for Box 15 and Tenders box, à emporter
-and sur place.
+**Why this rule is easy to defend:** the two weights sum *exactly* to the forfait, so
+`apportion` returns them unchanged and the drink's share is its own shelf price to the cent —
+no rounding artefact to explain. The customer pays the same either way; only the split moves,
+and only à emporter. **The figures were not computed on the side:** `hidden-product.test.ts`
+builds this shape and *sells it through `POST /api/orders`*, asserting the booked `vatTotal`,
+both rates, both `referencePrice` values and the unchanged total.
 
 **Do it in the catalogue editor, not in SQL.** The editor runs `validateComboShape` and
 `validateComboAgainstCatalogue`, which exist precisely to refuse a menu that would sell
@@ -385,13 +402,10 @@ wrong; raw SQL bypasses both. For each of the three:
    **Canette** for Tenders box. Quantity 1, no explicit choices, so the whole category is
    offered — the same shape the six existing menus already use.
 
-**Check afterwards, on one sale of each, à emporter:** two lines, not one; the food line at
-10 % and the drink line at 5,5 %; the two line totals summing to the forfait; and the
-ticket's total unchanged. If the drink shows 10 % à emporter, the slot is pointing at the
-wrong category.
-
-**One thing to know before starting:** the till button does not move and does not change
-name. What changes is that pressing it now asks which drink.
+**Check afterwards, on one sale of each, à emporter:** two lines, not one; food at 10 % and
+drink at 5,5 %; the two totals summing to the forfait; the ticket total unchanged. A drink at
+10 % à emporter means the slot points at the wrong category. The till button does not move or
+change name — pressing it now asks which drink.
 
 ### Phase 4 — Small correctness
 
@@ -437,9 +451,9 @@ rule 1). Audit IDs are never renamed.
 
 | ID | Severity | Finding | Owner |
 |---|---|---|---|
-| **L-82** | Cosmetic | The product list renders the name alone (`report-widgets.tsx:136`, `csv-export.ts:53`), so the two rows R2.1 correctly separates now read as two identical « Coca » labels on the dashboard, in the reports view and in the CSV. The figures are right; the label is the remaining half. `productId` is in the payload, so a fix has what it needs — the open question is what a human should see (the category, the unit price, or nothing). Raised by R2.1 and not fixed in it, per safety rule 1. | none |
-| **L-83** | Low | `/api/reports/z` never sends `givenAwayCount`, `givenAwayItemsCount` or `givenAwayProducts`, yet `ZReportDto` declares all three and the Z detail panel (`reports-view.tsx:445`) renders them — so they read `undefined` at runtime. The sealed `ZReport` row has no column for them, so the DTO promises what no route can serve. Found while deciding where `topMenus` belonged; `topMenus` was deliberately kept out of that DTO rather than becoming a fourth instance. Routes are not typed against their DTOs, which is why the compiler cannot see this. | none |
-| **L-84** | Low | `showOnPos` is a display rule, not a guard: `orders/route.ts` checks only `active` and `available`, so a request naming a hidden product directly is still booked as an ordinary sale. Not a fraud vector — the till is the only client and the grid the only way in, and the price booked is the component's real catalogue price — but it means « cannot be sold alone » is true of the interface and not of the API. Measured and pinned by `hidden-product.test.ts` in R3.2, so closing it later is a decision rather than an accident. | none |
+| **L-82** | Cosmetic | The product list renders the name alone (`report-widgets.tsx:136`, `csv-export.ts:53`), so the two rows R2.1 correctly separates read as two identical « Coca » labels on screen and in the CSV. Figures right, label ambiguous. `productId` is in the payload, so a fix has what it needs; the open question is what a human should see. | none |
+| **L-83** | Low | `/api/reports/z` never sends `givenAwayCount`/`givenAwayItemsCount`/`givenAwayProducts`, yet `ZReportDto` declares all three and `reports-view.tsx:445` renders them — `undefined` at runtime. The sealed row has no column for them, so the DTO promises what no route can serve. `topMenus` was kept out rather than become a fourth instance. Routes are not typed against their DTOs, so the compiler cannot see it. | none |
+| **L-84** | Low | `showOnPos` is a display rule, not a guard: `orders/route.ts` checks only `active`/`available`, so a request naming a hidden product directly is still booked. Not a fraud vector (the till is the only client, at the real catalogue price), but « cannot be sold alone » is true of the interface, not the API. Pinned by `hidden-product.test.ts`, so closing it is a decision. | none |
 | **L-79** | Low | A failed `tar` import silently produces an image-less backup with no journal entry. | R4.1 |
 | **L-80** | Low | `CartAddOn.id` is nullable but the checkout schema requires a string. Latent, not live. | R4.2 |
 | **L-71** | Low | The sliding session tracker logs a Prisma error for a write it deliberately ignores. | R4.3 |
@@ -484,9 +498,9 @@ Kept as one-liners so nobody re-litigates them. Full rationale is in git history
 
 | ID | Decision |
 |---|---|
-| DD-01 | ESC/POS over raw TCP:9100 as primary, behind a transport interface. USB RAW spooler added later as the second implementation. |
+| DD-01 | ESC/POS over raw TCP:9100 as primary, behind a transport interface; USB RAW added later. |
 | DD-02 | Application data lives at `C:\HibaPOS\data`. |
-| DD-03 | No sealed row ever carried the wrong VAT key — the premise was an audit assumption. |
+| DD-03 | No sealed row carried the wrong VAT key — the premise was an audit assumption. |
 | DD-05 | Out-of-order period closes are **refused**. A close must follow the last sealed one. |
 | DD-06 | No LAN access. The server binds `127.0.0.1`. |
 | DD-07 | **There are no cashiers.** MANAGER is the till's only operational role; SUPER_ADMIN is the developer's. `CASHIER` was removed from the product. |
@@ -499,7 +513,7 @@ Kept as one-liners so nobody re-litigates them. Full rationale is in git history
 | DD-16 | Catalogue images stay tracked in git. It is currently their only versioned copy. |
 | DD-17 | A product's VAT rate comes from its category, inherited nearest-wins, with a per-product override. |
 | DD-18 | A premature month/year close is **refused**, with no override. |
-| DD-19 | Step up with the operator's **own** PIN — above the discount threshold, and on **every** refund. |
+| DD-19 | Step up with the operator's **own** PIN — above the discount threshold, and on every refund. |
 | DD-20 | A given-away order is reported **separately**, never as a sale. |
 | DD-21 | The four non-fiscal reports adopt the fiscal rule: a period books the corrections it issued. |
 | DD-22 | `GET /api/users` and `GET /api/backups` are SUPER_ADMIN only. |
