@@ -23,12 +23,24 @@
  * stops verifying. **No PIN changes and nobody is locked out.**
  *
  * And **the encrypted backups already on disk become permanently unreadable**,
- * because they were written under the old `BACKUP_ENCRYPTION_KEY`. DD-04
- * accepted that: Batch 8.2 established the three on this install are not
- * restorable anyway — they predate seven fiscal tables and
- * `assertCompatibleSchema` refuses them. But they ARE readable today as
- * evidence, so **keep the backup copy this script makes**. It is the only way
- * they will ever open again.
+ * because they were written under the old `BACKUP_ENCRYPTION_KEY`.
+ *
+ * ⚠ CORRECTED 2026-09-11 — THE PARAGRAPH THAT STOOD HERE IS NOW FALSE AND ITS
+ * FALSENESS ARGUED FOR DESTROYING DATA. It said DD-04 accepted the cost because
+ * « Batch 8.2 established the three on this install are not restorable anyway —
+ * they predate seven fiscal tables and `assertCompatibleSchema` refuses them ».
+ * Those three were DELETED by R0.2 on 2026-09-11. What sits in `db/backups/`
+ * today is **two backups that ARE restorable, both verified by decryption**
+ * (2026-09-10 20:42 UTC and 2026-09-11 12:40 UTC, sharing one 49 MB media
+ * archive), and they are the only verified copies of this restaurant's data
+ * that exist. Rotating `BACKUP_ENCRYPTION_KEY` today does not discard three
+ * useless files; it destroys both good ones. **Take a fresh backup under the
+ * new key immediately afterwards, and keep the `.env` copy this script makes —
+ * it is the only way the old ones will ever open again.**
+ *
+ * If you only need to rotate `SESSION_SECRET` — a leaked session key, say —
+ * this script is the wrong instrument: it rotates BOTH. Rotate the one line and
+ * assert every other line is byte-identical afterwards (2026-09-11).
  *
  * ── WHAT IT WILL NOT TOUCH ───────────────────────────────────────────────────
  * `FISCAL_CHAIN_KEY`. It is armed once, at Batch 8.0, after the fiscal reset,

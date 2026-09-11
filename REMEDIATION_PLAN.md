@@ -346,8 +346,8 @@ of trusting an exit code.**
 | Script | What it is for |
 |---|---|
 | `scripts/apply-migration.ts` | ✅ **How a migration is applied here from now on.** Refuses if any node/bun process is running or a `-wal`/`-shm`/`-journal` sits beside the database; **names the migration it actually applied**; ends `✅ APPLIED AND VERIFIED` or `❌`. It exists because `prisma migrate deploy` prints the same green banner whichever migration it ran, and that was misread twice. `--expect <fingerprint.json>` diffs the result against a rehearsal. |
-| `scripts/trim-catalogue-names.ts` · `scripts/build-box-menus.ts` | ✅ **Both already applied** (R4.4, R3.3) and idempotent — re-running prints `NOTHING TO TRIM` / « déjà un menu composé ». What each one checks before writing is in `REMEDIATION_DONE.md`. |
-| `scripts/delete-product.ts` | ✅ **Hard-deletes ONE product row, by `--id`** (2026-09-11, L-81 — the app's own delete is SOFT, `active=false`, and removes no row). Refuses unless the product exists, is already inactive, has **no** FK reference (`OrderItem` is `SET NULL`, `ComboSlot` is `CASCADE` — SQLite would have allowed the damage), is named in **no sealed payload** — the guard no schema can express — and the restore point verifies. Every refusal exercised on a copy. |
+| `scripts/trim-catalogue-names.ts` · `scripts/build-box-menus.ts` | ✅ **Both applied** (R4.4, R3.3) and idempotent — re-running prints `NOTHING TO TRIM` / « déjà un menu composé ». `REMEDIATION_DONE.md` has what each checks first. |
+| `scripts/delete-product.ts` | ✅ **Hard-deletes ONE product row.** Exists since 2026-09-09 and **has run four times** (four `PRODUCT_HARD_DELETED` rows in the live audit log); 2026-09-11 added `--id` and three refusals. Refuses unless the product is uniquely identified, already inactive, has **no** FK reference (`OrderItem` is `SET NULL`, `ComboSlot` `CASCADE` — SQLite would have allowed the damage), is in **no sealed payload** — the guard no schema can express — and the restore point verifies. Each refusal exercised on a copy. |
 | `scripts/pre-golive-reset.ts` | ⚠ **R6.1. Runs ONCE, and never after a genuine sale.** The operator's, not Claude's. |
 
 ---

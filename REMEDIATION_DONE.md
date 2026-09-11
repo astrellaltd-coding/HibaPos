@@ -1256,6 +1256,89 @@ parses as a `file:` URL and `BACKUP_ENCRYPTION_KEY` is still 64 characters.
   key, or print `grep -oE '^[A-Z_]+='` and nothing else — which is how `.env` was inspected
   for the rest of this session.
 
+### CORRECTION to the L-81 entry above — `scripts/delete-product.ts` already existed
+**Done:** 2026-09-11 · **Commit:** *(corrects `fcf5b93`)* · **Finding:** none new
+
+**Append-only, so the entry above stands and this points at it.** The L-81 entry says
+« adds `scripts/delete-product.ts` » and describes five refusals as though the script were
+new. **It was not.** A `scripts/delete-product.ts` had existed since 2026-09-09 (`d09c93a`,
+« add a guarded product hard-delete »), it is documented in `scripts/README.md`, and it is
+named in `docs/CHANGES-LOG.md`. It was overwritten without being read. `git status` showed
+it as ` M` rather than `??`, which is how it was caught — after the commit, not before.
+
+**It had really run, four times.** The live audit log holds four `PRODUCT_HARD_DELETED` rows
+written by it: *Menu Eco*, *Duo Chickenroyale*, *Duo Cheeseroyale*, *Duo Geant Royale*. This
+was not a draft nobody used.
+
+**What the overwrite destroyed, and what was restored.** The two versions are now merged.
+
+| The 2026-09-09 script had | Status |
+|---|---|
+| an `AuditLog` `PRODUCT_HARD_DELETED` write, `userId: null`, in a transaction with the delete | **RESTORED.** It is the lasting record — the audit log survives § 6's reset. Four real rows already depend on the pattern. |
+| French operator-facing console text | **RESTORED.** This is a script an operator reads at a till. |
+| the exact-one-match refusal on an ambiguous name | **RESTORED**, and the name form still works |
+| `OptionGroup`/`OptionChoice` cascading with the product, deliberately | **RESTORED.** The rewrite had turned it into a refusal, which would have blocked legitimate deletions; the schema's `onDelete: Cascade` is the intent. |
+| the pointer to `docs/CHANGES-LOG.md` | **RESTORED** |
+
+| The 2026-09-11 rewrite added | Status |
+|---|---|
+| `--id` addressing | **KEPT**, and now preferred — a name can be renamed afterwards, an id cannot, and R7.2 renamed three pairs the same day |
+| refusals on `OrderItem.comboProductId`, `ComboSlot.productId`, `ComboSlotChoice.productId` | **KEPT.** Menus composés did not exist when the original was written. |
+| the **sealed-payload** refusal | **KEPT**, and it is the one no schema can express |
+| a sha-verified restore point, and post-delete verification | **KEPT.** The original said « take a backup first » in prose. |
+
+**Re-rehearsed after the merge**, on fresh copies of production: every refusal fired — no
+argument, unknown id, still-active, referenced by `ComboSlotChoice`, named by a fabricated
+sealed `DailyClose` — and the happy path gave `84 → 83`, 0 FK errors, `integrity_check` ok,
+**and the `PRODUCT_HARD_DELETED` audit row**, which the rewrite would not have written.
+Production untouched throughout.
+
+**Two documents the overwrite had made wrong, both fixed:**
+- **`scripts/README.md`** described three refusals and a name-only interface. Now six and both
+  interfaces.
+- **The plan's § 5 row** said the script was added 2026-09-11. It says « exists since
+  2026-09-09 and has run four times » instead.
+
+**The lesson, and it is the second time in one session.** Neither `scripts/` nor
+`scripts/README.md` was read before writing a script into that directory. The same omission
+produced a second near-miss in the same hour — see the rotation entry below.
+
+### CORRECTION — `scripts/rotate-secrets.ts` exists, and its docblock argued for data loss
+**Done:** 2026-09-11 · **Commit:** *(corrects a stale claim; no behaviour change)*
+**Finding:** none recorded — corrected in place
+
+**The near-miss.** `SESSION_SECRET` was rotated by an ad-hoc script written for the purpose,
+without noticing that **`scripts/rotate-secrets.ts` already exists** (SEC-ROT / Batch 7.3) and
+does exactly this, on the operator's machine, never printing the values. It was found while
+fixing the `delete-product.ts` overwrite.
+
+**Using it would have been WRONG for what was asked, which is luck and not judgement.** It
+rotates **both** `SESSION_SECRET` *and* `BACKUP_ENCRYPTION_KEY`, by design and in one step.
+The operator asked for the session secret alone. Rotating the backup key would have made
+**both verified restorable backups permanently unreadable** — the outcome this plan worries
+about more than any other. The ad-hoc rotation rewrote one line and asserted every other line
+byte-identical, so `BACKUP_ENCRYPTION_KEY` and `DATABASE_URL` are provably untouched.
+
+**And its docblock was stale in the dangerous direction.** It read:
+
+> « DD-04 accepted that: Batch 8.2 established the three on this install are not restorable
+> anyway — they predate seven fiscal tables and `assertCompatibleSchema` refuses them. »
+
+Measured 2026-09-11: **those three were deleted by R0.2.** `db/backups/` holds **two backups
+that ARE restorable, both verified by decryption** (2026-09-10 20:42 UTC, 2026-09-11
+12:40 UTC, sharing one 49 MB media archive), and the `Backup` table names exactly those two.
+So the paragraph told a reader that rotating `BACKUP_ENCRYPTION_KEY` discards three useless
+files, when today it destroys both good ones. **Corrected in the file, dated, with the old
+text quoted** so the correction is auditable — and with a line saying that rotating only
+`SESSION_SECRET` needs a different instrument.
+
+**Left behind:**
+- **Read `scripts/README.md` before adding anything to `scripts/`.** It is a table of all
+  sixteen with what each one writes. Both of this session's near-misses would have been
+  caught by opening it.
+- **The plan is at 40 957 of its 40 960 bytes — three to spare.** Nothing further can be
+  recorded in it without retiring something first.
+
 ---
 
 ## Carried forward — the 2026-09-03 → 2026-09-09 remediation
