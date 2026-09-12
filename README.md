@@ -146,7 +146,11 @@ public/
                     Depuis le 2026-09-11 il existe DEUX sauvegardes chiffrées restaurables,
                     vérifiées par déchiffrement, qui incluent ces images (L-46 est close) —
                     mais les deux sont sur le même disque que la base qu'elles protègent.
-docs/                          → dix fichiers + docs/audit/ ; les voici tous
+docs/                          → onze fichiers + docs/audit/ ; les voici tous
+  DECISIONS.md                 → LES DÉCISIONS ARRÊTÉES — à ne pas rouvrir. Les
+                                 ids DD- sont cités depuis les commentaires du
+                                 code et ne sont jamais renommés. C'était le § 9
+                                 du plan jusqu'au 2026-09-12.
   INVARIANTS.md                → LES RÈGLES QUI NE S'APPLIQUENT JAMAIS À UNE SEULE
                                  PHASE. C'était le § 3 de REMEDIATION_PLAN.md
                                  jusqu'au 2026-09-11 ; déplacé parce que le plan se

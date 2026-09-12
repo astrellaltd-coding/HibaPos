@@ -146,7 +146,13 @@ describe("plan freshness — the plan and the done file may not disagree", () =>
     //   ids and nothing else. If a session ever moves them into § 7, this number
     //   and the ceiling assertion below both have to be re-argued, not just
     //   re-typed.
-    expect(taskStatuses(src).size).toBe(24);
+    //   2026-09-12, same day, execution order settled: tasks 24 → 25. R8.0 was
+    //   split out of R9.7 — L-124 is one `.gitattributes` line and without it a
+    //   FRESH CLONE of this repository has a failing suite before any work
+    //   starts, so it is its own row and it runs first. § 9 moved to
+    //   docs/DECISIONS.md in the same commit: the twenty-five rows had left the
+    //   plan 37 bytes under the ceiling, which is not headroom, it is a trap.
+    expect(taskStatuses(src).size).toBe(25);
     expect(openFindings(src).size).toBe(9);
     expect(done()).toContain("# HibaPOS France — Completed Work");
   });

@@ -1,8 +1,8 @@
-# The next sessions — Phase 8, and Phase 6 behind it
+# The next sessions — R8.0, R9.6 + R8.1, then Phase 6
 
 **Rewritten 2026-09-12.** This file held prompts for *Phase 7, then Phase 6*. **Phase 7 closed
 on 2026-09-11**, and Phase 6 is no longer "the last one" — the 2026-09 audit added Phases 8, 9
-and 10, nineteen batches, and **R8.1 blocks two of Phase 6's five rows**. The old prompts are
+and 10, twenty batches, and **R8.1 blocks two of Phase 6's five rows**. The old prompts are
 in git history if anyone wants them; keeping them here would have pointed the next session at
 finished work.
 
@@ -10,12 +10,34 @@ One prompt per session. Paste the block between the rules, and nothing else.
 
 ---
 
-## SESSION 1 — R8.1, the row that unblocks Phase 6
+## SESSION 0 — R8.0, five minutes, its own commit
+
+HibaPOS France. Read `CLAUDE.md`, then `REMEDIATION_PLAN.md` § 1 and § 2.
+
+**Add `.gitattributes` at the repository root containing `* text=auto eol=lf`, and commit
+nothing else.** `core.autocrlf=true` is set and there is no attributes file, so a fresh
+checkout writes CRLF — which makes `restore-swap.test.ts` fail outright and
+`pos-resilience.test.ts:104` pass vacuously. **Any clone of this repository currently starts
+red.** That is L-124, reproduced by the audit, not predicted.
+
+Verify by reproducing a checkout into a scratch directory (`git checkout-index --prefix=…`)
+and confirming the file lands LF. Then the three gates, then commit, then stop.
+
+---
+
+## SESSION 1 — R9.6, then R8.1
 
 HibaPOS France. Read `CLAUDE.md`, then `REMEDIATION_PLAN.md` in full — all of it, top to
 bottom — then `docs/audit/FINDINGS.md`, at least its verdict, View A group A and View B.
 
-**Your job this session is R8.1 and only R8.1.** Two findings, one area:
+**Do R9.6 first.** `api-authorization.test.ts`'s inline-guard detector is
+`/user\.role\s*!==\s*"SUPER_ADMIN"/`, which matches a **widened** guard
+(`… && user.role !== "MANAGER"`) exactly as well as a narrow one — so a route can be opened to
+every role with the suite green. Classify the two forms separately and re-pin the counts at
+`:407`. **This must precede R8.1**, because R8.1 changes `settings:PUT`'s guard and moves that
+very count (L-120, L-151).
+
+**Then R8.1, and only R8.1.** Two findings, one area:
 
 - **L-93** — `settingsSchema` materialises `factice: false` and `printerConnection: "network"`
   where `DEFAULT_SETTINGS` answers `true` and `"usb"`, and `saveSettings` merges present keys
@@ -77,7 +99,11 @@ sale.
 - **§ 7's nine findings are unchanged** and none of them blocks a first sale. The audit's 94
   are in `docs/audit/FINDINGS.md` and are **not** in § 7 — § 6 carries their ids and nothing
   else.
-- **Group A is the rest of Phase 8**, and R8.2 and R8.5 are both migrations. A migration on a
-  database that has never traded is far cheaper than one on a database that has.
-- **The loop is `REMEDIATION_PLAN.md` § 2**, unchanged: one item, three gates, commit, push,
-  move the row into `REMEDIATION_DONE.md`, update *Current task*, stop.
+- **Group A is the rest of Phase 8**, and R8.2 and R8.5 are both migrations. **R9.2 — the
+  startup migration gate — lands before them**: a fresh install applies every migration through
+  a gate that currently reports a failed one as applied. A migration on a database that has
+  never traded is far cheaper than one on a database that has.
+- **The loop is `REMEDIATION_PLAN.md` § 2, and it grew a step on 2026-09-12.** Step 3 is now
+  « prove the new test FAILS against the old code before you commit » — revert one property at
+  a time, watch it go red, restore, and say in the commit message what you reverted. The audit
+  found four tests that cannot fail against the bug they are named for; green is not evidence.

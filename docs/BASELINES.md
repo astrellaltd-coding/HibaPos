@@ -18,7 +18,7 @@ reasons `docs/INVARIANTS.md` did on 2026-09-11:
    before touching anything. This section was **5 997** of those bytes and growing — it grew
    again on 2026-09-12 when the audit's seven independent readings were recorded — and it was
    crowding the thing the ceiling exists to protect. The immediate cause of the move was the
-   audit's nineteen batch rows entering § 6, which did not fit otherwise.
+   audit's twenty batch rows entering § 6, which did not fit otherwise.
 
 **Read `REMEDIATION_PLAN.md` for what is outstanding, `docs/INVARIANTS.md` for the rules that
 never expire, and this file for what the numbers were last time somebody looked.**

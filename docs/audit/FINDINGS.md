@@ -71,7 +71,7 @@ mechanism, not on severity.
 
 *« § 4 » below means `REMEDIATION_PLAN.md` § 4, the baselines table, which is what all seven
 sessions measured against. **It moved to `docs/BASELINES.md` later the same day**, to make room
-for this audit's nineteen batches in the plan's § 6. The figures are the same; the address is
+for this audit's twenty batches in the plan's § 6. The figures are the same; the address is
 not.*
 
 | Thing | § 4 says | Measured here | Six passes |

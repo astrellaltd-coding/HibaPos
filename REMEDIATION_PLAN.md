@@ -8,44 +8,50 @@ Completed work lives in **`REMEDIATION_DONE.md`**. This file only ever shows out
 
 ## 1. CURRENT STATUS
 
-**Overall:** NOT READY FOR PRODUCTION. Every code defect that ever had a **task row** in
-this plan is fixed. What stands between here and ready is **fiscal first** — R6.1, R6.2 and
-R6.3 — but not *only* fiscal: R6.4 (printer driver and queue) and R6.5 (a backup on a second
-volume) are technical, and § 7's nine findings are open, five of them code-level. None of the
-nine blocks a first sale.
+**Overall:** NOT READY FOR PRODUCTION, and **not trading** — the fiscal journal is empty and
+every trading table is at zero.
 
-**Phases 0, 1, 2, 3, 4, 5 and 7 are COMPLETE and applied**, including all four operator
-items (R3.3, R4.4, R7.2, and R7.1's migration — all 2026-09-11) and all three migrations.
+> ### ▶ CURRENT TASK — **R8.0**, then **R9.6**, then **R8.1**
+>
+> **§ 6 opens with the execution order. Follow that, not the order the tables print in.**
+>
+> **R8.0 is one line** (`* text=auto eol=lf` in `.gitattributes`) and takes its own commit,
+> because without it any fresh clone of this repository has a failing suite before a single
+> fix is attempted. **R9.6** repairs the authorization map next, because **R8.1** then changes
+> `settings:PUT`'s guard and moves the count that map pins.
+>
+> **R8.1 is the first real fix and it unblocks R6.3 and R6.4**: **L-93** — two default tables
+> disagree on `factice`, so a settings save that merely *omits* the key turns the fiscal
+> simulation stamp off by accident — then **L-101** — the MANAGER, the only account that will
+> be at the till in France, is refused a 403 by `PUT /api/settings` while the screen shows an
+> enabled save button. **In that order.**
+>
+> **L-101 carries a decision that is the operator's, not the session's:** open the write to
+> MANAGER, or split it so the printer and FACTICE fields are writable and the identity fields
+> are not. **Do not fix it by hiding the screen** — that leaves R6.3 and R6.4 unreachable
+> without the developer's account. `NEXT-SESSION-PROMPT.md` is the prompt for this session.
 
-**PHASE 7 IS COMPLETE (2026-09-11) and Phase 6 is the only one left.** R7.1 sealed the
-give-away figures into the Z report and its migration is applied and verified; R7.2 renamed
-the colliding products, and **no two products in the catalogue share a name any more**. Both
-landed before the first close, which is the whole reason the phase ran first: a product's
-name is sealed into `topProductsJson` and into `givenAwayProductsJson`, and a sealed document
-cannot be corrected afterwards.
+**Phases 0-5 and 7 are COMPLETE**, with all four operator items and all three migrations
+applied. What each did, how it was verified and what it cost is in `REMEDIATION_DONE.md`;
+**nothing from them is outstanding**, and this file does not repeat them.
 
-**Phase 6 (five rows, all the operator's) ends in real trading.** Its order is not a
-preference — arming the chain key before the reset makes the reset refuse.
+**Four phases are open, and they are not independent.**
 
-**THE 2026-09 AUDIT IS IN, and it changes this section.** Six read-only passes and a seventh
-that consolidated them closed 2026-09-12; **`docs/audit/FINDINGS.md` holds 94 findings,
-L-89 … L-182**, and is where the remaining work comes from. Groups: **A** money and the fiscal
-record (7) · **B** fix before the app is called complete (39) · **C** fix with the batch that
-owns the file (36) · **D** record and leave (9) · **E** undecidable until packaging (3).
-**It is phased into § 6 as Phases 8, 9 and 10 — nineteen batches — but it is NOT placed in
-§ 7**, which stays at the nine that predate the audit. The rows carry ids only; the detail
-stays in FINDINGS.md. Nothing found stops a sale being *rung*: every money path the audit
-exercised produced screen figures matching the database to the cent.
+- **Phase 6** — the fiscal go-live, five `OPERATOR` rows. **R6.3 and R6.4 are blocked on
+  R8.1**, so this phase cannot close first. Row-by-row status below.
+- **Phase 8** — money and the fiscal record. Six batches (group A).
+- **Phase 9** — fix before the app is called complete. Ten batches (group B).
+- **Phase 10** — the leftovers no other batch owns. Three rows (group C).
 
-**Current task: PHASE 6, opened by the operator 2026-09-11 — and now PARTLY BLOCKED BY
-SOFTWARE.** R6.1 is a decision and not a step; it would delete nothing today. R6.5 is blocked
-on hardware. **R6.3 and R6.4 are blocked on L-101**: both are `PUT /api/settings`, which
-refuses every non-SUPER_ADMIN 403 while `nav-config.ts` gives MANAGER the screen and an
-enabled save button — so the only account that will be at the till in France cannot turn
-FACTICE off or choose the printer queue. That row was written down as "blocked on hardware"
-until the audit; it is not. Measurements below.
+**Phases 8-10 come from the audit.** Six read-only passes and a seventh that consolidated
+them, 2026-09-12: **`docs/audit/FINDINGS.md` holds 94 findings, L-89 … L-182**, in two views —
+by severity, and by the file the work lands in. Groups **A** (7) · **B** (39) · **C** (36) ·
+**D** record and leave (9) · **E** undecidable until packaging (3). § 6 carries the ids;
+**the detail is in FINDINGS.md and is not repeated here.** § 7 is unchanged at the nine
+findings that predate the audit. Nothing found stops a sale being *rung*: every money path the
+audit exercised produced screen figures matching the database to the cent.
 
-### Phase 6 — where each row stands, 2026-09-11
+### Phase 6 — where each row stands
 
 *Measurements and the runbook mapping are in `REMEDIATION_DONE.md` under « PHASE 6 OPENED ».
 `../HibaPOS-docs-archive/README.md` maps `runbook-complet.md`; **its § 6a/6b/6c are stale**
@@ -58,10 +64,9 @@ until the audit; it is not. Measurements below.
   An empty journal is armable at any time, so arming EARLY buys nothing and creates a secret
   to transport. Follows R6.1. **A BUTTON since 2026-09-11** (`POST /api/setup/chain-key`), not
   a `.env` edit: it refuses unless the journal is empty, and shows the key once.
-- **R6.3** FACTICE off (§ 6f — ~~§ 3~~ turns it **on**) — `factice=true`. Last of the three.
-  **BLOCKED BY L-101** (the MANAGER cannot save a setting) and watch **L-93**: two default
-  tables disagree on `factice`, so a save that merely *omits* the key performs this row by
-  accident. Fix both before turning it deliberately.
+- **R6.3** FACTICE off (§ 6f) — `factice=true`. Last of the three. **BLOCKED BY R8.1**, which
+  carries both halves: L-101 (the MANAGER cannot save) and L-93 (a save that omits the key
+  performs this row by accident).
 - **R6.4** printer (§ 4a, then § 4) — **the printer is in France; not doable from here.** This
   machine's `SUNSO WTP-800` queue sits on `COM1:`, `Error`, with no `USBPRINT` device: a
   developer artefact. § 4a — a `COM1:` queue « prints nothing and reports success ».
@@ -95,12 +100,9 @@ printer are in France. So R6.1-R6.3 belong to that install, not to this machine,
 **nothing in the app exports or imports a catalogue today** — carrying it is unsolved.
 `FISCAL_CHAIN_KEY` is in `.env`, `factice` is in the database: they do not travel together.
 
-**Last updated:** 2026-09-12, when the audit landed and was phased. `docs/audit/FINDINGS.md`
-and its six pass files are committed; the baselines were re-measured, held on every line, and
-**moved to `docs/BASELINES.md`** to make room; R6.3/R6.4 were re-marked as blocked by software
-rather than by hardware; and the audit's groups A/B/C became **Phases 8, 9 and 10**, nineteen
-batches, ids only. § 7 is unchanged at nine. Previously updated 2026-09-11, after Phases 0 and
-5 closed and a staleness sweep of every governing document.
+**Last updated:** 2026-09-12 — the audit landed and was phased into Phases 8-10, the baselines
+moved to `docs/BASELINES.md` to make room, and R6.3/R6.4 were re-marked as blocked by software
+rather than hardware. § 7 unchanged at nine.
 
 ## 2. HOW TO WORK HERE
 
@@ -108,20 +110,31 @@ batches, ids only. § 7 is unchanged at nine. Previously updated 2026-09-11, aft
 
 1. Do the work in the item. **Only** what is in the item.
 2. `bun run test` · `bun run typecheck` · `bun run lint` — all three, all green.
-3. Prove the fix actually applies. A unit test on an extracted rule proves the rule, **not
+3. **Prove the new test FAILS against the old code, before you commit anything.** Revert the
+   fix — one property at a time, in both directions, never two together — re-run, confirm the
+   new test goes red, then restore from a copy taken **before** the revert. A test that stays
+   green under the revert is proving nothing: either the revert was a no-op or the test does
+   not assert what it is named for. **This is not optional and it is not the same as step 2.**
+   *(Made a numbered step 2026-09-12. It was already in « the nine methods » below, and the
+   audit still found four tests that cannot fail against the bug they are named for — L-121,
+   L-122, L-123, L-126. Green is not evidence; red-then-green is.)*
+4. Prove the fix actually applies. A unit test on an extracted rule proves the rule, **not
    that anything calls it** — this project has shipped that gap three times. Test what is
    *booked* and test what the client *sends*.
-4. Confirm nothing else broke: the test count should move only by tests you added.
-5. Commit. One item, one commit (or a small reversible series).
-6. **Push.** The operator has standing authorisation for this — it is part of the loop.
-7. Move the item's row from this file to `REMEDIATION_DONE.md` with its commit sha and how
+5. Confirm nothing else broke: the test count should move only by tests you added, and
+   `bun run test` must report **0 fail** with no new `prisma:error` block.
+6. **Say, in the commit message, what you reverted and what went red.** One line. It is the
+   difference between « the tests pass » and « the tests would have caught this ».
+7. Commit. One item, one commit (or a small reversible series).
+8. **Push.** The operator has standing authorisation for this — it is part of the loop.
+9. Move the item's row from this file to `REMEDIATION_DONE.md` with its commit sha and how
    it was verified. Update *Current task* above.
-8. Stop. Do not roll into the next item without the operator's go-ahead.
+10. Stop. Do not roll into the next item without the operator's go-ahead.
 
 **And stop again at every phase boundary.** Finishing the last item of a phase is **not**
 licence to open the next one. Report what the phase did, what it cost and what it left
 behind, and wait for the operator to say start. *(Added 2026-09-10, after Phase 1 completed
-and Phase 2 was opened in the same breath. Step 8 already forbade it item-by-item; a phase
+and Phase 2 was opened in the same breath. Step 10 already forbade it item-by-item; a phase
 boundary is where that reads as merely bureaucratic and is not, because a phase is where the
 work changes character — Phase 1 was documentation, Phase 2 changes what gets sealed into a
 fiscal document.)*
@@ -218,7 +231,7 @@ of it** — that instruction moved with the table and is the first line of the f
 
 *Moved 2026-09-12, on the operator's instruction, for the two reasons § 3 moved on 2026-09-11:
 it is not outstanding work, and at 5 997 bytes it was crowding the 40 960 a session is asked to
-read before starting. The immediate cause was § 6's nineteen audit batches, which did not fit
+read before starting. The immediate cause was § 6's twenty audit batches, which did not fit
 otherwise.*
 
 ## 5. WHAT IS SAFE TO RUN
@@ -266,9 +279,22 @@ them is outstanding except the three items under § 1 « Awaiting the operator �
 > **Four phases are open, and they are not independent.** Phase 6 is the fiscal go-live.
 > **Phases 8, 9 and 10 are the 2026-09 audit, phased 2026-09-12** from
 > `docs/audit/FINDINGS.md`'s *View B — by area*, because the file a fix lands in is what a
-> batch is here. **R8.1 blocks R6.3 and R6.4**, so Phase 6 cannot close first. Every row below
-> names its `L-` ids and nothing else: **the detail is in FINDINGS.md and is not repeated
-> here**, which is what keeps this file inside its ceiling. Groups D and E got no rows.
+> batch is here. Every row below names its `L-` ids and nothing else: **the detail is in
+> FINDINGS.md and is not repeated here**, which is what keeps this file inside its ceiling.
+> Groups D and E got no rows.
+
+**EXECUTION ORDER — not the order the tables are printed in.** The tables group by subject;
+this is the sequence, and each step is here because of a dependency, not a preference.
+
+1. **R8.0** — one `.gitattributes` line. Alone, first: without it **any fresh clone of this
+   repository has a failing suite before a single fix is attempted**.
+2. **R9.6** — the authorization map, *before* R8.1, because R8.1 changes `settings:PUT`'s
+   guard and moves the count that map pins.
+3. **R8.1** — **unblocks R6.3 and R6.4.**
+4. **R9.2** — the migration gate, *before* R8.2 and R8.5 add two migrations for it to apply.
+   A fresh install in France runs every migration through this gate at first boot.
+5. **The rest of Phase 8** (R8.2 … R8.6), then **Phase 9**, then **Phase 10**.
+6. **Phase 6** — once R8.1 has landed and R6.4's other blocker (R9.1) has too.
 
 ### Phase 6 — Before the first real sale
 
@@ -276,8 +302,7 @@ them is outstanding except the three items under § 1 « Awaiting the operator �
 whatever the app is packaged as. **R6.1, R6.2 and R6.3 are fiscal and their order is not a
 preference** — arming the chain key before the reset makes the reset refuse. **R6.4 (printer)
 and R6.5 (a second volume for backups) are technical, not fiscal**, and can be done at any
-point before the first sale. (This line said « these four are fiscal » from when the phase
-held four rows.)*
+point before the first sale. **R6.3 and R6.4 wait on R8.1.***
 
 | ID | Status | Task |
 |---|---|---|
@@ -298,8 +323,9 @@ pre-built tree, the update path. All of it belongs to the Tauri v2 migration.
 
 | ID | Status | Task |
 |---|---|---|
-| **R8.1** | `TODO` | **The settings defaults agree, and the operator can save them.** L-93 · L-101. `validation.ts` · `settings.ts` · `settings/route.ts` · `nav-config.ts`. Reconcile the two default tables and pin the reconciliation, THEN decide the role gate — opening the write before the defaults agree hands a till operator a route that flips `factice` by omission. **Unblocks R6.3 and R6.4.** |
-| **R8.2** | `TODO` | **The checkout is idempotent.** L-89 · L-90 · L-100. `payment-dialog.tsx` · `checkout.ts`. A submit latch and the OFFERT lookup are trivial; the durable fix is a client-generated key, unique-indexed — **a migration**, cheaper now than after trading. L-100 rides along: same file, and it makes DD-14's tender usable at all. |
+| **R8.0** | `TODO` | **`.gitattributes`, one line, nothing else in the commit.** L-124. `* text=auto eol=lf`. `core.autocrlf=true` with no attributes file means a fresh checkout writes CRLF, which makes `restore-swap.test.ts` fail outright and `pos-resilience.test.ts:104` pass vacuously — **so any clone of this repository starts red.** Reproduced, not predicted. First, and alone, so every session after it starts from green. |
+| **R8.1** | `TODO` | **The settings defaults agree, and the operator can save them.** L-93 · L-101. `validation.ts` · `settings.ts` · `settings/route.ts` · `nav-config.ts`. Reconcile the two default tables and pin the reconciliation, THEN decide the role gate — opening the write before the defaults agree hands a till operator a route that flips `factice` by omission. **Unblocks R6.3 and R6.4.** **Do R9.6 first or in the same session**: changing this guard reclassifies `settings:PUT` in `api-authorization.test.ts` and moves the count pinned at its `:407`, which is the map R9.6 repairs. |
+| **R8.2** | `TODO` | **The checkout is idempotent.** L-89 · L-90 · L-100. `payment-dialog.tsx` · `checkout.ts`. A submit latch and the OFFERT lookup are trivial; the durable fix is a client-generated key, unique-indexed — **a migration**, cheaper now than after trading. L-100 rides along: same file, and it makes DD-14's tender usable at all. **R9.2 lands before this** — see the execution order. |
 | **R8.3** | `TODO` | **A category save stops destroying menu option rules.** L-91 (+L-135, L-145 ride along). `catalog/categories/[id]/route.ts`. Match groups by id instead of replacing wholesale, or refuse a delete a `ComboSlotOptionRule` depends on. It moves the weight the VAT allocation divides by, so it is group A, not a catalogue nicety. |
 | **R8.4** | `TODO` | **Report periods use the trading-day cut-off.** L-92. `report-range.ts` + the three report routes. Carries a decision: does a free `Du`/`Au` range snap to trading-day edges, and what does the screen then say it showed? |
 | **R8.5** | `TODO` | **A supplement carries its own VAT rate.** L-94 · L-127 · L-128 · L-136, and the question L-134. `combo.ts` · `pricing.ts` · `checkout.ts` · `orders/route.ts`. **A migration** — `CategoryAddOn` has no rate. Settle its shape before the small guards. Answer L-134 (is `Product.price` meant to be inert for sized products?) in the same session. |
@@ -318,7 +344,7 @@ their own riding along. Order inside the phase is not fixed except where a row s
 | **R9.4** | `TODO` | **Secrets resolve on an install with no `.env`.** L-106 · L-115 · L-116 · L-117 · L-119 · L-152. **L-115 before R6.2** — R6.2 is the row that arms the chain key, and a short one answers every fiscal write with an empty 500 while reporting itself armed. |
 | **R9.5** | `TODO` | **The front door.** L-102 · L-103 · L-118 · L-147. `auth.ts` · `login/route.ts` · `login-screen.tsx`. L-118 is the one that reaches the France install — the published-PIN denylist is enforced in a script and nowhere in the app. L-102 and L-103 are both « the till will not open ». |
 | **R9.6** | `TODO` | **The authorization map means what it says.** L-120 · L-151. Early in the phase: every later session inherits this map, and its inline-guard regex cannot tell a narrowing guard from a no-op. |
-| **R9.7** | `TODO` | **The guards that are not guarding.** L-121 · L-122 · L-123 · L-124 · L-125 · L-126 · L-153 · L-154 · L-155 · L-156 · L-157 · L-158 · L-159. **L-124 first** — one `.gitattributes` line, and it is the only one that breaks on a machine that is not this one. Then L-121 and L-158, one to three lines each, both guarding an invariant. L-154's shared wipe helper is the largest piece and subsumes L-153. |
+| **R9.7** | `TODO` | **The guards that are not guarding.** L-121 · L-122 · L-123 · L-125 · L-126 · L-153 · L-154 · L-155 · L-156 · L-157 · L-158 · L-159. *(L-124 left this batch for **R8.0** — it is one line and it gates every clone.)* Start with L-121 and L-158, one to three lines each, both guarding an invariant. L-154's shared wipe helper is the largest piece and subsumes L-153. |
 | **R9.8** | `TODO` | **The data model says what null means.** L-129 · L-145. Settle what a null `OrderItem.vatRate` means — and write it into `docs/INVARIANTS.md` — before anything reads it differently. **Read D's L-175 and L-177 while you are in this file**; they are recorded, not scheduled, and L-177 is the same question about `ZReport`'s two nullable JSON columns. |
 | **R9.9** | `TODO` | **The catalogue transfer checks its own stamp.** L-109. It is the mechanism that carries this catalogue to France; an older export into a newer install currently succeeds with new columns silently at their defaults. |
 | **R9.10** | `TODO` | **Touch targets and French.** L-131 · L-132 · L-133 · L-148 · L-149 · L-150. L-131's durable form is widening `touch-and-labels.test.ts` past `<Button>`, which makes it a test-suite item as much as a UI one. |
@@ -389,34 +415,12 @@ cites art. 441-1 of the code pénal: a false attestation is a criminal offence.
 
 ---
 
-## 9. ANSWERED DECISIONS — do not re-open these
+## 9. ANSWERED DECISIONS — moved to `docs/DECISIONS.md`
 
-Kept as one-liners so nobody re-litigates them. Full rationale is in git history
-(`git show HEAD~1:REMEDIATION_RECORD.md` → *Answered design decisions*).
+**They still bind.** Every `DD-` decision — no cashiers, no table service, no LAN, « offert »
+as a real tender, the trading day and its cut-off, the keyed fiscal chain, Tauri v2 as the
+packaging — is in `docs/DECISIONS.md`, with the same one-line form and the same rule: **do
+not re-open them.** `DD-` ids are referenced from source comments and are never renamed.
 
-| ID | Decision |
-|---|---|
-| DD-01 | ESC/POS over raw TCP:9100 as primary, behind a transport interface; USB RAW added later. |
-| DD-02 | ~~Data lives at `C:\HibaPOS\data`.~~ **Never implemented, moot.** `HIBAPOS_DATA_DIR` unset, so `paths.ts` returns the working directory; `:31` keeps that path only as `RECOMMENDED_DATA_DIR`. Where data lives is the Tauri phase's decision. |
-| DD-03 | No sealed row carried the wrong VAT key — the premise was an audit assumption. |
-| DD-05 | Out-of-order period closes are **refused**. A close must follow the last sealed one. |
-| DD-06 | No LAN access. The server binds `127.0.0.1`. |
-| DD-07 | **There are no cashiers.** MANAGER is the till's only operational role; SUPER_ADMIN is the developer's. `CASHIER` was removed from the product. |
-| DD-09 | **This restaurant does not serve at tables.** The feature is withdrawn, the code deliberately retained. |
-| DD-10 | Cross-shift refunds are **allowed**, attributed to the till open when issued. |
-| DD-11 | Held orders stay device-local. One till. |
-| DD-12 | Cash movements exist, with a fixed category list. |
-| DD-13 | No pre-payment order state. The dead `CANCELLED` enum values were removed. |
-| DD-14 | « Offert » is a real tender. An offert sale is not counted as revenue. |
-| DD-16 | Catalogue images stay tracked in git. It is currently their only versioned copy. |
-| DD-17 | A product's VAT rate comes from its category, inherited nearest-wins, with a per-product override. |
-| DD-18 | A premature month/year close is **refused**, with no override. |
-| DD-19 | Step up with the operator's **own** PIN — above the discount threshold, and on every refund. |
-| DD-20 | A given-away order is reported **separately**, never as a sale. |
-| DD-21 | The four non-fiscal reports adopt the fiscal rule: a period books the corrections it issued. |
-| DD-22 | `GET /api/users` and `GET /api/backups` are SUPER_ADMIN only. |
-| DD-23/24 | The trading day (`clôture du jour`) exists, with a configurable cut-off defaulting to **05:00**. |
-| DD-25 | The fiscal chain may be keyed (HMAC-SHA-256) off a secret held outside the database. Armed only on an empty journal. |
-| **2026-09-10** | **The client trial is dropped.** No copy ships before the final version; § 6 runs once. |
-| **2026-09-10** | **VAT allocation stays TTC-weighted**, documented as a market-value method, pending the accountant. |
-| **2026-09-10** | **The app ships as a Tauri v2 native application.** Deployment is therefore out of this plan entirely: `docs/mise-en-service.md` and `.zscripts/README-windows.md` are retired, and the till, the kiosk launcher and the 32-bit hardware problem go with them. Tauri gets its own plan when this one is closed. |
+*Moved 2026-09-12, for the reasons § 3 and § 4 moved: it is not outstanding work, and the
+plan had 37 bytes of headroom left after the audit's twenty batches.*
