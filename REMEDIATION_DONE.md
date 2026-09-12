@@ -60,6 +60,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - PREP-2 — a catalogue can leave one install and enter another
 - PREP-3 — an install makes its own secrets, and shows the two that must leave the machine
 - PREP-4 — migrations apply themselves at startup, behind a backup that has been opened
+- R8.0 — a fresh clone of this repository no longer starts red
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -1968,6 +1969,79 @@ expect them there, and logs a `WARN` naming any that were newly made.
 - **The auto-migrate reverses a plan rule.** § 3's « applying a migration to production is the
   operator's action » still governs **Claude**, and this does not change that: it is the
   application migrating its own database on its own machine.
+
+---
+
+### R8.0 — a fresh clone of this repository no longer starts red
+**Done:** 2026-09-12 · **Commit:** `f68dcf6` · **Finding:** L-124 (audit pass 6)
+
+**What changed:** one new file, `.gitattributes`, one line: `* text=auto eol=lf`. Nothing
+else in that commit — `git status` was clean after `git add`, because every tracked text file
+was **already** LF in the index (423 `i/lf`, 208 `i/-text`), so there was nothing to
+renormalise. The bookkeeping is a second commit.
+
+**Why it was a bug at all.** `core.autocrlf=true` comes from Git for Windows' *system*
+gitconfig — `C:/Program Files/Git/etc/gitconfig`, not this repo and not a user file, which is
+why nobody set it and nobody could see it in `git config --local --list`. Index LF + autocrlf
+and no attributes file = every clone writes CRLF. Two tests read their own subject as source
+text and neither survives that:
+
+- `restore-swap.test.ts:202` looks for `"} finally {
+    // L-62"` in `backup.ts` and gets
+  `-1`. It **FAILS** — a false failure, on a clean tree, before any work starts.
+- `pos-resilience.test.ts:104` is `.not.toContain` on a needle a CRLF file can never hold. It
+  **passes vacuously** and can no longer see M-21 return.
+
+**How it was verified.** Both directions, with the real runner on real trees — not with
+`checkout-index` alone, and not by reasoning about it.
+
+- **Red, from an actual `git clone`** of HEAD (`2905897`) into the scratchpad. Byte-counted,
+  because `grep -c $''` lies here (see *Left behind*): 1 142 CRLF pairs in `backup.ts`,
+  202 in `app-store.ts`, 211 and 238 in the two test files. `bun run test` there:
+  **1 381 pass, 1 fail** — and the one fail is `restore-swap.test.ts:202`,
+  `Expected: > 0 / Received: -1`.
+- **Green, from a `git clone` of `f68dcf6`.** 0 CR bytes in all four files;
+  `git ls-files --eol` reads `i/lf w/lf attr/text=auto eol=lf`. `bun run test` there:
+  **1 382 pass, 0 fail, 114 files** — the same numbers as this machine.
+- **The full-suite run answered a question L-124 left open.** Exactly one test fails on a
+  CRLF clone, so the audit's inventory of CRLF-sensitive *failures* was complete — no third
+  test was quietly broken. (A vacuous pass cannot show up in that count by construction,
+  which is why the next bullet exists.)
+- **The vacuity half, which no passing test can demonstrate on its own.** Line 104 passes in
+  both worlds, so its pass proves nothing either way. So: inject M-21's old shape
+  (`} catch {` / `next = null;`) into `app-store.ts` **in memory** and ask line 104 four
+  times. LF + fixed → green. LF + regressed → **RED**, the guard working. CRLF + fixed →
+  green. CRLF + **regressed → still green**. The guard was disarmed by the line endings, not
+  merely lucky, and it is armed again now.
+- On this machine, unchanged: `bun run test` **1 382 pass / 0 fail / 114 files**, matching
+  `docs/BASELINES.md` exactly; `typecheck` clean; `lint` clean.
+
+**Nothing binary was put at risk, checked rather than assumed.** `text=auto` defers to git's
+own binary detection, so all 208 `-text` blobs still classify `-text` with the attribute in
+force — the count did not move. `db/custom.db` is **untracked**, so git cannot reach it under
+any attribute; its sha256 was `0d304ee7…` before and after. The eight `.zscripts/*.ps1` are LF
+in the index and LF in this working tree today, and `print-raw.ps1` is live for R6.4:
+`eol=lf` only stops a *clone* from getting CRLF, which is what a clone gets today. There are
+no tracked `.bat` or `.cmd` files, which are the file types that genuinely need CRLF.
+
+**Left behind:**
+
+- **A harness trap, and it is the reason this entry counts bytes instead of lines.** A literal
+  CR inside a Bash tool command string is **stripped before the shell sees it**, so
+  `grep -c $'' <file>` silently becomes `grep -c ''`, which matches every line and returns
+  the **line count**. On an LF file that is indistinguishable from a correct CRLF count — it
+  reported 1 142/202/211/238 for a tree that was pure LF, i.e. it produced a plausible wrong
+  answer in the direction that would have been believed. Count bytes with a script, or use
+  `git ls-files --eol`. This belongs beside the plan's two existing traps
+  (`MSYS_NO_PATHCONV`, JSON through a shell pipeline); it is recorded here rather than added
+  to § 2 because § 2 is not this item's to edit.
+- **`git checkout-index -a --prefix=` does honour the attributes file**, and reproduces a
+  clone faithfully. The one run that appeared to say otherwise was the grep trap above, not
+  git. A real `git clone` is still the better instrument and costs seconds.
+- **This does not change any file already on disk here**, and it was never going to: the
+  working tree was already LF. It changes what *other machines* get — a build box, CI, and
+  the France install — which is the whole of its value and also why it cannot be verified by
+  running the suite in place.
 
 ---
 

@@ -152,7 +152,14 @@ describe("plan freshness — the plan and the done file may not disagree", () =>
     //   starts, so it is its own row and it runs first. § 9 moved to
     //   docs/DECISIONS.md in the same commit: the twenty-five rows had left the
     //   plan 37 bytes under the ceiling, which is not headroom, it is a trap.
-    expect(taskStatuses(src).size).toBe(25);
+    //   2026-09-12, R8.0 DONE: tasks 25 → 24. `.gitattributes` now pins `*
+    //   text=auto eol=lf`, so a fresh clone checks out LF and the suite is green
+    //   from a clone — measured both ways on real clones of this repository:
+    //   1 381 pass / 1 fail before (`restore-swap.test.ts:202`, `Received: -1`),
+    //   1 382 / 0 after. FINDINGS STAY AT 9: L-124 was never in § 7, it is an
+    //   audit finding and it lives in `docs/audit/FINDINGS.md`. Phase 8 is six
+    //   rows again, which is what § 1 has said all along.
+    expect(taskStatuses(src).size).toBe(24);
     expect(openFindings(src).size).toBe(9);
     expect(done()).toContain("# HibaPOS France — Completed Work");
   });
