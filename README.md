@@ -146,7 +146,16 @@ public/
                     Depuis le 2026-09-11 il existe DEUX sauvegardes chiffrées restaurables,
                     vérifiées par déchiffrement, qui incluent ces images (L-46 est close) —
                     mais les deux sont sur le même disque que la base qu'elles protègent.
-docs/                          → sept fichiers ; les voici tous
+docs/                          → neuf fichiers + docs/audit/ ; les voici tous
+  INVARIANTS.md                → LES RÈGLES QUI NE S'APPLIQUENT JAMAIS À UNE SEULE
+                                 PHASE. C'était le § 3 de REMEDIATION_PLAN.md
+                                 jusqu'au 2026-09-11 ; déplacé parce que le plan se
+                                 retire à la fin de la phase 6 et que ces règles,
+                                 non. À lire avant toute modification.
+  AUDIT-PROMPTS.md             → Les six passes d'audit read-only d'avant Tauri :
+                                 un préambule + six corps, un par session.
+  audit/README.md              → Ce que chaque passe écrit, et pourquoi six
+                                 fichiers plutôt qu'un seul.
   attestation-conformite.md    → Attestation ISCA (BOI-LETTRE-000242) — NON SIGNÉE
   politique-ventilation-tva.md → Répartition de la TVA d'un menu à prix forfaitaire
   conformite-isca-map.md       → Chaque exigence ISCA → le code qui l'implémente
