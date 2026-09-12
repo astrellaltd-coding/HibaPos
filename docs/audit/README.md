@@ -53,8 +53,16 @@ findings is worse than one commit after the operator has read them.
 ## Numbering
 
 New findings continue the existing `L-` series (the last used is **L-88**). Nine findings are
-already open in `REMEDIATION_PLAN.md` § 7 and must not be re-reported: L-84, L-82, L-81, L-75,
+already open in `REMEDIATION_PLAN.md` § 7 and must not be re-reported: L-88, L-84, L-81, L-75,
 L-05, L-11, L-47, L-51, L-52. A rediscovery is one line — "already L-nn" — and no more.
+
+*Corrected 2026-09-12, at consolidation: this list named **L-82** until then, and L-82 is
+**closed** — R7.2 closed it on 2026-09-11 and opened **L-88** in its place
+(`REMEDIATION_DONE.md`, « R7.2 — no two products in this catalogue share a name »). L-88 is
+§ 7's ninth row, which is why it is both the last used id and one of the nine. All six passes
+were given the wrong list; the practical effect was nil, because nobody re-reported L-82 and
+pass 4 rediscovered L-88 and filed it correctly as « already L-88 ». `FINDINGS.md` records
+this under « Already known ».*
 
 Findings are **proposed**, never placed. Nothing in this directory edits `REMEDIATION_PLAN.md`;
 the operator decides what becomes a row.
