@@ -69,6 +69,11 @@ mechanism, not on severity.
 
 ## Baseline — re-measured 2026-09-12, and what the six reported
 
+*« § 4 » below means `REMEDIATION_PLAN.md` § 4, the baselines table, which is what all seven
+sessions measured against. **It moved to `docs/BASELINES.md` later the same day**, to make room
+for this audit's nineteen batches in the plan's § 6. The figures are the same; the address is
+not.*
+
 | Thing | § 4 says | Measured here | Six passes |
 |---|---|---|---|
 | Tests | 1382 pass / 0 fail / 114 files | **1382 / 0 / 114**, 156.60 s | all six: 1382 / 0 / 114 |
@@ -296,7 +301,8 @@ group is one session's work, not five. Where a group has a natural internal orde
 stated.*
 
 ### `payment-dialog.tsx` — one session, and it is the first
-**L-89 · L-90 · L-100** — plus **L-136** if the idempotency migration is written here.
+**L-89 · L-90 · L-100** — L-100 rides along because it is the same file and it is what makes
+DD-14's tender usable at all.
 *Order: the submit latch and the OFFERT lookup are independent and both trivial; the
 idempotency key is the migration and should be decided before either is called done.*
 
@@ -362,8 +368,11 @@ machine that is not this one. Then L-121 and L-158, both one-to-three lines, bot
 invariant. L-154's shared wipe helper is the largest piece and subsumes L-153.*
 
 ### `schema.prisma` and the data model
-**L-129 · L-145 · L-175 · L-177**
-*Order: settle what a null means (L-129, L-177) before anything reads it differently.*
+**L-129 · L-145** — and **L-175 · L-177 are group D**: read them while the file is open, but
+they are recorded, not scheduled.
+*Order: settle what a null `OrderItem.vatRate` means (L-129) before anything reads it
+differently. L-177 is the same question about `ZReport`'s two nullable JSON columns, and
+answering one should answer the other.*
 
 ### `catalogue-transfer.ts`
 **L-109**

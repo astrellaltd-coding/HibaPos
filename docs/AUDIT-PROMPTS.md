@@ -3,6 +3,13 @@
 **A whole-project read-only audit.** Written 2026-09-12 on the operator's instruction, after
 Phases 0–5 and 7 closed and the four prep items landed.
 
+> **All seven sessions have run. This file is now history, not a pending instruction.** The
+> six passes produced `docs/audit/pass-1-money.md` … `pass-6-test-quality.md`, and the
+> CONSOLIDATION session produced **`docs/audit/FINDINGS.md`** — 94 findings, L-89 … L-182,
+> which is where the remaining work comes from. Do not re-run these prompts against the
+> current tree expecting the same output; they describe a codebase as it stood before any
+> finding was fixed. Kept because they are what those seven files were written to.
+
 > **Correction, same day, after the six passes ran.** The preamble and all six pass bodies
 > below call this "the last look before Tauri v2 planning", because that was the premise when
 > they were written and all six files were produced under it. **It is not what happens next.**

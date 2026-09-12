@@ -133,7 +133,20 @@ describe("plan freshness — the plan and the done file may not disagree", () =>
     //   line, though `DailyClose` seals one). A count that does not move is the
     //   case this pin is weakest at, so: 9 is L-88·L-84·L-81·L-75·L-05·L-11·
     //   L-47·L-51·L-52, and L-82 is gone from that list.
-    expect(taskStatuses(src).size).toBe(5);
+    //   2026-09-12, THE 2026-09 AUDIT PHASED: tasks 5 → 24. Phases 8 (6 rows),
+    //   9 (10) and 10 (3) were added, one row per BATCH — the file a fix lands
+    //   in — from `docs/audit/FINDINGS.md`'s View B. Like Phase 7's rise this
+    //   goes UP because real work was added, which is the one direction that is
+    //   not a weakened assertion. R8.1 (L-93·L-101) blocks R6.3 and R6.4, so
+    //   Phase 6 cannot close first.
+    //   FINDINGS STAY AT 9, deliberately. The audit's own 94 (L-89 … L-182) are
+    //   NOT in § 7 and must not be: ninety-four rows at that table's density is
+    //   ~37 KB against a 40 960-byte ceiling, so placing them would break the
+    //   thing the ceiling protects. They live in FINDINGS.md; § 6 carries their
+    //   ids and nothing else. If a session ever moves them into § 7, this number
+    //   and the ceiling assertion below both have to be re-argued, not just
+    //   re-typed.
+    expect(taskStatuses(src).size).toBe(24);
     expect(openFindings(src).size).toBe(9);
     expect(done()).toContain("# HibaPOS France — Completed Work");
   });

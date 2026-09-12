@@ -146,14 +146,40 @@ public/
                     Depuis le 2026-09-11 il existe DEUX sauvegardes chiffrées restaurables,
                     vérifiées par déchiffrement, qui incluent ces images (L-46 est close) —
                     mais les deux sont sur le même disque que la base qu'elles protègent.
-docs/                          → neuf fichiers + docs/audit/ ; les voici tous
+docs/                          → dix fichiers + docs/audit/ ; les voici tous
   INVARIANTS.md                → LES RÈGLES QUI NE S'APPLIQUENT JAMAIS À UNE SEULE
                                  PHASE. C'était le § 3 de REMEDIATION_PLAN.md
                                  jusqu'au 2026-09-11 ; déplacé parce que le plan se
                                  retire à la fin de la phase 6 et que ces règles,
                                  non. À lire avant toute modification.
-  AUDIT-PROMPTS.md             → Les six passes d'audit read-only d'avant Tauri :
-                                 un préambule + six corps, un par session.
+  BASELINES.md                 → LES MESURES : tests, base de production, tables
+                                 de vente, compteurs fiscaux, catalogue, comptes,
+                                 sauvegardes, et l'inventaire de toute copie non
+                                 chiffrée des données réelles sur ce disque.
+                                 C'était le § 4 du plan jusqu'au 2026-09-12 ;
+                                 déplacé pour la même raison que le § 3, et pour
+                                 faire place aux dix-neuf lots de l'audit.
+                                 **Re-mesurer avant de s'y fier** — c'est la
+                                 première ligne du fichier.
+  AUDIT-PROMPTS.md             → Les prompts de l'audit read-only de 2026-09 :
+                                 un préambule + six corps + la CONSOLIDATION.
+                                 Les sept sessions ont tourné ; c'est un
+                                 historique, pas une consigne en attente.
+  audit/FINDINGS.md            → **LA LISTE DE TRAVAIL.** Les 94 constats de
+                                 l'audit, renumérotés L-89 … L-182, en deux vues :
+                                 par gravité (ce qu'on fait en premier) et par
+                                 fichier (ce qu'on fait ensemble). Groupes A (7,
+                                 argent et registre fiscal) · B (39) · C (36) ·
+                                 D (9) · E (3). C'est de CE fichier que vient le
+                                 travail restant — rien n'y est encore placé dans
+                                 le § 7 du plan ni découpé en phases.
+  audit/pass-1…6-*.md          → Les six passes, telles qu'écrites : argent ·
+                                 sécurité · modèle de données · la caisse en
+                                 usage · build et exploitation · qualité des
+                                 tests. Ce sont des PIÈCES : leur cadrage
+                                 « Tauri ensuite » est faux et reste tel quel.
+                                 Une seule retouche, signalée dans le fichier :
+                                 un PIN de test y a été caviardé.
   audit/README.md              → Ce que chaque passe écrit, et pourquoi six
                                  fichiers plutôt qu'un seul.
   attestation-conformite.md    → Attestation ISCA (BOI-LETTRE-000242) — NON SIGNÉE

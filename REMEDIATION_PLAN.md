@@ -27,9 +27,23 @@ cannot be corrected afterwards.
 **Phase 6 (five rows, all the operator's) ends in real trading.** Its order is not a
 preference — arming the chain key before the reset makes the reset refuse.
 
-**Current task: PHASE 6, opened by the operator 2026-09-11.** R6.1 is a decision and not a
-step — it would delete nothing today. R6.4 and R6.5 are blocked on hardware. Measurements
-below.
+**THE 2026-09 AUDIT IS IN, and it changes this section.** Six read-only passes and a seventh
+that consolidated them closed 2026-09-12; **`docs/audit/FINDINGS.md` holds 94 findings,
+L-89 … L-182**, and is where the remaining work comes from. Groups: **A** money and the fiscal
+record (7) · **B** fix before the app is called complete (39) · **C** fix with the batch that
+owns the file (36) · **D** record and leave (9) · **E** undecidable until packaging (3).
+**It is phased into § 6 as Phases 8, 9 and 10 — nineteen batches — but it is NOT placed in
+§ 7**, which stays at the nine that predate the audit. The rows carry ids only; the detail
+stays in FINDINGS.md. Nothing found stops a sale being *rung*: every money path the audit
+exercised produced screen figures matching the database to the cent.
+
+**Current task: PHASE 6, opened by the operator 2026-09-11 — and now PARTLY BLOCKED BY
+SOFTWARE.** R6.1 is a decision and not a step; it would delete nothing today. R6.5 is blocked
+on hardware. **R6.3 and R6.4 are blocked on L-101**: both are `PUT /api/settings`, which
+refuses every non-SUPER_ADMIN 403 while `nav-config.ts` gives MANAGER the screen and an
+enabled save button — so the only account that will be at the till in France cannot turn
+FACTICE off or choose the printer queue. That row was written down as "blocked on hardware"
+until the audit; it is not. Measurements below.
 
 ### Phase 6 — where each row stands, 2026-09-11
 
@@ -45,11 +59,18 @@ below.
   to transport. Follows R6.1. **A BUTTON since 2026-09-11** (`POST /api/setup/chain-key`), not
   a `.env` edit: it refuses unless the journal is empty, and shows the key once.
 - **R6.3** FACTICE off (§ 6f — ~~§ 3~~ turns it **on**) — `factice=true`. Last of the three.
+  **BLOCKED BY L-101** (the MANAGER cannot save a setting) and watch **L-93**: two default
+  tables disagree on `factice`, so a save that merely *omits* the key performs this row by
+  accident. Fix both before turning it deliberately.
 - **R6.4** printer (§ 4a, then § 4) — **the printer is in France; not doable from here.** This
   machine's `SUNSO WTP-800` queue sits on `COM1:`, `Error`, with no `USBPRINT` device: a
   developer artefact. § 4a — a `COM1:` queue « prints nothing and reports success ».
+  **Also BLOCKED BY L-101**, and **L-96 is the same sentence reached another way**: the USB
+  helper is resolved from `process.cwd()` and `powershell.exe -File <missing>` exits 0, so a
+  helper that never runs is written to the database as `PRINTED`. Choosing the queue is not
+  enough on its own.
 - **R6.5** — the restaurant's `BACKUP_LOCATION` belongs to its install; **this** machine's is
-  set (§ 4). See the backup-gap row for what is still outstanding.
+  set (`docs/BASELINES.md`). See its backup-gap row for what is still outstanding.
 
 ### Awaiting the operator
 
@@ -58,8 +79,8 @@ below.
   `--apply`. Rehearsed on a copy 2026-09-11: 84 → 83 products, 0 FK errors, `integrity_check`
   ok, and a fingerprint diff over every table showing that one row and nothing else.
 - **A FRESH verified backup, off this machine.** The oldest open item in the plan and the
-  only one about losing data rather than getting something wrong. § 4's two backup rows say
-  exactly where it stands and what is left.
+  only one about losing data rather than getting something wrong. The two backup rows in
+  `docs/BASELINES.md` say exactly where it stands and what is left.
 - **The accountant's written line on the VAT allocation method** (§ 8, `VAT-METHOD`). The
   rates are settled and live; the division of a menu's forfait between them is the open claim.
 
@@ -74,8 +95,12 @@ printer are in France. So R6.1-R6.3 belong to that install, not to this machine,
 **nothing in the app exports or imports a catalogue today** — carrying it is unsolved.
 `FISCAL_CHAIN_KEY` is in `.env`, `factice` is in the database: they do not travel together.
 
-**Last updated:** 2026-09-11, after Phases 0 and 5 closed and a staleness sweep of every
-governing document. § 4's numbers were re-measured at 13:55 that day, not carried forward.
+**Last updated:** 2026-09-12, when the audit landed and was phased. `docs/audit/FINDINGS.md`
+and its six pass files are committed; the baselines were re-measured, held on every line, and
+**moved to `docs/BASELINES.md`** to make room; R6.3/R6.4 were re-marked as blocked by software
+rather than by hardware; and the audit's groups A/B/C became **Phases 8, 9 and 10**, nineteen
+batches, ids only. § 7 is unchanged at nine. Previously updated 2026-09-11, after Phases 0 and
+5 closed and a staleness sweep of every governing document.
 
 ## 2. HOW TO WORK HERE
 
@@ -183,31 +208,18 @@ dead-code sweep gets wrong — **everything deliberately retained that looks unu
 not outstanding work, it is the part that must outlive the plan, and it was 8 442 of the
 40 960 bytes a session is asked to read before starting.*
 
-## 4. CURRENT BASELINES — re-measure before trusting any of these
+## 4. CURRENT BASELINES — moved to `docs/BASELINES.md`
 
-*Re-measured on **2026-09-11 at 15:50**; every figure below was confirmed unchanged from the
-13:55 reading except the test counts, which R7.1 moved. **The e2e row carries its own older
-date.** Each row is responsible for saying when it was taken; where one does, believe the
-row, not this line.*
+**The numbers did not go away.** `docs/BASELINES.md` is now the file: tests, e2e, the
+production database and how to check it, the trading tables, the fiscal counters and chain,
+the catalogue, accounts, journal mode, settings, backups, the backup gap, and the inventory of
+every unencrypted copy of real catalogue data on this disk. **Re-measure before trusting any
+of it** — that instruction moved with the table and is the first line of the file.
 
-| Thing | Value |
-|---|---|
-| Tests | **1382 pass, 0 fail**, 114 files. **Wall time varies by 4x on the same tree — 135 s to 510 s observed**; not a regression signal, do not chase it. The `expect()` total drifts a little between runs too (**4467** observed). `typecheck` and `lint` clean. **Zero `prisma:error` blocks** in a clean run, down from twelve (R4.3 + R4.6). **Nothing pins this table** — `readme-counts.test.ts` reads `README.md` and only `README.md`, so it pins the same 1382 *there*; the 114 is pinned nowhere. If these drift, no test fails. Re-measure. |
-| e2e | **13 passed** (measured 2026-09-07, not re-run since). `bun run test:e2e` is **safe** — see § 5. |
-| Production DB | sha256 `0d304ee79ad3b06adb0b89542a8906bf706f85868ae56035b8c600e3f9083cdb`, 884 736 bytes, app stopped — **re-measured 16:33 on 2026-09-11**, after R7.1's migration AND R7.2's renames. `integrity_check` ok, 0 FK errors, **15 migrations, none pending**, **18 `Product`, 18 `OrderItem` and 28 `ZReport` columns**, `schema_version` 171. *(It moved twice on 2026-09-11 and the SIZE never moved. Expect it to move again — the operator edits the catalogue between sessions.)* |
-| How to check it | **A sha is only a baseline while nothing is running** — a signed-in session still writes `Session.lastActivityAt`, at most once a minute since R4.6. If the app may be up, check *structure*, not the hash. **File SIZE is not evidence**: an `ADD COLUMN` leaves it unchanged, measured. The sha256, the mtime and `PRAGMA schema_version` are what move. |
-| Trading tables | **All zero.** Order, OrderItem, Payment, Receipt, Refund, Shift, ZReport, FiscalEvent, GrandTotal, DailyClose, MonthlyClose, AnnualClose, CashMovement, Customer, Table. |
-| Fiscal counters | `0 / 0 / 0 / 0` (receipt / shift / Z / event). Journal **empty**. |
-| Fiscal chain | **Empty and UNKEYED**, which is correct here. Arming is R6.2, after R6.1's reset and never before. |
-| Catalogue | **84 products in 14 categories.** **9 menus composés · 25 slots · 9 whitelist rows · 7 option rules.** 17 active drinks in `Canette`/`Bouteilles`, all resolving to 5,5 % à emporter and 10 % sur place. **NO two products share a name** since R7.2 (2026-09-11) — the three pairs became `Coca`/`Coca 1.5L`, `Fanta`/`Fanta 1.5L`, `Orangina`/`Orangina 1.5L`. **Longest name 26 characters**, against the 36 at which a ticket line would wrap. **80 products on the till grid**: 84 less the 3 hidden components R3.3 created (`showOnPos = 0`) and `5 nuggets test`, which is still `active = 0` (L-81). **0 names carry stray whitespace** since R4.4. |
-| Accounts | Two: `manager` (MANAGER) and `admin` (SUPER_ADMIN, the developer's). `CASHIER` was removed from the product. Both must re-enter their own PIN for a discount above 20 % and for **every** refund. |
-| Journal mode | `delete`, not WAL — the guard refuses WAL on this OneDrive path, deliberately. It will switch to WAL the first time the database sits under a non-synced root. |
-| Settings | `factice=true`, `printerEnabled=true`, `printerHost=""`, `businessDayCutoffHour=5`. **`printerConnection` and `printerQueue` are both absent**, so BOTH come from `DEFAULT_SETTINGS` — and since 2026-09-11 that means **`usb`**, not `network`. So production's effective connection is already USB and a print attempt now answers *« Choisissez l'imprimante Windows »* instead of *« Renseignez l'adresse IP »*, which was never an answer available to this restaurant. **Only the queue is left**, and that is R6.4. |
-| Backups | **TWO verified restorable backups** (3 files, 49 MB): 2026-09-10 20:42 and 2026-09-11 12:40 UTC, sharing one media archive; **both decrypted to verify**, not assumed. R0.2 deleted the nine pre-rotation files. **`BACKUP_LOCATION` set 2026-09-11** to `~/OneDrive/Desktop/HibaPOS-Sauvegardes`; both were copied there sha-verified and the copy **decrypts** — which also proves `BACKUP_ENCRYPTION_KEY` survived that day's `SESSION_SECRET` rotation, by use and not by argument. |
-| ⚠ Backup gap | **Still open, for two reasons.** The Desktop is inside OneDrive so it does sync off the machine — but **OneDrive was not running** when this was set. And **both copies predate R7.1's migration and R7.2's renames**, so they hold the superseded catalogue. **A FRESH backup is the outstanding action**, and it is the operator's. |
-| Other copies | `../db-snapshots/` holds **15 plaintext databases**, 12 MB: 14 loose snapshots plus `real-data.db` in `real-data-backup.pre-cents-port.2026-09-01T17-13-56Z/`, which still carries a `-wal`/`-shm` pair. Also `r31-acceptance/`'s fingerprints. *(This row inventories every unencrypted copy of real catalogue data on this disk; it said 13 until 2026-09-11.)* The newest, `custom.db.before-20260911160000_zreport_given_away-2026-09-11`, is R7.1's restore point — sha256 `c265e6ff…25ea28`, the last pre-migration state. **Keep it.** `r71-acceptance/` holds only fingerprints; its rehearsal copy was deleted. `../HibaPOS-docs-archive/` holds **three** files: the two R0.3 would have destroyed, plus a `README.md` mapping which runbook sections are live. **Read it before Phase 6, not the runbook cold** (§ 1). |
-
----
+*Moved 2026-09-12, on the operator's instruction, for the two reasons § 3 moved on 2026-09-11:
+it is not outstanding work, and at 5 997 bytes it was crowding the 40 960 a session is asked to
+read before starting. The immediate cause was § 6's nineteen audit batches, which did not fit
+otherwise.*
 
 ## 5. WHAT IS SAFE TO RUN
 
@@ -249,8 +261,14 @@ Status values: `TODO` · `IN PROGRESS` · `DONE` · `BLOCKED` · `OPERATOR` · `
 A `DONE` row leaves this file for `REMEDIATION_DONE.md`.
 
 *Phases 0-5 and 7 are complete; their records are in `REMEDIATION_DONE.md`. Nothing from
-them is outstanding except the three items under § 1 « Awaiting the operator ». Their five
-blocks were moved out on 2026-09-11 — **Phase 6 is the only work that remains.***
+them is outstanding except the three items under § 1 « Awaiting the operator ».*
+
+> **Four phases are open, and they are not independent.** Phase 6 is the fiscal go-live.
+> **Phases 8, 9 and 10 are the 2026-09 audit, phased 2026-09-12** from
+> `docs/audit/FINDINGS.md`'s *View B — by area*, because the file a fix lands in is what a
+> batch is here. **R8.1 blocks R6.3 and R6.4**, so Phase 6 cannot close first. Every row below
+> names its `L-` ids and nothing else: **the detail is in FINDINGS.md and is not repeated
+> here**, which is what keeps this file inside its ceiling. Groups D and E got no rows.
 
 ### Phase 6 — Before the first real sale
 
@@ -272,10 +290,67 @@ held four rows.)*
 **Not here, deliberately:** the till hardware, the Windows install, the kiosk launcher, the
 pre-built tree, the update path. All of it belongs to the Tauri v2 migration.
 
+### Phase 8 — Money and the fiscal record
+
+*The audit's group A, plus the two rows that block Phase 6. Detail for every id is in
+`docs/audit/FINDINGS.md`; these rows say what a session does, not what is wrong.*
+**R8.1 runs first and is not the worst finding — it is the one that unblocks R6.3 and R6.4.**
+
+| ID | Status | Task |
+|---|---|---|
+| **R8.1** | `TODO` | **The settings defaults agree, and the operator can save them.** L-93 · L-101. `validation.ts` · `settings.ts` · `settings/route.ts` · `nav-config.ts`. Reconcile the two default tables and pin the reconciliation, THEN decide the role gate — opening the write before the defaults agree hands a till operator a route that flips `factice` by omission. **Unblocks R6.3 and R6.4.** |
+| **R8.2** | `TODO` | **The checkout is idempotent.** L-89 · L-90 · L-100. `payment-dialog.tsx` · `checkout.ts`. A submit latch and the OFFERT lookup are trivial; the durable fix is a client-generated key, unique-indexed — **a migration**, cheaper now than after trading. L-100 rides along: same file, and it makes DD-14's tender usable at all. |
+| **R8.3** | `TODO` | **A category save stops destroying menu option rules.** L-91 (+L-135, L-145 ride along). `catalog/categories/[id]/route.ts`. Match groups by id instead of replacing wholesale, or refuse a delete a `ComboSlotOptionRule` depends on. It moves the weight the VAT allocation divides by, so it is group A, not a catalogue nicety. |
+| **R8.4** | `TODO` | **Report periods use the trading-day cut-off.** L-92. `report-range.ts` + the three report routes. Carries a decision: does a free `Du`/`Au` range snap to trading-day edges, and what does the screen then say it showed? |
+| **R8.5** | `TODO` | **A supplement carries its own VAT rate.** L-94 · L-127 · L-128 · L-136, and the question L-134. `combo.ts` · `pricing.ts` · `checkout.ts` · `orders/route.ts`. **A migration** — `CategoryAddOn` has no rate. Settle its shape before the small guards. Answer L-134 (is `Product.price` meant to be inert for sized products?) in the same session. |
+| **R8.6** | `TODO` | **A refund-only day cannot be skipped.** L-95 · L-99 · L-130. `fiscal.ts`. L-95 first: its absence becomes **permanent** the moment a day is sealed past the hole. L-99 is prose plus the missing reconciliation test; L-130 is one ungrammatical string — check `close-timing.test.ts` pins it first. |
+
+### Phase 9 — Before the app is called complete
+
+*The audit's group B, by the file the work lands in, with the group C rows that own no batch of
+their own riding along. Order inside the phase is not fixed except where a row says so.*
+
+| ID | Status | Task |
+|---|---|---|
+| **R9.1** | `TODO` | **The printer tells the truth.** L-96 · L-97 · L-98 · L-143 · L-144. L-96 first — it writes `PRINTED` for a helper that never ran. Resolve the helper from a real app root, not `process.cwd()`, and stop treating exit 0 with a start-up failure on stderr as success. **L-98 is a question that gates L-88.** |
+| **R9.2** | `TODO` | **The startup migration gate.** L-110 · L-111 · L-112 · L-113 · L-114 · L-137 · L-138 · L-139. **L-110 is load-bearing** — it is the only one that also breaks the NEXT boot. L-112 lands in the same session or none of the others leaves a trace. L-114 and L-137 are both « resolve from a real app root ». |
+| **R9.3** | `TODO` | **Backup and restore leave no plaintext.** L-104 · L-105 · L-107 · L-108 · L-140 · L-141 · L-142. `backup.ts`, one file. L-104 and L-105 are the same `try`/`finally` shape and land together. L-140's schema check composes with L-110, so R9.2 first or accept the coupling. |
+| **R9.4** | `TODO` | **Secrets resolve on an install with no `.env`.** L-106 · L-115 · L-116 · L-117 · L-119 · L-152. **L-115 before R6.2** — R6.2 is the row that arms the chain key, and a short one answers every fiscal write with an empty 500 while reporting itself armed. |
+| **R9.5** | `TODO` | **The front door.** L-102 · L-103 · L-118 · L-147. `auth.ts` · `login/route.ts` · `login-screen.tsx`. L-118 is the one that reaches the France install — the published-PIN denylist is enforced in a script and nowhere in the app. L-102 and L-103 are both « the till will not open ». |
+| **R9.6** | `TODO` | **The authorization map means what it says.** L-120 · L-151. Early in the phase: every later session inherits this map, and its inline-guard regex cannot tell a narrowing guard from a no-op. |
+| **R9.7** | `TODO` | **The guards that are not guarding.** L-121 · L-122 · L-123 · L-124 · L-125 · L-126 · L-153 · L-154 · L-155 · L-156 · L-157 · L-158 · L-159. **L-124 first** — one `.gitattributes` line, and it is the only one that breaks on a machine that is not this one. Then L-121 and L-158, one to three lines each, both guarding an invariant. L-154's shared wipe helper is the largest piece and subsumes L-153. |
+| **R9.8** | `TODO` | **The data model says what null means.** L-129 · L-145. Settle what a null `OrderItem.vatRate` means — and write it into `docs/INVARIANTS.md` — before anything reads it differently. **Read D's L-175 and L-177 while you are in this file**; they are recorded, not scheduled, and L-177 is the same question about `ZReport`'s two nullable JSON columns. |
+| **R9.9** | `TODO` | **The catalogue transfer checks its own stamp.** L-109. It is the mechanism that carries this catalogue to France; an older export into a newer install currently succeeds with new columns silently at their defaults. |
+| **R9.10** | `TODO` | **Touch targets and French.** L-131 · L-132 · L-133 · L-148 · L-149 · L-150. L-131's durable form is widening `touch-and-labels.test.ts` past `<Button>`, which makes it a test-suite item as much as a UI one. |
+
+### Phase 10 — The batches that own the leftovers
+
+*Group C rows that no Phase 8 or 9 session opens. Cheap, and none of them is urgent.*
+
+| ID | Status | Task |
+|---|---|---|
+| **R10.1** | `TODO` | **Build, dependencies, CI.** L-160 · L-161 · L-162 · L-163 · L-164 · L-178. Adding `bun run build` to the fast CI job is trivial and worth doing first; a `windows-latest` leg belongs with whatever CI the packaging gets. |
+| **R10.2** | `TODO` | **Documentation and the operator scripts.** L-146 · L-165 · L-166 · L-167 · L-168 · L-169. **`CLAUDE.md` (L-166) and `docs/INVARIANTS.md` (L-167) are the operator's files — bring the exact text and wait.** |
+| **R10.3** | `OPERATOR` | **The VAT policy's untabulated menus.** L-170. Not a code batch: extend § 5 of `docs/politique-ventilation-tva.md` to the six menus it does not tabulate, and answer § 8.4 for the three `showOnPos = 0` box components. Belongs in the accountant's envelope beside VAT-METHOD (§ 8). |
+
+**Not phased, deliberately.** Group D (L-171 … L-179, record and leave) and group E (L-180 …
+L-182, undecidable until packaging) get no rows. They stay in `docs/audit/FINDINGS.md`, which
+says for each what would move it into a fix group.
+
 ## 7. OPEN FINDINGS
 
 Anything found outside the current item goes here with an ID, not fixed in place (safety
 rule 1). Audit IDs are never renamed.
+
+**These nine are the register as it stood before the audit, and the audit did not close any of
+them.** The 2026-09 audit's own 94 findings (**L-89 … L-182**) are in `docs/audit/FINDINGS.md`
+and are deliberately **not** listed here: ninety-four rows at this table's density is roughly
+37 KB against the 7 KB this file has left under its 40 960-byte ceiling, so placing them all
+would break the thing the ceiling protects. FINDINGS.md proposes **seven** rows — its group A —
+plus one pointer row, ready to paste. **Placing any of them means editing
+`plan-freshness.test.ts`'s pinned count of nine in the same commit**, which is the design.
+Five of the nine below were rediscovered by the audit and four gained a new facet, each with
+its own new id; FINDINGS.md's « Already known » section maps them.
 
 | ID | Severity | Finding | Owner |
 |---|---|---|---|
