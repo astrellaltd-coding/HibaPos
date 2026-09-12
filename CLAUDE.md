@@ -48,6 +48,17 @@ the app will ship as a Tauri v2 native application, and that migration has its o
 which does not exist yet.** Anything about installing on a Windows till, kiosk launchers or
 commissioning sessions was retired on 2026-09-10 — if you find some, it is stale.
 
+**What comes next is the audit, not the packaging.** On 2026-09-12 six read-only passes swept
+the whole project — money · security · data model · the till in use · build and ops · test
+quality — one session each, into `docs/audit/`. They are consolidated into
+**`docs/audit/FINDINGS.md`, and that file is where the remaining work comes from.** The order
+is: finish and fix the app, *then* plan the packaging against a complete app. The six pass
+files were written believing packaging came next and say so throughout — `docs/audit/README.md`
+records that correction, and they are left as written because they are evidence. **Tauri still
+shapes the work**: where a fix has two reasonable forms, the one that survives becoming a
+Windows native app is the one to choose. It is a constraint on how things are fixed, not a
+phase in the list.
+
 **The model is retired; the files are not.** `.zscripts/` still holds eight tracked `.ps1`
 files that `deployment.test.ts` pins, and `print-raw.ps1` is live — R6.4 needs it. Do not
 delete them to make this prose true.

@@ -275,6 +275,14 @@ assumed packaging would deal with it — "Tauri will change this anyway", "leave
 bundle". Those decisions were made under the wrong premise. Re-judge each one on its merits: if
 it is broken now, it is on the list now.
 
+**But Tauri is still coming, and it constrains every fix you propose.** It gets no group of its
+own and no phase in your list — it is what the app is being finished *for*. The app will be
+packaged as a **Windows native application**, which changes where files live, how the process
+starts, what is bundled and what can be shelled out to. So wherever a finding has **more than
+one reasonable fix, prefer the one that still holds after packaging**, and say in one line why
+you chose it. A fix that has to be undone at packaging time is worse than the defect it
+removed. Do not plan the packaging — just do not fix anything into a corner.
+
 **Read, in this order:** `docs/audit/README.md`, `docs/INVARIANTS.md` in full, `CLAUDE.md`,
 then `REMEDIATION_PLAN.md` § 1, § 4 and § 7. Then all six pass files, whole, before you write a
 line of your own. They total about 1,700 lines; read them completely — a consolidation built
@@ -398,10 +406,17 @@ Every finding gets exactly one. Three of them are work; two are not.
   directory lives on a real Windows install, whether the Prisma CLI is reachable from a bundle,
   how an updater behaves mid-shift. **The bar is high.** "Tauri might change this file" is not
   a reason to park a defect; "there is no right answer until someone chooses the install
-  layout" is. Anything fixable now goes in A, B or C instead.
+  layout" is. Anything fixable now goes in A, B or C instead. **Expect E to be very small** —
+  most of what looks like it belongs here is really a group C fix with a packaging note
+  attached. If E is longer than a handful of lines, you are using it as a dumping ground.
 
 "Needs more thought" is not a group. If you genuinely cannot place a finding, put it in **B**
 and say it is there because it is unresolved, not because it is urgent.
+
+**Each group A/B/C row carries a fix direction**, not a fix: a sentence on what the repair
+looks like, and where two repairs are possible, which one survives packaging and why. The
+operator is not going to implement from this document alone, but every row should make it
+obvious what the session that fixes it would be doing.
 
 ### 8. What to do with the six Tauri sections
 
@@ -417,7 +432,10 @@ should not discard them — but they are no longer the headline. Read all six, t
 
 ### 9. Shape of the file
 
-Built to be worked from, not admired.
+Built to be worked from, not admired. **And it has to stand alone.** The operator will read it
+without the six files open beside it, and will plan the remaining work from it — so a finding
+that only makes sense next to its pass file is not finished. Carry enough of the evidence
+across that the row can be acted on by someone who never opens `pass-4`.
 
 1. **What this is and is not** — four lines, including that it is not evidence of compliance,
    and that the six pass files it came from are framed around a Tauri-next assumption that is
