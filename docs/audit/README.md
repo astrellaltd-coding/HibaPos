@@ -58,6 +58,14 @@ Once the six are back and read, `FINDINGS.md` consolidates them into one ranked 
 three ways: **fix before Tauri** · **fix during** · **record and leave**. That split is the
 real output — the Tauri plan inherits it, and so does § 7.
 
+That is a **seventh session** with its own prompt — *CONSOLIDATION*, at the end of
+`docs/AUDIT-PROMPTS.md`, pasted alone without the preamble. It is not clerical. Three things
+make it real work: all six passes were told to continue from **L-88**, so all six start at
+**L-89** and the ids have to be reassigned in one sweep; passes that reached opposite
+conclusions about the same code are settled by reading it, not by reporting both; and anything
+promoted to *fix before Tauri* is re-checked at its `file:line` before it gets there, because
+each of those rows is a session the operator will spend.
+
 ---
 
 **Nothing in this directory is evidence of French fiscal or legal compliance**, and no pass may
