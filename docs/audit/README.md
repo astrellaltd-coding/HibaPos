@@ -1,7 +1,14 @@
 # The 2026-09 audit — how this directory works
 
-**The last read-only look at HibaPOS before Tauri v2 planning.** Six focused passes, each run
-in its own session, each writing exactly one file here.
+**A whole-project read-only audit of HibaPOS.** Six focused passes, each run in its own
+session, each writing exactly one file here.
+
+The six were written and run under the premise that **Tauri v2 planning came next**, and they
+say so throughout. The operator's decision since: **the app is fixed and finished first**, and
+packaging is planned against a complete app. The pass files are left as they were written —
+they are evidence, and their framing is part of the record — but `FINDINGS.md` is written to
+the corrected premise. It is a **work list for finishing the software**, not an input to a
+packaging plan.
 
 The prompts are in **`docs/AUDIT-PROMPTS.md`** — a preamble plus six pass bodies. Paste the
 preamble and one body into a fresh session; repeat six times.
@@ -16,7 +23,7 @@ preamble and one body into a fresh session; repeat six times.
 | `pass-4-till-in-use.md` | The till, actually used | Used like a restaurant at 23:00, does it tell the truth and keep the money straight? |
 | `pass-5-build-ops.md` | Build, dependencies, operations | What ships, and what happens when the disk is full or SQLite is locked? |
 | `pass-6-test-quality.md` | Is the suite load-bearing? | Which of the 1382 tests would pass against the bug they are named for? |
-| `FINDINGS.md` | *(written last)* | The consolidated, de-duplicated, ranked list — the one that feeds Tauri planning and § 7. |
+| `FINDINGS.md` | *(written last)* | The consolidated, de-duplicated, re-numbered list — the one the remaining work is planned from, and the source of new § 7 rows. |
 
 ## Why six files and not one
 
@@ -54,17 +61,27 @@ the operator decides what becomes a row.
 
 ## Afterwards
 
-Once the six are back and read, `FINDINGS.md` consolidates them into one ranked list, split
-three ways: **fix before Tauri** · **fix during** · **record and leave**. That split is the
-real output — the Tauri plan inherits it, and so does § 7.
+Once the six are back and read, `FINDINGS.md` consolidates them into **two views of one list**
+— by severity, which decides what gets done first, and by the file the work lands in, which
+decides what gets done together. Findings fall into four groups: **fix first: money and the
+fiscal record** · **fix before the app is called complete** · **fix with the batch that owns
+the file** · **record and leave**, plus a small holding pen for anything whose correct fix
+genuinely cannot be chosen until the install layout is decided.
 
 That is a **seventh session** with its own prompt — *CONSOLIDATION*, at the end of
-`docs/AUDIT-PROMPTS.md`, pasted alone without the preamble. It is not clerical. Three things
-make it real work: all six passes were told to continue from **L-88**, so all six start at
-**L-89** and the ids have to be reassigned in one sweep; passes that reached opposite
-conclusions about the same code are settled by reading it, not by reporting both; and anything
-promoted to *fix before Tauri* is re-checked at its `file:line` before it gets there, because
-each of those rows is a session the operator will spend.
+`docs/AUDIT-PROMPTS.md`, pasted alone without the preamble. It is not clerical. Four things
+make it real work:
+
+- **The numbering has already collided.** All six were told to continue from L-88, so five of
+  them claim L-89, four claim L-100, and about ninety claimed slots describe far fewer real
+  defects. Every id is reassigned in one sweep, with a mapping table — without it, every id in
+  all six files points at the wrong row the moment `FINDINGS.md` exists.
+- **Passes contradict each other.** Opposite conclusions about the same code are settled by
+  reading the code, not by reporting both.
+- **Promotion is verified.** Anything going into the top two groups is re-checked at its
+  `file:line` first, because each of those rows is a session the operator will spend.
+- **The Tauri framing is undone.** A defect a pass parked because packaging would "change it
+  anyway" is re-judged on its merits; if it is broken now, it is on the list now.
 
 ---
 

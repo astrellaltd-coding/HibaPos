@@ -1,7 +1,16 @@
 # HibaPOS France — the six audit prompts
 
-**The last read-only look at the project before Tauri v2 planning.** Written 2026-09-12 on
-the operator's instruction, after Phases 0–5 and 7 closed and the four prep items landed.
+**A whole-project read-only audit.** Written 2026-09-12 on the operator's instruction, after
+Phases 0–5 and 7 closed and the four prep items landed.
+
+> **Correction, same day, after the six passes ran.** The preamble and all six pass bodies
+> below call this "the last look before Tauri v2 planning", because that was the premise when
+> they were written and all six files were produced under it. **It is not what happens next.**
+> The app is fixed and finished first; Tauri planning starts against a complete app. The pass
+> bodies are left exactly as they were run — they are the instructions six finished files were
+> written to, and rewriting them now would misdescribe how those files came about. The
+> **CONSOLIDATION** section at the end is written to the corrected premise and is where the
+> reframing is done.
 
 ## How to use this file
 
@@ -16,8 +25,16 @@ explains what happens to them afterwards.
 
 **Then a seventh session** — the **CONSOLIDATION** prompt at the end of this file, which is
 pasted on its own without the preamble. It reads all six and writes `docs/audit/FINDINGS.md`:
-the de-duplicated, re-numbered, ranked list, split into *fix before Tauri* · *fix during* ·
-*record and leave*. That split is what the Tauri plan inherits.
+the de-duplicated, re-numbered list, grouped both by severity and by the file the work lands
+in, and split into *fix first: money and the fiscal record* · *fix before the app is called
+complete* · *fix with the batch that owns the file* · *record and leave*.
+
+**The six passes were written under a premise that no longer holds,** and the consolidation
+prompt is where that gets corrected. They were told Tauri v2 planning came next, and each
+closes with *"What Tauri needs to know from this pass."* The operator's decision since:
+**the app is fixed and finished first**, and packaging is planned against a complete app. So
+`FINDINGS.md` is a work list, not an input to a packaging plan — and any defect a pass parked
+because "Tauri will change it anyway" is re-judged on its merits.
 
 **Expect overlap between passes.** Six fresh sessions share no context, so two of them landing
 on the same defect from different directions is the system working, not a fault. It is resolved
@@ -242,134 +259,190 @@ cost if wrong rather than by line count.
 ## CONSOLIDATION — the seventh session, after the six
 
 HibaPOS France. The six read-only audit passes are done and their files are sitting
-**uncommitted** in `docs/audit/`. Your job is to turn them into **one** file that can be acted
-on: `docs/audit/FINDINGS.md`.
+**uncommitted** in `docs/audit/`. Your job is to turn them into **one** file that can be worked
+from: `docs/audit/FINDINGS.md`.
 
-This is not a merge of six documents. It is the pass that decides what is true, what matters,
-and what has to happen before Tauri.
+**Read this first, because the six files are framed wrongly and you are the correction.**
+Every pass was told it was "the last look before Tauri v2 planning", and each one closes with a
+section called *"What Tauri needs to know from this pass."* **That is not what happens next.**
+The operator's decision, made after the passes were written: **the app gets fixed and finished
+first.** Tauri planning starts only once there is a complete app to package. So your file is
+not an input to a packaging plan — it is **the work list for finishing the software**, ordered
+so the operator can start at the top and go down.
 
-**Read first, in this order:** `docs/audit/README.md` (what the six are and why),
-`docs/INVARIANTS.md` in full, `CLAUDE.md`, then `REMEDIATION_PLAN.md` § 1, § 4 and § 7. Then
-all six pass files, whole, before you write a line of your own.
+This matters beyond wording. Watch for any pass that **deferred a real defect** because it
+assumed packaging would deal with it — "Tauri will change this anyway", "leave it to the
+bundle". Those decisions were made under the wrong premise. Re-judge each one on its merits: if
+it is broken now, it is on the list now.
+
+**Read, in this order:** `docs/audit/README.md`, `docs/INVARIANTS.md` in full, `CLAUDE.md`,
+then `REMEDIATION_PLAN.md` § 1, § 4 and § 7. Then all six pass files, whole, before you write a
+line of your own. They total about 1,700 lines; read them completely — a consolidation built
+from the summary sections of six documents is a summary of summaries and is worth nothing.
 
 **YOU CHANGE NOTHING EXCEPT ONE FILE.** You may create exactly `docs/audit/FINDINGS.md`. Not
-the six pass files — they are evidence and stay exactly as written. No source, test, script,
-plan, `CLAUDE.md` or `docs/INVARIANTS.md`. **No commits.** No `--apply` on any script, no
-migration, no `db:*`, and never `bun run dev` or `bun run start` from the repository — both
-open the live database. **Never `bunx vitest`, `npx vitest`, or `git clean`.** `bun run test`,
-`bun run typecheck` and `bun run lint` are safe; run them once as your own baseline.
+the six pass files — they are evidence and stay exactly as written, wrong framing and all. No
+source, test, script, plan, `CLAUDE.md` or `docs/INVARIANTS.md`. **No commits.** No `--apply`
+on any script, no migration, no `db:*`, and never `bun run dev` or `bun run start` from the
+repository — both open the live database. **Never `bunx vitest`, `npx vitest`, or `git clean`.**
+`bun run test`, `bun run typecheck` and `bun run lint` are safe; run them once as your own
+baseline.
 
 ### 1. Check you have all six
 
 `pass-1-money.md` · `pass-2-security.md` · `pass-3-data-model.md` · `pass-4-till-in-use.md` ·
 `pass-5-build-ops.md` · `pass-6-test-quality.md`.
 
-If one is missing or truncated, **stop and say so.** Consolidating five and calling it six
-produces a document that reads complete and is not. Do not reconstruct a missing pass from
-what the others happened to mention.
+All six exist and are between 219 and 357 lines. If one is missing or truncated, **stop and say
+so.** Consolidating five and calling it six produces a document that reads complete and is not.
+Do not reconstruct a missing pass from what the others happened to mention.
 
-### 2. Expect the numbering to collide, and fix it
+### 2. The numbering has already collided, and here is the map
 
-Every pass was told to continue the `L-` series from **L-88**. Six sessions sharing no context
-all started at **L-89**. **The ids inside the pass files are drafts, not identities.**
+Every pass was told to continue the `L-` series from **L-88**, and six sessions sharing no
+context all did exactly that. **The ids in the pass files are drafts, not identities.** Measured
+before you started:
 
-Assign the final numbers yourself, in one sweep, continuing from L-88 in your final ranked
-order. Then give the file a **mapping table** — `pass-3 L-91 → L-97` — so anyone holding a
-pass file can find its finding in yours. Without it the six become unreadable the moment yours
-exists.
+| Pass | New ids it claims |
+|---|---|
+| pass-1 money | L-89 … L-96 |
+| pass-2 security | L-89 … L-100 |
+| pass-3 data model | L-89, L-100 … L-111 |
+| pass-4 till in use | L-89, L-111 … L-129 |
+| pass-5 build/ops | L-89 … L-110 |
+| pass-6 test quality | L-89 … L-102 |
 
-### 3. Merge, and say what happened to every one
+**Five files claim L-89. Four claim L-100. Six overlap across L-89–L-96.** Roughly 90 claimed
+slots describing far fewer real defects.
+
+**L-88 is the true high-water mark** — confirmed against `REMEDIATION_PLAN.md` and
+`REMEDIATION_DONE.md`. Assign every final number yourself, in one sweep, continuing from L-89
+in your final grouped order, each used exactly once. Then publish a **mapping table** —
+`pass-3 L-91 → L-97` — because without it every id in all six files points at the wrong row the
+moment your file exists.
+
+### 3. Merge, and account for every finding
 
 Every finding in the six files ends up somewhere in yours. **Nothing is silently dropped.**
-Four outcomes:
+Five outcomes:
 
 - **Merged** — two or more passes found the same defect from different angles. One row. Take
   the **highest** severity offered, never the average, and cite every pass that saw it: that a
   defect was visible from two directions is evidence about the defect, so keep it.
 - **Kept** — one pass found it, it stands as written.
-- **Already known** — it is one of L-84, L-82, L-81, L-75, L-05, L-11, L-47, L-51, L-52. One
-  line in a short list, out of the main table. But **if a pass added something new about a
-  known finding** — a worse consequence, a second call site, a case the original row does not
-  cover — that addition is a new finding.
+- **Already known** — nine are open in § 7: L-84, L-82, L-81, L-75, L-05, L-11, L-47, L-51,
+  L-52. One line each in a short list, out of the main tables. **But the passes also cite
+  closed findings** — L-10, L-22, L-38, L-40, L-41, L-62, L-64, L-67, L-79 all appear. A
+  reference to a closed finding is context, not a new finding. **Unless a pass says it has come
+  back** — a regression of something already fixed is a new finding and a serious one, because
+  it means the fix did not hold. Flag any of those loudly.
+- **New facet of a known finding** — a worse consequence, a second call site, a case the
+  original row does not cover. That part is new and gets its own number, cross-referenced to
+  the parent.
 - **Set aside** — you checked and it does not hold. Keep it, with your reason, in its own
-  section. A rejected finding is worth nearly as much as a kept one to the next person, who
-  would otherwise spend a session finding it again.
+  section. A rejected finding is worth nearly as much as a kept one to whoever would otherwise
+  spend a session rediscovering it.
 
-Close with a reconciliation: N findings in across six files, N accounted for. If those two
+Close with a reconciliation: N raw findings in across six files, N accounted for. If those two
 numbers disagree, the document is wrong and you should say which way.
 
 ### 4. Where two passes disagree, settle it
 
 Six fresh sessions will contradict each other somewhere. **Do not average them and do not
-report both.** Go to the code and settle it, then say in one line what you read and what it
-decided. If it cannot be settled without writing something, say *that* rather than picking a
-side — and mark it as a question the operator has to resolve.
+report both** — averaging two verdicts produces a third that is wrong. Go to the code and
+settle it, then say in one line what you read and what it decided. If it cannot be settled
+without writing something, say *that* rather than picking a side, and mark it as a question the
+operator has to resolve.
 
-### 5. Verify before you rank
+### 5. Verify before you promote
 
-A finding promoted to *fix before Tauri* is a session the operator will spend. Before any
-finding lands in that tier, **go to its `file:line` and confirm the code says what the pass
-says it says.** Read-only is enough to read code; it is not enough to run a revert, so a claim
-that would need one stays **SUSPECTED**, and says why.
+Every row in the top two groups is a session the operator will spend. Before a finding lands
+there, **go to its `file:line` and confirm the code says what the pass says it says.**
+Read-only is enough to read code; it is not enough to run a revert, so a claim that would need
+one stays **SUSPECTED**, and says why.
 
-Carry each finding's own CONFIRMED/SUSPECTED mark through, and add your own mark —
-**VERIFIED HERE** — where you went and looked. The operator needs to know which rows had two
-sets of eyes on them.
+Carry each finding's own CONFIRMED/SUSPECTED mark through, and add your own — **VERIFIED
+HERE** — where you went and looked. The operator needs to know which rows had two sets of eyes.
 
-### 6. Rank by what it costs, then split three ways
+### 6. Two views, because they answer different questions
 
-Order the whole list by **what could lose money or corrupt the fiscal journal**; then by what a
-customer or an inspector could discover; then everything else. A till that has never traded has
-no bug backlog pressure. It has one question: what must be true before real money goes through
-it.
+A single ranked list is not enough to work from. Give both, with the same findings:
 
-- **Fix before Tauri** — it can lose or invent money, or write a fiscal document the software
-  cannot stand behind; **or** the fix gets harder once the app is packaged. Anything about
-  paths, the data directory, secrets, the process model, startup order or the migration gate
-  belongs here even when it looks small today, because Tauri changes every one of those, and a
-  fix designed against one shape is cheaper than a fix designed against two.
-- **Fix during** — it lives in code the Tauri move is going to touch anyway. Doing it now means
-  doing it twice.
-- **Record and leave** — real, and the cost of fixing exceeds the risk on a single-till
-  install. Say the risk out loud rather than implying it is zero, and say what would move it up
-  a tier.
+**View A — by severity.** What is worst. Ordered by what could **lose or invent money or
+corrupt the fiscal journal**, then by what a customer or an inspector could discover, then
+everything else. This decides what gets done first.
 
-Every finding gets a tier. "Needs more thought" is not a tier — if you genuinely cannot place
-one, put it in **fix before Tauri** and say it is there because it is unresolved, not because
-it is urgent.
+**View B — by area.** What gets fixed **together**. Group by the file or module the work lands
+in — `checkout.ts`, `reports.ts`, the auth layer, the scripts directory, the test suite — with
+each group's findings listed under it. Findings in one file are one session's work, not five,
+and this view is what turns the list into a schedule. Note where a group has an obvious natural
+order (fix the schema before the code that reads it).
 
-### 7. The one section Tauri actually reads
+### 7. The groups
 
-Each pass closes with *"What Tauri needs to know from this pass."* Merge those six into a
-single section — de-duplicated, and written as **constraints on the packaging plan** rather
-than observations about the code. That plan does not exist yet and this is its input; it is the
-most valuable thing you will write today.
+Every finding gets exactly one. Three of them are work; two are not.
 
-Include what the six noticed that was out of their scope but is load-bearing for packaging:
-whether the Prisma CLI is reachable from inside a bundle, where the data directory really lands
-on a Windows till, file permissions, the printer, and what an updater would do to a database
-mid-shift.
+- **A — Fix first: money and the fiscal record.** It can lose or invent money, or write a
+  fiscal document the software cannot stand behind. Nothing else outranks this and there is no
+  argument for deferring one.
+- **B — Fix before the app is called complete.** Really broken, and a user, the operator or an
+  inspector would hit it. Wrong French, a crash path, a missing guard, a report that disagrees
+  with the database.
+- **C — Fix with the batch that owns the file.** Real, cheap, and not worth its own session.
+  This project already works this way: an undeployed app can let a small defect wait for the
+  change that opens that file anyway. Say which batch, so it is not forgotten.
+- **D — Record and leave.** Real, and the cost of fixing exceeds the risk. **Say the risk out
+  loud** rather than implying it is zero, and say what would move it into a fix group.
+- **E — Genuinely undecidable until packaging.** A short holding pen, not a tier. Only for
+  findings whose *correct fix depends on a decision that has not been made* — where the data
+  directory lives on a real Windows install, whether the Prisma CLI is reachable from a bundle,
+  how an updater behaves mid-shift. **The bar is high.** "Tauri might change this file" is not
+  a reason to park a defect; "there is no right answer until someone chooses the install
+  layout" is. Anything fixable now goes in A, B or C instead.
 
-### 8. Shape of the file
+"Needs more thought" is not a group. If you genuinely cannot place a finding, put it in **B**
+and say it is there because it is unresolved, not because it is urgent.
 
-Built to be used, not admired.
+### 8. What to do with the six Tauri sections
 
-1. **What this is and is not** — four lines, including that it is not evidence of compliance.
-2. **The verdict** — one short paragraph a person reads before deciding to open the rest: how
-   many findings, how many per tier, and whether anything here would stop a first real sale.
-3. **The three tiers**, each a table: final `L-` id · severity · `file:line` · what is wrong in
-   one sentence · cost to fix · which passes saw it · CONFIRMED / SUSPECTED / VERIFIED HERE.
-4. **Detail** — only where one sentence is not enough to act on. Not every row needs a
+Each pass closes with one, written under the old framing. They are real observations and you
+should not discard them — but they are no longer the headline. Read all six, then:
+
+- anything that is a **defect today** goes into A, B or C like any other finding;
+- anything that is a **genuine packaging unknown** goes into group E;
+- the rest — general notes about how packaging will work — go into **one short closing
+  section**, three or four lines, titled *"Noted for whenever Tauri planning starts."* It is a
+  place to not lose things, not a plan. The packaging plan does not exist and will be written
+  against a finished app, not against this document.
+
+### 9. Shape of the file
+
+Built to be worked from, not admired.
+
+1. **What this is and is not** — four lines, including that it is not evidence of compliance,
+   and that the six pass files it came from are framed around a Tauri-next assumption that is
+   no longer true.
+2. **The verdict** — one short paragraph read before deciding to open the rest: how many real
+   findings, how many per group, and **whether anything here would stop a first real sale**.
+3. **View A — by severity**, groups A through D each a table: final `L-` id · severity ·
+   `file:line` · what is wrong in one sentence · cost to fix · which passes saw it · CONFIRMED /
+   SUSPECTED / VERIFIED HERE.
+4. **View B — by area**, the same findings grouped by where the work lands, ids only plus a few
+   words. A schedule, not a re-listing.
+5. **Detail** — only where one sentence is not enough to act on. Not every row needs a
    paragraph, and padding the ones that do not is how a document stops being read.
-5. **Already known** — the rediscoveries, one line each.
-6. **Looked at and set aside** — with reasons.
-7. **Where the passes disagreed** — and what settled it.
-8. **Proposed § 7 rows** — in the plan's own format, ready to paste. Propose; do not place.
-9. **What Tauri needs to know.**
-10. **The id mapping table.**
-11. **Reconciliation** — the counts.
+6. **Already known** — the nine open ones rediscovered, one line each; then any closed finding
+   a pass says has regressed, which is not a one-liner.
+7. **Looked at and set aside** — with reasons.
+8. **Where the passes disagreed** — and what settled it.
+9. **Group E** — undecidable until packaging, with what decision each one waits on.
+10. **Proposed § 7 rows** — in the plan's own format, ready to paste. Propose; do not place.
+    The operator decides which become real.
+11. **Noted for whenever Tauri planning starts** — three or four lines.
+12. **The id mapping table.**
+13. **Reconciliation** — the counts.
 
-### 9. Two things only you can check
+### 10. Two things only you can check
 
 The passes were each told to expect **1382 tests / 0 fail / 114 files**, 15 migrations, all
 fifteen trading tables at zero, counters `0/0/0/0`, **84 products / 14 categories / 80 on the
@@ -381,7 +454,7 @@ And read the six as documents, not only as inputs. **If a pass looks like it did
 was asked** — no evidence of having run anything, findings that read as plausible rather than
 checked, a "walkthrough" with no data read back out of the database — say so plainly in the
 verdict. Which of the six to trust is a judgement only available to whoever is holding all six,
-and it is worth more than any single row in your table.
+and it is worth more than any single row in your tables.
 
 **Fix nothing. Commit nothing.** Leave `FINDINGS.md` uncommitted alongside the six; the
 operator reads it, and then decides what gets committed and what becomes a plan row.
