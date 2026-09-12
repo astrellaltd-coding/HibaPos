@@ -52,16 +52,30 @@ very count (L-120, L-151).
 write to MANAGER before the two tables agree hands a till operator a route that can flip
 `factice` by omission.
 
-**L-101 carries a decision that is the operator's, not yours.** Either open the write to
-MANAGER (matching the nav comment and DD-07), or split it so the printer and FACTICE fields
-are MANAGER-writable and the identity fields are not. **Do not fix it by hiding the screen** —
-that leaves R6.3 and R6.4 unreachable without the developer's account. Bring the choice and
-wait.
+**L-101's decision is already made — DD-26 and DD-27 in `docs/DECISIONS.md`. Implement them;
+do not re-open them.**
+
+- **DD-26 — split `PUT /api/settings` by FIELD, not by role.** MANAGER may write the
+  operational fields: `printerName`, `printerConnection`, `printerQueue`, `printerHost`,
+  `printerPort`, `printerEnabled`, `openDrawerOnCash`, `receiptWidth`, `autoPrint`, `factice`.
+  SUPER_ADMIN only for identity and fiscal policy: `restaurantName`, `restaurantAddress`,
+  `restaurantPhone`, `restaurantSiret`, `restaurantTva`, `footerNote`, `currency`,
+  `defaultVatRate`, `discountApprovalThreshold`, `businessDayCutoffHour`.
+- **DD-27 — FACTICE is one-way once anything real has been sold.** MANAGER may turn it off
+  (that is R6.3). Turning it back **on** is refused once the journal holds a non-factice
+  event; **SUPER_ADMIN is excepted**. Before the first real sale it toggles freely, which is
+  what this machine needs during testing. No such guard exists today.
+
+**Do not fix L-101 by hiding the screen** — that leaves R6.3 and R6.4 unreachable without the
+developer's account.
 
 **What "done" looks like.** A test that parses an empty settings input and asserts every
-materialised key equals `DEFAULT_SETTINGS`; the role decision implemented; and a test that
-drives `PUT /api/settings` as a MANAGER and asserts the agreed outcome. `PUT /api/settings` is
-invoked by **no test in either suite** today, which is half of why this got here.
+materialised key equals `DEFAULT_SETTINGS`; DD-26's field split and DD-27's one-way guard
+implemented; a test driving `PUT /api/settings` as a MANAGER that asserts an operational field
+is written and an identity field is refused; and a test that a MANAGER cannot re-enable
+`factice` against a journal holding a real event, while a SUPER_ADMIN can.
+`PUT /api/settings` is invoked by **no test in either suite** today, which is half of why this
+got here.
 
 **Re-measure before you start.** The baselines are in `docs/BASELINES.md` now, not in the
 plan's § 4 — the section moved 2026-09-12. They were last taken that day and the operator
