@@ -67,6 +67,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - R8.2 — one tap, one sale, and the OFFERT tender stops crashing the till
 - R8.3 — a category save stops destroying the menu rules that depend on it
 - R8.4 — a report measures the same period the sealed close measured
+- R8.5 — a supplement carries its own VAT rate
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -2673,6 +2674,132 @@ sha256 `0d304ee7…`.
 - **`businessDayCutoffHour` is SUPER_ADMIN-only** (DD-26, R8.1). Moving it moves the edges of
   every sealed document *and* now every report at once, which is the coupling that made it
   one of the four fields DD-26 kept back from the MANAGER.
+
+---
+
+### R8.5 — a supplement carries its own VAT rate
+**Done:** 2026-09-13 · **Commit:** `6ccc13f` · **Findings:** L-94 (High) · L-127 · L-128 ·
+L-136 (Low) · **L-134 answered** · **Migration:** `20260913140000_addon_vat_rate` —
+**REHEARSED, NOT APPLIED**
+
+**L-94 — the defect.** A supplement was folded into its host's line and therefore booked at
+the **host's** rate. `docs/politique-ventilation-tva.md` § 6: *« Un supplément … relève de son
+propre taux — 10 % pour un supplément alimentaire. »* A food supplement on a takeaway canette
+would have booked at **5,5 %** — under-declared, and invisible on every document.
+
+**The operator's decision, 2026-09-13.** Put to them with the measurement: all 21 add-ons sit
+on Pizzas (14) and Sandwichs (7), all resolving to 10, which is also `defaultVatRate` — so
+nothing changes today whichever way it goes. Chosen: **a supplement stays folded while the
+rates agree, and becomes its own `OrderItem` when they differ.** The alternatives were
+*always split* (changes every supplement ticket now, for no fiscal benefit today) and *refuse
+the sale* (blocks a counter for a catalogue problem the cashier cannot fix — a shape this
+project has rejected before).
+
+`OrderItem` carries exactly **one** rate, so a supplement can only have its own by having its
+own line. That is the same argument that made a menu explode into one line per component
+(Batch 5.9), reached again from a different direction.
+
+**NULL means `defaultVatRate`, not the host's rate — and that is the correction**, not an
+implementation detail. Inheriting the host is precisely what was wrong; *« son propre taux »*
+is the restaurant's food rate. Making null mean « inherit » would have left the column free
+and unenforced, which the audit explicitly rejected as the do-nothing option. The pair mirrors
+`Category.vatRate` / `vatRateTakeaway` so L-68's same-level rule applies unchanged, and a
+future takeaway split needs no second migration on a trading database.
+
+The separate line carries **`productId: null`** — pointing at the host product would make
+`topProducts` count a supplement as a sale of the dish.
+
+**The three that rode along.**
+
+| | |
+|---|---|
+| **L-127** | the add-on quantity is snapshotted into `addOnsJson` — it was charged and dropped, so 3 × Viande Hachee printed as one line and left 4,50 € unexplained on a document that is never re-rendered — and bounded by `MAX_ITEM_QUANTITY`, which the item quantity a few fields up has carried since M-16. Measured: 100 000 booked a **150 011,90 €** line into the journal |
+| **L-128** | `tendered` below `amount` is **refused**, not clamped, because it lands on an immutable document. Measured: amount 1190, tendered 500 → `Payment.change = -690`, sealed receipt « Reçu 5,00 € — Rendu -6,90 € » |
+| **L-136** | M-15's negative-price guard, on the allocated menu line it was missing from. Refused rather than clamped, for M-15's own stated reason: clamping sells the component free and silently |
+
+**L-134 — answered, and it needed the measurement to be answerable.** The audit said it
+*« cannot be settled by reading »*. What settled it:
+
+- **Sur place equals à emporter for ALL 84 products** — 0 differ.
+- **Livraison is higher for 43 of them**, by about a euro.
+- The `Taille` choices carry exactly that shape: `pickupPrice` (sur place **and** à emporter)
+  and `deliveryPrice`.
+
+So the question was simply *« will you ever charge more for eating in than for taking away? »*
+**Answer: no.** A sized product's `Product.price` cancelling out is therefore **intended**, not
+a schema gap. Pinned by three tests, including one that raises the price and asserts nothing
+moves — so if a size ever gains its own sur-place price, the invariant is re-decided rather
+than re-typed.
+
+**ONE EDIT DELIBERATELY NOT MADE.** L-134's answer calls for a paragraph in
+`docs/INVARIANTS.md`. **That file is the operator's** — the plan's R10.2 says *bring the exact
+text and wait* — so it is drafted here and held:
+
+> **A size supplies the price, sur place and à emporter alike.** A
+> `CategoryOptionChoice` carrying an absolute `pickupPrice` sets the line's price outright in
+> both modes; `Product.price` cancels out of the arithmetic and is the fallback for a product
+> sold *without* a size. Livraison is the one mode a size prices separately
+> (`deliveryPrice`). Confirmed by the operator 2026-09-13 after measuring that sur place
+> equals à emporter for all 84 products. **Consequence to know before editing a price:** while
+> a size group is `required`, raising `Product.price` changes nothing at the till and raises no
+> error — pinned by `addon-vat-rate.test.ts`.
+
+**How it was verified.** Twenty-three tests — the arithmetic in `addon-vat-rate.test.ts`, the
+routes **driven** in `addon-vat-line.test.ts` with the audit's own case (a food supplement on a
+takeaway drink). Then reverted, restored by sha:
+
+| revert | result |
+|---|---|
+| the supplement always rides the host (L-94) | **4 fail** |
+| null inherits the host — the inert version the audit rejected | **5 fail** |
+| the route drops the separate lines | **4 fail** |
+| the quantity not multiplied by the host line's | **1 fail** |
+| the takeaway rate ignored | **1 fail** |
+| the quantity not snapshotted (L-127) | **1 fail** |
+| the add-on quantity unbounded (L-127) | **1 fail** |
+| a short tendered accepted (L-128) | **1 fail** |
+| a negative allocated line (L-136) | **1 fail** |
+| the supplement attributed to the host product | **1 fail** |
+
+**TWO THINGS THE EXISTING SUITE CAUGHT that I had not thought of**, and both mattered:
+
+1. **`catalogue-transfer.test.ts` refused the stale column list.** Without it a supplement's
+   rate would **not have travelled to the France install** — and that transfer is the
+   mechanism that carries this catalogue there. Both columns now travel. This is the test
+   R9.9 is about, working before R9.9 runs.
+2. **`orders-combo.test.ts`'s add-on snapshot gained `quantity`**, because menu components
+   take the same pricing path. Updated with a dated note rather than loosened.
+
+**THE MIGRATION — rehearsed, and the command CHANGED.** Two `ADD COLUMN`s, no table rewrite,
+both nullable so nothing needs backfilling. **Rehearsed on a copy of production together with
+R8.2's still-unapplied one**, because that is the order the gate will apply them in. Five
+differences and nothing else: `Order` gains one column at 19, `CategoryAddOn` gains two at 7
+and 8, one unique index, two `_prisma_migrations` rows, count 15 → 17. Every event hash,
+`FiscalCounter`, `GrandTotal`, sealed row, `integrity_check`, FK check, journal mode and
+`user_version` identical. Fingerprints in `../db-snapshots/r85-acceptance/`.
+
+`README.md` 1486 → 1509 (+23), files 124 → 126. `bun run test` **1509 pass / 0 fail / 126
+files, zero `prisma:error`, exit 0**; `typecheck` and `lint` clean. Live database untouched:
+sha256 `0d304ee7…`.
+
+**Left behind:**
+
+- **`r82-acceptance/fp-r82-after.json` is superseded.** It describes a database with only
+  R8.2's migration applied, and both are pending now, so `--expect` against it would report a
+  difference. The plan's operator item was rewritten rather than appended to, and
+  `r85-acceptance` is the current pair. The old files are kept — they are the record of that
+  rehearsal.
+- **The combo path does not split supplements.** `computeLinePricing` is passed no `vat`
+  context from `combo-checkout.ts`, so a menu component's supplement still rides its
+  component's line. Deliberate and bounded: a component's rate IS the rate of the food it is,
+  and `policy § 6`'s « en sus du prix du menu » is already satisfied — the supplement sits
+  outside the allocation either way. Worth revisiting only if a supplement is ever attached to
+  a drink slot.
+- **`docs/INVARIANTS.md` is unedited**, by the rule above. A session that finds L-134 pinned by
+  tests and absent from the invariants is looking at a held edit, not an oversight.
+- **The plan is 40 403 bytes against a 40 960 ceiling** — 557 to spare. The next batch will not
+  fit. §§ 3 and 4 were moved out for exactly this; something has to follow them, and choosing
+  what is the operator's.
 
 ---
 

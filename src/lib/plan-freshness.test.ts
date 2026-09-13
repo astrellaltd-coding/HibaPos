@@ -213,7 +213,17 @@ describe("plan freshness — the plan and the done file may not disagree", () =>
     //   found all nine call sites at once, which is the mechanism of the
     //   finding used as its own fix.
     //   FINDINGS STAY AT 9 for the eighth time. R8.4 opened none.
-    expect(taskStatuses(src).size).toBe(18);
+    //   2026-09-13, R8.5 DONE: tasks 18 → 17, and Phase 8 has ONE row left.
+    //   Two operator decisions were taken in it (a supplement splits off only
+    //   when its rate differs; sur place and à emporter cost the same), and
+    //   **one edit is deliberately NOT made**: the `docs/INVARIANTS.md`
+    //   paragraph L-134's answer calls for. That file is the operator's — the
+    //   plan's R10.2 says bring the exact text and wait — so the text is
+    //   drafted in the done entry and held. A session finding L-134 pinned by
+    //   tests but absent from INVARIANTS.md is looking at that, not at an
+    //   oversight.
+    //   FINDINGS STAY AT 9 for the ninth time. R8.5 opened none.
+    expect(taskStatuses(src).size).toBe(17);
     expect(openFindings(src).size).toBe(9);
     expect(done()).toContain("# HibaPOS France — Completed Work");
   });
