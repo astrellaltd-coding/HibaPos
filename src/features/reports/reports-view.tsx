@@ -488,6 +488,8 @@ function ZReportDetailDialog({
 type SalesReport = {
   from: string;
   to: string;
+  /** L-92: the trading-day cut-off these bounds were built on. */
+  cutoffHour: number;
   totalSales: number;
   totalOrders: number;
   totalItems: number;
@@ -569,9 +571,30 @@ function SalesTab() {
           {isFetching ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarRange className="h-4 w-4" />}
           Calculer
         </Button>
-        {(fromStr !== range.from || toStr !== range.to) && (
+        {/* L-92 (R8.4) — WHAT WAS ACTUALLY MEASURED.
+          *
+          * Reports used to run midnight-to-midnight while every sealed close
+          * runs on the trading-day cut-off, so a filed VAT figure could differ
+          * from the sealed record for the same month, in both directions,
+          * silently. They now share the clock — and the operator's decision on
+          * 2026-09-13 was **snap AND say so**, because a line reading « 1 août
+          * → 31 août » over figures measured from 05:00 to 05:00 is a claim
+          * the screen cannot support.
+          *
+          * Read from the RESPONSE, not from the inputs: the server is what
+          * decided the boundaries, and the label has to be the server's answer
+          * or it is guessing. */}
+        {data && (
           <span className="text-xs text-muted-foreground">
-            Période affichée : {formatDate(range.from)} → {formatDate(range.to)}
+            Période mesurée : {formatDateTime(data.from)} → {formatDateTime(data.to)}
+            <span className="ml-1">
+              (journée commerciale, clôture à {String(data.cutoffHour).padStart(2, "0")}:00)
+            </span>
+          </span>
+        )}
+        {(fromStr !== range.from || toStr !== range.to) && (
+          <span className="text-xs font-medium text-amber-600">
+            Modifications non calculées — cliquez sur « Calculer ».
           </span>
         )}
       </div>

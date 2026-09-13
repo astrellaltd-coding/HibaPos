@@ -8,6 +8,13 @@ import {
 import { verifyFiscalChain } from "@/lib/services/fiscal";
 import { parseReportRange, ReportRangeError, MAX_REPORT_RANGE_DAYS } from "@/lib/report-range";
 
+// L-92 (R8.4): `parseReportRange` now takes the trading-day cut-off, and takes
+// it as a REQUIRED argument for `period.ts`'s reason — a default is how this
+// module and the sealed closes came to measure different periods. These tests
+// are about the LENGTH bound (M-31) and not about the clock, so they pass a
+// fixed hour; the clock itself is tested in `report-range.test.ts`.
+const CUTOFF = 5;
+
 // M-29 + M-31 (Batch 2.4). The point of the retention tests is not that rows
 // disappear — it is that the RIGHT rows disappear and the fiscal journal is
 // untouched. FiscalEvent is append-only by design; a retention job that
@@ -213,15 +220,15 @@ describe("chain verification paging (M-31)", () => {
 describe("report range bounds (M-31)", () => {
   it("defaults to the last seven days", () => {
     const now = new Date(2026, 8, 10);
-    const { days } = parseReportRange(null, null, now);
+    const { days } = parseReportRange(null, null, CUTOFF, now);
     expect(days).toBe(7);
   });
 
   it("refuses a range longer than the limit instead of stalling the till", () => {
     const now = new Date(2026, 8, 10);
-    expect(() => parseReportRange("2020-01-01", "2026-09-10", now)).toThrow(ReportRangeError);
+    expect(() => parseReportRange("2020-01-01", "2026-09-10", CUTOFF, now)).toThrow(ReportRangeError);
     try {
-      parseReportRange("2020-01-01", "2026-09-10", now);
+      parseReportRange("2020-01-01", "2026-09-10", CUTOFF, now);
     } catch (e) {
       expect((e as Error).message).toContain(String(MAX_REPORT_RANGE_DAYS));
     }
@@ -229,12 +236,12 @@ describe("report range bounds (M-31)", () => {
 
   it("allows a full twelve months", () => {
     const now = new Date(2026, 8, 10);
-    expect(() => parseReportRange("2025-09-11", "2026-09-10", now)).not.toThrow();
+    expect(() => parseReportRange("2025-09-11", "2026-09-10", CUTOFF, now)).not.toThrow();
   });
 
   it("rejects inverted and invalid dates", () => {
     const now = new Date(2026, 8, 10);
-    expect(() => parseReportRange("2026-09-10", "2026-09-01", now)).toThrow(ReportRangeError);
-    expect(() => parseReportRange("not-a-date", "2026-09-01", now)).toThrow(ReportRangeError);
+    expect(() => parseReportRange("2026-09-10", "2026-09-01", CUTOFF, now)).toThrow(ReportRangeError);
+    expect(() => parseReportRange("not-a-date", "2026-09-01", CUTOFF, now)).toThrow(ReportRangeError);
   });
 });

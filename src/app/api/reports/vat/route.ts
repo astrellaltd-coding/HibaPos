@@ -9,6 +9,7 @@ import {
   periodAggregateOptions,
 } from "@/lib/services/aggregate";
 import { parseReportRange, ReportRangeError } from "@/lib/report-range";
+import { getSettings } from "@/lib/services/settings";
 
 export const GET = withAuth(
   async (req) => {
@@ -19,8 +20,17 @@ export const GET = withAuth(
   // payments; an unbounded range on a till is a memory stall mid-service.
   let fromStart: Date;
   let toEnd: Date;
+  let cutoffHour: number;
+  // L-92 (R8.4): the trading-day cut-off, so this period is the same period
+  // the sealed close used. Read here rather than defaulted, because a default
+  // is exactly how this route and the closes came to disagree.
+  const reportSettings = await getSettings();
   try {
-    ({ fromStart, toEnd } = parseReportRange(fromStr, toStr));
+    ({ fromStart, toEnd, cutoffHour } = parseReportRange(
+      fromStr,
+      toStr,
+      reportSettings.businessDayCutoffHour,
+    ));
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof ReportRangeError ? e.message : "Période invalide." },
@@ -52,6 +62,10 @@ export const GET = withAuth(
   return NextResponse.json({
     from: fromStart.toISOString(),
     to: toEnd.toISOString(),
+    // L-92: the screen states the REAL boundaries, so « 1 août → 31 août »
+    // never stands in for « 1 août 05:00 → 1 sept 05:00 ». The operator's
+    // decision on 2026-09-13 was snap AND say so.
+    cutoffHour,
     totalHt: sum2(rows.map((r) => r.ht)),
     totalVat: sum2(rows.map((r) => r.vat)),
     totalTtc: sum2(rows.map((r) => r.ttc)),
