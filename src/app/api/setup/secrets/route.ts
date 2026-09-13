@@ -27,8 +27,12 @@ import { audit } from "@/lib/services/audit";
 //   * `cache-control: no-store`, so it is not written into a disk cache.
 //   * Only secrets still AWAITING a record are returned. After POST, this
 //     route answers with nothing to show and cannot be used to read a key back.
-//   * The audit row records that an acknowledgement happened. It records the
-//     NAMES and never the values.
+//   * Both the SHOWING and the acknowledgement write an audit row, NAMES only
+//     and never values. L-151 (audit pass 2) found the asymmetry: the harmless
+//     confirmation was journalled and the disclosure itself was not, so the one
+//     event worth reconstructing later — who saw the key, and when — was the
+//     one nothing recorded. A read that returns nothing pending writes no row,
+//     so the screen being open does not fill the log.
 //
 // What it does NOT do is make the key secret again. It is in
 // `<dataDir>/db/secrets.json` on that machine, which is where the application
@@ -36,8 +40,19 @@ import { audit } from "@/lib/services/audit";
 // elsewhere, not a security property, and saying otherwise would be a lie in a
 // place that cannot afford one.
 export const GET = withAuth(
-  async () => {
+  async (_req, { user }) => {
     const pending = secretsAwaitingRecord();
+    // NAMES, never values — the same rule the POST below follows. Only when
+    // something was actually disclosed: an empty read is not a disclosure.
+    if (pending.length > 0) {
+      await audit(
+        "SECRETS_VIEWED",
+        "Secret",
+        null,
+        { names: pending.map((p) => p.name) },
+        user.id,
+      );
+    }
     return NextResponse.json(
       {
         pending,

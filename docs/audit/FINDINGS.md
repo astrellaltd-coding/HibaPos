@@ -823,3 +823,21 @@ lint` were run once as this session's own baseline, and the live database was re
 
 **Nothing in this document, and no measurement in it, is evidence of French fiscal or legal
 compliance.**
+
+
+---
+
+# Found after the audit, while doing the work
+
+**The 94 above are the 2026-09-12 audit and they are closed: L-89 … L-182, six passes, one
+consolidation, evidence.** Nothing is added to them. What a later session turns up while
+fixing one of them lands here instead, with an id continuing the same sequence — so a
+reference to « the audit's 94 » stays true, and a new id still means one thing project-wide.
+
+*Same rule as the audit's: the session that finds one **records** it and does not fix it. The
+column that matters is the last: what would move it into a batch.*
+
+| id | severity | file:line | what it is | found | what would move it |
+|---|---|---|---|---|---|
+| **L-183** | Low-Med | `catalog/categories/route.ts:59` · `catalog/categories/[id]/route.ts:69, :236` · `catalog/products/route.ts:240` · `catalog/products/[id]/route.ts:209, :369` · `media/route.ts:157` | **Seven inline role guards that refuse nobody.** Each reads `if (user.role !== "SUPER_ADMIN" && user.role !== "MANAGER") return 403`, and DD-07 left exactly those two roles — so the condition is unsatisfiable and every one of these handlers is open to any authenticated caller. Creating, editing and deleting products and categories, and deleting media, are all in that position. **This is not a regression**: it has been true since DD-07 removed `CASHIER`, and until L-120 the test suite counted all seven among the guards. Whether these writes *should* be open to a MANAGER is a live question and probably yes — that account runs the restaurant, and DD-26 has just settled the same question for `settings:PUT` by splitting it by field. What is wrong today is that the code states a restriction it does not impose. | R9.6 (2026-09-13), by the repaired detector L-120 asked for. Pinned as `INLINE_ANY` in `api-authorization.test.ts` so the map now says what is true. | A decision, then one line each. **Either** delete the dead guard and let the declarative gate carry the meaning, **or** narrow it if any of the seven is not a MANAGER's business. Belongs with the catalogue-route batch (**R8.3** already opens `catalog/categories/[id]/route.ts`). |
+| **L-184** | Low | `api/tables/seed/route.ts:8` vs `:47` | **A declared gate contradicted by its own handler.** `POST /api/tables/seed` is wrapped `{ roles: ["SUPER_ADMIN", "MANAGER"] }` and then answers a MANAGER `403 « Réservé au super administrateur »` in its first three lines. The authorization map read `BOTH` and the route means `SUPER_ADMIN`. **Not reachable from the interface**: C-21 / DD-09 removed the tables row from `nav-config.ts` — this restaurant does not serve at tables — and nothing in `src/` calls this endpoint. So it is retained-but-unused code of exactly the kind `docs/INVARIANTS.md` says not to sweep away, carrying an internal disagreement nobody can currently trigger. | R9.6 (2026-09-13). The new « no declared gate is contradicted by a guard inside its own handler » check found it on the day it was written; pinned there as the one known exception, so a **second** one fails. | Deciding which half is right — and that decision is DD-09's, not a batch's. It moves the moment table service is reinstated, because then the screen exists and a MANAGER can press the button. Until then: delete the pin and the guard together, or delete the pin and the `MANAGER` from the wrapper. |

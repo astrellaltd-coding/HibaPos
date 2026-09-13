@@ -135,16 +135,21 @@ describe("T-03 — every API route declares an authorization gate", () => {
   // Revisited rather than deleted (safety rule 2): the table now PINS the
   // declared role list, so widening one is a failure here instead of a quiet
   // regression, and the entries that name every role say so out loud.
-  const DESTRUCTIVE: Record<string, string[] | "inline"> = {
+  // 2026-09-13 (R9.6, L-120): `"inline"` used to mean only « guarded somewhere
+  // in the body », which is precisely the claim that turned out to be
+  // unverifiable — seven handlers elsewhere carry an inline guard that refuses
+  // nobody. These four are now pinned to the KIND of guard, so a destructive
+  // route whose guard is widened into a no-op fails here as well as below.
+  const DESTRUCTIVE: Record<string, string[] | "INLINE_SA"> = {
     "backups/[id]/restore:POST": ["SUPER_ADMIN"], // overwrites the live database
-    "backups:POST": "inline",
-    "backups/[id]:DELETE": "inline",
+    "backups:POST": "INLINE_SA",
+    "backups/[id]:DELETE": "INLINE_SA",
     // Every role in the product — the gate is a statement of intent, not a
     // restriction, until a role below MANAGER exists again.
     "reports/z:POST": ["SUPER_ADMIN", "MANAGER"], // closing the day
     "orders/[id]/reprint:POST": ["SUPER_ADMIN", "MANAGER"], // journalled REIMPRESSION
-    "users:POST": "inline",
-    "settings:PUT": "inline",
+    "users:POST": "INLINE_SA",
+    "settings:PUT": "INLINE_SA",
     // 2026-09-11: writes every row of the catalogue. It refuses unless all ten
     // catalogue tables are empty, and refuses INSIDE the transaction, so a
     // refusal leaves nothing behind — but the gate is what stops it being
@@ -164,11 +169,16 @@ describe("T-03 — every API route declares an authorization gate", () => {
       expect(typeof mod[method], `${key} should exist`).toBe("function");
       const gate = roleGateOf(mod[method]);
       expect(gate, `${key} must require a session`).not.toBeNull();
-      if (expected === "inline") {
+      if (expected === "INLINE_SA") {
         // The wrapper admits any authenticated role; the handler refuses
         // below. Pinned so that a later change to `{ roles }` is noticed here
         // rather than assumed.
         expect(gate?.roles, `${key} guards inline (L-32)`).toBeNull();
+        // … and pinned to WHICH inline guard, so widening it to
+        // `&& user.role !== "MANAGER"` — which refuses nobody — fails here
+        // instead of reading as the same thing (L-120).
+        const [r, m] = [key.slice(0, key.lastIndexOf(":")), key.slice(key.lastIndexOf(":") + 1)];
+        expect(guardsInline(r, m), `${key} must refuse everyone but SUPER_ADMIN`).toBe("INLINE_SA");
       } else {
         expect(gate?.roles, `${key} must declare exactly these roles`).toEqual(expected);
         // An empty list admits nobody and would break the till rather than
@@ -183,7 +193,7 @@ describe("T-03 — every API route declares an authorization gate", () => {
     // If a role below MANAGER is ever added, this test should start failing —
     // and that failure is the reminder to re-examine every gate above.
     const narrower = Object.entries(DESTRUCTIVE).filter(
-      ([, expected]) => expected !== "inline" && expected.length < ROLES.length,
+      ([, expected]) => expected !== "INLINE_SA" && expected.length < ROLES.length,
     );
     // Two since 2026-09-11. `catalog/import:POST` joined the restore button,
     // and the pairing is the right one: both replace a whole body of data
@@ -250,29 +260,39 @@ describe("T-03 — every API route declares an authorization gate", () => {
   //   SUPER_ADMIN — declares ["SUPER_ADMIN"]. Genuinely narrower.
   //   INLINE      — any role at the wrapper, refused in the handler (L-32).
   //   ANY         — any authenticated role, deliberately.
-  const GATES: Record<string, "BOTH" | "SUPER_ADMIN" | "INLINE" | "ANY"> = {
+  //   INLINE_SA   — any role at the wrapper, and the handler refuses everyone
+  //                 but SUPER_ADMIN (L-32). A real gate.
+  //   INLINE_ANY  — an inline guard that names EVERY role, so it refuses
+  //                 nobody and the handler is open to any authenticated
+  //                 caller. Dead code, and until L-120 it was indistinguishable
+  //                 here from INLINE_SA. Listed as what it is, not as a guard.
+  //   INLINE_SELF — SUPER_ADMIN, or the subject acting on their own row.
+  const GATES: Record<
+    string,
+    "BOTH" | "SUPER_ADMIN" | "INLINE_SA" | "INLINE_ANY" | "INLINE_SELF" | "ANY"
+  > = {
   "audit:GET": "BOTH",
   "auth/lock:POST": "ANY",
   "auth/step-up:POST": "ANY",
   "auth/switch-user:POST": "ANY",
   "backups:GET": "SUPER_ADMIN",
-  "backups:POST": "INLINE",
-  "backups/[id]:DELETE": "INLINE",
+  "backups:POST": "INLINE_SA",
+  "backups/[id]:DELETE": "INLINE_SA",
   "backups/[id]/restore:POST": "SUPER_ADMIN",
   "cash-movements:GET": "BOTH",
   "cash-movements:POST": "BOTH",
   "catalog/categories:GET": "ANY",
-  "catalog/categories:POST": "INLINE",
-  "catalog/categories/[id]:DELETE": "INLINE",
+  "catalog/categories:POST": "INLINE_ANY",
+  "catalog/categories/[id]:DELETE": "INLINE_ANY",
   "catalog/categories/[id]:GET": "ANY",
-  "catalog/categories/[id]:PUT": "INLINE",
+  "catalog/categories/[id]:PUT": "INLINE_ANY",
   "catalog/export:GET": "SUPER_ADMIN",
   "catalog/import:POST": "SUPER_ADMIN",
   "catalog/products:GET": "ANY",
-  "catalog/products:POST": "INLINE",
-  "catalog/products/[id]:DELETE": "INLINE",
+  "catalog/products:POST": "INLINE_ANY",
+  "catalog/products/[id]:DELETE": "INLINE_ANY",
   "catalog/products/[id]:GET": "ANY",
-  "catalog/products/[id]:PUT": "INLINE",
+  "catalog/products/[id]:PUT": "INLINE_ANY",
   "catalog/products/availability:GET": "ANY",
   "catalog/products/availability:POST": "BOTH",
   "catalog/products/favorites:GET": "ANY",
@@ -299,7 +319,7 @@ describe("T-03 — every API route declares an authorization gate", () => {
   "fiscal/grand-total:GET": "BOTH",
   "fiscal/verify:GET": "BOTH",
   "logs:GET": "SUPER_ADMIN",
-  "media:DELETE": "INLINE",
+  "media:DELETE": "INLINE_ANY",
   "media:GET": "ANY",
   "orders:GET": "ANY",
   "orders:POST": "ANY",
@@ -318,7 +338,7 @@ describe("T-03 — every API route declares an authorization gate", () => {
   "reports/z:GET": "BOTH",
   "reports/z:POST": "BOTH",
   "settings:GET": "BOTH",
-  "settings:PUT": "INLINE",
+  "settings:PUT": "INLINE_SA",
   "setup/chain-key:POST": "SUPER_ADMIN",
   "setup/secrets:GET": "SUPER_ADMIN",
   "setup/secrets:POST": "SUPER_ADMIN",
@@ -328,15 +348,15 @@ describe("T-03 — every API route declares an authorization gate", () => {
   "shifts/current:GET": "ANY",
   "shifts/summary:GET": "ANY",
   "tables:GET": "ANY",
-  "tables:POST": "INLINE",
+  "tables:POST": "INLINE_SA",
   "tables/[id]:DELETE": "BOTH",
   "tables/[id]:PUT": "ANY",
   "tables/seed:POST": "BOTH",
   "upload:POST": "BOTH",
   "users:GET": "SUPER_ADMIN",
-  "users:POST": "INLINE",
-  "users/[id]:DELETE": "INLINE",
-  "users/[id]:PUT": "INLINE",
+  "users:POST": "INLINE_SA",
+  "users/[id]:DELETE": "INLINE_SA",
+  "users/[id]:PUT": "INLINE_SELF",
   };
 
   /** Where the next `export const <METHOD> = withAuth(` starts, or EOF. */
@@ -346,12 +366,143 @@ describe("T-03 — every API route declares an authorization gate", () => {
     return m ? from + 10 + m.index : src.length;
   }
 
-  /** Does this handler refuse a non-SUPER_ADMIN inside its own body? (L-32) */
-  function guardsInline(route: string, method: string): boolean {
+  // ── L-120 (audit pass 2): the detector below replaces a regex that could
+  // not tell a guard from a no-op ─────────────────────────────────────────────
+  //
+  // What was here:
+  //
+  //     /user\.role\s*!==\s*"SUPER_ADMIN"/.test(handlerSource)
+  //
+  // It matched BOTH of these and called both `INLINE`:
+  //
+  //     if (user.role !== "SUPER_ADMIN") return 403                           // refuses MANAGER
+  //     if (user.role !== "SUPER_ADMIN" && user.role !== "MANAGER") return 403 // refuses NOBODY
+  //
+  // The second form names every role the product has (DD-07 left two), so the
+  // condition is unsatisfiable and the guard is dead code. **Seven handlers
+  // already use it**, which is why it reads as idiomatic and would survive
+  // review. `settings:PUT` was classified `INLINE` on the strength of that
+  // regex and nothing else, while `settingsSchema` carries
+  // `discountApprovalThreshold` (max 100 — every discount escapes the DD-19
+  // step-up) and `factice` (the R6.3 stamp).
+  //
+  // So: parse the condition instead of grepping it, and derive « who does this
+  // refuse? » from `ROLES` rather than hard-coding it — add a third role and
+  // the classification updates itself.
+  //
+  // AND FAIL LOUDLY ON ANYTHING UNRECOGNISED. That is the actual lesson of
+  // L-120: a detector whose unknown case is `false` reports "no guard here"
+  // for a guard it merely could not read, which is the same silence it is
+  // supposed to break. Every unparsed shape throws with the text it choked on.
+
+  /** One conjunct of a guard condition, classified. */
+  type Clause =
+    | { kind: "role"; role: string }
+    | { kind: "self" }
+    | { kind: "unknown"; text: string };
+
+  /** The kinds of inline guard this codebase actually contains. */
+  type InlineKind = "INLINE_SA" | "INLINE_ANY" | "INLINE_SELF";
+
+  /**
+   * The full `if (…)` condition containing the first `user.role !==` in `body`,
+   * extracted by balancing parentheses rather than by regex — a condition that
+   * spans lines or contains its own parens must not be truncated into
+   * something that happens to look narrow.
+   */
+  function guardCondition(body: string): string | null {
+    const hit = /user\.role\s*!==/.exec(body);
+    if (!hit) return null;
+    const ifAt = body.lastIndexOf("if (", hit.index);
+    if (ifAt === -1) throw new Error(`a \`user.role !==\` outside any \`if (\`: ${body.slice(hit.index, hit.index + 80)}`);
+    let depth = 0;
+    for (let i = ifAt + 3; i < body.length; i++) {
+      if (body[i] === "(") depth++;
+      else if (body[i] === ")") {
+        depth--;
+        if (depth === 0) return body.slice(ifAt + 4, i).trim();
+      }
+    }
+    throw new Error(`unbalanced \`if (\` in a role guard: ${body.slice(ifAt, ifAt + 120)}`);
+  }
+
+  /** Strip only WRAPPING parentheses — `(a)` → `a`, but `f(x)` is left whole.
+   *  A greedy strip turned `!isSomethingElse(user)` into `!isSomethingElse(user`
+   *  in the failure message, which is a misquote in the one place someone is
+   *  reading carefully. */
+  function unwrap(text: string): string {
+    let t = text.trim();
+    while (t.startsWith("(") && t.endsWith(")")) {
+      let depth = 0;
+      let wraps = true;
+      for (let i = 0; i < t.length; i++) {
+        if (t[i] === "(") depth++;
+        else if (t[i] === ")") {
+          depth--;
+          if (depth === 0 && i < t.length - 1) { wraps = false; break; }
+        }
+      }
+      if (!wraps) break;
+      t = t.slice(1, -1).trim();
+    }
+    return t;
+  }
+
+  function parseClause(text: string): Clause {
+    const t = unwrap(text);
+    const role = /^user\.role\s*!==\s*"([A-Z_]+)"$/.exec(t);
+    if (role) return { kind: "role", role: role[1] };
+    if (/^user\.id\s*!==\s*\w+(\.\w+)*$/.test(t)) return { kind: "self" };
+    return { kind: "unknown", text: t };
+  }
+
+  /**
+   * Classify the inline guard in `body`, or `null` when there is none.
+   *
+   * Only `&&`-chains are understood. A `||` between role comparisons inverts
+   * the meaning entirely — `!== "SUPER_ADMIN" || !== "MANAGER"` refuses
+   * everybody — and guessing at one is exactly the mistake this replaces, so
+   * it throws instead.
+   */
+  function classifyInline(body: string): InlineKind | null {
+    const cond = guardCondition(body);
+    if (cond === null) return null;
+    if (/\|\|/.test(cond)) {
+      throw new Error(`a role guard joined with \`||\`, whose meaning is not the same as \`&&\`: ${cond}`);
+    }
+    const clauses = cond.split("&&").map(parseClause);
+    const unknown = clauses.filter((c) => c.kind === "unknown");
+    if (unknown.length) {
+      throw new Error(
+        `unrecognised clause in a role guard — teach this parser rather than ` +
+          `letting it report "no guard": ${unknown.map((c) => (c as { text: string }).text).join(" | ")} ` +
+          `(whole condition: ${cond})`,
+      );
+    }
+    const named = clauses.flatMap((c) => (c.kind === "role" ? [c.role] : []));
+    if (named.length === 0) throw new Error(`a guard condition with no role comparison: ${cond}`);
+    // The body runs — i.e. the request is refused — only when EVERY conjunct is
+    // true, so the roles it refuses are the ones this condition does not name.
+    const refused = ROLES.filter((r) => !named.includes(r));
+    if (refused.length === 0) return "INLINE_ANY";
+    if (clauses.some((c) => c.kind === "self")) return "INLINE_SELF";
+    if (named.length === 1 && named[0] === "SUPER_ADMIN") return "INLINE_SA";
+    throw new Error(`a role guard shape this table has no name for yet: ${cond}`);
+  }
+
+  /** The body of one exported handler, as source text. */
+  function handlerSource(route: string, method: string): string | null {
     const src = readFileSync(path.join(API_ROOT, route, "route.ts"), "utf8");
     const at = src.indexOf(`export const ${method} =`);
-    if (at === -1) return false;
-    return /user\.role\s*!==\s*"SUPER_ADMIN"/.test(src.slice(at, nextExportIndex(src, at)));
+    if (at === -1) return null;
+    return src.slice(at, nextExportIndex(src, at));
+  }
+
+  /** What kind of inline guard does this handler carry? (L-32, L-120) */
+  function guardsInline(route: string, method: string): InlineKind | null {
+    const body = handlerSource(route, method);
+    if (body === null) return null;
+    return classifyInline(body);
   }
 
   it("classifies every authenticated handler, and none has changed gate (DD-22)", async () => {
@@ -368,9 +519,7 @@ describe("T-03 — every API route declares an authorization gate", () => {
           ? roles.length === 1 && roles[0] === "SUPER_ADMIN"
             ? "SUPER_ADMIN"
             : "BOTH"
-          : guardsInline(route, method)
-            ? "INLINE"
-            : "ANY";
+          : (guardsInline(route, method) ?? "ANY");
       }
     }
 
@@ -378,6 +527,70 @@ describe("T-03 — every API route declares an authorization gate", () => {
     // exists — a route deleted without touching this table fails here too.
     expect(Object.keys(seen).sort()).toEqual(Object.keys(GATES).sort());
     expect(seen).toEqual(GATES);
+  });
+
+  /** The roles an inline guard of this kind refuses outright. */
+  function refusedByInline(kind: InlineKind): string[] {
+    switch (kind) {
+      case "INLINE_ANY":
+        return []; // names every role, so the condition never holds
+      case "INLINE_SA":
+        return ROLES.filter((r) => r !== "SUPER_ADMIN");
+      case "INLINE_SELF":
+        // Refused unless acting on their own row — conditional, but for the
+        // purpose of « does the declared gate tell the truth? » it is a refusal.
+        return ROLES.filter((r) => r !== "SUPER_ADMIN");
+    }
+  }
+
+  it("no declared gate is contradicted by a guard inside its own handler (L-120)", async () => {
+    // The classification above takes a DECLARED gate at its word and only
+    // parses the body when no roles are declared. That leaves the other door
+    // open: a handler can declare `["SUPER_ADMIN", "MANAGER"]` and then refuse
+    // the MANAGER in its first three lines. The map then says a role may call
+    // a route that answers it 403 — the same lie L-120 is about, reached from
+    // the opposite side, and invisible to every assertion in this file until
+    // now.
+    //
+    // Found by this check on the day it was written, and NOT fixed here:
+    // whether a MANAGER should be able to seed the default tables is a product
+    // question, not a test-suite one. Recorded as **L-184**. Pinning the known
+    // case keeps the suite honest — green, but green with the exception
+    // written down — and makes a SECOND one a failure.
+    const KNOWN: Record<string, string> = {
+      "tables/seed:POST": "L-184 — declares BOTH, body answers a MANAGER 403 " +
+        "« Réservé au super administrateur ». Decide which is right, then delete this line.",
+    };
+
+    const contradictions: string[] = [];
+    for (const route of ROUTES) {
+      const mod = (await importRoute(route)) as Record<string, unknown>;
+      for (const method of METHODS) {
+        const handler = mod[method];
+        if (typeof handler !== "function") continue;
+        const declared = roleGateOf(handler)?.roles;
+        if (!declared) continue; // no declared gate — the classifier owns these
+        const kind = guardsInline(route, method);
+        if (!kind) continue;
+        const declaredNames: string[] = declared;
+        const refused = refusedByInline(kind).filter((r) => declaredNames.includes(r));
+        if (refused.length) contradictions.push(`${route}:${method} declares ${declared.join("+")} but its body refuses ${refused.join("+")}`);
+      }
+    }
+
+    const unexpected = contradictions.filter(
+      (c) => !Object.keys(KNOWN).some((k) => c.startsWith(k + " ")),
+    );
+    expect(
+      unexpected,
+      `a declared gate is contradicted by the handler's own guard. Either the ` +
+        `declaration or the guard is wrong — decide which, do not silence this: ` +
+        unexpected.join("; "),
+    ).toEqual([]);
+
+    // And the known one is still there: deleting the guard without deleting
+    // this line should fail too, so the exception cannot outlive its cause.
+    expect(contradictions.map((c) => c.split(" ")[0]).sort()).toEqual(Object.keys(KNOWN).sort());
   });
 
   it("the count of genuinely-narrow gates is what the review left (DD-22)", () => {
@@ -404,7 +617,23 @@ describe("T-03 — every API route declares an authorization gate", () => {
     // make room for them.
     // AMENDED 2026-09-11 (first-run keys): SUPER_ADMIN 9 -> 12, the three new
     // `setup/*` routes. BOTH, ANY and INLINE unmoved again.
-    expect(counts).toEqual({ BOTH: 31, ANY: 26, INLINE: 14, SUPER_ADMIN: 12 });
+    // AMENDED 2026-09-13 (R9.6, L-120): INLINE 14 splits into INLINE_SA 6,
+    // INLINE_ANY 7 and INLINE_SELF 1 — 6 + 7 + 1 = 14, and BOTH, ANY and
+    // SUPER_ADMIN are all unmoved. **No gate changed. The map stopped lying
+    // about seven of them.** Those seven name every role in the product, so
+    // they refuse nobody: `catalog/categories` × 3, `catalog/products` × 3 and
+    // `media:DELETE` are open to any authenticated caller and always were.
+    // Whether they SHOULD be is a review, not this item — recorded as **L-183**
+    // in `docs/audit/FINDINGS.md`. What changed here is that the table now says
+    // so out loud instead of counting them among the guards.
+    expect(counts).toEqual({
+      BOTH: 31,
+      ANY: 26,
+      INLINE_SA: 6,
+      INLINE_ANY: 7,
+      INLINE_SELF: 1,
+      SUPER_ADMIN: 12,
+    });
   });
 
   it("matches the expected gate wherever one is pinned", async () => {

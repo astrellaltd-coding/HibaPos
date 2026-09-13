@@ -10,6 +10,7 @@ import {
   PIN_HASH_BUSY_RETRY_AFTER_SEC,
 } from "@/lib/pin-hash-queue";
 import { isChainKeyMisconfigured } from "@/lib/fiscal-key";
+import { audit } from "@/lib/services/audit";
 
 export type RequestContext = { params: Promise<Record<string, string | string[]>> };
 
@@ -108,6 +109,44 @@ export function scryptBusyResponse(): NextResponse {
   );
 }
 
+/**
+ * The 403 a declarative role gate returns — and the audit row that goes with it.
+ *
+ * L-151 (audit pass 2): `LOGIN_FAILED`, `USER_SWITCH_FAILED` and
+ * `MANAGER_APPROVAL_FAILED` are all journalled, but a signed-in account probing
+ * a route it may not call left **no trace at all** — `audit` appeared zero
+ * times in this file. The refusal is the interesting event: it is a real
+ * account, already authenticated, reaching for something outside its role.
+ *
+ * Deliberately NOT logged here: the 401 above. It has no user to attribute the
+ * row to, and every unauthenticated poll of `/api/auth/me` would write one.
+ *
+ * The path comes from `req.url` rather than `req.nextUrl`, because a test
+ * harness calls the exported handler with a plain `Request` and `nextUrl` is
+ * undefined there — the audit row must not be the thing that throws.
+ * `audit()` swallows its own failures, so this cannot break the refusal.
+ */
+async function denyByRole(
+  req: Request,
+  user: AuthUser,
+  required: Role[],
+): Promise<NextResponse> {
+  let route = req.url;
+  try {
+    route = new URL(req.url).pathname;
+  } catch {
+    /* a relative or malformed URL — keep the raw value rather than lose the row */
+  }
+  await audit(
+    "ACCESS_DENIED",
+    "Api",
+    route,
+    { method: req.method, requiredRoles: required, role: user.role },
+    user.id,
+  );
+  return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+}
+
 /** Wrap a handler so it requires a valid session. Returns 401 if not authed. */
 export function withAuth<T>(
   handler: Handler<T>,
@@ -122,7 +161,7 @@ export function withAuth<T>(
     }
     const user = session.user;
     if (options?.roles && !options.roles.includes(user.role as Role)) {
-      return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+      return denyByRole(req, user, options.roles);
     }
     // Only ScryptBusyError is caught; every other error propagates exactly as
     // it did before, so no route's failure behaviour changes.
@@ -150,7 +189,7 @@ export function withAuthParams<T>(
     }
     const user = session.user;
     if (options?.roles && !options.roles.includes(user.role as Role)) {
-      return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+      return denyByRole(req, user, options.roles);
     }
     const rawParams = await reqCtx.params;
     const params: Record<string, string> = {};
