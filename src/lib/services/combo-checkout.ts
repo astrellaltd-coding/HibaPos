@@ -293,6 +293,10 @@ export async function priceComboItem(args: {
     menuVatRate: resolveVatRate(menu, orderType),
     components: priced,
   });
+  // L-136 (R8.5): a component whose share plus supplements would be negative.
+  // Surfaced as a `ComboPricingError` like every other refusal on this path, so
+  // the route answers 400 with the sentence rather than a 500.
+  if ("error" in allocation) return { error: allocation.error };
 
   return {
     forfait,

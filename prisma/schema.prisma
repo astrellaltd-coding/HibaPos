@@ -388,6 +388,27 @@ model CategoryAddOn {
   sortOrder  Int      @default(0)
   active     Boolean  @default(true)
 
+  /// L-94 (R8.5) — a supplement's OWN VAT rate.
+  ///
+  /// `docs/politique-ventilation-tva.md` § 6: « Un supplément … relève de son
+  /// propre taux — 10 % pour un supplément alimentaire. » It did not. A
+  /// supplement was folded into its host line and therefore booked at the
+  /// HOST's rate, so a food supplement on a takeaway canette would have booked
+  /// at 5,5 % — under-declared, and invisible.
+  ///
+  /// **NULL means the restaurant's `defaultVatRate`**, not the host's rate.
+  /// That is the whole point: « son propre taux » is the food rate, and
+  /// inheriting the host is what was wrong. Every one of the 21 add-ons on this
+  /// catalogue sits on Pizzas or Sandwichs, which resolve to 10 — the same as
+  /// `defaultVatRate` — so this changes nothing today and is correct the moment
+  /// a supplement is attached to a category at another rate.
+  ///
+  /// The pair mirrors `Category`'s exactly, and `resolveVatRate`'s rule that
+  /// both rates come from the SAME level applies here too: a supplement that
+  /// sets one and not the other uses its own rate for both modes.
+  vatRate         Float?
+  vatRateTakeaway Float?
+
   @@index([categoryId])
 }
 

@@ -44,8 +44,20 @@ const checkoutIntentSchema = z.object({
           .max(MAX_ITEM_QUANTITY, `Quantité maximale : ${MAX_ITEM_QUANTITY} par ligne.`),
         notes: z.string().optional().nullable(),
         optionIds: z.array(z.string()).default([]),
+        // L-127 (R8.5): bounded, for M-16's reason. The item quantity a few
+        // fields up carries `.max(MAX_ITEM_QUANTITY)` and this did not —
+        // measured, a quantity of 100 000 booked a 150 011,90 € line into the
+        // fiscal journal. Same bound, same French message.
         addons: z.array(
-          z.object({ addonId: z.string(), quantity: z.number().int().min(1).default(1) })
+          z.object({
+            addonId: z.string(),
+            quantity: z
+              .number()
+              .int()
+              .min(1)
+              .max(MAX_ITEM_QUANTITY, `Quantité maximale : ${MAX_ITEM_QUANTITY} par supplément.`)
+              .default(1),
+          })
         ).default([]),
         // Batch 5.9 — a menu composé, one entry per seat, IN SLOT ORDER.
         //
@@ -127,6 +139,17 @@ const checkoutIntentSchema = z.object({
         amount: z.number().int().min(0), // cents; only OFFERT may be 0
         tendered: z.number().int().min(0).optional(), // cents
       })
+        // L-128 (R8.5) — `tendered` below `amount` printed a NEGATIVE change
+        // onto a sealed ticket. Measured: amount 1190, tendered 500 →
+        // `Payment.change = -690`, receipt « Reçu 5,00 € — Rendu -6,90 € ».
+        //
+        // REFUSED, not clamped, and the audit says why: it lands on an
+        // immutable document. `Math.max(0, …)` would print « Rendu 0,00 € »
+        // over a bill that was never covered, and nothing would ever say so.
+        // A refusal reaches the cashier while the customer is still there.
+        .refine((pay) => pay.tendered == null || pay.tendered >= pay.amount, {
+          message: "Le montant reçu ne peut pas être inférieur au montant réglé.",
+        })
     )
     .min(1, "Au moins un paiement"),
 });
@@ -226,6 +249,11 @@ export const POST = withAuth(async (req, { user }) => {
     );
   }
 
+  // L-94 (R8.5): read BEFORE the loop, because `defaultVatRate` is what a
+  // supplement's own rate falls back to and the loop needs it per line. It was
+  // read after the loop for the discount threshold; one read serves both.
+  const settings = await getSettings();
+
   // --- Server-authoritative price computation ---
   let subtotal = 0;
   let itemCount = 0;
@@ -314,7 +342,15 @@ export const POST = withAuth(async (req, { user }) => {
     }
 
     // Server-authoritative line pricing (pure function — see services/pricing.ts).
-    const lineResult = computeLinePricing(itemIntent, product, orderType);
+    // L-94 (R8.5): the line's own rate, and the food rate a supplement falls
+    // back to. Computed once and used both for the partition inside
+    // `computeLinePricing` and for the row pushed below, so the two cannot
+    // disagree about what rate this line carries.
+    const hostVatRate = resolveVatRate(product, orderType);
+    const lineResult = computeLinePricing(itemIntent, product, orderType, undefined, {
+      defaultVatRate: settings.defaultVatRate,
+      hostVatRate,
+    });
     if ("error" in lineResult) {
       return NextResponse.json({ error: lineResult.error }, { status: 400 });
     }
@@ -339,11 +375,35 @@ export const POST = withAuth(async (req, { user }) => {
       // here on purpose, which is why a tampered basket cannot choose its own
       // tax. `orderType` is the same value already driving `computeLinePricing`
       // twelve lines above.
-      vatRate: resolveVatRate(product, orderType),
+      vatRate: hostVatRate,
       optionsJson: lineResult.optionsJson,
       addOnsJson: lineResult.addOnsJson,
       notes: itemIntent.notes ?? null,
     });
+
+    // L-94 (R8.5) — a supplement whose rate differs from its host's is booked
+    // as its OWN line, because `OrderItem` carries exactly one rate. Empty for
+    // every sale this catalogue can currently make: all 21 add-ons sit on
+    // Pizzas and Sandwichs at 10, which is also `defaultVatRate`. That is the
+    // operator's decision of 2026-09-13 — fold while the rates agree, split
+    // when they do not — so an ordinary ticket is unchanged.
+    //
+    // `productId` is null: a supplement is not a product, and pointing at the
+    // HOST product would make `topProducts` count it as a sale of the dish.
+    for (const extra of lineResult.separateAddOns) {
+      subtotal += extra.lineTotal;
+      orderItemsData.push({
+        productId: null,
+        productName: extra.name,
+        unitPrice: extra.price,
+        quantity: extra.quantity,
+        lineTotal: extra.lineTotal,
+        vatRate: extra.vatRate,
+        optionsJson: null,
+        addOnsJson: null,
+        notes: `Supplément — ${product.name}`,
+      });
+    }
   }
 
   // Compute discount server-side (all values in cents)
@@ -361,7 +421,6 @@ export const POST = withAuth(async (req, { user }) => {
   }
 
   // Record the discount approver above the configured threshold.
-  const settings = await getSettings();
   const threshold = settings.discountApprovalThreshold ?? 20;
   let discountApproverId: string | null = null;
   // DD-19, Batch 4.4c. Above the threshold the caller must have re-entered

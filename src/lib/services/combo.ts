@@ -172,6 +172,9 @@ export type ComboAllocation = {
   fallback: { reason: string; rate: number } | null;
 };
 
+/** A refusal, when a component's line cannot be priced. L-136 (R8.5). */
+export type ComboAllocationError = { error: string };
+
 /**
  * Divide a menu's forfait across its components (policy § 2), or fall back
  * (§ 4).
@@ -198,7 +201,7 @@ export function allocateCombo(args: {
   /** The menu product's own resolved rate — only ever used by the fallback. */
   menuVatRate: number;
   components: ComboComponent[];
-}): ComboAllocation {
+}): ComboAllocation | ComboAllocationError {
   const { menuProductId, menuName, forfait, menuVatRate, components } = args;
 
   const resolvedRates = components.map((c) => c.vatRate).filter((r) => Number.isFinite(r) && r >= 0);
@@ -261,6 +264,28 @@ export function allocateCombo(args: {
     components.map((c) => c.referencePrice),
     forfait,
   );
+
+  // L-136 (R8.5) — M-15's guard, on the line it was missing from.
+  //
+  // `pricing.ts` refuses a negative `unitPrice`, but that check runs on the
+  // unit price BEFORE add-ons and on the ordinary path only. Here the unit
+  // price is `share + supplements`, and a negative supplement could drive it
+  // below zero past that guard — putting a negative line into a sealed fiscal
+  // document, reducing the order's subtotal and corrupting the apportionment.
+  //
+  // REFUSED rather than clamped, for M-15's own stated reason: clamping to zero
+  // would sell the component free and silently, and nobody would ever see it.
+  // Not reachable on this catalogue — measured 2026-09-13: zero negative option
+  // modifiers, zero negative choice modifiers, zero add-ons priced below zero,
+  // zero products at or below zero.
+  const negative = components.findIndex((c, i) => shares[i] + c.supplements < 0);
+  if (negative >= 0) {
+    return {
+      error:
+        `Prix négatif pour « ${components[negative].productName} » dans ${menuName} — ` +
+        `vérifiez les suppléments de ce composant.`,
+    };
+  }
 
   return {
     lines: components.map((c, i) => ({

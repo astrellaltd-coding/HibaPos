@@ -102,6 +102,11 @@ function run(components: ComboComponent[], forfait: number, menuVatRate = 10) {
     menuVatRate,
     components,
   });
+  // L-136 (R8.5): `allocateCombo` can now refuse a component whose share plus
+  // supplements would be negative. Every case in this file is a legitimate
+  // allocation, so a refusal here is a bug in the fixture and should stop the
+  // test rather than be threaded through 30 assertions as a union.
+  if ("error" in a) throw new Error(`allocateCombo refused this fixture: ${a.error}`);
   return { allocation: a, buckets: buckets(a.lines) };
 }
 

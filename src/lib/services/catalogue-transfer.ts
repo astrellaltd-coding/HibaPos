@@ -77,7 +77,10 @@ export const CATALOGUE_TABLES = [
   { model: "categoryOptionChoice", table: "CategoryOptionChoice",
     fields: ["id", "groupId", "name", "priceModifier", "pickupPriceModifier", "deliveryPriceModifier", "pickupPrice", "deliveryPrice", "image", "sortOrder"] },
   { model: "categoryAddOn", table: "CategoryAddOn",
-    fields: ["id", "categoryId", "name", "price", "image", "sortOrder", "active"] },
+    // L-94 (R8.5): `vatRate` and `vatRateTakeaway` travel. A supplement's own
+    // rate is catalogue data like its price, and an export that dropped it
+    // would land every supplement back on `defaultVatRate` in the new install.
+    fields: ["id", "categoryId", "name", "price", "image", "sortOrder", "active", "vatRate", "vatRateTakeaway"] },
   { model: "comboSlot", table: "ComboSlot",
     fields: ["id", "productId", "name", "quantity", "sortOrder", "sourceCategoryId"] },
   { model: "comboSlotChoice", table: "ComboSlotChoice",

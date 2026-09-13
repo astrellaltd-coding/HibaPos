@@ -105,6 +105,49 @@ type AddOnRow = {
   name: string;
   price: number; // cents
   active: boolean;
+  /** L-94 (R8.5). Null means the restaurant's `defaultVatRate`. */
+  vatRate?: number | null;
+  vatRateTakeaway?: number | null;
+};
+
+/**
+ * A supplement's OWN VAT rate — L-94 (R8.5).
+ *
+ * `docs/politique-ventilation-tva.md` § 6: « Un supplément … relève de son
+ * propre taux — 10 % pour un supplément alimentaire. » It did not: a supplement
+ * was folded into its host's line and therefore booked at the host's rate. A
+ * food supplement on a takeaway canette would have booked at 5,5 %.
+ *
+ * **Null resolves to `defaultVatRate`, NOT to the host's rate**, and that is
+ * the correction rather than an implementation detail. Inheriting the host is
+ * precisely what was wrong; « son propre taux » is the restaurant's food rate.
+ *
+ * Both rates come from the same level, for `resolveVatRate`'s reason (L-68): a
+ * supplement that sets one and not the other uses its own rate in both modes,
+ * so a single sale can never be taxed from two different places.
+ */
+export function resolveAddOnVatRate(
+  addon: { vatRate?: number | null; vatRateTakeaway?: number | null },
+  orderType: VatOrderType,
+  defaultVatRate: number,
+): number {
+  if (addon.vatRate == null) return defaultVatRate;
+  if (orderType === "DINE_IN") return addon.vatRate;
+  return addon.vatRateTakeaway ?? addon.vatRate;
+}
+
+/** A supplement booked on its OWN line, because its rate differs from the line
+ *  it was added to. `OrderItem` carries exactly one rate — the same constraint
+ *  that made a menu explode into one line per component (Batch 5.9). */
+export type SeparateAddOnLine = {
+  addonId: string;
+  name: string;
+  /** Unit price in cents — the supplement's own price, not multiplied. */
+  price: number;
+  /** Add-on quantity × the host line's quantity. */
+  quantity: number;
+  lineTotal: number; // cents
+  vatRate: number;
 };
 
 /**
@@ -195,6 +238,16 @@ export type LinePricingResult = {
   addOnsTotal: number; // cents
   optionsJson: string | null;
   addOnsJson: string | null;
+  /**
+   * Supplements whose rate differs from this line's, to be booked as their own
+   * `OrderItem` rows — L-94 (R8.5).
+   *
+   * **Empty for every sale this catalogue can currently make**, and that is
+   * deliberate: the operator chose that a supplement stays folded into its host
+   * line while the two rates agree, so nothing about a normal ticket changes.
+   * `addOnsTotal` above already excludes anything listed here.
+   */
+  separateAddOns: SeparateAddOnLine[];
 };
 
 export type LinePricingError = { error: string };
@@ -207,6 +260,20 @@ export function computeLinePricing(
   product: ProductWithRelations,
   orderType: "DINE_IN" | "TAKEAWAY" | "LIVRAISON",
   combo?: ComboSlotContext,
+  /**
+   * L-94 (R8.5) — what a supplement's rate is measured against.
+   *
+   * Both optional, so every existing caller and test keeps working unchanged:
+   * with neither supplied, a supplement resolves to the host's rate exactly as
+   * before, which folds it and changes nothing.
+   *
+   * `hostVatRate` is passed in rather than derived here because
+   * `ProductWithRelations` deliberately carries only what PRICING needs — the
+   * option and add-on graph — and not the category's VAT columns. Widening it
+   * to make `resolveVatRate` callable from inside would make every caller
+   * fetch rate columns it has no use for.
+   */
+  vat?: { defaultVatRate: number; hostVatRate: number },
 ): LinePricingResult | LinePricingError {
   // Sub-categories are folders: products inherit options/add-ons from the parent category.
   const effectiveCategory = product.category?.parent ?? product.category;
@@ -271,7 +338,13 @@ export function computeLinePricing(
 
   // Validate and apply addons
   let addonsTotal = 0;
-  const chosenAddons: { id: string | null; name: string; price: number }[] = [];
+  // L-127 (R8.5): `quantity` joins the snapshot. Optional, because every
+  // `addOnsJson` already written omits it and readers must tolerate both.
+  const chosenAddons: { id: string | null; name: string; price: number; quantity?: number }[] = [];
+
+  // L-94 (R8.5). A supplement matching this line's rate rides along as before;
+  // one that does not gets its own line further down.
+  const separateAddOns: SeparateAddOnLine[] = [];
 
   for (const aIntent of itemIntent.addons) {
     if (!availableAddonIds.has(aIntent.addonId)) {
@@ -281,8 +354,36 @@ export function computeLinePricing(
     if (!addon || !addon.active) {
       return { error: `Supplément introuvable ou inactif : ${aIntent.addonId}` };
     }
+
+    const addonRate = vat ? resolveAddOnVatRate(addon, orderType, vat.defaultVatRate) : null;
+
+    if (vat && addonRate !== null && addonRate !== vat.hostVatRate) {
+      // Its own line. `OrderItem` carries exactly one rate, so this is the only
+      // way a supplement can be booked at a rate its host does not have — the
+      // same argument that made a menu explode into one line per component.
+      separateAddOns.push({
+        addonId: addon.id,
+        name: addon.name,
+        price: addon.price,
+        quantity: aIntent.quantity * itemIntent.quantity,
+        lineTotal: addon.price * aIntent.quantity * itemIntent.quantity,
+        vatRate: addonRate,
+      });
+      continue;
+    }
+
     addonsTotal += addon.price * aIntent.quantity;
-    chosenAddons.push({ id: addon.id, name: addon.name, price: addon.price });
+    // L-127 (R8.5): the QUANTITY is snapshotted now. It was charged and then
+    // dropped, so `addOnsJson` — which is what the ticket and the archive read
+    // — could not reproduce the line whenever the quantity exceeded 1.
+    // Measured: 3 × Viande Hachee printed as one « + Viande Hachee (1,50 €) »,
+    // 4,50 € unexplained on a document that is never re-rendered.
+    chosenAddons.push({
+      id: addon.id,
+      name: addon.name,
+      price: addon.price,
+      quantity: aIntent.quantity,
+    });
   }
 
   const unitPrice = basePrice + optionsModifier;
@@ -311,5 +412,6 @@ export function computeLinePricing(
     addOnsTotal: addonsTotal,
     optionsJson: chosenOptions.length ? JSON.stringify(chosenOptions) : null,
     addOnsJson: chosenAddons.length ? JSON.stringify(chosenAddons) : null,
+    separateAddOns,
   };
 }

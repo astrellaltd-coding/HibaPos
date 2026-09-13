@@ -363,7 +363,13 @@ describe("POST /api/orders — supplements ride on top of the forfait (policy §
     // …and the 1,50 € sits on the pizza that carries it, at 10 %.
     expect(lines[0].unitPrice).toBe(1086 + 150);
     expect(lines[0].vatRate).toBe(10);
-    expect(JSON.parse(lines[0].addOnsJson!)).toEqual([{ id: ids.oeuf, name: "Oeuf", price: 150 }]);
+    // CHANGED 2026-09-13 (R8.5, L-127): the snapshot carries the QUANTITY now.
+    // It was charged and dropped, so `addOnsJson` — what the ticket and the
+    // archive read — could not reproduce a line whose quantity exceeded 1.
+    // Menu components take the same pricing path, so they gain it too.
+    expect(JSON.parse(lines[0].addOnsJson!)).toEqual([
+      { id: ids.oeuf, name: "Oeuf", price: 150, quantity: 1 },
+    ]);
     // Σ shares is still exactly the forfait.
     expect(sum2(lines.map((l) => l.unitPrice)) - 150).toBe(2490);
   });
