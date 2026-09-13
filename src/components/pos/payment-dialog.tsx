@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -13,19 +13,20 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "@/lib/api-client";
 import { buildCheckoutItems } from "@/lib/checkout-intent";
 import type { OrderDto, PaymentMethod, SettingsDto } from "@/types/api";
-import { Banknote, CreditCard, Ticket, Plus, Trash2, Loader2, CheckCircle2, Coins, Gift } from "lucide-react";
+import { Plus, Loader2, CheckCircle2, Coins, Gift } from "lucide-react";
 import { toast } from "sonner";
 import { StepUpPinDialog, type StepUpConfirmation } from "@/components/pos/step-up-pin-dialog";
 import { discountNeedsStepUp } from "@/lib/discount-policy";
 import { OFFERT, OFFERT_LABEL } from "@/lib/tender-policy";
+import { PaymentLineRow, PAID_METHOD_DISPLAY, type PayLine } from "@/components/pos/payment-line";
+import { newCheckoutKey } from "@/lib/checkout-key";
 
-type PayLine = { method: PaymentMethod; amount: number; tendered?: number }; // cents
-
-const METHODS: { method: PaymentMethod; label: string; icon: typeof Banknote; color: string }[] = [
-  { method: "CASH", label: "Espèces", icon: Banknote, color: "text-emerald-600" },
-  { method: "CARD", label: "Carte", icon: CreditCard, color: "text-sky-600" },
-  { method: "VOUCHER", label: "Bon / Ticket", icon: Ticket, color: "text-amber-600" },
-];
+// L-100 (R8.2): `METHODS`, `OFFERT_METHOD`, the `PayLine` type and the row's
+// markup all moved to `./payment-line`, so the row can be RENDERED by a test
+// without a DOM and without dragging the cart store and react-query in with
+// it. `lineDisplay` is why: this list used to be searched with a non-null
+// assertion, and OFFERT is deliberately not in it.
+const METHODS = PAID_METHOD_DISPLAY;
 
 // DD-14 (Batch 5.7b). The give-away tender is kept OUT of the grid above and
 // offered on its own, because it is not an alternative way to pay a bill —
@@ -57,6 +58,31 @@ export function PaymentDialog({
   // (post-audit N1 — the approval dialog looped forever). Batch 4.4c kept
   // this mechanism and changed only which dialog fills it.
   const [stepUpToken, setStepUpToken] = useState<string | null>(null);
+
+  // ── L-89 / L-90 (R8.2) — one tap, one sale ─────────────────────────────────
+  //
+  // MEASURED by audit pass 4: a double-tap on « Valider » produced orders #9
+  // and #10, 28 ms apart, `FiscalEvent` 15 → 16, with the button still enabled
+  // at 60 ms. `setLoading(true)` is React state and does not disable the
+  // button before a second click in the same task reaches this handler, and
+  // nothing behind it was idempotent. `GrandTotal` moved twice — and it is
+  // NEVER decremented, so the inflation is permanent: a refund corrects the
+  // money and nothing removes the phantom sale.
+  //
+  // TWO MECHANISMS, because they answer different failures.
+  //
+  //   `submitting` is a ref, not state: it is set synchronously, so the second
+  //   tap sees it in the same task. It closes the tap and nothing else.
+  //
+  //   `checkoutKey` is what closes L-90 — a sale that COMMITTED and whose HTTP
+  //   response was lost. `api-client.ts` has no timeout and no retry, the
+  //   catch shows « Erreur lors de l'encaissement », the cart is still on
+  //   screen, and the operator rings it again. The key survives that failure
+  //   deliberately, so the retry is recognised as the same sale; the server
+  //   answers with the order it already wrote. It is cleared on success and
+  //   when the dialog is reset, which is what makes the NEXT sale a new one.
+  const submitting = useRef(false);
+  const checkoutKey = useRef<string | null>(null);
 
   // Settings hold the discount approval threshold — the same value that
   // decides whether the step-up PIN is demanded (DD-19, Batch 4.4c).
@@ -164,6 +190,18 @@ export function PaymentDialog({
       return;
     }
 
+    // The synchronous half. Both taps run this function to completion before
+    // React re-renders anything, so only a ref can be read by the second one.
+    // Placed AFTER the step-up early-returns above: `handleConfirmed` re-enters
+    // `finalize` once the PIN is given, and a latch taken before those would
+    // refuse the operator's own confirmation.
+    if (submitting.current) return;
+    submitting.current = true;
+
+    // One key per SALE, not per attempt: generated once and kept until the
+    // sale succeeds or the dialog is reset.
+    checkoutKey.current ??= newCheckoutKey();
+
     setLoading(true);
     try {
       const discount =
@@ -186,6 +224,7 @@ export function PaymentDialog({
         // reached this point with its three components in the cart and left it
         // without them, answering 400 at the counter while every unit and
         // route test passed.
+        idempotencyKey: checkoutKey.current,
         items: buildCheckoutItems(items),
         payments: lines.map((l) => {
           if (l.method !== "CASH") {
@@ -226,6 +265,8 @@ export function PaymentDialog({
 
       clear();
       setStepUpToken(null);
+      // The sale is done, so the next one is a different sale.
+      checkoutKey.current = null;
       close(false);
       onCompleted(order);
     } catch (e) {
@@ -240,6 +281,10 @@ export function PaymentDialog({
       if (!(e instanceof ApiError) || e.status !== 400) setStepUpToken(null);
     } finally {
       setLoading(false);
+      // Released so the operator can retry — and the KEY is deliberately NOT
+      // cleared here. A retry after a lost response must carry the same key,
+      // or L-90 is still open.
+      submitting.current = false;
     }
   };
 
@@ -394,25 +439,9 @@ export function PaymentDialog({
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {lines.map((l, idx) => {
-                    const m = METHODS.find((x) => x.method === l.method)!;
-                    const Icon = m.icon;
-                    return (
-                      <div key={idx} className="flex items-center gap-2.5 rounded-lg border border-border bg-card p-2.5">
-                        <Icon className={cn("h-4 w-4", m.color)} />
-                        <span className="flex-1 text-sm font-medium">
-                          {m.label}
-                          {l.method === "CASH" && l.tendered && l.tendered !== l.amount && (
-                            <span className="ml-1 text-xs text-muted-foreground">(sur {formatEuro(l.tendered)})</span>
-                          )}
-                        </span>
-                        <span className="text-sm font-semibold tabular-nums">{formatEuro(l.amount)}</span>
-                        <Button variant="ghost" size="icon" className="h-12 w-12 min-h-[48px] min-w-[48px] text-muted-foreground hover:text-destructive" aria-label="Supprimer la ligne" onClick={() => removeLine(idx)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    );
-                  })}
+                  {lines.map((l, idx) => (
+                    <PaymentLineRow key={idx} line={l} onRemove={() => removeLine(idx)} />
+                  ))}
                 </div>
               )}
             </ScrollArea>

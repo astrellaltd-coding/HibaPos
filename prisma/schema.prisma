@@ -573,6 +573,19 @@ model Order {
   notes                String?
   itemCount            Int         @default(0)
   fiscalEventId        String? // link to the FiscalEvent (VENTE) journal entry (plain id, no FK by design)
+  // L-89 / L-90 (R8.2) — the till's own key for ONE checkout attempt.
+  //
+  // A double-tap on « Valider » booked the sale twice: two orders, two sealed
+  // VENTE events, and `GrandTotal` moved twice — which is NEVER decremented, so
+  // the inflation is permanent. A refund corrects the money; nothing removes
+  // the phantom sale. The same permanent consequence arrives a second way when
+  // a committed sale's HTTP response is lost and the operator rings it again.
+  //
+  // NULLABLE, and it has to be: every order that already exists has none, and
+  // a client that does not send one still checks out. UNIQUE is what makes it
+  // work — the second insert loses at the database, not at a read-then-write
+  // that two concurrent requests can both pass.
+  idempotencyKey       String?     @unique
   createdAt            DateTime    @default(now())
   completedAt          DateTime?
   refundedAt           DateTime?

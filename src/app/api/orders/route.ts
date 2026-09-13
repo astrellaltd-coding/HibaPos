@@ -98,6 +98,18 @@ const checkoutIntentSchema = z.object({
     })
     .optional(),
   notes: z.string().max(500).optional().nullable(),
+  // L-89 / L-90 (R8.2) — the till's key for ONE checkout attempt.
+  //
+  // Optional, deliberately: a client that does not send one checks out exactly
+  // as it did before, which is what keeps this from being a breaking change
+  // for the e2e suite and for whatever the Tauri build later grows. When it IS
+  // sent, the sale is written at most once however many times this request
+  // arrives — a double-tap on « Valider » booked it twice, and `GrandTotal` is
+  // never decremented, so that second sale was permanent.
+  //
+  // Bounded and pattern-free on purpose: it is an opaque token the server never
+  // parses. The length cap is so a client cannot use it as storage.
+  idempotencyKey: z.string().min(8).max(100).optional().nullable(),
   payments: z
     .array(
       z.object({
@@ -199,7 +211,8 @@ export const POST = withAuth(async (req, { user }) => {
       { status: 400 }
     );
   }
-  const { items, payments, orderType, tableLabel, customerId, notes, discount } = parsed.data;
+  const { items, payments, orderType, tableLabel, customerId, notes, discount, idempotencyKey } =
+    parsed.data;
 
   // Require an open shift.
   const shift = await db.shift.findFirst({
@@ -464,6 +477,7 @@ export const POST = withAuth(async (req, { user }) => {
       items: orderItemsData,
       payments,
       settings: settings as unknown as SettingsDto,
+      idempotencyKey: idempotencyKey ?? null,
     });
   } catch (e) {
     if (e instanceof CheckoutError) {

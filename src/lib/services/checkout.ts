@@ -135,7 +135,60 @@ export type CheckoutInput = {
   items: CheckoutItem[];
   payments: CheckoutPayment[];
   settings: SettingsDto;
+  /**
+   * The till's key for ONE checkout attempt — L-89 / L-90 (R8.2).
+   *
+   * Optional, and it stays optional: every order written before this existed
+   * has none, and a client that sends none still checks out exactly as before.
+   * When it IS sent, this sale is written at most once however many times the
+   * request arrives.
+   */
+  idempotencyKey?: string | null;
 };
+
+/** The relations an `OrderDto` carries. One shape, so the replay below returns
+ *  byte-for-byte what the original call returned. */
+const ORDER_DTO_INCLUDE = {
+  items: true,
+  payments: true,
+  cashier: { select: { name: true, username: true } },
+  customer: { select: { name: true } },
+  shift: { select: { number: true } },
+} as const;
+
+/**
+ * The order this key already wrote, or null.
+ *
+ * Read OUTSIDE the transaction on the way in, and again inside the catch when
+ * the unique index refuses the insert. Neither read is the guarantee — the
+ * INDEX is. Two taps 28 ms apart (measured by audit pass 4: orders #9 and #10)
+ * can both pass a read-then-write, and only the database can arbitrate.
+ */
+async function orderForKey(key: string): Promise<OrderDto | null> {
+  const existing = await db.order.findUnique({
+    where: { idempotencyKey: key },
+    include: ORDER_DTO_INCLUDE,
+  });
+  return (existing as unknown as OrderDto) ?? null;
+}
+
+/**
+ * Prisma's unique-constraint code.
+ *
+ * Exported for a test. The BACKSTOP it guards is deliberately not driven end
+ * to end (provoking a real P2002 costs a `prisma:error` block against a pinned
+ * zero), so the predicate itself is where the coverage goes: getting the
+ * `target` match wrong would leave the backstop silently never firing, which
+ * is the failure mode that matters.
+ */
+export function isUniqueViolation(e: unknown, target: string): boolean {
+  if (typeof e !== "object" || e === null) return false;
+  const err = e as { code?: string; meta?: { target?: unknown } };
+  if (err.code !== "P2002") return false;
+  const t = err.meta?.target;
+  const asText = Array.isArray(t) ? t.join(",") : String(t ?? "");
+  return asText.includes(target);
+}
 
 /**
  * Write a sale atomically. Refuses with 409 if the shift closed underneath it.
@@ -160,7 +213,19 @@ export async function createOrderInTransaction(input: CheckoutInput): Promise<Or
     items,
     payments,
     settings,
+    idempotencyKey,
   } = input;
+
+  // L-89 / L-90 — the cheap half, and it is only the cheap half. A tap that
+  // arrives after the first sale has COMMITTED is answered from here with the
+  // order that already exists, so the till shows « Commande #N encaissée » once
+  // and the second tap is not a second sale. A tap that arrives while the
+  // first is still in flight gets past this read, and the unique index in the
+  // catch below is what stops it.
+  if (idempotencyKey) {
+    const already = await orderForKey(idempotencyKey);
+    if (already) return already;
+  }
 
   try {
     // C-15 (Batch 2.3): an explicit budget. Prisma's default is 5 s and this
@@ -179,6 +244,29 @@ export async function createOrderInTransaction(input: CheckoutInput): Promise<Or
       }
       if (shift.status !== "OPEN") {
         throw new CheckoutError(SHIFT_CLOSED_DURING_CHECKOUT_MESSAGE, 409);
+      }
+
+      // L-89 / L-90, the second of three places this key is consulted, and the
+      // one that does the work in practice.
+      //
+      // **Prisma's interactive transactions on SQLite do not overlap** — the
+      // second body does not begin until the first commits (§ 2, measured).
+      // So by the time a concurrent tap reaches here, the winner's order is
+      // committed and this read finds it. The tap outside the transaction can
+      // miss it; this one cannot.
+      //
+      // Returning the existing order here also means the losing request never
+      // reaches `tx.order.create`, so the unique index is never asked to
+      // refuse anything and Prisma logs nothing. That matters beyond tidiness:
+      // a P2002 is written to stderr as a `prisma:error` block, and a till
+      // whose log fills with them on every double-tap teaches its operator to
+      // ignore the log.
+      if (idempotencyKey) {
+        const already = await tx.order.findUnique({
+          where: { idempotencyKey },
+          include: ORDER_DTO_INCLUDE,
+        });
+        if (already) return already as unknown as OrderDto;
       }
 
       const number = await nextReceiptNumber(tx);
@@ -217,6 +305,10 @@ export async function createOrderInTransaction(input: CheckoutInput): Promise<Or
           notes: notes ?? null,
           itemCount,
           completedAt: new Date(),
+          // Written INSIDE the transaction that writes the sale, so the key
+          // and the sale commit or fail together. A key persisted beside a
+          // rolled-back order would refuse the operator's honest retry.
+          idempotencyKey: idempotencyKey ?? null,
         },
       });
 
@@ -290,13 +382,7 @@ export async function createOrderInTransaction(input: CheckoutInput): Promise<Or
 
       const orderWithRelations = await tx.order.findUnique({
         where: { id: created.id },
-        include: {
-          items: true,
-          payments: true,
-          cashier: { select: { name: true, username: true } },
-          customer: { select: { name: true } },
-          shift: { select: { number: true } },
-        },
+        include: ORDER_DTO_INCLUDE,
       });
 
       // Persist receipt snapshot for fiscal immutability (inside the same transaction)
@@ -363,6 +449,36 @@ export async function createOrderInTransaction(input: CheckoutInput): Promise<Or
       return orderWithRelations as unknown as OrderDto;
     }, TX_CHECKOUT);
   } catch (e) {
+    // L-89 / L-90 — THE BACKSTOP, and the third place the key is consulted.
+    //
+    // The two reads above handle every case this database actually produces,
+    // because Prisma's interactive transactions on SQLite do not overlap. This
+    // is what happens if that ever stops being true — another engine, another
+    // driver, a future where the two bodies really do interleave. Both insert,
+    // the UNIQUE INDEX refuses the second, the transaction rolls back entirely
+    // (no order, no sealed VENTE event, no GrandTotal movement) and the
+    // winner's order is returned instead. The loser's caller cannot tell the
+    // difference, which is the whole point: the operator sees one sale because
+    // there is one.
+    //
+    // **The index is the guarantee; the reads are the fast path.** Written in
+    // that order deliberately — a read-then-write is not a lock, and
+    // `GrandTotal` is never decremented (`schema.prisma`), so a second sale
+    // that got through would be permanent. A refund corrects money; it does
+    // not remove a phantom sale.
+    //
+    // NOT driven end to end by a test, and that is a measured trade rather
+    // than an omission: provoking a real P2002 makes Prisma write a
+    // `prisma:error` block, and `docs/BASELINES.md` pins zero of those in a
+    // clean run — twelve of which R4.3 and R4.6 spent a batch each removing.
+    // `isUniqueViolation` is tested directly instead.
+    if (idempotencyKey && isUniqueViolation(e, "idempotencyKey")) {
+      const winner = await orderForKey(idempotencyKey);
+      if (winner) return winner;
+      // The row is not there, so the key was not what collided, or the winner
+      // rolled back after all. Fall through and report honestly rather than
+      // invent a success.
+    }
     // A close that holds the database longer than this sale can wait must not
     // reach the cashier as a Prisma stack trace. Nothing was written.
     if (isTransactionBusyError(e)) {
