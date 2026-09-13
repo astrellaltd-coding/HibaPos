@@ -60,9 +60,16 @@ function serialize(p: ProductWithRelations): ProductDto {
                 return {
                   id: c.id,
                   name: c.name,
-                  priceModifier: parseFloat((absPickup - basePrice).toFixed(2)),
-                  pickupPriceModifier: parseFloat((absPickup - pickupBase).toFixed(2)),
-                  deliveryPriceModifier: parseFloat((absDelivery - deliveryBase).toFixed(2)),
+                  // L-135 (R8.3): these read `parseFloat((x - y).toFixed(2))`.
+                  // A no-op on integers — and every one of these IS integer
+                  // cents — but `toFixed(2)` is the EUROS idiom, and the
+                  // invariant is that euros exist only at `formatEuro` and
+                  // `parseEuroInput`. Were a cent value ever non-integer, that
+                  // line would round it to hundredths of a cent and look
+                  // deliberate. Subtraction of integers, written as such.
+                  priceModifier: absPickup - basePrice,
+                  pickupPriceModifier: absPickup - pickupBase,
+                  deliveryPriceModifier: absDelivery - deliveryBase,
                   pickupPrice: absPickup,
                   deliveryPrice: absDelivery,
                   image: c.image ?? null,

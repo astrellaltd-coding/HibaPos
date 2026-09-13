@@ -4,6 +4,10 @@ import { withAuthParams, parseJson } from "@/lib/api-handler";
 import { categorySchema } from "@/lib/validation";
 import { audit } from "@/lib/services/audit";
 import { checkCategoryCollections } from "@/lib/services/catalog-payload";
+import {
+  reconcileOptionGroups,
+  OptionGroupInUseError,
+} from "@/lib/services/category-option-groups";
 
 export const GET = withAuthParams(async (_req, { params }) => {
   const cat = await db.category.findUnique({
@@ -119,95 +123,82 @@ export const PUT = withAuthParams(async (req, { user, params }) => {
     }
   }
 
-  const cat = await db.$transaction(async (tx) => {
-    // Update category basic fields
-    const updateData: Record<string, unknown> = { ...parsed.data };
-    if (incomingParentId !== undefined) {
-      updateData.parentId = incomingParentId ?? null;
-    }
-    await tx.category.update({
-      where: { id: params.id },
-      data: updateData,
-    });
-
-    // Active cascade: deactivating a parent also deactivates its children
-    if (parsed.data.active === false) {
-      await tx.category.updateMany({
-        where: { parentId: params.id },
-        data: { active: false },
+  let cat;
+  try {
+    cat = await db.$transaction(async (tx) => {
+      // Update category basic fields
+      const updateData: Record<string, unknown> = { ...parsed.data };
+      if (incomingParentId !== undefined) {
+        updateData.parentId = incomingParentId ?? null;
+      }
+      await tx.category.update({
+        where: { id: params.id },
+        data: updateData,
       });
-    }
 
-    // Replace option groups wholesale if provided. Every entry was validated
-    // before this transaction opened (C-24), so there is no `continue` here
-    // any more — reaching this loop means the whole payload is good.
-    if (collections.optionGroups.kind === "ok") {
-      const optionGroups = collections.optionGroups.entries;
-      // Delete old groups (cascade deletes choices)
-      await tx.categoryOptionGroup.deleteMany({ where: { categoryId: params.id } });
-
-      for (let i = 0; i < optionGroups.length; i++) {
-        const group = optionGroups[i];
-
-        const created = await tx.categoryOptionGroup.create({
-          data: {
-            categoryId: params.id,
-            name: group.name,
-            required: group.required,
-            multiple: group.multiple,
-            sortOrder: i,
-          },
+      // Active cascade: deactivating a parent also deactivates its children
+      if (parsed.data.active === false) {
+        await tx.category.updateMany({
+          where: { parentId: params.id },
+          data: { active: false },
         });
-        for (let j = 0; j < group.choices.length; j++) {
-          const ch = group.choices[j];
-          await tx.categoryOptionChoice.create({
+      }
+
+      // L-91 (R8.3): this used to be `deleteMany({ categoryId })` followed by a
+      // re-`create` of everything with fresh cuids — and
+      // `ComboSlotOptionRule.categoryOptionGroupId` is `onDelete: Cascade`, so an
+      // ordinary admin save with NO EDITS silently destroyed every menu rule
+      // hanging off this category. All seven live rules hang off one group,
+      // `Pizzas → Taille`, and losing them moves the weight the 10 % / 5,5 %
+      // allocation divides by. Reconciled in place now; the refusal it can raise
+      // is caught below and answered in French rather than as a 500.
+      //
+      // Every entry was validated before this transaction opened (C-24), so
+      // reaching here means the whole payload is good.
+      if (collections.optionGroups.kind === "ok") {
+        await reconcileOptionGroups(tx, params.id, collections.optionGroups.entries);
+      }
+
+      // Replace add-ons wholesale if provided — same story as the groups above.
+      if (collections.addOns.kind === "ok") {
+        const addOns = collections.addOns.entries;
+        await tx.categoryAddOn.deleteMany({ where: { categoryId: params.id } });
+
+        for (let i = 0; i < addOns.length; i++) {
+          const a = addOns[i];
+          await tx.categoryAddOn.create({
             data: {
-              groupId: created.id,
-              name: ch.name,
-              priceModifier: ch.priceModifier,
-              pickupPriceModifier: ch.pickupPriceModifier ?? null,
-              deliveryPriceModifier: ch.deliveryPriceModifier ?? null,
-              pickupPrice: ch.pickupPrice ?? null,
-              deliveryPrice: ch.deliveryPrice ?? null,
-              image: ch.image ?? null,
-              sortOrder: j,
+              categoryId: params.id,
+              name: a.name,
+              price: a.price,
+              image: a.image ?? null,
+              sortOrder: i,
+              active: a.active,
             },
           });
         }
       }
-    }
 
-    // Replace add-ons wholesale if provided — same story as the groups above.
-    if (collections.addOns.kind === "ok") {
-      const addOns = collections.addOns.entries;
-      await tx.categoryAddOn.deleteMany({ where: { categoryId: params.id } });
-
-      for (let i = 0; i < addOns.length; i++) {
-        const a = addOns[i];
-        await tx.categoryAddOn.create({
-          data: {
-            categoryId: params.id,
-            name: a.name,
-            price: a.price,
-            image: a.image ?? null,
-            sortOrder: i,
-            active: a.active,
-          },
-        });
-      }
-    }
-
-    return tx.category.findUnique({
-      where: { id: params.id },
-      include: {
-        parent: { select: { id: true, name: true } },
-        children: { select: { id: true, name: true }, orderBy: { sortOrder: "asc" } },
-        optionGroups: { include: { choices: true }, orderBy: { sortOrder: "asc" } },
-        addOns: { orderBy: { sortOrder: "asc" } },
-        _count: { select: { products: true } },
-      },
+      return tx.category.findUnique({
+        where: { id: params.id },
+        include: {
+          parent: { select: { id: true, name: true } },
+          children: { select: { id: true, name: true }, orderBy: { sortOrder: "asc" } },
+          optionGroups: { include: { choices: true }, orderBy: { sortOrder: "asc" } },
+          addOns: { orderBy: { sortOrder: "asc" } },
+          _count: { select: { products: true } },
+        },
+      });
     });
-  });
+  } catch (e) {
+    // L-91: a save that would remove something a menu pins. 409, in French,
+    // naming the menu — the whole point of the change is that the operator
+    // learns what happened instead of the rules disappearing quietly.
+    if (e instanceof OptionGroupInUseError) {
+      return NextResponse.json({ error: e.message }, { status: 409 });
+    }
+    throw e;
+  }
 
   await audit("CATEGORY_UPDATED", "Category", params.id, { name: parsed.data.name }, user.id);
 

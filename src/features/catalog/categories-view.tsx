@@ -162,7 +162,14 @@ export function CategoriesView() {
 
   // Category-level sizes (Taille group)
   const [sizesEnabled, setSizesEnabled] = useState(false);
-  const [sizes, setSizes] = useState<{ name: string; pickupPrice: number; deliveryPrice: number }[]>([
+  // L-91 (R8.3): `id` on the group and on each size, so a save UPDATES the
+  // `Taille` group instead of replacing it. It used to be rebuilt from scratch
+  // on every save; `ComboSlotOptionRule.categoryOptionGroupId` is
+  // `onDelete: Cascade`, so all seven live menu rules were destroyed silently
+  // by an ordinary save with no edits. `undefined` means « new », which is what
+  // a fresh category and a newly-added size both are.
+  const [sizeGroupId, setSizeGroupId] = useState<string | undefined>(undefined);
+  const [sizes, setSizes] = useState<{ id?: string; name: string; pickupPrice: number; deliveryPrice: number }[]>([
     { name: "", pickupPrice: 0, deliveryPrice: 0 },
     { name: "", pickupPrice: 0, deliveryPrice: 0 },
     { name: "", pickupPrice: 0, deliveryPrice: 0 },
@@ -180,6 +187,7 @@ export function CategoriesView() {
     setEditing(null);
     setForm(EMPTY_FORM);
     setSizesEnabled(false);
+    setSizeGroupId(undefined);
     setSizes([
       { name: "", pickupPrice: 0, deliveryPrice: 0 },
       { name: "", pickupPrice: 0, deliveryPrice: 0 },
@@ -191,6 +199,7 @@ export function CategoriesView() {
     setEditing(null);
     setForm(EMPTY_FORM);
     setSizesEnabled(false);
+    setSizeGroupId(undefined);
     setSizes([
       { name: "", pickupPrice: 0, deliveryPrice: 0 },
       { name: "", pickupPrice: 0, deliveryPrice: 0 },
@@ -203,6 +212,7 @@ export function CategoriesView() {
     setEditing(null);
     setForm({ ...EMPTY_FORM, parentId });
     setSizesEnabled(false);
+    setSizeGroupId(undefined);
     setSizes([
       { name: "", pickupPrice: 0, deliveryPrice: 0 },
       { name: "", pickupPrice: 0, deliveryPrice: 0 },
@@ -218,9 +228,14 @@ export function CategoriesView() {
     const sizeGroup = (full.optionGroups ?? []).find((g) => g.name === "Taille");
     const hasSizes = !!sizeGroup && sizeGroup.choices.length >= 2;
     setSizesEnabled(hasSizes);
+    // Kept even when `hasSizes` is false: a category whose size group exists
+    // but has fewer than two choices still HAS that group, and forgetting its
+    // id here would make the next save replace it — which is the bug.
+    setSizeGroupId(sizeGroup?.id);
     if (hasSizes) {
       setSizes(
         sizeGroup!.choices.map((c) => ({
+          id: c.id,
           name: c.name,
           pickupPrice: (c.priceModifier ?? 0) / 100,
           deliveryPrice: (c.deliveryPriceModifier ?? c.priceModifier ?? 0) / 100,
@@ -318,8 +333,23 @@ export function CategoriesView() {
     }
     setSaving(true);
     try {
+      // L-91 (R8.3) — THE IDS. This block used to rebuild the size group from
+      // scratch with no `id`, on it or on any choice, so the server saw a brand
+      // new group on every save and replaced the old one. Every
+      // `ComboSlotOptionRule` hanging off it went with it, by cascade, in
+      // silence: all seven live rules pin `Pizzas → Taille`, and losing them
+      // un-fixes the size inside Menu Chill / Eco / XXL **and moves the weight
+      // the 10 % / 5,5 % allocation divides by**.
+      //
+      // The ids were always here — `openEdit` loads them into `sizes` and
+      // `form.optionGroups` — they were simply dropped on the way out. The
+      // server reconciles by id now (`category-option-groups.ts`) and refuses,
+      // naming the menu, when a save would remove something a rule pins; that
+      // refusal is what a save WITHOUT these ids would now hit. The two halves
+      // land together on purpose.
       const sizeGroup = sizesEnabled
         ? {
+            id: sizeGroupId ?? undefined,
             name: "Taille",
             required: true,
             multiple: false,
@@ -327,6 +357,7 @@ export function CategoriesView() {
             choices: sizes
               .filter((s) => s.name.trim())
               .map((s, j) => ({
+                id: s.id ?? undefined,
                 name: s.name.trim(),
                 priceModifier: 0,
                 pickupPriceModifier: null,
@@ -351,11 +382,14 @@ export function CategoriesView() {
         optionGroups: [
           ...(sizeGroup ? [sizeGroup] : []),
           ...form.optionGroups.map((g, i) => ({
+            // Same reason as the size group above: the form already holds these.
+            id: g.id,
             name: g.name,
             required: g.required,
             multiple: g.multiple,
             sortOrder: sizeGroup ? i + 1 : i,
             choices: g.choices.map((c, j) => ({
+              id: c.id,
               name: c.name,
               priceModifier: Math.round((c.priceModifier || 0) * 100),
               pickupPriceModifier: c.pickupPriceModifier,

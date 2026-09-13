@@ -671,6 +671,23 @@ model OrderItem {
   // NULLABLE, and existing rows are NOT backfilled: null means « not part of a
   // menu », or « part of a menu sold before the till recorded which menu ».
   // There are zero rows of either kind today.
+  //
+  // L-145 (R8.3) — **plain id, NO FK**, and here the omission has a
+  // behavioural edge worth stating rather than leaving to be rediscovered.
+  // `productId` above is `SET NULL`, so a deleted product makes the identity
+  // genuinely *gone* and the `productName` fallback fires exactly as the
+  // invariant describes. **`comboProductId` dangles instead**: it keeps
+  // pointing at an id that resolves to nothing, and `aggregate.ts` then groups
+  // under that id rather than falling back to the label. Not reachable today —
+  // `scripts/delete-product.ts` guards the only deletion path there is, and it
+  // refuses a product that appears in any sealed payload.
+  //
+  // **OPEN QUESTION, recorded and not answered here:** whether this should
+  // become a real `SET NULL` foreign key. It matters more than it looks,
+  // because the catalogue transfer moves product ids between installs — an
+  // exported menu landing in a database where that id means something else is
+  // the case a FK would catch and a plain id would not. Deciding it is a data-
+  // model question (R9.8's territory), not this batch's.
   comboProductId String?
 
   // L-78 (R2.3) — the allocation's EVIDENCE.
@@ -1022,6 +1039,13 @@ model DailyClose {
   topProductsJson     String
   dataJson            String // canonical payload used to compute the hash
   sealedAt            DateTime @default(now())
+  // L-145 (R8.3) — **plain id, NO FK**, the same convention and the same reason
+  // as `Refund.approvedById` and `Order.discountApprovedById`: the operator who
+  // sealed a fiscal document may be soft-deleted later, and the document must
+  // survive intact. A sealed close whose row could be refused, cascaded or
+  // nulled by a change to `User` is not sealed. Said out loud because every
+  // other FK-less id in this schema says it, and silence here read as an
+  // oversight rather than as the decision it is.
   sealedById          String
   previousHash        String?
   hash                String
@@ -1066,6 +1090,13 @@ model MonthlyClose {
   topProductsJson     String
   dataJson            String // canonical payload used to compute the hash (for chain verification)
   sealedAt            DateTime @default(now())
+  // L-145 (R8.3) — **plain id, NO FK**, the same convention and the same reason
+  // as `Refund.approvedById` and `Order.discountApprovedById`: the operator who
+  // sealed a fiscal document may be soft-deleted later, and the document must
+  // survive intact. A sealed close whose row could be refused, cascaded or
+  // nulled by a change to `User` is not sealed. Said out loud because every
+  // other FK-less id in this schema says it, and silence here read as an
+  // oversight rather than as the decision it is.
   sealedById          String
   previousHash        String?
   hash                String
@@ -1098,6 +1129,13 @@ model AnnualClose {
   topProductsJson     String
   dataJson            String // canonical payload used to compute the hash (for chain verification)
   sealedAt            DateTime @default(now())
+  // L-145 (R8.3) — **plain id, NO FK**, the same convention and the same reason
+  // as `Refund.approvedById` and `Order.discountApprovedById`: the operator who
+  // sealed a fiscal document may be soft-deleted later, and the document must
+  // survive intact. A sealed close whose row could be refused, cascaded or
+  // nulled by a change to `User` is not sealed. Said out loud because every
+  // other FK-less id in this schema says it, and silence here read as an
+  // oversight rather than as the decision it is.
   sealedById          String
   previousHash        String?
   hash                String
