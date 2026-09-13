@@ -26,27 +26,31 @@ every trading table is at zero.
 > apply it itself at next start, behind a verified backup** — that is a real second route and
 > it is the operator's to choose between, not a session's.
 >
-> **R8.6 is the last of Phase 8 — a refund-only day cannot be skipped** (L-95 · L-99 ·
-> L-130). `fiscal.ts`. **L-95 first: its absence becomes PERMANENT the moment a day is sealed
-> past the hole.** L-99 is prose plus the missing reconciliation test; L-130 is one
-> ungrammatical string — check `close-timing.test.ts` pins it first.
+> **PHASE 8 IS COMPLETE** (2026-09-13) — seven batches, R8.0 through R8.6, and every
+> group-A finding the audit raised. **§ 2 says stop at a phase boundary**, so the next phase
+> is not open: the operator says start.
 >
-> **Then stop.** Phase 8 closing is a phase boundary, and § 2 says report and wait rather than
-> opening Phase 9 in the same breath.
+> **Two things are waiting, and neither is a batch.**
 >
-> **TWO MIGRATIONS ARE PENDING**, both rehearsed and neither applied. See *Awaiting the
-> operator*: the command changed when the second one landed, and R8.2's fingerprint no longer
-> describes the end state.
+> 1. **TWO MIGRATIONS, rehearsed together and neither applied.** See *Awaiting the operator* —
+>    the command changed when the second landed, and R8.2's fingerprint no longer describes
+>    the end state.
+> 2. **One paragraph for `docs/INVARIANTS.md`**, drafted verbatim in R8.5's done entry and
+>    held because that file is the operator's. It records L-134's answer: a size supplies the
+>    price sur place and à emporter alike.
+>
+> **When Phase 9 opens, R9.1 is the one to take first** — L-96 writes `PRINTED` for a helper
+> that never ran, and it is **R6.4's remaining blocker**.
 
 **Phases 0-5 and 7 are COMPLETE**, with all four operator items and all three migrations
 applied. What each did, how it was verified and what it cost is in `REMEDIATION_DONE.md`;
 **nothing from them is outstanding**, and this file does not repeat them.
 
-**Four phases are open, and they are not independent.**
+**Three phases are open.** Phase 8 closed on 2026-09-13.
 
 - **Phase 6** — the fiscal go-live, five `OPERATOR` rows. **R8.1 unblocked R6.3** (2026-09-13,
   `622411c`); **R6.4 still waits on R9.1**, its non-fiscal blocker. Row-by-row status below.
-- **Phase 8** — money and the fiscal record. One batch left (group A).
+- **Phase 8** — money and the fiscal record. **COMPLETE 2026-09-13**, all seven batches.
 - **Phase 9** — fix before the app is called complete. Eight batches (group B).
 - **Phase 10** — the leftovers no other batch owns. Three rows (group C).
 
@@ -133,7 +137,7 @@ printer are in France. So R6.1-R6.3 belong to that install, not to this machine,
 **nothing in the app exports or imports a catalogue today** — carrying it is unsolved.
 `FISCAL_CHAIN_KEY` is in `.env`, `factice` is in the database: they do not travel together.
 
-**Last updated:** 2026-09-13 — **R8.5 done** (`6ccc13f`): a supplement carries its own VAT
+**Last updated:** 2026-09-13 — **PHASE 8 IS COMPLETE.** **R8.6 done** (`88ea4c3`): a day whose only event was a refund can no longer be skipped — its absence became permanent once a later day was sealed — the premature-close refusal agrees with its own noun, and « a close equals the sum of its Z reports » is narrowed to the true statement and finally has a test, with the straddling-shift caveat written up for the accountant. **L-153 closed early** out of R9.7, because R8.6 made it fail. Seventeen task rows became sixteen and Phase 8's section left the file. Earlier the same day — **R8.5** (`6ccc13f`): a supplement carries its own VAT
 rate and gets its own line when that rate differs from the one it is added to; the add-on
 quantity is snapshotted and bounded; a short `tendered` is refused rather than sealing a
 negative change; and **L-134 is answered — sur place and à emporter cost the same, so a sized
@@ -336,24 +340,17 @@ A `DONE` row leaves this file for `REMEDIATION_DONE.md`.
 *Phases 0-5 and 7 are complete; their records are in `REMEDIATION_DONE.md`. Nothing from
 them is outstanding except the three items under § 1 « Awaiting the operator ».*
 
-> **Four phases are open, and they are not independent.** Phase 6 is the fiscal go-live.
-> **Phases 8, 9 and 10 are the 2026-09 audit, phased 2026-09-12** from
+> **Three phases are open**, and they are not independent. Phase 6 is the fiscal go-live.
+> **Phases 9 and 10 are what is left of the 2026-09 audit, phased 2026-09-12** from
 > `docs/audit/FINDINGS.md`'s *View B — by area*, because the file a fix lands in is what a
 > batch is here. Every row below names its `L-` ids and nothing else: **the detail is in
 > FINDINGS.md and is not repeated here**, which is what keeps this file inside its ceiling.
 > Groups D and E got no rows.
 
-**EXECUTION ORDER — not the order the tables are printed in.** The tables group by subject;
-this is the sequence, and each step is here because of a dependency, not a preference.
-
-1. **Phase 8** (R8.6), then **Phase 9**, then **Phase 10** — the order the tables print in,
-   now that the dependencies above are discharged. **Phase 8 closing is a phase boundary.**
-2. **Phase 6** — R6.3 is reachable; **R6.4 still waits on R9.1**.
-
-*(**Every dependency step is done** and each is in `REMEDIATION_DONE.md`: **R8.0** 2026-09-12
-`f68dcf6`, then **R9.6** `f918578`, **R8.1** `622411c` and **R9.2** `1d010b8`, all
-2026-09-13. R9.2 was here so that the gate would be sound before R8.2 and R8.5 add
-migrations for it to apply; it is.)*
+**ORDER.** Every dependency that reordered this list is discharged — the four steps and why
+each existed are recorded in `REMEDIATION_DONE.md`. What is left is **Phase 9, then Phase 10,
+in the order the tables print**, and **Phase 6** alongside them: R6.3 is reachable, R6.4 still
+waits on R9.1.
 
 ### Phase 6 — Before the first real sale
 
@@ -375,18 +372,6 @@ R9.1.***
 **Not here, deliberately:** the till hardware, the Windows install, the kiosk launcher, the
 pre-built tree, the update path. All of it belongs to the Tauri v2 migration.
 
-### Phase 8 — Money and the fiscal record
-
-*The audit's group A. Detail for every id is in `docs/audit/FINDINGS.md`; these rows say what
-a session does, not what is wrong.* **R8.0 and R8.1 have left this table** — R8.1 was first
-because it unblocked R6.3 and R6.4, and it did (2026-09-13, `622411c`). **R9.2 lands before
-R8.2**, which is the execution order above, because R8.2 and R8.5 each add a migration for
-that gate to apply.
-
-| ID | Status | Task |
-|---|---|---|
-| **R8.6** | `TODO` | **A refund-only day cannot be skipped.** L-95 · L-99 · L-130. `fiscal.ts`. L-95 first: its absence becomes **permanent** the moment a day is sealed past the hole. L-99 is prose plus the missing reconciliation test; L-130 is one ungrammatical string — check `close-timing.test.ts` pins it first. |
-
 ### Phase 9 — Before the app is called complete
 
 *The audit's group B, by the file the work lands in, with the group C rows that own no batch of
@@ -398,7 +383,7 @@ their own riding along. Order inside the phase is not fixed except where a row s
 | **R9.3** | `TODO` | **Backup and restore leave no plaintext.** L-104 · L-105 · L-107 · L-108 · L-140 · L-141 · L-142. `backup.ts`, one file. L-104 and L-105 are the same `try`/`finally` shape and land together. L-140's schema check composes with L-110, which **R9.2 fixed on 2026-09-13** — the coupling is discharged. |
 | **R9.4** | `TODO` | **Secrets resolve on an install with no `.env`.** L-106 · L-115 · L-116 · L-117 · L-119 · L-152. **L-115 before R6.2** — R6.2 is the row that arms the chain key, and a short one answers every fiscal write with an empty 500 while reporting itself armed. |
 | **R9.5** | `TODO` | **The front door.** L-102 · L-103 · L-118 · L-147. `auth.ts` · `login/route.ts` · `login-screen.tsx`. L-118 is the one that reaches the France install — the published-PIN denylist is enforced in a script and nowhere in the app. L-102 and L-103 are both « the till will not open ». |
-| **R9.7** | `TODO` | **The guards that are not guarding.** L-121 · L-122 · L-123 · L-125 · L-126 · L-153 · L-154 · L-155 · L-156 · L-157 · L-158 · L-159. *(L-124 left this batch for **R8.0** — it is one line and it gates every clone.)* Start with L-121 and L-158, one to three lines each, both guarding an invariant. L-154's shared wipe helper is the largest piece and subsumes L-153. |
+| **R9.7** | `TODO` | **The guards that are not guarding.** L-121 · L-122 · L-123 · L-125 · L-126 · L-154 · L-155 · L-156 · L-157 · L-158 · L-159. *(**L-153 was closed early by R8.6** — that batch's new files stopped leaving behind the `Setting` row `reports.test.ts` was free-riding on, so it failed and was fixed at the source.)* *(L-124 left this batch for **R8.0** — it is one line and it gates every clone.)* Start with L-121 and L-158, one to three lines each, both guarding an invariant. L-154's shared wipe helper is the largest piece, and **L-154 has now bitten twice** (R8.2 and R8.6) rather than staying latent. |
 | **R9.8** | `TODO` | **The data model says what null means.** L-129 · L-145. Settle what a null `OrderItem.vatRate` means — and write it into `docs/INVARIANTS.md` — before anything reads it differently. **Read D's L-175 and L-177 while you are in this file**; they are recorded, not scheduled, and L-177 is the same question about `ZReport`'s two nullable JSON columns. |
 | **R9.9** | `TODO` | **The catalogue transfer checks its own stamp.** L-109. It is the mechanism that carries this catalogue to France; an older export into a newer install currently succeeds with new columns silently at their defaults. |
 | **R9.10** | `TODO` | **Touch targets and French.** L-131 · L-132 · L-133 · L-148 · L-149 · L-150. L-131's durable form is widening `touch-and-labels.test.ts` past `<Button>`, which makes it a test-suite item as much as a UI one. |

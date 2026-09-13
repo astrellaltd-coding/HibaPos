@@ -223,7 +223,15 @@ describe("plan freshness — the plan and the done file may not disagree", () =>
     //   tests but absent from INVARIANTS.md is looking at that, not at an
     //   oversight.
     //   FINDINGS STAY AT 9 for the ninth time. R8.5 opened none.
-    expect(taskStatuses(src).size).toBe(17);
+    //   2026-09-13, R8.6 DONE and **PHASE 8 COMPLETE**: tasks 17 → 16. Phase
+    //   8's whole section left § 6, the way Phase 7's did on 2026-09-11, so
+    //   this is one row AND one section heading rather than a row alone.
+    //   **L-153 was also closed, out of R9.7**, because R8.6's new files stopped
+    //   leaving behind the `Setting` row `reports.test.ts` was free-riding on
+    //   and it failed. R9.7's id list is one shorter; its row COUNT is not,
+    //   because R9.7 has not run.
+    //   FINDINGS STAY AT 9 for the tenth time. R8.6 opened none.
+    expect(taskStatuses(src).size).toBe(16);
     expect(openFindings(src).size).toBe(9);
     expect(done()).toContain("# HibaPOS France — Completed Work");
   });

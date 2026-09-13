@@ -68,6 +68,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - R8.3 — a category save stops destroying the menu rules that depend on it
 - R8.4 — a report measures the same period the sealed close measured
 - R8.5 — a supplement carries its own VAT rate
+- R8.6 — a refund-only day cannot be skipped — **PHASE 8 COMPLETE**
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -2800,6 +2801,107 @@ sha256 `0d304ee7…`.
 - **The plan is 40 403 bytes against a 40 960 ceiling** — 557 to spare. The next batch will not
   fit. §§ 3 and 4 were moved out for exactly this; something has to follow them, and choosing
   what is the operator's.
+
+---
+
+### R8.6 — a refund-only day cannot be skipped — **PHASE 8 COMPLETE**
+**Done:** 2026-09-13 · **Commit:** `88ea4c3` · **Findings:** L-95 (High) · L-99 · L-130
+(Medium) · **and L-153 closed early**
+
+**L-95 — the one that becomes permanent.** `assertDaySequence` counted a day as having traded
+if it held an order **or** a cash movement, and not if its only event was a **refund**. So a
+refund-only day could be skipped — and once a later day is sealed, the out-of-sequence guard
+refuses it **for ever**. The daily-close chain then carries a hole for a day on which cash
+left the drawer, and nothing can fill it.
+
+The function's own docstring already stated the criterion it failed: *« "Traded" is
+deliberately orders **or** cash movements … a day whose only event was a payout from the
+drawer still has something the close would have recorded. »* A refund is a payout from the
+drawer. Reachable without contrivance: pay out a refund against an older order, sell nothing,
+run the Z, go home; next day, sell and seal.
+
+**Keyed on `Refund.createdAt`** — when the money left the drawer — **and not on the refunded
+order's date.** DD-10 allows a refund against a sale from months ago, and keying on the sale
+would demand the re-sealing of an already-sealed day. That wrong fix is one of the reverts
+below and it fails four tests.
+
+**L-130 — the refusal agrees with its own noun.** One template served three labels of
+different gender and hard-coded the masculine, so the operator read « **la journée**
+2026-09-12 n'est pas **terminé**. **Il** ne pourra être **clôturé** ». One string — and **the
+most likely fiscal refusal a tired person meets at 23:00**, which is the moment a message
+that reads as broken makes the software look broken. The agreement travels with the label
+rather than being inferred from the noun, because inferring gender from a French noun phrase
+is a worse problem than passing two words. `close-timing.test.ts` matched only `/prématurée/`,
+so nothing had to be re-pinned.
+
+**L-99 — the prose stopped claiming more than it can.** *« A period close equals the sum of
+its Z reports »* was load-bearing in three places **with no test asserting it**, and it is
+false for a shift straddling the cut-off: a Z's scope is `shiftId`, a month's is
+`Order.createdAt` inside `monthBounds`. The audit's measurement, now reproduced as a test:
+
+| | |
+|---|---|
+| Z report (one shift, 31 Aug 20:00 → 1 Sep 06:00) | **3000** |
+| `MonthlyClose 2026-08` | 1000 |
+| `MonthlyClose 2026-09` | 2000 |
+
+Reconciliation fails in **both** directions and August gets a close with no Z at all.
+
+**The money is right** — 1000 + 2000 = 3000, counted exactly once, VAT telescoping — which is
+precisely why the remedy is prose and a test rather than behaviour. The claim is now *« the
+sum of the Z reports whose **orders** fall inside it »*, corrected in all three places. Making
+it unconditionally true means refusing a checkout into a shift whose trading day has moved on:
+DD-23 territory, a change at the counter, and **written up for the accountant** as
+`docs/politique-ventilation-tva.md` § 8 item 5 with the measured table rather than decided
+here.
+
+The missing reconciliation test exists in **both directions**: the claim holds for two ordinary
+shifts and for one running past midnight but not past the cut-off, and fails in the exact
+measured way when one straddles. It also asserts that **no shift on this install has ever
+straddled** — so if that starts failing, the § 8 question stops being hypothetical and the
+operator should be told.
+
+**Reverted**, restored by sha each time:
+
+| revert | result |
+|---|---|
+| a refund is not trading (L-95 itself) | **4 fail** |
+| the refund keyed on the SALE's date | **4 fail** — the plausible wrong fix |
+| the masculine template again (L-130) | **2 fail** |
+| agreement half-fixed: adjective yes, pronoun no | **2 fail** — caught by the absence assertion, which exists for exactly this |
+| a month scoped by SHIFT rather than the order's own date | **2 fail** — proves the L-99 test discriminates the two models, since L-99 changed no behaviour to revert |
+
+**L-153 CLOSED EARLY, out of R9.7, because this batch made it fail.** It was *« the suite's one
+live order dependency »*: `reports.test.ts` asserted `factice === false` on a `CLOTURE_Z` event
+while never setting it, passing only because some earlier file had left a
+`Setting{factice:false}` row behind — run alone it was 3 pass / 1 fail. R8.6's two new files
+set the settings they need and **clean up after themselves**, which removed the row it was
+free-riding on. The choice was to fix the line or to make the new files leave litter, and
+leaving litter to keep a latent bug invisible is not a choice. One line, exactly as the audit
+specified. Verified by the audit's own criterion: `reports.test.ts` alone is now **4 pass**.
+
+`README.md` 1509 → 1524 (+15), files 126 → 128. `bun run test` **1524 pass / 0 fail / 128
+files, zero `prisma:error`, exit 0**; `typecheck` and `lint` clean. Live database untouched:
+sha256 `0d304ee7…`.
+
+**PHASE 8 IS COMPLETE** — seven batches, R8.0 through R8.6, and every group-A finding the
+2026-09 audit raised. Its section left `REMEDIATION_PLAN.md` § 6 the way Phase 7's did.
+
+**Left behind:**
+
+- **Two migrations are rehearsed and unapplied**, and the apply command is in the plan's
+  *Awaiting the operator*. Nothing in Phase 8 is blocked by them; the columns are simply
+  absent until they run.
+- **One `docs/INVARIANTS.md` paragraph is drafted and held** (R8.5, L-134). That file is the
+  operator's.
+- **The plan sits at 40 184 bytes against a 40 960 ceiling.** Phase 8's section leaving freed
+  less than the new prose added, so the execution-order block — entirely history now, and
+  recorded here — was condensed to buy 440 bytes back. **That is the last easy trim.** §§ 3
+  and 4 went to `docs/` for this reason; the next thing to follow them is the operator's
+  choice, not a session's.
+- **L-154 has now bitten twice** — R8.2 and R8.6 — rather than staying the latent hazard it
+  was recorded as. Its shared wipe helper is still R9.7's, and the case for doing it early is
+  now two incidents rather than an argument.
 
 ---
 
