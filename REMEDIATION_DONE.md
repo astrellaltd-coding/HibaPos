@@ -61,6 +61,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - PREP-3 — an install makes its own secrets, and shows the two that must leave the machine
 - PREP-4 — migrations apply themselves at startup, behind a backup that has been opened
 - R8.0 — a fresh clone of this repository no longer starts red
+- R9.6 — the authorization map means what it says, and a refusal leaves a trace
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -2042,6 +2043,109 @@ no tracked `.bat` or `.cmd` files, which are the file types that genuinely need 
   working tree was already LF. It changes what *other machines* get — a build box, CI, and
   the France install — which is the whole of its value and also why it cannot be verified by
   running the suite in place.
+
+---
+
+### R9.6 — the authorization map means what it says, and a refusal leaves a trace
+**Done:** 2026-09-13 · **Commit:** `f918578` · **Findings:** L-120 (High) · L-151 (Low)
+
+**What changed:** `lib/api-handler.ts` · `lib/api-authorization.test.ts` ·
+`api/setup/secrets/route.ts` · `README.md` · new `api/authorization-audit.test.ts`.
+**No route's gate changed.** What changed is that the map stopped mis-describing seven of
+them, and that a refusal is now recorded.
+
+**L-120 — the detector could not tell a guard from a no-op.** `guardsInline` was one regex
+against handler source text — `user\.role\s*!==\s*"SUPER_ADMIN"` — which matches both of
+these equally well:
+
+    if (user.role !== "SUPER_ADMIN") return 403                            // refuses MANAGER
+    if (user.role !== "SUPER_ADMIN" && user.role !== "MANAGER") return 403 // refuses NOBODY
+
+DD-07 left exactly two roles, so the second names them all, the condition is unsatisfiable,
+and the guard is dead code. **Measured across the 14 handlers the map called `INLINE`: six
+are real, seven are no-ops, and one is a third shape nobody had named** — `users/[id]:PUT` is
+`SUPER_ADMIN` **or self** (`user.role !== "SUPER_ADMIN" && user.id !== params.id`). Two
+buckets could not have described that honestly, which is why there are three.
+
+The replacement parses instead of grepping: it extracts the whole `if (…)` condition **by
+balancing parentheses** (so a condition spanning lines, or containing its own parens, is not
+truncated into something that looks narrow), refuses a `||` chain because `||` inverts the
+meaning, splits the `&&` chain into clauses, and derives *who is refused* as
+`ROLES` minus the roles named — from the `ROLES` list, not hard-coded, so adding a third role
+reclassifies everything automatically.
+
+**And it fails loudly on anything it cannot read.** That is the actual lesson of L-120 and it
+is the part worth keeping: a detector whose unknown case is `false` reports « no guard here »
+for a guard it merely could not parse, which is the same silence it exists to break. Both
+unknown shapes throw with the offending text quoted.
+
+**L-151 — the refusal and the disclosure.** `withAuth` and `withAuthParams` each returned
+403 with no audit row (`audit` appeared **0** times in `api-handler.ts`) while
+`LOGIN_FAILED`, `USER_SWITCH_FAILED` and `MANAGER_APPROVAL_FAILED` are all journalled. Both
+now route through one `denyByRole`, writing `ACCESS_DENIED` with the path, the method, the
+role held and the roles required. **The 401 is deliberately not logged**: there is no user to
+attribute it to, and every unauthenticated `/api/auth/me` poll would write a row. And
+`GET /api/setup/secrets` — the one route in this application that returns a secret value —
+logged the harmless acknowledgement and not the disclosure. It now writes `SECRETS_VIEWED`,
+**names only**, and only when something was actually shown, so opening the settings screen
+does not fill the log.
+
+**How it was verified.** Six new tests, all **driven through `route-harness.ts`** — a real
+session minted by the application's own `createSession`, a real `Request`, the real wrapper,
+and the row read back out of the database. Not source text: this same audit found four tests
+that prove nothing because they read source (L-121 … L-126) and one that passed vacuously for
+a year (L-124), so « the call appears in the file » was not going to be the evidence here.
+
+Then reverted, **one property at a time, in both directions**, restored by sha after each:
+
+| revert | result |
+|---|---|
+| `withAuth`'s 403 unlogged again | **2 fail** — the direct test *and* the secrets-403 test, because both go through `withAuth`. That is exactly why the next line exists |
+| `withAuthParams`' 403 unlogged | **1 fail**, the dynamic-route test — so the two wrappers are independently covered |
+| the secrets read unlogged | **1 fail** |
+| the secrets read logged even when empty | **1 fail** — the other direction |
+| the detector blind again (`INLINE_ANY` reads as `INLINE_SA`) | **2 fail**: the map, *and* the new contradiction check. The blindness has two consequences, not one |
+| `tables/seed`'s inline guard deleted | **1 fail** — the pinned exception notices its own cause is gone, so it cannot outlive it |
+| a **second** contradiction introduced | **1 fail** |
+| a guard joined with a logical OR | **throws**, naming the condition |
+| a clause the parser has never seen | **throws**, naming the clause |
+
+**A seventh test was written, measured and removed.** It proved the refusal survives a
+*failing* audit write by renaming `AuditLog` out from under it. It passed — and it cost one
+new `prisma:error` block in the suite output, against a `docs/BASELINES.md` line pinning
+**zero** in a clean run, down from twelve that R4.3 and R4.6 spent a batch each removing. The
+property is `audit()`'s contract rather than L-151's, and the baseline is worth more than the
+assertion. The reason is written into `authorization-audit.test.ts` where the test was, so the
+next session reads a decision rather than rediscovering a gap.
+
+**Counts.** `api-authorization.test.ts:407` re-pinned: `INLINE` 14 → `INLINE_SA` 6 +
+`INLINE_ANY` 7 + `INLINE_SELF` 1. **`BOTH` 31, `ANY` 26 and `SUPER_ADMIN` 12 are all
+unmoved** — which is that assertion doing the job it was written for: it is the proof that
+the classification changed and no gate did. `README.md`'s pinned suite count 1382 → 1389
+(+7, all added here), files 114 → 115. `bun run test` **1389 pass / 0 fail / 115 files, zero
+`prisma:error` blocks**; `typecheck` and `lint` clean; live database untouched (sha256
+`0d304ee7…`, no `-wal`/`-shm`).
+
+**Left behind:**
+
+- **Two findings recorded and NOT fixed** — **L-183** (the seven guards that refuse nobody:
+  six catalogue writes and `media:DELETE` are open to any authenticated caller, and whether
+  they should be is a decision, not a sweep) and **L-184** (`tables/seed:POST` declares
+  `["SUPER_ADMIN","MANAGER"]` and answers a MANAGER 403 — unreachable today because DD-09
+  removed the tables screen and nothing calls the endpoint).
+- **They went into a NEW section of `docs/audit/FINDINGS.md`, « Found after the audit, while
+  doing the work », rather than into its severity groups.** The reason is that
+  « the audit's 94, L-89 … L-182 » is a phrase in `CLAUDE.md`, in the plan and throughout the
+  six pass files. Adding rows to the audit's own tables would falsify all of them at once and
+  would have required editing `CLAUDE.md`, which is the operator's. A separate dated section
+  keeps the audit a closed set, keeps the id sequence single and project-wide, and needs no
+  count edited anywhere. **Later sessions should add to that section, not to the groups.**
+- **R8.1 inherits a moved pin, deliberately.** Splitting `settings:PUT` by field (DD-26)
+  reclassifies it out of `INLINE_SA` and moves the counts at `:407`. That edit belongs in
+  R8.1's commit with its own dated line — the same design as the plan-freshness pin — and
+  R8.1's row now says so instead of pointing at R9.6 as unfinished.
+- **The contradiction check has one pinned exception and that is on purpose.** Green with the
+  exception written down beats green with it invisible, and a *second* contradiction fails.
 
 ---
 

@@ -11,14 +11,15 @@ Completed work lives in **`REMEDIATION_DONE.md`**. This file only ever shows out
 **Overall:** NOT READY FOR PRODUCTION, and **not trading** — the fiscal journal is empty and
 every trading table is at zero.
 
-> ### ▶ CURRENT TASK — **R9.6**, then **R8.1**
+> ### ▶ CURRENT TASK — **R8.1**, then **R9.2**
 >
 > **§ 6 opens with the execution order. Follow that, not the order the tables print in.**
 >
-> **R8.0 landed 2026-09-12 (`f68dcf6`)**: a fresh clone of this repository is green again —
-> it was 1 381/1 fail before and is 1 382/0 after, measured on real clones. **R9.6** repairs
-> the authorization map next, because **R8.1** then changes `settings:PUT`'s guard and moves
-> the count that map pins.
+> **R8.0** (2026-09-12, `f68dcf6`) and **R9.6** (2026-09-13, `f918578`) are done. The map
+> R8.1 is about to move now says what is true: `settings:PUT` is **`INLINE_SA`**, not the
+> undifferentiated `INLINE` that also covered seven guards refusing nobody, and the counts at
+> `api-authorization.test.ts:407` are **INLINE_SA 6 · INLINE_ANY 7 · INLINE_SELF 1**.
+> **Reclassifying `settings:PUT` moves those, and that edit is R8.1's, in R8.1's commit.**
 >
 > **R8.1 is the first real fix and it unblocks R6.3 and R6.4**: **L-93** — two default tables
 > disagree on `factice`, so a settings save that merely *omits* the key turns the fiscal
@@ -42,7 +43,7 @@ applied. What each did, how it was verified and what it cost is in `REMEDIATION_
 - **Phase 6** — the fiscal go-live, five `OPERATOR` rows. **R6.3 and R6.4 are blocked on
   R8.1**, so this phase cannot close first. Row-by-row status below.
 - **Phase 8** — money and the fiscal record. Six batches (group A).
-- **Phase 9** — fix before the app is called complete. Ten batches (group B).
+- **Phase 9** — fix before the app is called complete. Nine batches (group B).
 - **Phase 10** — the leftovers no other batch owns. Three rows (group C).
 
 **Phases 8-10 come from the audit.** Six read-only passes and a seventh that consolidated
@@ -102,11 +103,13 @@ printer are in France. So R6.1-R6.3 belong to that install, not to this machine,
 **nothing in the app exports or imports a catalogue today** — carrying it is unsolved.
 `FISCAL_CHAIN_KEY` is in `.env`, `factice` is in the database: they do not travel together.
 
-**Last updated:** 2026-09-12 — **R8.0 done** (`f68dcf6`): `.gitattributes` pins LF, so a fresh
-clone no longer starts with a failing suite. Twenty-five task rows became twenty-four. Earlier
-the same day the audit landed and was phased into Phases 8-10, the baselines moved to
-`docs/BASELINES.md` to make room, and R6.3/R6.4 were re-marked as blocked by software rather
-than hardware. § 7 unchanged at nine.
+**Last updated:** 2026-09-13 — **R9.6 done** (`f918578`): the authorization map distinguishes
+a guard from a no-op, and a 403 is journalled. Twenty-four task rows became twenty-three.
+**Two findings recorded, not fixed — L-183 and L-184**, in a new *Found after the audit*
+section of `docs/audit/FINDINGS.md` that keeps the audit's 94 (L-89 … L-182) a closed set.
+2026-09-12: **R8.0 done** (`f68dcf6`), the audit landed and was phased into Phases 8-10, the
+baselines moved to `docs/BASELINES.md`, and R6.3/R6.4 were re-marked as blocked by software
+rather than hardware. § 7 unchanged at nine.
 
 ## 2. HOW TO WORK HERE
 
@@ -290,15 +293,14 @@ them is outstanding except the three items under § 1 « Awaiting the operator �
 **EXECUTION ORDER — not the order the tables are printed in.** The tables group by subject;
 this is the sequence, and each step is here because of a dependency, not a preference.
 
-1. **R9.6** — the authorization map, *before* R8.1, because R8.1 changes `settings:PUT`'s
-   guard and moves the count that map pins.
-2. **R8.1** — **unblocks R6.3 and R6.4.**
-3. **R9.2** — the migration gate, *before* R8.2 and R8.5 add two migrations for it to apply.
+1. **R8.1** — **unblocks R6.3 and R6.4.**
+2. **R9.2** — the migration gate, *before* R8.2 and R8.5 add two migrations for it to apply.
    A fresh install in France runs every migration through this gate at first boot.
-4. **The rest of Phase 8** (R8.2 … R8.6), then **Phase 9**, then **Phase 10**.
-5. **Phase 6** — once R8.1 has landed and R6.4's other blocker (R9.1) has too.
+3. **The rest of Phase 8** (R8.2 … R8.6), then **Phase 9**, then **Phase 10**.
+4. **Phase 6** — once R8.1 has landed and R6.4's other blocker (R9.1) has too.
 
-*(**R8.0** was step 1 and is done — 2026-09-12, `f68dcf6`. It is in `REMEDIATION_DONE.md`.)*
+*(Steps 1 and 2 are done and are in `REMEDIATION_DONE.md`: **R8.0** 2026-09-12 `f68dcf6`,
+**R9.6** 2026-09-13 `f918578`.)*
 
 ### Phase 6 — Before the first real sale
 
@@ -327,7 +329,7 @@ pre-built tree, the update path. All of it belongs to the Tauri v2 migration.
 
 | ID | Status | Task |
 |---|---|---|
-| **R8.1** | `TODO` | **The settings defaults agree, and the operator can save them.** L-93 · L-101. `validation.ts` · `settings.ts` · `settings/route.ts` · `nav-config.ts`. Reconcile the two default tables and pin the reconciliation FIRST — opening the write before they agree hands a till operator a route that flips `factice` by omission. **The role gate is already decided: DD-26** (split by field — operational fields MANAGER-writable, identity and fiscal-policy fields SUPER_ADMIN) **and DD-27** (FACTICE one-way once the journal holds a non-factice event, SUPER_ADMIN excepted). Implement those; do not re-open them. **Unblocks R6.3 and R6.4.** **Do R9.6 first or in the same session**: changing this guard reclassifies `settings:PUT` in `api-authorization.test.ts` and moves the count pinned at its `:407`, which is the map R9.6 repairs. |
+| **R8.1** | `TODO` | **The settings defaults agree, and the operator can save them.** L-93 · L-101. `validation.ts` · `settings.ts` · `settings/route.ts` · `nav-config.ts`. Reconcile the two default tables and pin the reconciliation FIRST — opening the write before they agree hands a till operator a route that flips `factice` by omission. **The role gate is already decided: DD-26** (split by field — operational fields MANAGER-writable, identity and fiscal-policy fields SUPER_ADMIN) **and DD-27** (FACTICE one-way once the journal holds a non-factice event, SUPER_ADMIN excepted). Implement those; do not re-open them. **Unblocks R6.3 and R6.4.** **R9.6 is done (2026-09-13), so the map is ready**: `settings:PUT` is pinned `INLINE_SA` and the counts at `api-authorization.test.ts:407` are `INLINE_SA 6 · INLINE_ANY 7 · INLINE_SELF 1`. Splitting this route by field reclassifies it and moves those numbers — **edit them in this row's commit, with a dated line, the way every other count in that file is moved.** |
 | **R8.2** | `TODO` | **The checkout is idempotent.** L-89 · L-90 · L-100. `payment-dialog.tsx` · `checkout.ts`. A submit latch and the OFFERT lookup are trivial; the durable fix is a client-generated key, unique-indexed — **a migration**, cheaper now than after trading. L-100 rides along: same file, and it makes DD-14's tender usable at all. **R9.2 lands before this** — see the execution order. |
 | **R8.3** | `TODO` | **A category save stops destroying menu option rules.** L-91 (+L-135, L-145 ride along). `catalog/categories/[id]/route.ts`. Match groups by id instead of replacing wholesale, or refuse a delete a `ComboSlotOptionRule` depends on. It moves the weight the VAT allocation divides by, so it is group A, not a catalogue nicety. |
 | **R8.4** | `TODO` | **Report periods use the trading-day cut-off.** L-92. `report-range.ts` + the three report routes. Carries a decision: does a free `Du`/`Au` range snap to trading-day edges, and what does the screen then say it showed? |
@@ -346,7 +348,6 @@ their own riding along. Order inside the phase is not fixed except where a row s
 | **R9.3** | `TODO` | **Backup and restore leave no plaintext.** L-104 · L-105 · L-107 · L-108 · L-140 · L-141 · L-142. `backup.ts`, one file. L-104 and L-105 are the same `try`/`finally` shape and land together. L-140's schema check composes with L-110, so R9.2 first or accept the coupling. |
 | **R9.4** | `TODO` | **Secrets resolve on an install with no `.env`.** L-106 · L-115 · L-116 · L-117 · L-119 · L-152. **L-115 before R6.2** — R6.2 is the row that arms the chain key, and a short one answers every fiscal write with an empty 500 while reporting itself armed. |
 | **R9.5** | `TODO` | **The front door.** L-102 · L-103 · L-118 · L-147. `auth.ts` · `login/route.ts` · `login-screen.tsx`. L-118 is the one that reaches the France install — the published-PIN denylist is enforced in a script and nowhere in the app. L-102 and L-103 are both « the till will not open ». |
-| **R9.6** | `TODO` | **The authorization map means what it says.** L-120 · L-151. Early in the phase: every later session inherits this map, and its inline-guard regex cannot tell a narrowing guard from a no-op. |
 | **R9.7** | `TODO` | **The guards that are not guarding.** L-121 · L-122 · L-123 · L-125 · L-126 · L-153 · L-154 · L-155 · L-156 · L-157 · L-158 · L-159. *(L-124 left this batch for **R8.0** — it is one line and it gates every clone.)* Start with L-121 and L-158, one to three lines each, both guarding an invariant. L-154's shared wipe helper is the largest piece and subsumes L-153. |
 | **R9.8** | `TODO` | **The data model says what null means.** L-129 · L-145. Settle what a null `OrderItem.vatRate` means — and write it into `docs/INVARIANTS.md` — before anything reads it differently. **Read D's L-175 and L-177 while you are in this file**; they are recorded, not scheduled, and L-177 is the same question about `ZReport`'s two nullable JSON columns. |
 | **R9.9** | `TODO` | **The catalogue transfer checks its own stamp.** L-109. It is the mechanism that carries this catalogue to France; an older export into a newer install currently succeeds with new columns silently at their defaults. |

@@ -159,7 +159,19 @@ describe("plan freshness — the plan and the done file may not disagree", () =>
     //   1 382 / 0 after. FINDINGS STAY AT 9: L-124 was never in § 7, it is an
     //   audit finding and it lives in `docs/audit/FINDINGS.md`. Phase 8 is six
     //   rows again, which is what § 1 has said all along.
-    expect(taskStatuses(src).size).toBe(24);
+    //   2026-09-13, R9.6 DONE: tasks 24 → 23. The authorization map now tells a
+    //   guard from a no-op — `INLINE` 14 split into INLINE_SA 6, INLINE_ANY 7
+    //   and INLINE_SELF 1, no gate moved — and both wrappers journal a 403.
+    //   Phase 9 is nine batches now, not ten.
+    //   FINDINGS STAY AT 9 for the third time, and here is the reason it is not
+    //   laziness: R9.6 opened **L-183** and **L-184**. Neither goes in § 7. They
+    //   are audit-sequence ids and they live in `docs/audit/FINDINGS.md`, in a
+    //   new *Found after the audit* section that exists precisely so the audit's
+    //   94 stay L-89 … L-182 — a closed, dated set that CLAUDE.md, this plan and
+    //   the pass files all refer to by that range. If a session ever moves an
+    //   audit-sequence id into § 7, this number and the ceiling assertion below
+    //   both have to be re-argued, not just re-typed.
+    expect(taskStatuses(src).size).toBe(23);
     expect(openFindings(src).size).toBe(9);
     expect(done()).toContain("# HibaPOS France — Completed Work");
   });
