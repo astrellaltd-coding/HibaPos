@@ -11,21 +11,24 @@ Completed work lives in **`REMEDIATION_DONE.md`**. This file only ever shows out
 **Overall:** NOT READY FOR PRODUCTION, and **not trading** — the fiscal journal is empty and
 every trading table is at zero.
 
-> ### ▶ CURRENT TASK — **R9.2**, then the rest of Phase 8
+> ### ▶ CURRENT TASK — **R8.2**, then the rest of Phase 8
 >
 > **§ 6 opens with the execution order. Follow that, not the order the tables print in.**
 >
-> **R8.0** (`f68dcf6`), **R9.6** (`f918578`) and **R8.1** (`622411c`) are done — the first
-> three steps of the execution order. **R8.1 unblocked R6.3 and R6.4**: `PUT /api/settings`
-> now splits by field (DD-26), so the MANAGER — the only account that will be at the till in
-> France — can turn FACTICE off and pick the print queue, and an omitted key is no longer
-> written over the stored value (L-93). **R6.4 still waits on R9.1**, which is its other
-> blocker and is not fiscal: L-96 writes `PRINTED` for a helper that never ran.
+> **The execution order is finished.** R8.0 (`f68dcf6`), R9.6 (`f918578`), R8.1 (`622411c`)
+> and R9.2 (`1d010b8`) are all done, so what remains is the plain order of § 6: the rest of
+> Phase 8, then Phase 9, then Phase 10.
 >
-> **R9.2 is next** — the startup migration gate, *before* R8.2 and R8.5 add two migrations
-> for it to apply. **L-110 is the load-bearing one**: it is the only finding in that batch
-> that also breaks the NEXT boot. L-112 lands in the same session or none of the others
-> leaves a trace.
+> **R8.2 is next — the checkout is idempotent** (L-89 · L-90 · L-100). It carries **the
+> first migration since the gate was repaired**: a client-generated key, unique-indexed, and
+> the plan's own note is that it is cheaper now than after trading. A submit latch and the
+> OFFERT lookup ride along.
+>
+> **Two things R9.2 left that R8.2 should know.** The gate now REFUSES to migrate when a
+> previous migration is unfinished, naming the row — so a botched rehearsal blocks the next
+> boot loudly instead of quietly serving a half-applied schema. And a packaged build must set
+> **`HIBAPOS_APP_DIR`**: `appRoot()` walks up from the cwd to find `prisma/migrations`, which
+> works from anywhere inside this repository and will not work inside a bundle.
 
 **Phases 0-5 and 7 are COMPLETE**, with all four operator items and all three migrations
 applied. What each did, how it was verified and what it cost is in `REMEDIATION_DONE.md`;
@@ -36,7 +39,7 @@ applied. What each did, how it was verified and what it cost is in `REMEDIATION_
 - **Phase 6** — the fiscal go-live, five `OPERATOR` rows. **R8.1 unblocked R6.3** (2026-09-13,
   `622411c`); **R6.4 still waits on R9.1**, its non-fiscal blocker. Row-by-row status below.
 - **Phase 8** — money and the fiscal record. Five batches (group A).
-- **Phase 9** — fix before the app is called complete. Nine batches (group B).
+- **Phase 9** — fix before the app is called complete. Eight batches (group B).
 - **Phase 10** — the leftovers no other batch owns. Three rows (group C).
 
 **Phases 8-10 come from the audit.** Six read-only passes and a seventh that consolidated
@@ -99,16 +102,16 @@ printer are in France. So R6.1-R6.3 belong to that install, not to this machine,
 **nothing in the app exports or imports a catalogue today** — carrying it is unsolved.
 `FISCAL_CHAIN_KEY` is in `.env`, `factice` is in the database: they do not travel together.
 
-**Last updated:** 2026-09-13 — **R8.1 done** (`622411c`): the two settings default tables
-agree and are pinned against each other, an omitted key is no longer written over the stored
-value, and `PUT /api/settings` splits by field (DD-26/DD-27) — so **R6.3 is reachable from the
-till** and R6.4's remaining blocker is R9.1, not this. Twenty-three task rows became
-twenty-two. Earlier the same day: **R9.6 done** (`f918578`) — the authorization map
-distinguishes a guard from a no-op and a 403 is journalled — with **L-183 and L-184 recorded,
-not fixed**, in a new *Found after the audit* section of `docs/audit/FINDINGS.md` that keeps
-the audit's 94 (L-89 … L-182) a closed set. 2026-09-12: **R8.0 done** (`f68dcf6`), the audit
-landed and was phased into Phases 8-10, and the baselines moved to `docs/BASELINES.md`.
-§ 7 unchanged at nine.
+**Last updated:** 2026-09-13 — **R9.2 done** (`1d010b8`), and with it **the whole execution
+order**: the startup migration gate no longer reports a half-applied schema as `UP_TO_DATE`,
+a deploy that says it failed is a failure, and every startup failure leaves a row rather than
+a stdout line. Twenty-two task rows became twenty-one. Earlier the same day: **R8.1**
+(`622411c`) — the settings defaults agree and the write splits by field, so **R6.3 is
+reachable from the till**, R6.4's remaining blocker being R9.1 — and **R9.6** (`f918578`) —
+the authorization map distinguishes a guard from a no-op — which recorded **L-183 and L-184**
+in a new *Found after the audit* section of `docs/audit/FINDINGS.md` that keeps the audit's 94
+(L-89 … L-182) a closed set. 2026-09-12: **R8.0** (`f68dcf6`), and the audit was phased into
+Phases 8-10. § 7 unchanged at nine.
 
 ## 2. HOW TO WORK HERE
 
@@ -292,13 +295,14 @@ them is outstanding except the three items under § 1 « Awaiting the operator �
 **EXECUTION ORDER — not the order the tables are printed in.** The tables group by subject;
 this is the sequence, and each step is here because of a dependency, not a preference.
 
-1. **R9.2** — the migration gate, *before* R8.2 and R8.5 add two migrations for it to apply.
-   A fresh install in France runs every migration through this gate at first boot.
-2. **The rest of Phase 8** (R8.2 … R8.6), then **Phase 9**, then **Phase 10**.
-3. **Phase 6** — R8.1 has landed; R6.3 is reachable now, and **R6.4 still waits on R9.1**.
+1. **Phase 8** (R8.2 … R8.6), then **Phase 9**, then **Phase 10** — the order the tables
+   print in, now that the dependencies above are discharged.
+2. **Phase 6** — R6.3 is reachable; **R6.4 still waits on R9.1**.
 
-*(The first three steps are done and are in `REMEDIATION_DONE.md`: **R8.0** 2026-09-12
-`f68dcf6`, **R9.6** 2026-09-13 `f918578`, **R8.1** 2026-09-13 `622411c`.)*
+*(**Every dependency step is done** and each is in `REMEDIATION_DONE.md`: **R8.0** 2026-09-12
+`f68dcf6`, then **R9.6** `f918578`, **R8.1** `622411c` and **R9.2** `1d010b8`, all
+2026-09-13. R9.2 was here so that the gate would be sound before R8.2 and R8.5 add
+migrations for it to apply; it is.)*
 
 ### Phase 6 — Before the first real sale
 
@@ -330,7 +334,7 @@ that gate to apply.
 
 | ID | Status | Task |
 |---|---|---|
-| **R8.2** | `TODO` | **The checkout is idempotent.** L-89 · L-90 · L-100. `payment-dialog.tsx` · `checkout.ts`. A submit latch and the OFFERT lookup are trivial; the durable fix is a client-generated key, unique-indexed — **a migration**, cheaper now than after trading. L-100 rides along: same file, and it makes DD-14's tender usable at all. **R9.2 lands before this** — see the execution order. |
+| **R8.2** | `TODO` | **The checkout is idempotent.** L-89 · L-90 · L-100. `payment-dialog.tsx` · `checkout.ts`. A submit latch and the OFFERT lookup are trivial; the durable fix is a client-generated key, unique-indexed — **a migration**, cheaper now than after trading. L-100 rides along: same file, and it makes DD-14's tender usable at all. **R9.2 landed 2026-09-13** (`1d010b8`), so the gate this migration will meet at first boot is the repaired one. |
 | **R8.3** | `TODO` | **A category save stops destroying menu option rules.** L-91 (+L-135, L-145 ride along). `catalog/categories/[id]/route.ts`. Match groups by id instead of replacing wholesale, or refuse a delete a `ComboSlotOptionRule` depends on. It moves the weight the VAT allocation divides by, so it is group A, not a catalogue nicety. |
 | **R8.4** | `TODO` | **Report periods use the trading-day cut-off.** L-92. `report-range.ts` + the three report routes. Carries a decision: does a free `Du`/`Au` range snap to trading-day edges, and what does the screen then say it showed? |
 | **R8.5** | `TODO` | **A supplement carries its own VAT rate.** L-94 · L-127 · L-128 · L-136, and the question L-134. `combo.ts` · `pricing.ts` · `checkout.ts` · `orders/route.ts`. **A migration** — `CategoryAddOn` has no rate. Settle its shape before the small guards. Answer L-134 (is `Product.price` meant to be inert for sized products?) in the same session. |
@@ -344,8 +348,7 @@ their own riding along. Order inside the phase is not fixed except where a row s
 | ID | Status | Task |
 |---|---|---|
 | **R9.1** | `TODO` | **The printer tells the truth.** L-96 · L-97 · L-98 · L-143 · L-144. L-96 first — it writes `PRINTED` for a helper that never ran. Resolve the helper from a real app root, not `process.cwd()`, and stop treating exit 0 with a start-up failure on stderr as success. **L-98 is a question that gates L-88.** |
-| **R9.2** | `TODO` | **The startup migration gate.** L-110 · L-111 · L-112 · L-113 · L-114 · L-137 · L-138 · L-139. **L-110 is load-bearing** — it is the only one that also breaks the NEXT boot. L-112 lands in the same session or none of the others leaves a trace. L-114 and L-137 are both « resolve from a real app root ». |
-| **R9.3** | `TODO` | **Backup and restore leave no plaintext.** L-104 · L-105 · L-107 · L-108 · L-140 · L-141 · L-142. `backup.ts`, one file. L-104 and L-105 are the same `try`/`finally` shape and land together. L-140's schema check composes with L-110, so R9.2 first or accept the coupling. |
+| **R9.3** | `TODO` | **Backup and restore leave no plaintext.** L-104 · L-105 · L-107 · L-108 · L-140 · L-141 · L-142. `backup.ts`, one file. L-104 and L-105 are the same `try`/`finally` shape and land together. L-140's schema check composes with L-110, which **R9.2 fixed on 2026-09-13** — the coupling is discharged. |
 | **R9.4** | `TODO` | **Secrets resolve on an install with no `.env`.** L-106 · L-115 · L-116 · L-117 · L-119 · L-152. **L-115 before R6.2** — R6.2 is the row that arms the chain key, and a short one answers every fiscal write with an empty 500 while reporting itself armed. |
 | **R9.5** | `TODO` | **The front door.** L-102 · L-103 · L-118 · L-147. `auth.ts` · `login/route.ts` · `login-screen.tsx`. L-118 is the one that reaches the France install — the published-PIN denylist is enforced in a script and nowhere in the app. L-102 and L-103 are both « the till will not open ». |
 | **R9.7** | `TODO` | **The guards that are not guarding.** L-121 · L-122 · L-123 · L-125 · L-126 · L-153 · L-154 · L-155 · L-156 · L-157 · L-158 · L-159. *(L-124 left this batch for **R8.0** — it is one line and it gates every clone.)* Start with L-121 and L-158, one to three lines each, both guarding an invariant. L-154's shared wipe helper is the largest piece and subsumes L-153. |

@@ -179,7 +179,14 @@ describe("plan freshness — the plan and the done file may not disagree", () =>
     //   are `OPERATOR` rows and they are not done, only unblocked. Their
     //   prose changed, their count did not.
     //   FINDINGS STAY AT 9 for the fourth time. R8.1 opened none.
-    expect(taskStatuses(src).size).toBe(22);
+    //   2026-09-13, R9.2 DONE: tasks 22 → 21, and Phase 9 is eight batches.
+    //   **The execution order in § 6 is now empty** — R8.0, R9.6, R8.1 and R9.2
+    //   were the four steps that existed because of a dependency, and all four
+    //   have landed. What is left is the order the tables print in, which is
+    //   why § 6's numbered list shrank to two entries rather than one more row
+    //   being struck off it.
+    //   FINDINGS STAY AT 9 for the fifth time. R9.2 opened none.
+    expect(taskStatuses(src).size).toBe(21);
     expect(openFindings(src).size).toBe(9);
     expect(done()).toContain("# HibaPOS France — Completed Work");
   });

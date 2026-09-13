@@ -63,6 +63,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - R8.0 — a fresh clone of this repository no longer starts red
 - R9.6 — the authorization map means what it says, and a refusal leaves a trace
 - R8.1 — the settings defaults agree, and the operator can save them
+- R9.2 — the startup migration gate stops reporting failure as success
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -2260,6 +2261,120 @@ and `lint` clean; live database untouched (sha256 `0d304ee7…`, no `-wal`/`-shm
   whole DTO. That is why the authorisation is on changed keys, and it is worth keeping in mind
   for the Tauri settings pane: any client that sends a subset is now safe too, which was not
   true before this.
+
+---
+
+### R9.2 — the startup migration gate stops reporting failure as success
+**Done:** 2026-09-13 · **Commit:** `1d010b8` · **Findings:** L-110 (High) · L-111 · L-112 ·
+L-113 · L-114 (Medium) · L-137 · L-138 · L-139 (Low)
+
+**What changed:** `lib/services/startup-migration.ts` · `src/instrumentation.ts` ·
+`lib/paths.ts` · `lib/db-pragmas.ts` · new `lib/services/startup-migration-refusals.test.ts`.
+Eight findings, one file and its caller. Every one was a case where the gate answered wrongly
+or said nothing at all.
+
+**L-110 — a migration that failed was counted as applied, and the measurement decided the
+remedy.** `appliedMigrations()` filtered on `rolled_back_at IS NULL` and never on
+`finished_at IS NOT NULL`. Prisma writes the `_prisma_migrations` row **before** running the
+SQL and stamps `finished_at` only on success, so a power cut, a killed process or a `deploy`
+that errored left a row this query read as applied. Next boot: `UP_TO_DATE`, nothing logged
+— it is the one status `instrumentation.ts` had no branch for — and the app serving a
+half-applied schema. Same run: `stillPending` used the same query, so it was empty even when
+the deploy failed, and the gate returned **`APPLIED`**. The exact failure it was built to
+prevent, reported as success.
+
+The audit left the remedy open: retry the migration, or refuse and name the row, « the
+operator's call ». **Measured instead**, in a clean-room clone with no `.env`, against a real
+fifteen-migration database with the last row's `finished_at` set to NULL:
+
+    bunx prisma migrate deploy  →  exit 1, P3009, nothing changed
+
+*« migrate found failed migrations in the target database, new migrations will not be
+applied. »* **So retrying is not a thing that exists.** Prisma refuses a failed migration by
+design and requires a person with `prisma migrate resolve`. Retrying would take a ≈49 MB
+backup (L-179), be refused, and report `FAILED_AFTER_MIGRATE` telling the operator to restore
+a backup for damage that never happened — on every boot. The gate refuses, names the row, and
+spends nothing. The measurement is in the code comment and in the test, because it is what
+makes the choice non-arbitrary rather than a preference.
+
+**The other seven.**
+
+| finding | what it did | what it does |
+|---|---|---|
+| **L-111** | `deploy()` reporting failure was never a condition — read only to decide whether to append process output to a message | a deploy that says it failed is a failure |
+| **L-112** | the verification queries had **no `catch`**, only a `finally` releasing the lock; a throw escaped and `lastMigrationGateResult()` kept its PREVIOUS value | `FAILED_VERIFICATION_ERROR`, recorded like any other verdict |
+| **L-112** | every *thrown* startup failure wrote to `console.error` and nothing else — pass 5 measured one stdout line and **zero** `TechnicalLog` rows | a row beside each, **added not swapped**: `logTechnical` writes to the database, which is the thing that may be failing |
+| **L-113** | « could not create the lock » was reported as « un autre processus applique déjà les migrations », sending the operator after something that does not exist, every start | two branches, two sentences |
+| **L-114** | a missing `prisma/migrations` was `[]` → `UP_TO_DATE`, resolved against `process.cwd()` | `SKIPPED_NO_MIGRATIONS_DIR`, resolved from a real app root |
+| **L-137** | the lock was `dataDir()/db/migrate.lock` while the database is wherever `DATABASE_URL` points — two installs sharing one database took two locks and both migrated it | the lock sits beside the database |
+| **L-138** | « Restaurez la sauvegarde » was said even when nothing had been changed | said only when something was; the backup is still *named* when it was not |
+| **L-139** | the comment claimed « deliberately after the pragmas ». Migrations run **before** them | corrected to describe what happens |
+
+**`instrumentation.ts`'s reporting is now an exhaustive `Record<GateStatus, …>`**, so a status
+added later without a reporting decision is a **type error** rather than another silence.
+`UP_TO_DATE` stays unlogged deliberately: a row per boot would bury the ones that matter, and
+`pruneLogs()` only runs at shift close (L-176).
+
+**New in `paths.ts`: `appRoot()`, `migrationsDir()`, `resolvedDatabasePath()`.** `dataDir()`
+answers « where is the restaurant's data »; these answer « where are the application's own
+files » and « which database file is Prisma actually on ». All three coincide today **only by
+accident** — a packaged build separates them. `connectedDatabasePath()` moved here from
+`db-pragmas.ts`, where it was private, so the lock shares it instead of keeping a second copy
+of a path rule.
+
+**How it was verified.** Fifteen new tests, in their own file — and the file is separate for a
+reason worth recording: **all three insert sites in `startup-migration.test.ts` use
+`finished_at = current_timestamp`, so no test there has ever built the state L-110 is
+about.** Putting it in a helper the other tests share would have changed what they mean. Then
+reverted, one property at a time, restored by sha:
+
+| revert | result |
+|---|---|
+| applied ignores `finished_at` (L-110's query) | **1 fail** |
+| the query fixed but the refusal removed | **1 fail** |
+| a missing directory reads as an empty list | **1 fail** |
+| migrations directory resolved from the cwd | **2 fail** |
+| deploy failure not a condition (L-111) | **1 fail** |
+| always say « restore the backup » (L-138) | **2 fail** |
+| the lock back on the data dir (L-137) | **4 fail** |
+| every lock failure is contention (L-113) | **1 fail** |
+| the verification throw escapes (L-112) | **1 fail** |
+| instrumentation logs only to console (L-112) | **1 fail** |
+
+**ONE SURVIVED, and it was the same shape as the finding.** « The verification throw escapes »
+ran green — 27 pass, 0 fail — because nothing could reach the branch, which is exactly why
+L-112 existed. The fix was a test that makes a verification query throw with the
+**filesystem** rather than with Prisma: point `HIBAPOS_APP_DIR` at a tree whose
+`prisma/migrations` is a regular file, so `existsSync` passes and `readdirSync` throws
+`ENOTDIR` inside the verification. A Prisma-level failure would work too and would cost a
+`prisma:error` block, which `docs/BASELINES.md` pins at zero. *(The first attempt at that test
+did exactly that and was rewritten — see the L-138 inconsistency test, which builds a genuine
+partial application instead of forcing a foreign-key violation.)*
+
+`README.md` 1426 → 1441 (+15), files 118 → 119. `bun run test` **1441 pass / 0 fail / 119
+files, zero `prisma:error`, exit 0**; `typecheck` and `lint` clean; live database untouched
+(sha256 `0d304ee7…`, no `-wal`/`-shm`).
+
+**Left behind:**
+
+- **A packaged build must set `HIBAPOS_APP_DIR`.** Unset, `appRoot()` walks up from the
+  working directory looking for `prisma/migrations`, which finds the repository from anywhere
+  inside it and will **not** work inside a bundle. That is the Tauri-shaped half of L-114 and
+  the reason the knob exists rather than a cleverer search: a bundle should be told, not
+  guessed at. If it is wrong, the gate now says so instead of reporting `UP_TO_DATE`.
+- **An unfinished migration now blocks the boot loudly.** A botched rehearsal on a machine
+  leaves the gate refusing, by name, until a person runs `prisma migrate resolve`. That is the
+  intended behaviour and it is a change in what a broken install *does*: it used to serve.
+- **The lock moved, and test isolation moved with it.** It is beside the database now, which
+  is outside the per-test sandbox — one test's lock survived into the next and made it look as
+  though the gate had not released it. Both test files clean it explicitly. `releaseLock()`
+  deliberately does not fire when the lock was never taken: a process does not delete somebody
+  else's lock.
+- **Whether the pragmas should run BEFORE the migrations is a real question and is not
+  answered here.** L-139 was a comment claiming an ordering that does not exist; correcting
+  the comment is not the same as deciding the ordering. Migrating in rollback-journal mode is
+  slower and less crash-safe than in WAL. Written into `instrumentation.ts` where the decision
+  would be made.
 
 ---
 
