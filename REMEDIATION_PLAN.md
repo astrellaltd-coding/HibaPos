@@ -32,12 +32,17 @@ every trading table is at zero.
 >
 > **Two things are waiting, and neither is a batch.**
 >
-> 1. **TWO MIGRATIONS, rehearsed together and neither applied.** See *Awaiting the operator* —
->    the command changed when the second landed, and R8.2's fingerprint no longer describes
->    the end state.
-> 2. **One paragraph for `docs/INVARIANTS.md`**, drafted verbatim in R8.5's done entry and
+> 1. **One paragraph for `docs/INVARIANTS.md`**, drafted verbatim in R8.5's done entry and
 >    held because that file is the operator's. It records L-134's answer: a size supplies the
 >    price sur place and à emporter alike.
+> 2. **Room in this file**, eventually. Applying the migrations retired their operator item and
+>    took it back to 39 033 of 40 960 — comfortable for a batch or two, not for a phase. §§ 3
+>    and 4 went to `docs/` for this reason and the easy trims here are now spent.
+>
+> *(**The two migrations were APPLIED on 2026-09-13** — by the session, at the operator's
+> explicit instruction, they being away from the machine. Verified against the rehearsal and
+> recorded in `REMEDIATION_DONE.md`. `CLAUDE.md`'s rule that this is the operator's action is
+> unchanged; that was a one-off, not a standing waiver.)*
 >
 > **When Phase 9 opens, R9.1 is the one to take first** — L-96 writes `PRINTED` for a helper
 > that never ran, and it is **R6.4's remaining blocker**.
@@ -93,28 +98,6 @@ audit exercised produced screen figures matching the database to the cent.
 
 ### Awaiting the operator
 
-- **APPLY THE TWO PENDING MIGRATIONS — rehearsed 2026-09-13, neither applied.**
-  `Order.idempotencyKey` (R8.2) and `CategoryAddOn.vatRate` / `vatRateTakeaway` (R8.5). Three
-  `ADD COLUMN`s and one unique index; SQLite's `ADD COLUMN` does not rewrite a table, so no
-  row is touched and no sealed payload re-serialised. All nullable — nothing to backfill.
-
-  **Rehearsed TOGETHER, on a copy of production, in the order the gate applies them.** Five
-  differences and nothing else: `Order` gains one column at 19, `CategoryAddOn` gains two at
-  7 and 8, one unique index appears, two `_prisma_migrations` rows, count 15 → 17. Every
-  event hash, `FiscalCounter`, `GrandTotal`, sealed row, `integrity_check`, FK check, journal
-  mode and `user_version` identical.
-
-  ```
-  bun scripts/apply-migration.ts --apply --expect ../db-snapshots/r85-acceptance/fp-r85-after.json
-  ```
-
-  Dry run first by dropping `--apply`. **The fingerprint changed when the second migration
-  landed** — `r82-acceptance/fp-r82-after.json` describes a state with only one of them
-  applied and would now report a difference; `r85-acceptance` is the current one.
-  **`--expect` takes a fingerprint FILE, not a migration name**; `CLAUDE.md`'s wording is
-  loose there and is the operator's to change or leave. **There is a second route**: since
-  PREP-4 the application applies pending migrations itself at startup, behind a backup it
-  creates and re-opens to verify. Either is fine.
 
 - **Delete `5 nuggets test` (L-81), prepared and rehearsed.** With the app stopped:
   `bun scripts/delete-product.ts --id cmtvwzr050004n368crvp0mw3 --apply`. Dry run without

@@ -69,6 +69,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - R8.4 — a report measures the same period the sealed close measured
 - R8.5 — a supplement carries its own VAT rate
 - R8.6 — a refund-only day cannot be skipped — **PHASE 8 COMPLETE**
+- R8.2 + R8.5 MIGRATIONS — APPLIED to production, and verified
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -2902,6 +2903,75 @@ sha256 `0d304ee7…`.
 - **L-154 has now bitten twice** — R8.2 and R8.6 — rather than staying the latent hazard it
   was recorded as. Its shared wipe helper is still R9.7's, and the case for doing it early is
   now two incidents rather than an argument.
+
+---
+
+### R8.2 + R8.5 MIGRATIONS — APPLIED to production, and verified
+**Done:** 2026-09-13 · **Migrations:** `20260913120000_order_idempotency_key` ·
+`20260913140000_addon_vat_rate` · **Applied by:** the session, at the operator's explicit
+instruction
+
+**WHO RAN IT, AND WHY THAT IS WORTH A PARAGRAPH.** `CLAUDE.md` reserves applying a migration
+to production to the operator, and gives the reason: this project twice believed a migration
+was applied when it was not, because `prisma migrate deploy` prints the same green banner
+whichever migration it ran. The operator was away from the machine — on a phone — and asked
+the session to run it. **That was a one-off instruction, not a standing waiver**, and
+`CLAUDE.md` is unchanged. Recorded here in full because a rule set aside silently is a rule
+that erodes.
+
+**What was applied.** Three `ADD COLUMN`s and one unique index:
+
+    ALTER TABLE "Order"         ADD COLUMN "idempotencyKey" TEXT;
+    CREATE UNIQUE INDEX "Order_idempotencyKey_key" ON "Order"("idempotencyKey");
+    ALTER TABLE "CategoryAddOn" ADD COLUMN "vatRate" REAL;
+    ALTER TABLE "CategoryAddOn" ADD COLUMN "vatRateTakeaway" REAL;
+
+**Before.** sha256 `0d304ee7…`, 884 736 bytes, 15 migrations applied, `schema_version` 171,
+no `-wal`/`-shm` beside the file, **zero node/bun processes running** — the script refuses on
+any of those and they were checked first. Dry run confirmed exactly the two pending
+migrations against exactly the sha the rehearsal was taken from.
+
+**The command**, which is the one the plan had been carrying:
+
+    bun scripts/apply-migration.ts --apply --expect ../db-snapshots/r85-acceptance/fp-r85-after.json
+
+**After.** sha256 `44a45a71b776d330c4322fda541ec04e2b0bb92f985132a39ca96a0afe63b2d9`,
+884 736 bytes — *the size has now failed to move across four schema changes; it is not a
+check* — 17 migrations, `schema_version` 175, `integrity_check` ok, 0 foreign-key errors,
+journal mode `delete`, no `-wal`/`-shm` left behind.
+
+**Verified twice, deliberately.** The script's own `--expect` comparison reported
+*« Fingerprint: IDENTICAL to the rehearsed post-migration state »* and ended
+`✅ APPLIED AND VERIFIED`. That banner is the exact genre of thing this project has been burned
+by, so the live database was **fingerprinted again independently** with
+`../db-snapshots/r85-acceptance/fingerprint.ts` and diffed against the rehearsal:
+**no differences at all.** Production is byte-for-byte the state that was rehearsed on a copy,
+in every dimension that fingerprint covers — row counts, column order, indexes, every fiscal
+event hash, `FiscalCounter`, `GrandTotal`, sealed rows, `integrity_check`, foreign keys,
+`user_version`, the migration ledger.
+
+**Nothing was lost.** Catalogue intact: 84 products, 14 categories, 21 add-ons, and the
+**7 `ComboSlotOptionRule` rows** R8.3 exists to protect. Every trading table still at zero —
+this install has still never traded.
+
+**The restore point.** Taken and sha-verified by the script before it touched anything:
+
+    ../db-snapshots/custom.db.before-20260913120000_order_idempotency_key-2026-09-11
+    sha256 0d304ee79ad3b06adb0b89542a8906bf706f85868ae56035b8c600e3f9083cdb
+
+That sha is the pre-migration one, confirmed after the fact. *(The filename's date is the
+database's own mtime, not the day it was taken — the script names it from the file. Worth
+knowing before hunting for a restore point by date.)*
+
+**Left behind:**
+
+- **`docs/BASELINES.md` now carries the new sha**, and its note that the SIZE has never moved
+  across four schema changes — so nobody uses 884 736 as a check.
+- **`CLAUDE.md` is unchanged.** If the operator wants « the session may apply a rehearsed
+  migration » to become the rule, that is an edit to their file and needs the exact text
+  brought to them, per the plan's R10.2.
+- **The plan's operator item is gone**, which took it from 40 184 to 39 125 bytes. That is
+  breathing room for a batch or two, not for a phase.
 
 ---
 
