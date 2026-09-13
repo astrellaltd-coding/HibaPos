@@ -171,7 +171,15 @@ describe("plan freshness — the plan and the done file may not disagree", () =>
     //   the pass files all refer to by that range. If a session ever moves an
     //   audit-sequence id into § 7, this number and the ceiling assertion below
     //   both have to be re-argued, not just re-typed.
-    expect(taskStatuses(src).size).toBe(23);
+    //   2026-09-13, R8.1 DONE: tasks 23 → 22. Phase 8 is five batches now. The
+    //   two settings default tables agree and are pinned against each other,
+    //   an omitted key is no longer written over the stored value (L-93), and
+    //   `PUT /api/settings` splits by field per DD-26/DD-27 (L-101) — so R6.3
+    //   is reachable from the till. **R6.3 and R6.4 did NOT leave § 6**: they
+    //   are `OPERATOR` rows and they are not done, only unblocked. Their
+    //   prose changed, their count did not.
+    //   FINDINGS STAY AT 9 for the fourth time. R8.1 opened none.
+    expect(taskStatuses(src).size).toBe(22);
     expect(openFindings(src).size).toBe(9);
     expect(done()).toContain("# HibaPOS France — Completed Work");
   });

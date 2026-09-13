@@ -62,6 +62,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - PREP-4 — migrations apply themselves at startup, behind a backup that has been opened
 - R8.0 — a fresh clone of this repository no longer starts red
 - R9.6 — the authorization map means what it says, and a refusal leaves a trace
+- R8.1 — the settings defaults agree, and the operator can save them
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -2146,6 +2147,119 @@ the classification changed and no gate did. `README.md`'s pinned suite count 138
   R8.1's row now says so instead of pointing at R9.6 as unfinished.
 - **The contradiction check has one pinned exception and that is on purpose.** Green with the
   exception written down beats green with it invisible, and a *second* contradiction fails.
+
+---
+
+### R8.1 — the settings defaults agree, and the operator can save them
+**Done:** 2026-09-13 · **Commit:** `622411c` · **Findings:** L-93 (High) · L-101 (High) ·
+**Decisions implemented:** DD-26, DD-27 · **Unblocks:** R6.3 (and half of R6.4)
+
+**What changed:** `lib/validation.ts` · `app/api/settings/route.ts` · new
+`lib/services/settings-authz.ts` · `lib/api-authorization.test.ts` · `lib/validation.test.ts` ·
+`README.md` · three new test files.
+
+**L-93 — two default tables, and the write side won.** `settingsSchema` answered
+`factice: false` and `printerConnection: "network"` for an absent key; `DEFAULT_SETTINGS`
+answered `true` and `"usb"`. The route parsed with the schema and handed the **parsed** object
+to `saveSettings`, which does `{ ...current, ...input }` — and zod's `.default()` does not
+leave an absent key absent, it **materialises** it. So a save that merely omitted `factice`
+performed **R6.3** — the act that makes every subsequent sale a real fiscal document — by
+accident, and one that omitted `printerConnection` undid the 2026-09-11 USB decision R6.4
+rests on. Both defaults were pinned, separately, by two green tests. **Nothing asserted they
+agree**, which is how the product held two answers with a clean suite.
+
+Both halves fixed. The schema now follows `DEFAULT_SETTINGS` — that is the table carrying the
+dated operator reasoning — and the agreement is pinned **key by key**, with the set of
+defaulted keys pinned too, so a field that loses its `.default()` cannot drop out of the
+comparison silently.
+
+**Measured, and it changed the fix: `.partial()` does NOT stop zod 4 materialising defaults.**
+A partial parse of `{ printerQueue: "…" }` still produced ten of them, `factice` among them.
+So the route now keeps only the keys the **raw body** actually carried and writes only those.
+A key that was not sent is not written, whatever the schema would have supplied.
+
+**L-101 — the operator could not save anything.** The whole route was SUPER_ADMIN while
+`nav-config.ts:60` gives the MANAGER the Réglages screen — with a comment saying it was opened
+*because* that is where the printer is configured — and an enabled « Enregistrer ». R6.3 and
+R6.4 are both this route, and the MANAGER is the only account that will be at the till in
+France; the one account that could is the developer's, in Tunisia (V-10). DD-26 splits by
+field, DD-27 makes FACTICE one-way once the journal holds a non-factice event.
+
+**Authorisation is on CHANGED keys, not SENT keys, and that is the load-bearing detail.**
+`settings-view.tsx:121` posts the whole DTO on every save. Authorising on sent keys would
+refuse a MANAGER adjusting the printer because the SIRET rode along unchanged — L-101 again
+wearing a different hat, and it would have passed a hand-built minimal-body test. Changing an
+identity field still makes it changed, so nothing is smuggled.
+
+**Why the rule is a module and not three lines in the route.** Two reasons. It is a rule about
+data, so it can be tested as one — every field, both roles, without a request. And an inline
+`if (user.role !== …)` would make the route classify as `INLINE_SA` in the detector R9.6 had
+just built, because a field-level split is not a blanket refusal. The route declares
+`["SUPER_ADMIN", "MANAGER"]` at the wrapper, which is true: both roles may call it, and what
+differs is what they may change. **R9.6's new contradiction check stayed green throughout**,
+which is the first time one of these batches has been kept honest by the previous one.
+
+**How it was verified.** Thirty-seven new tests. The pure rule has its own file; the route is
+**driven** through `route-harness.ts` as both roles, because a unit test on an extracted rule
+proves the rule and not that anything calls it — this project has shipped that gap three
+times. Then reverted, one property at a time, restored by sha:
+
+| revert | result |
+|---|---|
+| write the whole parsed object (L-93's mechanism) | **2 fail** |
+| …and the old schema default too — the original bug, whole | **2 fail**, including « FACTICE off by omission » |
+| schema `factice` default back to `false` | **3 fail** |
+| schema `printerConnection` back to `"network"` | **2 fail** |
+| authorise on SENT keys instead of CHANGED | **4 fail**, including the whole-DTO save |
+| no field split — L-101 restored | **7 fail**, including R6.3 and R6.4 |
+| DD-27's guard removed | **3 fail** |
+| DD-27 blocking BOTH directions — the mirror mistake | **1 fail**: « R6.3 must never be blocked » |
+| `factice` moved to the SUPER_ADMIN list | **7 fail** |
+
+**THE FIRST REVERT SURVIVED, and that was the useful part of this batch.** « Write the whole
+parsed object » — L-93's exact mechanism — ran green, 62 pass 0 fail. The cause was that
+reconciling the defaults in this same commit had **masked the bug in my own tests**: they
+stored the value the schema default already said, so writing the default over it changed
+nothing and the assertions were asserting a no-op. **L-93 needs two things at once** — a key
+absent from the body, AND a stored value the default would overwrite. The tests now store the
+*opposite* of the default; the revert goes red; and a second revert reproducing the original
+bug whole (old default + write-everything) fails precisely the « FACTICE off by omission »
+case the audit described. The reasoning is written into the test file, because it is the thing
+the next person to touch these will get wrong.
+
+**One pinned number moved deliberately.** `validation.test.ts` said *« defaults factice to
+FALSE when omitted »* — green, and pinning half of the contradiction. It now says `true`, with
+a dated block saying what moved it and why that is not the same as retyping a number to obtain
+a green run. `api-authorization.test.ts`: `settings:PUT` `INLINE_SA` → `BOTH`, counts
+`BOTH` 31 → 32 and `INLINE_SA` 6 → 5; **`ANY`, `INLINE_ANY` and `SUPER_ADMIN` unmoved**, which
+is the proof that opening the settings write did not widen anything else on the way past.
+`README.md` 1389 → 1426, files 115 → 118.
+
+`bun run test` **1426 pass / 0 fail / 118 files, zero `prisma:error`, exit 0**; `typecheck`
+and `lint` clean; live database untouched (sha256 `0d304ee7…`, no `-wal`/`-shm`).
+
+**Left behind:**
+
+- **R6.3 is reachable from the till now**, and it is still the operator's action and still
+  last of the three fiscal rows. **DD-27 applies from the moment it is done**: once the
+  journal holds a non-factice event, only a SUPER_ADMIN can turn the stamp back on. There is
+  an escape hatch and it is deliberate.
+- **R6.4 is half-unblocked.** The MANAGER can pick the queue now; **L-96 is still open and
+  R9.1 owns it** — the USB helper is resolved from `process.cwd()` and
+  `powershell.exe -File <missing>` exits 0, so a helper that never runs is written to the
+  database as `PRINTED`. Choosing the queue is not enough on its own.
+- **`DEFAULT_SETTINGS` is the authority when the two tables disagree**, and the test says so
+  in its failure message. Reconciling them the other way — moving `DEFAULT_SETTINGS` to the
+  schema's old answers — fails a separate assertion on purpose: both values carry dated
+  operator decisions from 2026-09-11.
+- **Adding a setting now requires classifying it.** `settings-defaults-agree.test.ts` asserts
+  the two DD-26 lists partition `settingsSchema` exactly, so a new field that nobody has
+  decided about fails rather than defaulting silently to one side — either of which would be
+  wrong in a different direction.
+- **The client was not changed and did not need to be.** `settings-view.tsx` still posts the
+  whole DTO. That is why the authorisation is on changed keys, and it is worth keeping in mind
+  for the Tauri settings pane: any client that sends a subset is now safe too, which was not
+  true before this.
 
 ---
 

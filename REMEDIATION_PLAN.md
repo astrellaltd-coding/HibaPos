@@ -11,28 +11,21 @@ Completed work lives in **`REMEDIATION_DONE.md`**. This file only ever shows out
 **Overall:** NOT READY FOR PRODUCTION, and **not trading** — the fiscal journal is empty and
 every trading table is at zero.
 
-> ### ▶ CURRENT TASK — **R8.1**, then **R9.2**
+> ### ▶ CURRENT TASK — **R9.2**, then the rest of Phase 8
 >
 > **§ 6 opens with the execution order. Follow that, not the order the tables print in.**
 >
-> **R8.0** (2026-09-12, `f68dcf6`) and **R9.6** (2026-09-13, `f918578`) are done. The map
-> R8.1 is about to move now says what is true: `settings:PUT` is **`INLINE_SA`**, not the
-> undifferentiated `INLINE` that also covered seven guards refusing nobody, and the counts at
-> `api-authorization.test.ts:407` are **INLINE_SA 6 · INLINE_ANY 7 · INLINE_SELF 1**.
-> **Reclassifying `settings:PUT` moves those, and that edit is R8.1's, in R8.1's commit.**
+> **R8.0** (`f68dcf6`), **R9.6** (`f918578`) and **R8.1** (`622411c`) are done — the first
+> three steps of the execution order. **R8.1 unblocked R6.3 and R6.4**: `PUT /api/settings`
+> now splits by field (DD-26), so the MANAGER — the only account that will be at the till in
+> France — can turn FACTICE off and pick the print queue, and an omitted key is no longer
+> written over the stored value (L-93). **R6.4 still waits on R9.1**, which is its other
+> blocker and is not fiscal: L-96 writes `PRINTED` for a helper that never ran.
 >
-> **R8.1 is the first real fix and it unblocks R6.3 and R6.4**: **L-93** — two default tables
-> disagree on `factice`, so a settings save that merely *omits* the key turns the fiscal
-> simulation stamp off by accident — then **L-101** — the MANAGER, the only account that will
-> be at the till in France, is refused a 403 by `PUT /api/settings` while the screen shows an
-> enabled save button. **In that order.**
->
-> **L-101's role gate is settled and is not the session's to reopen — DD-26** (the route
-> splits by field: operational fields MANAGER-writable, identity and fiscal-policy fields
-> SUPER_ADMIN) **and DD-27** (FACTICE one-way once the journal holds a non-factice event,
-> SUPER_ADMIN excepted), both in `docs/DECISIONS.md`. **Do not fix it by hiding the screen** —
-> that leaves R6.3 and R6.4 unreachable without the developer's account.
-> `NEXT-SESSION-PROMPT.md`'s **SESSION 1** is the prompt for this session.
+> **R9.2 is next** — the startup migration gate, *before* R8.2 and R8.5 add two migrations
+> for it to apply. **L-110 is the load-bearing one**: it is the only finding in that batch
+> that also breaks the NEXT boot. L-112 lands in the same session or none of the others
+> leaves a trace.
 
 **Phases 0-5 and 7 are COMPLETE**, with all four operator items and all three migrations
 applied. What each did, how it was verified and what it cost is in `REMEDIATION_DONE.md`;
@@ -40,9 +33,9 @@ applied. What each did, how it was verified and what it cost is in `REMEDIATION_
 
 **Four phases are open, and they are not independent.**
 
-- **Phase 6** — the fiscal go-live, five `OPERATOR` rows. **R6.3 and R6.4 are blocked on
-  R8.1**, so this phase cannot close first. Row-by-row status below.
-- **Phase 8** — money and the fiscal record. Six batches (group A).
+- **Phase 6** — the fiscal go-live, five `OPERATOR` rows. **R8.1 unblocked R6.3** (2026-09-13,
+  `622411c`); **R6.4 still waits on R9.1**, its non-fiscal blocker. Row-by-row status below.
+- **Phase 8** — money and the fiscal record. Five batches (group A).
 - **Phase 9** — fix before the app is called complete. Nine batches (group B).
 - **Phase 10** — the leftovers no other batch owns. Three rows (group C).
 
@@ -67,16 +60,19 @@ audit exercised produced screen figures matching the database to the cent.
   An empty journal is armable at any time, so arming EARLY buys nothing and creates a secret
   to transport. Follows R6.1. **A BUTTON since 2026-09-11** (`POST /api/setup/chain-key`), not
   a `.env` edit: it refuses unless the journal is empty, and shows the key once.
-- **R6.3** FACTICE off (§ 6f) — `factice=true`. Last of the three. **BLOCKED BY R8.1**, which
-  carries both halves: L-101 (the MANAGER cannot save) and L-93 (a save that omits the key
-  performs this row by accident).
+- **R6.3** FACTICE off (§ 6f) — `factice=true`. Last of the three. **UNBLOCKED 2026-09-13 by
+  R8.1** (`622411c`), which carried both halves: the MANAGER can now save it (DD-26), and a
+  save that omits the key no longer performs this row by accident (L-93). **DD-27 applies from
+  here on**: once the journal holds a non-factice event, only a SUPER_ADMIN can turn the stamp
+  back on. Still the operator's action, and still last of the three.
 - **R6.4** printer (§ 4a, then § 4) — **the printer is in France; not doable from here.** This
   machine's `SUNSO WTP-800` queue sits on `COM1:`, `Error`, with no `USBPRINT` device: a
   developer artefact. § 4a — a `COM1:` queue « prints nothing and reports success ».
-  **Also BLOCKED BY L-101**, and **L-96 is the same sentence reached another way**: the USB
-  helper is resolved from `process.cwd()` and `powershell.exe -File <missing>` exits 0, so a
-  helper that never runs is written to the database as `PRINTED`. Choosing the queue is not
-  enough on its own.
+  **L-101 is fixed** (R8.1, 2026-09-13) so the MANAGER can now pick the queue, but **L-96 is
+  the same sentence reached another way and is still open**: the USB helper is resolved from
+  `process.cwd()` and `powershell.exe -File <missing>` exits 0, so a helper that never runs is
+  written to the database as `PRINTED`. **R9.1 owns it.** Choosing the queue is not enough on
+  its own.
 - **R6.5** — the restaurant's `BACKUP_LOCATION` belongs to its install; **this** machine's is
   set (`docs/BASELINES.md`). See its backup-gap row for what is still outstanding.
 
@@ -103,13 +99,16 @@ printer are in France. So R6.1-R6.3 belong to that install, not to this machine,
 **nothing in the app exports or imports a catalogue today** — carrying it is unsolved.
 `FISCAL_CHAIN_KEY` is in `.env`, `factice` is in the database: they do not travel together.
 
-**Last updated:** 2026-09-13 — **R9.6 done** (`f918578`): the authorization map distinguishes
-a guard from a no-op, and a 403 is journalled. Twenty-four task rows became twenty-three.
-**Two findings recorded, not fixed — L-183 and L-184**, in a new *Found after the audit*
-section of `docs/audit/FINDINGS.md` that keeps the audit's 94 (L-89 … L-182) a closed set.
-2026-09-12: **R8.0 done** (`f68dcf6`), the audit landed and was phased into Phases 8-10, the
-baselines moved to `docs/BASELINES.md`, and R6.3/R6.4 were re-marked as blocked by software
-rather than hardware. § 7 unchanged at nine.
+**Last updated:** 2026-09-13 — **R8.1 done** (`622411c`): the two settings default tables
+agree and are pinned against each other, an omitted key is no longer written over the stored
+value, and `PUT /api/settings` splits by field (DD-26/DD-27) — so **R6.3 is reachable from the
+till** and R6.4's remaining blocker is R9.1, not this. Twenty-three task rows became
+twenty-two. Earlier the same day: **R9.6 done** (`f918578`) — the authorization map
+distinguishes a guard from a no-op and a 403 is journalled — with **L-183 and L-184 recorded,
+not fixed**, in a new *Found after the audit* section of `docs/audit/FINDINGS.md` that keeps
+the audit's 94 (L-89 … L-182) a closed set. 2026-09-12: **R8.0 done** (`f68dcf6`), the audit
+landed and was phased into Phases 8-10, and the baselines moved to `docs/BASELINES.md`.
+§ 7 unchanged at nine.
 
 ## 2. HOW TO WORK HERE
 
@@ -293,14 +292,13 @@ them is outstanding except the three items under § 1 « Awaiting the operator �
 **EXECUTION ORDER — not the order the tables are printed in.** The tables group by subject;
 this is the sequence, and each step is here because of a dependency, not a preference.
 
-1. **R8.1** — **unblocks R6.3 and R6.4.**
-2. **R9.2** — the migration gate, *before* R8.2 and R8.5 add two migrations for it to apply.
+1. **R9.2** — the migration gate, *before* R8.2 and R8.5 add two migrations for it to apply.
    A fresh install in France runs every migration through this gate at first boot.
-3. **The rest of Phase 8** (R8.2 … R8.6), then **Phase 9**, then **Phase 10**.
-4. **Phase 6** — once R8.1 has landed and R6.4's other blocker (R9.1) has too.
+2. **The rest of Phase 8** (R8.2 … R8.6), then **Phase 9**, then **Phase 10**.
+3. **Phase 6** — R8.1 has landed; R6.3 is reachable now, and **R6.4 still waits on R9.1**.
 
-*(Steps 1 and 2 are done and are in `REMEDIATION_DONE.md`: **R8.0** 2026-09-12 `f68dcf6`,
-**R9.6** 2026-09-13 `f918578`.)*
+*(The first three steps are done and are in `REMEDIATION_DONE.md`: **R8.0** 2026-09-12
+`f68dcf6`, **R9.6** 2026-09-13 `f918578`, **R8.1** 2026-09-13 `622411c`.)*
 
 ### Phase 6 — Before the first real sale
 
@@ -308,13 +306,14 @@ this is the sequence, and each step is here because of a dependency, not a prefe
 whatever the app is packaged as. **R6.1, R6.2 and R6.3 are fiscal and their order is not a
 preference** — arming the chain key before the reset makes the reset refuse. **R6.4 (printer)
 and R6.5 (a second volume for backups) are technical, not fiscal**, and can be done at any
-point before the first sale. **R6.3 and R6.4 wait on R8.1.***
+point before the first sale. **R8.1 landed 2026-09-13: R6.3 is reachable, R6.4 still waits on
+R9.1.***
 
 | ID | Status | Task |
 |---|---|---|
 | **R6.1** | `OPERATOR` | **Run `scripts/pre-golive-reset.ts --apply` — once.** *(Step-by-step in `../HibaPOS-docs-archive/runbook-complet.md` **§ 6d**; §§ 6a-6c are its prerequisites, and § 6b is R6.5.)* It empties the fiscal journal, deletes every order, receipt, shift, Z report, close and archive, and resets the counters to zero. It **keeps** the catalogue, the users, the settings and the audit log. Everything rung up before it is deleted by it — that is why testing comes first. **This runs once, and never after a genuine sale**: from that point the journal is append-only and clearing it is precisely the deletion `docs/attestation-conformite.md` states is impossible. |
 | **R6.2** | `OPERATOR` | **Arm `FISCAL_CHAIN_KEY` — after R6.1, never before.** Every fiscal fingerprint becomes HMAC-SHA-256 instead of plain SHA-256. Arming onto a journal that already holds unkeyed events is refused by design, because a half-keyed chain verifies under neither mode. **Lose this key and the journal cannot be verified at all** — back it up with the same care as `BACKUP_ENCRYPTION_KEY`, and not only on the machine that holds it. |
-| **R6.3** | `OPERATOR` | **Turn FACTICE off.** `factice` is `true` today, which stamps every ticket *SIMULATION* and flags the journal row. Off is the point every rule tightens: from then on every sale is real. |
+| **R6.3** | `OPERATOR` | **Turn FACTICE off.** `factice` is `true` today, which stamps every ticket *SIMULATION* and flags the journal row. Off is the point every rule tightens: from then on every sale is real. **Reachable from the till since R8.1** (2026-09-13): the MANAGER may write this field. **One-way after the first real sale** — DD-27 refuses turning it back on once the journal holds a non-factice event, SUPER_ADMIN excepted. |
 | **R6.4** | `OPERATOR` | **Configure the printer — INSTALL-DAY, IN FRANCE.** Since 2026-09-11 `printerConnection` defaults to **`usb`**, so the only settings work left is **picking the queue** from the list in Réglages; `printerEnabled` is already `true` in production and was never off. **The procedure is `../HibaPOS-docs-archive/runbook-complet.md` § 4a** — the `pnputil` export/install commands and the hardware id `USBPRINT\SUNSOWTP-800036C` from `sunso.inf`, the only place the steps are written down. Read that archive's `README.md` first. **A queue whose `PortName` is not `USB00x` prints nothing and reports success** — check it before trusting it. |
 | **R6.5** | `OPERATOR` | **Point `BACKUP_LOCATION` at a second volume.** Unset, backups land beside the database on the same disk, so one failure takes the data and every copy of it together. |
 
@@ -323,13 +322,14 @@ pre-built tree, the update path. All of it belongs to the Tauri v2 migration.
 
 ### Phase 8 — Money and the fiscal record
 
-*The audit's group A, plus the two rows that block Phase 6. Detail for every id is in
-`docs/audit/FINDINGS.md`; these rows say what a session does, not what is wrong.*
-**R8.1 runs first and is not the worst finding — it is the one that unblocks R6.3 and R6.4.**
+*The audit's group A. Detail for every id is in `docs/audit/FINDINGS.md`; these rows say what
+a session does, not what is wrong.* **R8.0 and R8.1 have left this table** — R8.1 was first
+because it unblocked R6.3 and R6.4, and it did (2026-09-13, `622411c`). **R9.2 lands before
+R8.2**, which is the execution order above, because R8.2 and R8.5 each add a migration for
+that gate to apply.
 
 | ID | Status | Task |
 |---|---|---|
-| **R8.1** | `TODO` | **The settings defaults agree, and the operator can save them.** L-93 · L-101. `validation.ts` · `settings.ts` · `settings/route.ts` · `nav-config.ts`. Reconcile the two default tables and pin the reconciliation FIRST — opening the write before they agree hands a till operator a route that flips `factice` by omission. **The role gate is already decided: DD-26** (split by field — operational fields MANAGER-writable, identity and fiscal-policy fields SUPER_ADMIN) **and DD-27** (FACTICE one-way once the journal holds a non-factice event, SUPER_ADMIN excepted). Implement those; do not re-open them. **Unblocks R6.3 and R6.4.** **R9.6 is done (2026-09-13), so the map is ready**: `settings:PUT` is pinned `INLINE_SA` and the counts at `api-authorization.test.ts:407` are `INLINE_SA 6 · INLINE_ANY 7 · INLINE_SELF 1`. Splitting this route by field reclassifies it and moves those numbers — **edit them in this row's commit, with a dated line, the way every other count in that file is moved.** |
 | **R8.2** | `TODO` | **The checkout is idempotent.** L-89 · L-90 · L-100. `payment-dialog.tsx` · `checkout.ts`. A submit latch and the OFFERT lookup are trivial; the durable fix is a client-generated key, unique-indexed — **a migration**, cheaper now than after trading. L-100 rides along: same file, and it makes DD-14's tender usable at all. **R9.2 lands before this** — see the execution order. |
 | **R8.3** | `TODO` | **A category save stops destroying menu option rules.** L-91 (+L-135, L-145 ride along). `catalog/categories/[id]/route.ts`. Match groups by id instead of replacing wholesale, or refuse a delete a `ComboSlotOptionRule` depends on. It moves the weight the VAT allocation divides by, so it is group A, not a catalogue nicety. |
 | **R8.4** | `TODO` | **Report periods use the trading-day cut-off.** L-92. `report-range.ts` + the three report routes. Carries a decision: does a free `Du`/`Au` range snap to trading-day edges, and what does the screen then say it showed? |
