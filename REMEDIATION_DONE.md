@@ -65,6 +65,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - R8.1 — the settings defaults agree, and the operator can save them
 - R9.2 — the startup migration gate stops reporting failure as success
 - R8.2 — one tap, one sale, and the OFFERT tender stops crashing the till
+- R8.3 — a category save stops destroying the menu rules that depend on it
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -2489,6 +2490,101 @@ after the suite.
   violation three tests away and no way to explain itself. Patched at the source with
   `afterAll(wipe)`; **the durable shared wipe helper is still R9.7's, and this raises its
   priority** — sixteen hand-maintained lists that already disagree is no longer latent.
+
+---
+
+### R8.3 — a category save stops destroying the menu rules that depend on it
+**Done:** 2026-09-13 · **Commit:** `6a580dd` · **Findings:** L-91 (High) · L-135 (Cosmetic) ·
+L-145 (Low)
+
+**What changed:** new `lib/services/category-option-groups.ts` ·
+`api/catalog/categories/[id]/route.ts` · `features/catalog/categories-view.tsx` ·
+`api/catalog/products/route.ts` and `[id]/route.ts` · `prisma/schema.prisma` (comments only) ·
+new `api/category-option-rules.test.ts` · `README.md`.
+
+**L-91 — the defect.** The PUT replaced option groups wholesale:
+`categoryOptionGroup.deleteMany({ categoryId })`, then re-`create` with fresh cuids. And
+`ComboSlotOptionRule.categoryOptionGroupId` is `onDelete: Cascade`, so **every menu rule
+hanging off the category went with them** — no error, no warning, `CATEGORY_UPDATED` recording
+the category name and nothing else. The trigger is an ordinary admin save *with no edits*,
+because the client sends `optionGroups` unconditionally.
+
+**Why it is group A.** A `ComboSlotOptionRule` fixes a menu component's option *without asking
+the cashier*. All seven live rows hang off one group, `Pizzas → Taille`. Losing them lets a
+Junior be rung inside an XXL — and `componentReferencePrice` loses its pinned choice. The three
+`Taille` choices carry absolute prices (Junior 8,90 / Senior 11,90 / Mega 15,90 à emporter), so
+**the weight `apportion` is handed really does move, and that weight is what divides the
+forfait between 10 % and 5,5 %.**
+
+**MEASURED, AND IT CHANGED THE FIX.** The audit's remedy is « match incoming groups by id and
+update in place ». Necessary — and **not sufficient, because the client sent no ids at all.**
+`categories-view.tsx` loads them into its form and then drops them when building the payload,
+and the save handler *rebuilds* the `Taille` group from scratch rather than passing through
+the one it fetched. Every group therefore arrived looking new, and match-by-id alone would
+have deleted and recreated all of them exactly as before. Finding that is why this batch has a
+client change in it.
+
+**Both halves, and neither works alone:**
+
+| | what it does |
+|---|---|
+| `category-option-groups.ts` | reconciles by id — matched groups updated in place, new ones created, and a group the payload drops is deleted **only** if no rule depends on it |
+| choices, also by id | a rule pins a **choice**, and `categoryOptionChoiceId` is `onDelete: Restrict` — a preserved group whose choices were replaced would have failed with a raw Prisma foreign-key error rather than a sentence |
+| the refusal | **409, in French, naming the menu and the slot.** The cascade told the operator nothing; this tells them which menu and what to do |
+| the client | sends the ids it already holds. Two new pieces of state, loaded in `openEdit` and cleared by all three reset paths |
+
+**How it was verified.** Eight tests, driven over the real route against a miniature of the
+live shape — a Pizzas category, a `Taille` group whose choices carry absolute prices, and a
+menu slot pinning Mega. Then reverted, restored by sha:
+
+| revert | result |
+|---|---|
+| replace wholesale again (L-91 itself) | **6 fail** |
+| no group refusal | **1 fail** |
+| no choice refusal | **1 fail** |
+| ignore the payload for matched groups | **1 fail** |
+| matched choices never updated | **1 fail** |
+| the refusal becomes a 500 | **2 fail** |
+| an unknown id treated as new | **3 fail** |
+
+The fourth is the one worth naming: **« preserve the rules by ignoring the payload » is the
+obvious wrong fix**, and it passes every assertion about rules surviving. « Still applies the
+edits — this is not a no-op » is the test that refuses it, and it checks the renamed choice
+and the changed price, not just the group's flags.
+
+**L-135** — six sites of `parseFloat((x - y).toFixed(2))` on integer cents in the two product
+routes. A no-op on integers, but `toFixed(2)` is the **euros** idiom and the invariant is that
+euros exist only at `formatEuro` / `parseEuroInput`; were a cent value ever non-integer it
+would round to hundredths of a cent and look deliberate. Plain integer subtraction now, with
+the reason at the site.
+
+**L-145** — four id columns carried no foreign key and, alone in this schema, did not say so:
+`sealedById` on `DailyClose`, `MonthlyClose` and `AnnualClose`, and `OrderItem.comboProductId`.
+**Comments only** — 38 additions, 0 deletions, `prisma validate` clean, no migration.
+
+`README.md` 1458 → 1466 (+8), files 121 → 122. `bun run test` **1466 pass / 0 fail / 122
+files, zero `prisma:error`, exit 0**; `typecheck` and `lint` clean. Live database untouched:
+sha256 `0d304ee7…`.
+
+**Left behind:**
+
+- **An open question, written into `schema.prisma` and not answered:** should
+  `OrderItem.comboProductId` become a real `SET NULL` foreign key? The audit found the
+  behavioural edge and this entry records it — `productId` is `SET NULL`, so a deleted product
+  makes the identity genuinely *gone* and the `productName` fallback fires as the invariant
+  describes, while **`comboProductId` dangles** and `aggregate.ts` groups under an id that
+  resolves to nothing. Not reachable today: `scripts/delete-product.ts` guards the only
+  deletion path and refuses a product in any sealed payload. It matters because **the
+  catalogue transfer moves product ids between installs**, and that makes it R9.8's, where the
+  data model is the subject.
+- **Add-ons are still replaced wholesale**, deliberately. `CategoryAddOn` has no
+  `ComboSlotOptionRule` and nothing else references it by id, so the cascade L-91 is about
+  cannot happen there. Reconciling them too would be a change with a real risk (a live cart
+  holds `addonId`s) and no finding behind it.
+- **The refusal is reachable from an old client.** Anything still sending groups without ids —
+  a stale browser tab, a future client written from the GET shape — now gets a 409 naming the
+  menu instead of silently destroying the rules. That is the intended trade: a save that
+  fails loudly beats one that succeeds and takes the fiscal weight with it.
 
 ---
 

@@ -196,7 +196,16 @@ describe("plan freshness — the plan and the done file may not disagree", () =>
     //   FINDINGS STAY AT 9 for the sixth time. R8.2 opened **L-185** and
     //   escalated **L-154**, and both are audit-sequence ids living in
     //   `docs/audit/FINDINGS.md`, not in § 7.
-    expect(taskStatuses(src).size).toBe(20);
+    //   2026-09-13, R8.3 DONE: tasks 20 → 19, Phase 8 is three batches. L-91's
+    //   fix needed BOTH halves — the route reconciling by id and the client
+    //   actually sending the ids it already held — because the client sent
+    //   none, which the audit had not measured. L-135 and L-145 rode along as
+    //   the row said they would.
+    //   FINDINGS STAY AT 9 for the seventh time. R8.3 opened none; it recorded
+    //   one open QUESTION inside `schema.prisma` (should `comboProductId`
+    //   become a real SET NULL FK?) and left it for R9.8, where the data model
+    //   is the subject.
+    expect(taskStatuses(src).size).toBe(19);
     expect(openFindings(src).size).toBe(9);
     expect(done()).toContain("# HibaPOS France — Completed Work");
   });
