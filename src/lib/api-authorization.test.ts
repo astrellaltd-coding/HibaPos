@@ -53,6 +53,10 @@ const EXPECTED_ROLES: Record<string, string[] | null> = {
   // MANAGER+. Read and write now agree. Pinned here so a later widening is a
   // test failure rather than a quiet regression.
   "settings:GET": ["SUPER_ADMIN", "MANAGER"],
+  // R8.1 / DD-26: the WRITE admits both roles too, and the split is per field
+  // rather than per role. Pinned here so that narrowing the whole route back to
+  // SUPER_ADMIN — which is what L-101 was — fails rather than reads as tidying.
+  "settings:PUT": ["SUPER_ADMIN", "MANAGER"],
   "reports/x:GET": ["SUPER_ADMIN", "MANAGER"],
   // Catalogue transfer (2026-09-11). The export hands over every product,
   // price and menu structure in one request — the class of read DD-22 made
@@ -149,7 +153,8 @@ describe("T-03 — every API route declares an authorization gate", () => {
     "reports/z:POST": ["SUPER_ADMIN", "MANAGER"], // closing the day
     "orders/[id]/reprint:POST": ["SUPER_ADMIN", "MANAGER"], // journalled REIMPRESSION
     "users:POST": "INLINE_SA",
-    "settings:PUT": "INLINE_SA",
+    // R8.1: declared, not inline — DD-26. Still destructive: `factice` is here.
+    "settings:PUT": ["SUPER_ADMIN", "MANAGER"],
     // 2026-09-11: writes every row of the catalogue. It refuses unless all ten
     // catalogue tables are empty, and refuses INSIDE the transaction, so a
     // refusal leaves nothing behind — but the gate is what stops it being
@@ -338,7 +343,13 @@ describe("T-03 — every API route declares an authorization gate", () => {
   "reports/z:GET": "BOTH",
   "reports/z:POST": "BOTH",
   "settings:GET": "BOTH",
-  "settings:PUT": "INLINE_SA",
+  // R8.1 (2026-09-13): was INLINE_SA — the whole route refused every
+  // non-SUPER_ADMIN while the MANAGER had the screen and an enabled save button
+  // (L-101). DD-26 split it BY FIELD, so both roles may CALL it and
+  // `settings-authz.ts` decides what each may change. `BOTH` is the truthful
+  // classification now; the split is pinned in `settings-defaults-agree.test.ts`
+  // and driven in `settings-write.test.ts`.
+  "settings:PUT": "BOTH",
   "setup/chain-key:POST": "SUPER_ADMIN",
   "setup/secrets:GET": "SUPER_ADMIN",
   "setup/secrets:POST": "SUPER_ADMIN",
@@ -626,10 +637,15 @@ describe("T-03 — every API route declares an authorization gate", () => {
     // Whether they SHOULD be is a review, not this item — recorded as **L-183**
     // in `docs/audit/FINDINGS.md`. What changed here is that the table now says
     // so out loud instead of counting them among the guards.
+    // AMENDED 2026-09-13 (R8.1, L-101): BOTH 31 -> 32 and INLINE_SA 6 -> 5, one
+    // route moving between them — `settings:PUT`, which DD-26 split by field.
+    // **ANY, INLINE_ANY and SUPER_ADMIN are unmoved**, and that is this
+    // assertion earning its keep: it is the proof that opening the settings
+    // write to the MANAGER did not widen anything else on the way past.
     expect(counts).toEqual({
-      BOTH: 31,
+      BOTH: 32,
       ANY: 26,
-      INLINE_SA: 6,
+      INLINE_SA: 5,
       INLINE_ANY: 7,
       INLINE_SELF: 1,
       SUPER_ADMIN: 12,

@@ -52,14 +52,27 @@ describe("settingsSchema", () => {
     }
   });
 
-  it("defaults factice to false when omitted", () => {
+  // CHANGED 2026-09-13 (R8.1, L-93): this read `defaults factice to FALSE when
+  // omitted`, and it was green, and it was pinning half of a contradiction.
+  // `DEFAULT_SETTINGS.factice` has been `true` since 2026-09-11 — a fresh
+  // install is in SIMULATION until someone says otherwise — while this schema
+  // answered `false`. Because `PUT /api/settings` handed the PARSED object to
+  // `saveSettings` (`{ ...current, ...input }`), a body that merely OMITTED the
+  // key wrote `false` over the stored `true` and performed **R6.3** by
+  // accident: the act that makes every subsequent sale a real fiscal document.
+  //
+  // The number moved because the fix moved it, not to obtain a green run. The
+  // agreement between the two tables is now pinned key by key in
+  // `settings-defaults-agree.test.ts`, which is the assertion that was missing
+  // — both defaults were pinned separately and neither pin could see the other.
+  it("defaults factice to true when omitted, agreeing with DEFAULT_SETTINGS", () => {
     const r = settingsSchema.safeParse({
       restaurantName: "Test",
       defaultVatRate: 10,
     });
     expect(r.success).toBe(true);
     if (r.success) {
-      expect(r.data.factice).toBe(false);
+      expect(r.data.factice).toBe(true);
     }
   });
 

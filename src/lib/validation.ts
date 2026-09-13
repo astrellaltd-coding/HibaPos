@@ -353,7 +353,13 @@ export const settingsSchema = z.object({
   // How the printer is attached (Batch 1.3d, L-69). Explicit rather than
   // inferred from which field is filled: the two modes fail differently and
   // the operator has to be told the right thing to go and look at.
-  printerConnection: z.enum(["network", "usb"]).default("network"),
+  // DEFAULT: `"usb"`, and it must equal `DEFAULT_SETTINGS.printerConnection` —
+  // L-93, R8.1. It said `"network"` while `DEFAULT_SETTINGS` said `"usb"`, and
+  // because `PUT /api/settings` handed the PARSED object to `saveSettings`, a
+  // body that merely omitted this key wrote `"network"` over the stored value
+  // and undid the 2026-09-11 decision R6.4 rests on. The two tables are now
+  // pinned against each other key by key in `settings-defaults-agree.test.ts`.
+  printerConnection: z.enum(["network", "usb"]).default("usb"),
   // The Windows print-queue name, exactly as the spooler reports it. Chosen
   // from a list the app reads from Windows, never typed.
   printerQueue: z.string().max(120).optional().nullable(),
@@ -371,7 +377,14 @@ export const settingsSchema = z.object({
   receiptWidth: z.number().int().min(32).max(48).default(48),
   discountApprovalThreshold: z.number().min(0).max(100).default(20),
   autoPrint: z.boolean().default(false),
-  factice: z.boolean().default(false),
+  // DEFAULT: `true`, and it must equal `DEFAULT_SETTINGS.factice` — L-93, R8.1.
+  // It said `false` here and `true` there, which is the worse of the two
+  // directions: an omitted key materialised `false` and performed **R6.3**
+  // — FACTICE off, the act that makes every subsequent sale a real fiscal
+  // document — by accident. `DEFAULT_SETTINGS` is the authority (its own
+  // comment carries the 2026-09-11 operator decision and the reasoning); this
+  // literal follows it, and the agreement is pinned.
+  factice: z.boolean().default(true),
   // DD-23 / DD-24 (Batch 3.8). The hour a TRADING day starts and ends, so a
   // service running to 01:30 belongs to the day it started rather than to the
   // next one. It governs the day close, the monthly close and the exercice
