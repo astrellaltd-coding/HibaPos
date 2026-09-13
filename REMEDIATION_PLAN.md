@@ -11,24 +11,25 @@ Completed work lives in **`REMEDIATION_DONE.md`**. This file only ever shows out
 **Overall:** NOT READY FOR PRODUCTION, and **not trading** — the fiscal journal is empty and
 every trading table is at zero.
 
-> ### ▶ CURRENT TASK — **R8.2**, then the rest of Phase 8
+> ### ▶ CURRENT TASK — **R8.3**, then the rest of Phase 8
 >
 > **§ 6 opens with the execution order. Follow that, not the order the tables print in.**
 >
-> **The execution order is finished.** R8.0 (`f68dcf6`), R9.6 (`f918578`), R8.1 (`622411c`)
-> and R9.2 (`1d010b8`) are all done, so what remains is the plain order of § 6: the rest of
-> Phase 8, then Phase 9, then Phase 10.
+> **The execution order is finished** and Phase 8 is running in its own order. R8.0
+> (`f68dcf6`), R9.6 (`f918578`), R8.1 (`622411c`), R9.2 (`1d010b8`) and R8.2 (`67d0347`) are
+> done.
 >
-> **R8.2 is next — the checkout is idempotent** (L-89 · L-90 · L-100). It carries **the
-> first migration since the gate was repaired**: a client-generated key, unique-indexed, and
-> the plan's own note is that it is cheaper now than after trading. A submit latch and the
-> OFFERT lookup ride along.
+> **ONE OPERATOR ACTION IS WAITING.** R8.2's migration is rehearsed and **not applied** —
+> `Order.idempotencyKey`, one nullable column and a unique index. See *Awaiting the operator*
+> below for the exact command. Nothing is blocked by it: the column is absent, so the till
+> simply has no idempotency until it is applied. **Since PREP-4 the application would also
+> apply it itself at next start, behind a verified backup** — that is a real second route and
+> it is the operator's to choose between, not a session's.
 >
-> **Two things R9.2 left that R8.2 should know.** The gate now REFUSES to migrate when a
-> previous migration is unfinished, naming the row — so a botched rehearsal blocks the next
-> boot loudly instead of quietly serving a half-applied schema. And a packaged build must set
-> **`HIBAPOS_APP_DIR`**: `appRoot()` walks up from the cwd to find `prisma/migrations`, which
-> works from anywhere inside this repository and will not work inside a bundle.
+> **R8.3 is next — a category save stops destroying menu option rules** (L-91, with L-135 and
+> L-145 riding along). It is group A rather than a catalogue nicety because it moves the
+> weight the VAT allocation divides by: all seven live `ComboSlotOptionRule` rows hang off one
+> group, and an ordinary admin save with no edits deletes them.
 
 **Phases 0-5 and 7 are COMPLETE**, with all four operator items and all three migrations
 applied. What each did, how it was verified and what it cost is in `REMEDIATION_DONE.md`;
@@ -38,7 +39,7 @@ applied. What each did, how it was verified and what it cost is in `REMEDIATION_
 
 - **Phase 6** — the fiscal go-live, five `OPERATOR` rows. **R8.1 unblocked R6.3** (2026-09-13,
   `622411c`); **R6.4 still waits on R9.1**, its non-fiscal blocker. Row-by-row status below.
-- **Phase 8** — money and the fiscal record. Five batches (group A).
+- **Phase 8** — money and the fiscal record. Four batches (group A).
 - **Phase 9** — fix before the app is called complete. Eight batches (group B).
 - **Phase 10** — the leftovers no other batch owns. Three rows (group C).
 
@@ -81,6 +82,24 @@ audit exercised produced screen figures matching the database to the cent.
 
 ### Awaiting the operator
 
+- **APPLY R8.2's MIGRATION — `Order.idempotencyKey`, rehearsed 2026-09-13, not applied.**
+  One nullable column and a unique index; SQLite's `ADD COLUMN` does not rewrite the table.
+  Rehearsed on a copy of production and fingerprinted: **four differences and nothing else** —
+  the column at position 19, the index, the `_prisma_migrations` row, and its count 15 → 16.
+  Every event hash, `FiscalCounter`, `GrandTotal`, sealed row, `integrity_check`, FK check,
+  journal mode and `user_version` identical. Fingerprints are in
+  `../db-snapshots/r82-acceptance/`.
+
+  ```
+  bun scripts/apply-migration.ts --apply --expect ../db-snapshots/r82-acceptance/fp-r82-after.json
+  ```
+
+  Dry run first by dropping `--apply`. **`--expect` takes a fingerprint FILE, not a migration
+  name** — `CLAUDE.md`'s wording is loose there and is the operator's to change or leave.
+  **There is a second route**: since PREP-4 the application applies pending migrations itself
+  at startup, behind a backup it creates and re-opens to verify. Either is fine; doing neither
+  leaves the till without idempotency, which is what it has today.
+
 - **Delete `5 nuggets test` (L-81), prepared and rehearsed.** With the app stopped:
   `bun scripts/delete-product.ts --id cmtvwzr050004n368crvp0mw3 --apply`. Dry run without
   `--apply`. Rehearsed on a copy 2026-09-11: 84 → 83 products, 0 FK errors, `integrity_check`
@@ -102,7 +121,11 @@ printer are in France. So R6.1-R6.3 belong to that install, not to this machine,
 **nothing in the app exports or imports a catalogue today** — carrying it is unsolved.
 `FISCAL_CHAIN_KEY` is in `.env`, `factice` is in the database: they do not travel together.
 
-**Last updated:** 2026-09-13 — **R9.2 done** (`1d010b8`), and with it **the whole execution
+**Last updated:** 2026-09-13 — **R8.2 done** (`67d0347`): a double-tap no longer books the
+sale twice, a lost response no longer re-rings it, and the OFFERT tender stops crashing the
+POS. **Its migration is rehearsed and awaits the operator** (see above). Twenty-one task rows
+became twenty. **L-185 recorded, and L-154 escalated from « has not yet bitten » to bitten.**
+Earlier the same day — **R9.2** (`1d010b8`), and with it **the whole execution
 order**: the startup migration gate no longer reports a half-applied schema as `UP_TO_DATE`,
 a deploy that says it failed is a failure, and every startup failure leaves a row rather than
 a stdout line. Twenty-two task rows became twenty-one. Earlier the same day: **R8.1**
@@ -295,7 +318,7 @@ them is outstanding except the three items under § 1 « Awaiting the operator �
 **EXECUTION ORDER — not the order the tables are printed in.** The tables group by subject;
 this is the sequence, and each step is here because of a dependency, not a preference.
 
-1. **Phase 8** (R8.2 … R8.6), then **Phase 9**, then **Phase 10** — the order the tables
+1. **Phase 8** (R8.3 … R8.6), then **Phase 9**, then **Phase 10** — the order the tables
    print in, now that the dependencies above are discharged.
 2. **Phase 6** — R6.3 is reachable; **R6.4 still waits on R9.1**.
 
@@ -334,7 +357,6 @@ that gate to apply.
 
 | ID | Status | Task |
 |---|---|---|
-| **R8.2** | `TODO` | **The checkout is idempotent.** L-89 · L-90 · L-100. `payment-dialog.tsx` · `checkout.ts`. A submit latch and the OFFERT lookup are trivial; the durable fix is a client-generated key, unique-indexed — **a migration**, cheaper now than after trading. L-100 rides along: same file, and it makes DD-14's tender usable at all. **R9.2 landed 2026-09-13** (`1d010b8`), so the gate this migration will meet at first boot is the repaired one. |
 | **R8.3** | `TODO` | **A category save stops destroying menu option rules.** L-91 (+L-135, L-145 ride along). `catalog/categories/[id]/route.ts`. Match groups by id instead of replacing wholesale, or refuse a delete a `ComboSlotOptionRule` depends on. It moves the weight the VAT allocation divides by, so it is group A, not a catalogue nicety. |
 | **R8.4** | `TODO` | **Report periods use the trading-day cut-off.** L-92. `report-range.ts` + the three report routes. Carries a decision: does a free `Du`/`Au` range snap to trading-day edges, and what does the screen then say it showed? |
 | **R8.5** | `TODO` | **A supplement carries its own VAT rate.** L-94 · L-127 · L-128 · L-136, and the question L-134. `combo.ts` · `pricing.ts` · `checkout.ts` · `orders/route.ts`. **A migration** — `CategoryAddOn` has no rate. Settle its shape before the small guards. Answer L-134 (is `Product.price` meant to be inert for sized products?) in the same session. |

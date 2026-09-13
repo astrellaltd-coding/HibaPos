@@ -186,7 +186,17 @@ describe("plan freshness — the plan and the done file may not disagree", () =>
     //   why § 6's numbered list shrank to two entries rather than one more row
     //   being struck off it.
     //   FINDINGS STAY AT 9 for the fifth time. R9.2 opened none.
-    expect(taskStatuses(src).size).toBe(21);
+    //   2026-09-13, R8.2 DONE: tasks 21 → 20, Phase 8 is four batches. It left
+    //   an OPERATOR action that is NOT a row: its migration is rehearsed and
+    //   unapplied, and lives under « Awaiting the operator » in § 1 with the
+    //   others. A migration awaiting the operator has never had a § 6 row —
+    //   Phases 2, 3 and 7 each did the same — so this count does not move for
+    //   it, and a session reading only the number should not conclude the
+    //   column is in production.
+    //   FINDINGS STAY AT 9 for the sixth time. R8.2 opened **L-185** and
+    //   escalated **L-154**, and both are audit-sequence ids living in
+    //   `docs/audit/FINDINGS.md`, not in § 7.
+    expect(taskStatuses(src).size).toBe(20);
     expect(openFindings(src).size).toBe(9);
     expect(done()).toContain("# HibaPOS France — Completed Work");
   });

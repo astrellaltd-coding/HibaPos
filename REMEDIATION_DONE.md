@@ -64,6 +64,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - R9.6 — the authorization map means what it says, and a refusal leaves a trace
 - R8.1 — the settings defaults agree, and the operator can save them
 - R9.2 — the startup migration gate stops reporting failure as success
+- R8.2 — one tap, one sale, and the OFFERT tender stops crashing the till
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -2375,6 +2376,119 @@ files, zero `prisma:error`, exit 0**; `typecheck` and `lint` clean; live databas
   the comment is not the same as deciding the ordering. Migrating in rollback-journal mode is
   slower and less crash-safe than in WAL. Written into `instrumentation.ts` where the decision
   would be made.
+
+---
+
+### R8.2 — one tap, one sale, and the OFFERT tender stops crashing the till
+**Done:** 2026-09-13 · **Commit:** `67d0347` · **Findings:** L-89 (High) · L-90 (High) ·
+L-100 (High) · **Migration:** `20260913120000_order_idempotency_key` — **REHEARSED, NOT
+APPLIED**
+
+**What changed:** `prisma/schema.prisma` + a migration · `lib/services/checkout.ts` ·
+`api/orders/route.ts` · `components/pos/payment-dialog.tsx` · new `lib/checkout-key.ts` ·
+new `components/pos/payment-line.tsx` · two new test files · `README.md`.
+
+**L-89 — a double-tap booked the sale twice.** Reproduced by audit pass 4: orders #9 and #10,
+28 ms apart, `FiscalEvent` 15 → 16, the button still enabled at 60 ms. `setLoading(true)` is
+React state and does not disable the button before a second click **in the same task** reaches
+the handler, and nothing behind it was idempotent. `GrandTotal` moved twice — and it is
+**never decremented**, so the inflation is permanent. A refund corrects the money; nothing
+removes the phantom sale.
+
+**L-90 is the same permanent consequence reached another way**: the sale commits, the HTTP
+response is lost, `api-client.ts` has no timeout and no retry, the cart is still on screen,
+and the operator rings it again. Closed by the same key, which is why the audit said to scope
+it once for both.
+
+**THREE LAYERS, AND THE MEASUREMENT OF WHAT EACH ONE BUYS.** This is the part of the batch
+worth reading. Replaying the same key, counting `prisma:error` blocks in the suite output:
+
+| state | blocks | what it means |
+|---|---|---|
+| both reads present | **0** | shipped |
+| outer read removed | **0** | the in-transaction read alone suffices |
+| in-transaction read removed | **1** | the concurrent case falls through to the index |
+| both reads removed | **5** | every replay falls through to the index |
+
+So **correctness comes from the UNIQUE INDEX in all four cases**; the reads decide how much
+noise and wasted work there is. That is why reverting a read does not turn the suite red — a
+lower layer catches it — and it is recorded here rather than papered over, because « the
+revert survived » is otherwise the shape of a test that proves nothing.
+
+The in-transaction read is the one that does the work in practice, and the reason is § 2's
+own measured note: **Prisma's interactive transactions on SQLite do not overlap.** The loser's
+read runs after the winner has committed, so the index is never asked to refuse and Prisma
+writes nothing. That is not tidiness — a till whose log fills with P2002 on every double-tap
+teaches its operator to ignore the log.
+
+**L-100 — « Offert / repas personnel » crashed the POS.** `METHODS.find(x => x.method ===
+l.method)!` then `m.icon`; `OFFERT` is deliberately not in `METHODS` (DD-14), so the render
+threw `Cannot read properties of undefined` and took everything into the error boundary.
+**DD-14's tender was unusable from the till** — the only way to settle a 100 %-discounted
+order — while the API accepted the identical sale.
+
+The audit's actual point was that *nothing would have caught it*: no test rendered that
+component. There is no React test renderer here and no DOM, and adding either is a dependency
+decision rather than a batch's. So the row moved into its own module and is rendered with
+**`react-dom/server`, which is already a dependency** — for every member of the
+`PaymentMethod` enum, read from `schema.prisma`, so a tender added later is covered without
+anybody remembering to come back.
+
+**Reverted**, restored by sha each time: key not persisted → 5 fail · route drops the key →
+5 fail · route rejects the key → 6 fail · OFFERT crashes again → 5 fail · the key generator
+repeats → 2 fail · the backstop matches any P2002 → 1 fail. The three layering reverts are in
+the table above.
+
+**THE MIGRATION — rehearsed, and the operator's to apply.**
+
+    ALTER TABLE "Order" ADD COLUMN "idempotencyKey" TEXT;
+    CREATE UNIQUE INDEX "Order_idempotencyKey_key" ON "Order"("idempotencyKey");
+
+SQLite's `ADD COLUMN` **does not rewrite the table**, so no existing row is touched and no
+sealed payload is re-serialised — the property that matters most on a fiscal database.
+Nullable because every order already written has no key and a client that sends none must
+still check out; NULLs are distinct in a SQLite unique index, so any number of keyless orders
+coexist.
+
+Applied to a copy of production and fingerprinted with
+`../db-snapshots/r71-acceptance/fingerprint.ts` **verbatim** — the established tool, not a new
+one. **Four differences and nothing else:** `Order` gains one column at position 19 (appended,
+so no reordering), one index appears, one `_prisma_migrations` row, and its count goes 15 →
+16. Every event hash, `FiscalCounter`, `GrandTotal`, sealed row, `integrity_check`,
+`foreign_key_check`, journal mode and `user_version` identical. Fingerprints kept in
+`../db-snapshots/r82-acceptance/`.
+
+`README.md` 1441 → 1458 (+17), files 119 → 121. `bun run test` **1458 pass / 0 fail / 121
+files, zero `prisma:error`, exit 0**; `typecheck` and `lint` clean. Live database untouched
+throughout — sha256 `0d304ee7…`, no `-wal`/`-shm`, verified after the rehearsal as well as
+after the suite.
+
+**Left behind:**
+
+- **The migration is not in production**, and nothing is blocked by that: the column is
+  absent, so the till simply has no idempotency yet. Two routes, both the operator's —
+  `bun scripts/apply-migration.ts --apply --expect ../db-snapshots/r82-acceptance/fp-r82-after.json`,
+  or letting PREP-4's startup gate apply it behind its own verified backup. **`--expect` takes
+  a fingerprint FILE, not a migration name**; `CLAUDE.md` says `--expect <name>`, which is
+  loose, and that file is the operator's.
+- **The submit latch is not driven by a test.** It is a `useRef` in `payment-dialog.tsx` and
+  there is no React test renderer. It is also the cheap half — a latch cannot survive a lost
+  response, a reload, or a second till, and the key can. Said plainly at the top of
+  `checkout-idempotency.test.ts` rather than left as an assumed gap.
+- **The backstop's `catch` is not driven end to end**, for the third time in three batches:
+  provoking a real P2002 writes a `prisma:error` block against a baseline pinned at zero.
+  `isUniqueViolation` is exported and tested directly instead, because the failure that
+  matters is the predicate silently never matching.
+- **L-185 recorded** — five tracked files sit CRLF in this working tree while the index is LF.
+  **R8.0 fixed what a clone receives and did not touch what was already on disk.** It cost two
+  failed edits here before the cause was found. `orders/route.ts` was normalised in passing
+  (zero git diff, the index being LF already); the other four were left rather than swept.
+- **L-154 has bitten.** It was « a standing wipe-order hazard that has not yet bitten ». This
+  batch's new test file is the first to leave orders, payments and shifts behind, and
+  `fiscal-verify-software.test.ts` then failed on `db.user.deleteMany()` with a foreign-key
+  violation three tests away and no way to explain itself. Patched at the source with
+  `afterAll(wipe)`; **the durable shared wipe helper is still R9.7's, and this raises its
+  priority** — sixteen hand-maintained lists that already disagree is no longer latent.
 
 ---
 
