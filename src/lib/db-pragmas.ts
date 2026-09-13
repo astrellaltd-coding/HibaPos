@@ -24,6 +24,7 @@
 // guarantees — journal mode lives in the file, not in the connection.
 
 import { db } from "@/lib/db";
+import { connectedDatabasePath } from "@/lib/paths";
 
 /**
  * Directories whose sync agents actively fight SQLite.
@@ -75,12 +76,9 @@ export type PragmaResult = {
   warning?: string;
 };
 
-/** The database file Prisma is actually connected to, from DATABASE_URL. */
-function connectedDatabasePath(): string | null {
-  const url = process.env.DATABASE_URL;
-  if (!url?.startsWith("file:")) return null;
-  return url.slice("file:".length).split("?")[0];
-}
+// `connectedDatabasePath` moved to `@/lib/paths` in R9.2 (L-137): the migration
+// lock needs the same answer, and a second copy of a path rule is how two
+// copies drift apart. Imported below rather than re-declared here.
 
 /**
  * Put the database into WAL mode, unless it sits somewhere WAL would make

@@ -9,6 +9,7 @@ import {
   pendingMigrations,
   lastMigrationGateResult,
   NO_BACKUP_REFUSAL,
+  migrationLockPath,
   type GateDeps,
 } from "@/lib/services/startup-migration";
 
@@ -120,6 +121,12 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await dropMigrationTable();
+  // L-137 moved the lock BESIDE THE DATABASE, which is outside the sandbox this
+  // hook removes below — so a lock left by one test survived into the next and
+  // made it look as though the gate had not released it. Cleaned explicitly.
+  // (`releaseLock()` deliberately does not fire when the lock was never taken:
+  // a process does not delete somebody else's lock.)
+  if (existsSync(migrationLockPath())) rmSync(migrationLockPath(), { force: true });
   if (REAL_DATA_DIR === undefined) delete process.env.HIBAPOS_DATA_DIR;
   else process.env.HIBAPOS_DATA_DIR = REAL_DATA_DIR;
   if (sandbox && existsSync(sandbox)) rmSync(sandbox, { recursive: true, force: true });
@@ -273,8 +280,14 @@ describe("the verdict comes from the database", () => {
     expect(deps.calls).toEqual(["takeBackup", "openBackup", "deploy"]);
     expect(r.status).toBe("FAILED_AFTER_MIGRATE");
     expect(r.reason).toContain("en attente");
-    // And it names the backup to restore, which is the only useful next step.
+    // It names the backup — but CHANGED 2026-09-13 (R9.2, L-138): naming it is
+    // NOT the same as telling the operator to restore it. Here `deploy` lied and
+    // changed nothing, so the schema is untouched and a restore would be
+    // unnecessary work on a fiscal database that reads as though damage had
+    // occurred. The message says which of the two this is; the backup is still
+    // named, because it was still taken and verified.
     expect(r.reason).toContain("backup-under-test.dbenc");
+    expect(r.reason).toContain("rien à restaurer");
     expect(r.backup).toBe("backup-under-test.dbenc");
   });
 
@@ -334,7 +347,12 @@ describe("only one process migrates", () => {
   it("skips when another process holds the lock", async () => {
     // Two workers booting together would both migrate. Intermittent damage is
     // the worst kind, so one of them takes the job and the other stands down.
-    writeFileSync(path.join(sandbox, "db", "migrate.lock"), "9999 held\n");
+    // L-137 (2026-09-13): the lock lives beside the DATABASE now, not beside the
+    // data directory. Two installs sharing one database file used to take two
+    // different locks and both migrate it. `migrationLockPath()` is where it
+    // actually is; that it FOLLOWS the database is asserted on its own below,
+    // rather than by this test, which is about standing down.
+    writeFileSync(migrationLockPath(), "9999 held\n");
     const deps = happyDeps();
     const r = await runStartupMigrationGate(deps);
     expect(r.status).toBe("SKIPPED_LOCKED");
@@ -342,7 +360,7 @@ describe("only one process migrates", () => {
   });
 
   it("releases the lock afterwards, so the next start is not blocked", async () => {
-    const lock = path.join(sandbox, "db", "migrate.lock");
+    const lock = migrationLockPath();
     await runStartupMigrationGate(happyDeps());
     expect(existsSync(lock)).toBe(false);
   });
@@ -350,7 +368,7 @@ describe("only one process migrates", () => {
   it("reclaims a lock left behind by a crashed process", async () => {
     // Otherwise one crash blocks every future start, and the failure is
     // invisible: the app just silently stops migrating.
-    const lock = path.join(sandbox, "db", "migrate.lock");
+    const lock = migrationLockPath();
     writeFileSync(lock, "1234 stale\n");
     const eleven = Date.now() - 11 * 60 * 1000;
     utimesSync(lock, new Date(eleven), new Date(eleven));

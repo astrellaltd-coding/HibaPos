@@ -41,7 +41,7 @@ import { createHash } from "crypto";
 import { readFile } from "fs/promises";
 import { spawnSync } from "child_process";
 import { db } from "@/lib/db";
-import { dataDir } from "@/lib/paths";
+import { migrationsDir, resolvedDatabasePath } from "@/lib/paths";
 
 export type GateStatus =
   | "UP_TO_DATE"
@@ -49,7 +49,21 @@ export type GateStatus =
   | "REFUSED_NO_VERIFIED_BACKUP"
   | "FAILED_AFTER_MIGRATE"
   | "SKIPPED_NO_MIGRATION_TABLE"
-  | "SKIPPED_LOCKED";
+  | "SKIPPED_LOCKED"
+  // ── added by R9.2, each replacing a case that was previously SILENT ────────
+  /** A previous run left a migration row with no `finished_at`: started and
+   *  never finished. L-110. The schema is half-applied and only a person can
+   *  say which half. */
+  | "REFUSED_FAILED_MIGRATION"
+  /** `prisma/migrations` could not be found. L-114 — this used to be
+   *  indistinguishable from « nothing is pending ». */
+  | "SKIPPED_NO_MIGRATIONS_DIR"
+  /** The lock could not be CREATED, which is not the same as another process
+   *  holding it. L-113. */
+  | "REFUSED_LOCK_UNWRITABLE"
+  /** A verification query threw after the deploy. L-112 — this used to escape
+   *  the function and leave `lastResult` stale. */
+  | "FAILED_VERIFICATION_ERROR";
 
 export type GateResult = {
   status: GateStatus;
@@ -66,9 +80,22 @@ export function lastMigrationGateResult(): GateResult | null {
   return lastResult;
 }
 
-function migrationsOnDisk(): string[] {
-  const dir = path.resolve("prisma/migrations");
-  if (!existsSync(dir)) return [];
+/**
+ * The migrations shipped with this build, or `null` when the directory is not
+ * there at all — L-114.
+ *
+ * It used to resolve `prisma/migrations` against `process.cwd()` and return
+ * `[]` when absent. `[]` means « nothing is pending », which the gate reported
+ * as `UP_TO_DATE` — the one status `instrumentation.ts` did not log. So a build
+ * that could not see its own migrations said nothing at all and served against
+ * whatever schema it found. The Next server trace has **zero** prisma entries,
+ * so a trace-driven package lands in exactly that state.
+ *
+ * `null` is not `[]`, and the gate now says which.
+ */
+function migrationsOnDisk(): string[] | null {
+  const dir = migrationsDir();
+  if (!existsSync(dir)) return null;
   return readdirSync(dir)
     .filter((e) => statSync(path.join(dir, e)).isDirectory())
     .sort();
@@ -81,18 +108,69 @@ async function hasMigrationTable(): Promise<boolean> {
   return rows.length > 0;
 }
 
+/**
+ * Migrations that actually FINISHED — L-110, and the clause that was missing
+ * is `finished_at IS NOT NULL`.
+ *
+ * Prisma writes the `_prisma_migrations` row **before** running the SQL and
+ * stamps `finished_at` only on success. So a power cut, a killed process or a
+ * `deploy` that errors leaves a row this query used to read as applied. The
+ * consequences, both measured against a synthesised table:
+ *
+ *   NEXT BOOT — `pendingMigrations()` is empty, the gate says `UP_TO_DATE`,
+ *   nothing is logged, and the app serves against a half-applied schema.
+ *   SAME RUN  — `stillPending` uses this same query, so it is empty even when
+ *   the deploy failed, and `integrity_check` cannot see a missing column. The
+ *   gate returned **`APPLIED`**. That is the exact failure it was built to
+ *   prevent, reported as success.
+ */
 async function appliedMigrations(): Promise<string[]> {
   const rows = await db.$queryRawUnsafe<{ migration_name: string }[]>(
-    `SELECT migration_name FROM _prisma_migrations WHERE rolled_back_at IS NULL ORDER BY finished_at`,
+    `SELECT migration_name FROM _prisma_migrations
+      WHERE rolled_back_at IS NULL AND finished_at IS NOT NULL
+      ORDER BY finished_at`,
   );
   return rows.map((r) => r.migration_name);
 }
 
-/** On disk and not applied. Read-only. */
+/**
+ * Rows that started and never finished. L-110.
+ *
+ * MEASURED, 2026-09-13, and it settles what the gate should DO about one.
+ * Against a real database with fifteen migrations applied and the last row's
+ * `finished_at` set to NULL, `bunx prisma migrate deploy` **exits 1 with
+ * `P3009`** — « migrate found failed migrations in the target database, new
+ * migrations will not be applied » — and changes nothing.
+ *
+ * So « make it pending again and let the gate retry » is not a thing that
+ * exists. Retrying would take a fresh backup (≈49 MB, L-179), be refused, and
+ * report `FAILED_AFTER_MIGRATE` telling the operator to restore a backup for
+ * damage that never happened — on every single boot. Prisma requires a person
+ * and `prisma migrate resolve`, so the gate refuses, names the row, and spends
+ * nothing.
+ */
+async function failedMigrations(): Promise<string[]> {
+  const rows = await db.$queryRawUnsafe<{ migration_name: string }[]>(
+    `SELECT migration_name FROM _prisma_migrations
+      WHERE rolled_back_at IS NULL AND finished_at IS NULL
+      ORDER BY started_at`,
+  );
+  return rows.map((r) => r.migration_name);
+}
+
+/**
+ * On disk and not applied. Read-only.
+ *
+ * Returns `[]` when the migrations directory is missing, which is what a
+ * caller wanting a plain list needs; the GATE asks `migrationsOnDisk()`
+ * directly so it can tell that case apart (L-114).
+ */
 export async function pendingMigrations(): Promise<string[]> {
   if (!(await hasMigrationTable())) return [];
+  const onDisk = migrationsOnDisk();
+  if (onDisk === null) return [];
   const applied = await appliedMigrations();
-  return migrationsOnDisk().filter((m) => !applied.includes(m));
+  return onDisk.filter((m) => !applied.includes(m));
 }
 
 const sha256 = (buf: Buffer) => createHash("sha256").update(buf).digest("hex");
@@ -142,17 +220,41 @@ function defaultDeps(): GateDeps {
   };
 }
 
-function lockPath(): string {
-  return path.join(dataDir(), "db", "migrate.lock");
+/**
+ * The lock sits beside the DATABASE, not beside the data directory — L-137.
+ *
+ * It used to be `dataDir()/db/migrate.lock` while the database is wherever
+ * `DATABASE_URL` points. Two installs sharing one database file therefore took
+ * two different locks and both migrated it, which is the one thing the lock
+ * exists to prevent. The database is what is being protected, so the database
+ * is what the lock is named after.
+ */
+export function migrationLockPath(): string {
+  return path.join(path.dirname(path.resolve(resolvedDatabasePath())), "migrate.lock");
 }
 
-/** `wx` fails if the file exists, so exactly one process gets the job. */
-function takeLock(): boolean {
+/** Internal alias, so the body below reads as it did. */
+const lockPath = migrationLockPath;
+
+/** Why `takeLock` said no. L-113: these two were the same answer. */
+type LockOutcome = "TAKEN" | "HELD_BY_ANOTHER" | "UNWRITABLE";
+
+/**
+ * `wx` fails if the file exists, so exactly one process gets the job.
+ *
+ * L-113: a data directory that could not be written returned the same `false`
+ * as a lock another process was holding, and the gate turned that into
+ * « Un autre processus applique déjà les migrations. » The migration then never
+ * ran, on every start, with a diagnosis sending the operator to look for a
+ * second process that does not exist. The two cases are now distinguished by
+ * asking whether the lock file is actually there.
+ */
+function takeLock(): LockOutcome {
   const file = lockPath();
   try {
     mkdirSync(path.dirname(file), { recursive: true });
     writeFileSync(file, `${process.pid} ${new Date().toISOString()}\n`, { flag: "wx" });
-    return true;
+    return "TAKEN";
   } catch {
     // A lock left by a crashed process would block every future start, so a
     // stale one is reclaimed. Ten minutes is far longer than any migration
@@ -161,12 +263,16 @@ function takeLock(): boolean {
       if (Date.now() - statSync(file).mtimeMs > 10 * 60 * 1000) {
         unlinkSync(file);
         writeFileSync(file, `${process.pid} ${new Date().toISOString()}\n`, { flag: "wx" });
-        return true;
+        return "TAKEN";
       }
+      // The file is there and is not stale: somebody else has the job.
+      return "HELD_BY_ANOTHER";
     } catch {
-      /* another process won the reclaim — it has the job */
+      // No lock file to stat — so the write failed for a reason that is not
+      // contention. An unwritable or missing directory is the common one, and
+      // it needs a completely different sentence.
+      return existsSync(file) ? "HELD_BY_ANOTHER" : "UNWRITABLE";
     }
-    return false;
   }
 }
 
@@ -204,14 +310,56 @@ export async function runStartupMigrationGate(
     });
   }
 
+  // L-110, and it comes FIRST because it is the one case where doing nothing
+  // is not safe and doing something is not possible. A row with no
+  // `finished_at` is a migration that started and never finished: the schema is
+  // half-applied, and `migrate deploy` refuses it (P3009, measured) rather than
+  // retrying. So refuse too, name the row, and take no backup — there is
+  // nothing to protect if nothing is going to run.
+  const failed = await failedMigrations();
+  if (failed.length > 0) {
+    return record({
+      status: "REFUSED_FAILED_MIGRATION",
+      pending: failed,
+      reason:
+        `Migration NON appliquée : une migration précédente a été interrompue et n'a jamais ` +
+        `abouti (${failed.join(", ")}). Le schéma est peut-être à moitié appliqué. ` +
+        `Prisma refuse d'en appliquer d'autres tant que cette ligne n'est pas résolue ` +
+        `(\`prisma migrate resolve\`), et cette décision revient à une personne : seule une ` +
+        `inspection peut dire ce qui a été appliqué et ce qui ne l'a pas été. ` +
+        `Restaurez une sauvegarde antérieure ou résolvez la ligne, puis redémarrez.`,
+    });
+  }
+
+  // L-114. `null` is « I could not see the migrations », which is not the same
+  // as « there are none pending » and must never again be answered with the one
+  // status nothing logs.
+  const onDisk = migrationsOnDisk();
+  if (onDisk === null) {
+    return record({
+      status: "SKIPPED_NO_MIGRATIONS_DIR",
+      pending: [],
+      reason:
+        `Le dossier des migrations est introuvable (${migrationsDir()}). ` +
+        `Impossible de dire si le schéma est à jour. ` +
+        `Définissez HIBAPOS_APP_DIR si l'application est empaquetée.`,
+    });
+  }
+
   const pending = await pendingMigrations();
   if (pending.length === 0) return record({ status: "UP_TO_DATE", pending: [] });
 
-  if (!takeLock()) {
+  const lock = takeLock();
+  if (lock !== "TAKEN") {
+    // L-113: two different problems that used to share one sentence.
     return record({
-      status: "SKIPPED_LOCKED",
+      status: lock === "HELD_BY_ANOTHER" ? "SKIPPED_LOCKED" : "REFUSED_LOCK_UNWRITABLE",
       pending,
-      reason: "Un autre processus applique déjà les migrations.",
+      reason:
+        lock === "HELD_BY_ANOTHER"
+          ? "Un autre processus applique déjà les migrations."
+          : `Migration NON appliquée : impossible de créer le verrou ${lockPath()}. ` +
+            `Le dossier n'est pas accessible en écriture. Ce n'est PAS un autre processus.`,
     });
   }
 
@@ -246,22 +394,61 @@ export async function runStartupMigrationGate(
     // `migrate deploy` prints the same banner whichever migration it ran —
     // the whole reason `scripts/apply-migration.ts` exists. So the verdict
     // comes from the database.
-    const stillPending = await pendingMigrations();
-    const [{ integrity_check: integrity }] = await db.$queryRawUnsafe<
-      { integrity_check: string }[]
-    >(`PRAGMA integrity_check`);
-    const fk = await db.$queryRawUnsafe<unknown[]>(`PRAGMA foreign_key_check`);
+    //
+    // L-112: these three queries had no `catch`, only a `finally` releasing the
+    // lock. A throw from any of them escaped the function, `lastResult` was
+    // never assigned, and `lastMigrationGateResult()` kept its PREVIOUS value —
+    // which is precisely where « the backup succeeded but the disk filled during
+    // the migrate » lands. Now it is a verdict like any other.
+    let stillPending: string[];
+    let integrity: string;
+    let fkErrors: number;
+    try {
+      stillPending = await pendingMigrations();
+      const [row] = await db.$queryRawUnsafe<{ integrity_check: string }[]>(
+        `PRAGMA integrity_check`,
+      );
+      integrity = row?.integrity_check ?? "unknown";
+      fkErrors = (await db.$queryRawUnsafe<unknown[]>(`PRAGMA foreign_key_check`)).length;
+    } catch (e) {
+      return record({
+        status: "FAILED_VERIFICATION_ERROR",
+        pending,
+        backup: backupName,
+        reason:
+          `Migration appliquée mais INVÉRIFIABLE : la vérification a échoué ` +
+          `(${e instanceof Error ? e.message : String(e)}). L'état du schéma est inconnu. ` +
+          `Sauvegarde préalable « ${backupName} ».` +
+          (applied.ok ? "" : ` Sortie de migrate : ${applied.output.slice(-300)}`),
+      });
+    }
 
-    if (stillPending.length > 0 || integrity !== "ok" || fk.length > 0) {
+    // L-111: `deploy()` reporting failure was never a condition — the verdict
+    // rested entirely on the three checks above, and `applied.ok` was consulted
+    // only to decide whether to append the process output to a message. A
+    // deploy that says it failed must never be reported as applied.
+    const inconsistent = integrity !== "ok" || fkErrors > 0;
+    if (!applied.ok || stillPending.length > 0 || inconsistent) {
+      // L-138: « Restaurez la sauvegarde » was said even when NOTHING had been
+      // changed — a deploy that never ran, or that Prisma refused. Restoring is
+      // unnecessary work on a fiscal database and reads as though damage
+      // occurred. Say which of the two this is.
+      const nothingChanged =
+        !inconsistent && stillPending.length === pending.length;
       return record({
         status: "FAILED_AFTER_MIGRATE",
         pending: stillPending,
         backup: backupName,
         reason:
-          `Migration incomplète ou base incohérente après application : ` +
-          `${stillPending.length} en attente, integrity_check « ${integrity} », ` +
-          `${fk.length} erreur(s) de clé étrangère. ` +
-          `Restaurez la sauvegarde « ${backupName} » avant de continuer.` +
+          (nothingChanged
+            ? `Migration NON appliquée : \`migrate deploy\` a échoué et le schéma n'a PAS été ` +
+              `modifié. Il n'y a rien à restaurer — corrigez la cause, puis redémarrez. ` +
+              `La sauvegarde « ${backupName} » a tout de même été prise et vérifiée. `
+            : `Migration incomplète ou base incohérente après application. ` +
+              `Restaurez la sauvegarde « ${backupName} » avant de continuer. `) +
+          `(${stillPending.length} en attente sur ${pending.length}, ` +
+          `integrity_check « ${integrity} », ${fkErrors} erreur(s) de clé étrangère, ` +
+          `migrate ${applied.ok ? "a rendu 0" : "a échoué"}.)` +
           (applied.ok ? "" : ` Sortie : ${applied.output.slice(-300)}`),
       });
     }

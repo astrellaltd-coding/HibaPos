@@ -35,12 +35,34 @@ export async function register() {
       );
     }
   } catch (e) {
+    // L-112: `console.error` and NOTHING else. Measured live — the
+    // malformed-SESSION_SECRET probe produced one stdout line and zero
+    // `TechnicalLog` rows, on a machine whose stdout nobody is watching.
+    //
+    // The row is ADDED, not swapped in: `logTechnical` writes to the database,
+    // which is the thing that may be failing. Keeping both means the console
+    // line survives the case where the row cannot be written.
     console.error("[startup] secret bootstrap failed", e);
+    await logTechnical(
+      "ERROR",
+      "startup",
+      `Secret bootstrap failed: ${e instanceof Error ? e.message : String(e)}`,
+      e instanceof Error ? e.stack : undefined,
+    );
   }
 
-  // Then migrations, BEHIND A VERIFIED BACKUP. Deliberately after the pragmas
-  // and before anything serves: a schema the code does not match fails at the
-  // first query, so there is nothing to protect by deferring it.
+  // Then migrations, BEHIND A VERIFIED BACKUP, and before anything serves: a
+  // schema the code does not match fails at the first query, so there is
+  // nothing to protect by deferring it.
+  //
+  // L-139: this used to read « Deliberately after the pragmas ». It is not —
+  // the gate runs here and `applyStartupPragmas()` runs below it, so migrations
+  // go first. Harmless in effect (the pragma is idempotent and the journal mode
+  // is stored in the file), but it stated an ordering that was evidently
+  // designed and was not there, which is the kind of comment that gets trusted
+  // in a hurry. Corrected to describe what happens. **Whether the pragmas
+  // SHOULD come first is a real question and not this batch's**: migrating in
+  // rollback-journal mode is slower and less crash-safe than in WAL.
   //
   // It does NOT block startup on a refusal, and that is a judgement, not an
   // oversight. A till that will not open tells the operator nothing; a till
@@ -48,21 +70,49 @@ export async function register() {
   // be diagnosed. The protection is that the schema was not touched.
   try {
     const { runStartupMigrationGate } = await import("@/lib/services/startup-migration");
+    type GateStatus = Awaited<ReturnType<typeof runStartupMigrationGate>>["status"];
     const r = await runStartupMigrationGate();
-    if (r.status === "APPLIED") {
-      await logTechnical(
-        "INFO",
-        "startup",
-        `Applied ${r.pending.length} migration(s) behind verified backup ${r.backup}: ${r.pending.join(", ")}.`,
-      );
-    } else if (r.status === "REFUSED_NO_VERIFIED_BACKUP" || r.status === "FAILED_AFTER_MIGRATE") {
-      console.error(`[startup] ${r.reason}`);
-      await logTechnical("ERROR", "startup", r.reason ?? r.status);
-    } else if (r.status === "SKIPPED_NO_MIGRATION_TABLE" && r.reason) {
-      await logTechnical("WARN", "startup", r.reason);
+    // L-110 and L-114 were both silent because the branches below did not
+    // cover them. Written as an exhaustive map rather than a chain of `else
+    // if`, so a status added later without a reporting decision is a TYPE
+    // ERROR here instead of another silence.
+    const LEVEL: Record<GateStatus, "INFO" | "WARN" | "ERROR" | null> = {
+      // The normal case, every boot. Deliberately not logged: a row per start
+      // would bury the ones that matter, and `pruneLogs()` only runs at shift
+      // close (L-176).
+      UP_TO_DATE: null,
+      APPLIED: "INFO",
+      REFUSED_NO_VERIFIED_BACKUP: "ERROR",
+      FAILED_AFTER_MIGRATE: "ERROR",
+      FAILED_VERIFICATION_ERROR: "ERROR",
+      // A half-applied schema serving a till. Nothing is more serious here.
+      REFUSED_FAILED_MIGRATION: "ERROR",
+      // The app cannot tell whether it is up to date. Was `UP_TO_DATE`.
+      SKIPPED_NO_MIGRATIONS_DIR: "ERROR",
+      REFUSED_LOCK_UNWRITABLE: "ERROR",
+      SKIPPED_NO_MIGRATION_TABLE: "WARN",
+      // Normal with two workers; the other one is doing the work.
+      SKIPPED_LOCKED: "INFO",
+    };
+    const level = LEVEL[r.status];
+    if (level) {
+      const message =
+        r.status === "APPLIED"
+          ? `Applied ${r.pending.length} migration(s) behind verified backup ${r.backup}: ${r.pending.join(", ")}.`
+          : (r.reason ?? r.status);
+      if (level === "ERROR") console.error(`[startup] ${message}`);
+      await logTechnical(level, "startup", message);
     }
   } catch (e) {
+    // L-112, same shape as the secret bootstrap above: the row is added, the
+    // console line stays.
     console.error("[startup] migration gate failed", e);
+    await logTechnical(
+      "ERROR",
+      "startup",
+      `Migration gate threw: ${e instanceof Error ? e.message : String(e)}`,
+      e instanceof Error ? e.stack : undefined,
+    );
   }
 
   try {
@@ -88,7 +138,13 @@ export async function register() {
     }
   } catch (e) {
     // Never block startup. A till that will not open is worse than a till in
-    // rollback-journal mode.
+    // rollback-journal mode. But it must leave a trace — L-112.
     console.error("[startup] pragma setup failed", e);
+    await logTechnical(
+      "ERROR",
+      "startup",
+      `Pragma setup failed: ${e instanceof Error ? e.message : String(e)}`,
+      e instanceof Error ? e.stack : undefined,
+    );
   }
 }
