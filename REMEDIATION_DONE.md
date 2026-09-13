@@ -3178,7 +3178,7 @@ files got the same `afterAll`. This is L-154's shape a third time.
 ---
 
 ### R9.3 — a failed backup leaves nothing readable behind
-**Done:** 2026-09-13 · **Commit:** `SHA` · **Findings:** L-104 · L-105 · L-107 · L-108 ·
+**Done:** 2026-09-13 · **Commit:** `a08afbe` · **Findings:** L-104 · L-105 · L-107 · L-108 ·
 L-140 · L-141 · L-142
 
 Seven audit ids in one file, which is what « by the file the work lands in » is for.
