@@ -252,7 +252,15 @@ describe("plan freshness — the plan and the done file may not disagree", () =>
     //   seven of its ids are audit-sequence and live in
     //   `docs/audit/FINDINGS.md`. Eight is still
     //   L-84·L-81·L-75·L-05·L-11·L-47·L-51·L-52.
-    expect(taskStatuses(src).size).toBe(14);
+    //   2026-09-13, R9.4 DONE: tasks 14 → 13, five batches left in Phase 9.
+    //   Six audit ids — L-106 · L-115 · L-116 · L-117 · L-119 · L-152 — and
+    //   **L-115 closing unblocks R6.2**, the row that arms the chain key: a
+    //   short key answered every fiscal write with an empty 500 while
+    //   `chainArmed: true` was on the screen. **R6.2 did NOT leave § 6**: it is
+    //   an `OPERATOR` row and it is not done, only reachable.
+    //   FINDINGS STAY AT 8. R9.4 opened **L-187** and **L-188** — both
+    //   audit-sequence ids, both in `docs/audit/FINDINGS.md`.
+    expect(taskStatuses(src).size).toBe(13);
     expect(openFindings(src).size).toBe(8);
     expect(done()).toContain("# HibaPOS France — Completed Work");
   });

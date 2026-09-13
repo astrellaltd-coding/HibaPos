@@ -10,6 +10,8 @@ import {
   PIN_HASH_BUSY_RETRY_AFTER_SEC,
 } from "@/lib/pin-hash-queue";
 import { isChainKeyMisconfigured } from "@/lib/fiscal-key";
+// L-116 (R9.4): the third typed configuration failure the wrapper answers.
+import { isSecretMisconfigured } from "@/lib/services/secret-store";
 import { audit } from "@/lib/services/audit";
 
 export type RequestContext = { params: Promise<Record<string, string | string[]>> };
@@ -99,6 +101,17 @@ export function chainKeyMisconfiguredResponse(message: string): NextResponse {
   return NextResponse.json({ error: message }, { status: 503 });
 }
 
+/**
+ * A resolvable secret that is present but unusable — L-116 (R9.4).
+ *
+ * 503, like the chain-key refusal above and for the same reason: the request
+ * was fine, the installation is not, and retrying the same request unchanged
+ * will not help until someone fixes the configuration.
+ */
+export function secretMisconfiguredResponse(message: string): NextResponse {
+  return NextResponse.json({ error: message }, { status: 503 });
+}
+
 export function scryptBusyResponse(): NextResponse {
   return NextResponse.json(
     { error: PIN_HASH_BUSY_MESSAGE, busy: true },
@@ -170,6 +183,7 @@ export function withAuth<T>(
     } catch (e) {
       if (isScryptBusyError(e)) return scryptBusyResponse();
       if (isChainKeyMisconfigured(e)) return chainKeyMisconfiguredResponse(e.message);
+      if (isSecretMisconfigured(e)) return secretMisconfiguredResponse(e.message);
       throw e;
     }
   }, options?.roles);
@@ -201,6 +215,7 @@ export function withAuthParams<T>(
     } catch (e) {
       if (isScryptBusyError(e)) return scryptBusyResponse();
       if (isChainKeyMisconfigured(e)) return chainKeyMisconfiguredResponse(e.message);
+      if (isSecretMisconfigured(e)) return secretMisconfiguredResponse(e.message);
       throw e;
     }
   }, options?.roles);

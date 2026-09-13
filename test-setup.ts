@@ -76,6 +76,18 @@ process.env.DATABASE_URL = `file:${testDbPath.replace(/\\/g, "/")}?_fk=1&_busy_t
 // same throwaway tree. Batch 3.4 shipped an archive into the real
 // `db/fiscal-archives/` because only `DATABASE_URL` was overridden.
 process.env.HIBAPOS_DATA_DIR = testDbDir;
+// …and `BACKUP_LOCATION` OVERRIDES `HIBAPOS_DATA_DIR` outright (C-06, by
+// design: a backup on the same disk as the database is not a backup). So the
+// line above did not cover backups at all, and the comment above it said it
+// did. On this machine `.env` points that variable at a OneDrive folder holding
+// the operator's real encrypted backups — R9.4 found it when L-106's new guard,
+// which looks for existing backups before minting a key, read that folder in
+// the middle of a unit test. Nothing wrote there and no test needs it set; it
+// is pointed INSIDE the throwaway tree so that is the whole of what a test can
+// see. Assigned rather than deleted: `delete process.env.BACKUP_LOCATION` reads
+// back as `undefined` here and the value was still reaching `backupsDir()` from
+// Bun's dotenv layer further into the run — measured, twice.
+process.env.BACKUP_LOCATION = `${testDbDir}/db/backups`;
 
 /**
  * THE GUARD — L-06, and the reason it is here rather than in a comment.

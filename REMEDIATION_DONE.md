@@ -72,6 +72,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - R8.2 + R8.5 MIGRATIONS — APPLIED to production, and verified
 - R9.1 — the printer tells the truth, and the day's slip reaches paper
 - R9.3 — a failed backup leaves nothing readable behind
+- R9.4 — a misconfigured secret says so, instead of answering an empty 500
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -3301,6 +3302,117 @@ it used to use is now asserted immediately below as its opposite.
   `BACKUP_ENCRYPTION_KEY`, and the app has never shipped — so the guard protects a scenario
   that does not exist yet, which is the only time it is cheap to add.
 - **The plan is at 38 560 bytes** against the 40 960 ceiling.
+---
+
+### R9.4 — a misconfigured secret says so, instead of answering an empty 500
+**Done:** 2026-09-13 · **Commit:** `SHA` · **Findings:** L-106 · L-115 · L-116 · L-117 ·
+L-119 · L-152
+
+Three of the six are High, and all three share a shape: **something is wrong with a secret
+and the till does not say so.** Each was measured live by the audit rather than reasoned
+about, and each produced a symptom that looked like something else.
+
+**L-115 (High) — and it unblocks R6.2.** `fiscalChainKey()` threw a **plain `Error`** for a
+short key, **three lines above the `ChainKeyMisconfiguredError` built for exactly this
+purpose** — and `isChainKeyMisconfigured()` is an `instanceof` test, so `withAuth` could not
+map it and every fiscal write answered **500 with a zero-byte body.** The audit measured it:
+short key, login 200, `POST /api/fiscal/drawer` → HTTP 500, empty. The file's own docblock
+describes that symptom and calls it « the worst version of this »; it contained its own
+diagnosis and the wrong throw at the same time. **Compounding it**, `chainKeyArmed()` was
+length-blind, so `GET /api/setup/secrets` reported `chainArmed: true` **while the till refused
+every sale** — the one screen an operator checks to find out whether arming worked told them
+it had. The threshold is now imported from the module that enforces it, and a test walks every
+length asserting the two AGREE, because their disagreeing is the whole finding. **R6.2 is the
+row that arms this key, so it was the batch's first item.**
+
+**L-116 (High) — the shape of the failure, not the check.** With a malformed `SESSION_SECRET`
+the server printed `✓ Ready`, the login screen rendered 200, `GET /api/auth/profiles` answered
+200 with a populated picker, and `POST /api/auth/login` answered **500 Internal Server
+Error**. The cause is that `auth.ts` validated at MODULE LOAD and threw there, so the import
+failed and Next answered a bare 500 no handler could dress. Nothing was wrong with refusing —
+what was wrong was refusing in a way nobody could read. New `lazySecret()` resolves at import
+exactly as before but defers the THROW to first use, as a typed `SecretMisconfiguredError`
+that `withAuth`, `withAuthParams` and the login route each answer with a French 503. **Both
+guards survive**: the app still cannot serve without a usable secret and still refuses one
+under 32 characters. The login route needed its own answer because it is the one an
+unauthenticated operator reaches, and no wrapper covers it.
+
+**L-117 (High) — the last reader on the old contract.** `approvals.ts` still read
+`process.env.SESSION_SECRET` at module load. PREP-3 moved resolution onto the secret store and
+converted **only `auth.ts`**; `resolveSecret()` does not write `process.env`, only
+`bootstrapSecrets()` does, from the async hook a route module can beat. So on an install with
+no `.env`, `auth.ts` resolved happily while this file threw in the same process. **The blast
+radius is the checkout** — orders, refunds, step-up and cash movements are all in that module
+graph, so it is a till that cannot ring a sale on a fresh install, which is precisely what
+PREP-3 exists to make possible.
+
+**L-106 (Medium-High) — a deleted store must not orphan the backups.** A **corrupt** store is
+refused loudly with the right reasoning; a **deleted** one returned `{secrets:{}}` and
+`resolveSecret` then minted a brand-new `BACKUP_ENCRYPTION_KEY` with no error and no warning.
+Measured: `a97945f9…` before the delete, `39abcbd0…` after, source `generated`.
+**WHAT TELLS A FIRST RUN FROM A LOST STORE** was the open question, and the audit suggested a
+marker — but a marker inside the file cannot survive the file being deleted, which is the
+case. So the evidence comes from somewhere the deletion did not reach: **the backups
+themselves.** Encrypted backups on disk mean a key was used to write them, and minting a fresh
+one orphans exactly those files; no backups means nothing can be orphaned and a first run
+proceeds untouched. Scoped to `BACKUP_ENCRYPTION_KEY` alone — a session secret regenerating
+logs everyone out, a backup key regenerating loses the data.
+
+**L-119 (Medium) — the chain key stops being readable back.** `armChainKey()` returned
+`{value, alreadyArmed: true}` unconditionally, so `POST /api/setup/chain-key` handed the live
+key back on **every** call, and audited only the first — every later disclosure untraced. The
+sibling `setup/secrets/route.ts` documents the bound in the same feature: « After POST, this
+route answers with nothing to show and cannot be used to read a key back. » It could, through
+this route. **Both halves of the audit's suggestion are done rather than one**: the value is
+returned only while still unacknowledged, AND every read-back is journalled — including the
+ones that DECLINE to disclose, because « somebody asked and was not shown » is as much a fact
+as the other. The answer is not a dead end: it says the key is in `db/secrets.json`.
+
+**L-152 (Cosmetic) — the replay window.** The comment said a token « can be replayed once
+within its 60 s TTL »; `STEP_UP_TTL_SEC` is 120. The 60 is `issueApprovalToken`'s own default
+and is still correct there — no production caller uses it. Rewritten in terms of the TTL
+rather than a number, because copying the caller's number is what made it wrong.
+
+**HOW IT WAS VERIFIED.** 1 648 pass · 0 fail · 136 files · **zero `prisma:error` blocks**.
+39 new tests in two new files. Nine reverts, restoring from a snapshot before each:
+
+| revert | what it restores | went red |
+|---|---|---|
+| B106 | mints a backup key over existing backups | 4 |
+| B115a | a plain `Error` for a short chain key | 2 |
+| B115b | `chainKeyArmed()` length-blind | 3 |
+| B116a | `auth.ts` throws at module load | 1 |
+| B116b | the wrapper stops mapping the typed error | 1 |
+| B116c | the login route stops answering it | 1 |
+| B117 | `approvals.ts` back on `process.env` | 2 |
+| B119a | the key returned on every call | 1 |
+| B119b | the read-back not journalled | 2 |
+
+**TWO FIXTURE BUGS THE RUN EXPOSED, both the same lesson.** The « `approvals.ts` no longer
+reads `process.env.SESSION_SECRET` » assertion **matched its own fix's explanatory comment** —
+it now strips comment lines first, with a guard that the stripping did not empty the file.
+And the L-106 « unreadable backup directory » case used an invalid path, which does not reach
+the catch at all: `existsSync` simply answers false, which is « no directory », which is « no
+backups », which is correct. It passed with no throw and proved nothing. A regular FILE where
+the directory belongs is the failure the guard can actually meet.
+
+**Left behind.**
+- **R6.2 is unblocked and not done.** It is an `OPERATOR` row: arming the chain key is still
+  theirs to do, and it must happen on an empty journal.
+- **`L-119`'s trade-off is now narrower than it was, deliberately.** An operator who
+  acknowledges and then loses the key cannot read it back from this route. That is the bound
+  the sibling route already documents, and the key is in `db/secrets.json` on the machine —
+  the response says so. If the operator would rather keep the read-back, it is one condition.
+- **L-187 recorded**: `auth.ts:51` sets `maxmem: 1 << 30` for a scrypt needing 128 MiB — the
+  same shape L-142 measured in `backup.ts`, in the PIN path that runs on every login. L-142's
+  row named `backup.ts` only, so it was out of scope both times. One line, and **R9.5 opens
+  that file**.
+- **L-188 recorded, and fixed here**: `test-setup.ts` did not neutralise `BACKUP_LOCATION`, so
+  `backupsDir()` resolved to the operator's REAL backup folder during `bun run test`. Nothing
+  ever wrote there; L-106's new guard READS it, which is how it surfaced. Worth the id because
+  `delete process.env.BACKUP_LOCATION` **did not hold** — the value returned through Bun's
+  dotenv layer and had to be assigned into the throwaway tree instead.
+- **The plan is at 38 563 bytes** against the 40 960 ceiling.
 ---
 
 ## Retired from the plan's § 6 on 2026-09-11

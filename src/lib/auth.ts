@@ -32,17 +32,14 @@ const SESSION_TTL_MS = 1000 * 60 * 60 * 12; // 12 hours
 // BOTH GUARDS SURVIVE: the app still cannot run without a usable secret, and
 // still refuses one under 32 characters. `resolveSecret` raises the second,
 // naming the variable and never the value.
-import { resolveSecret } from "@/lib/services/secret-store";
+//
+// L-116 (R9.4): resolved at import as before, but the REFUSAL is deferred to
+// first use. Throwing here took the whole importing module down, so
+// `POST /api/auth/login` answered a bare 500 with no body while the rest of the
+// till looked healthy. Both guards survive inside `lazySecret` — see there.
+import { lazySecret } from "@/lib/services/secret-store";
 
-const SESSION_SECRET = resolveSecret("SESSION_SECRET").value;
-if (!SESSION_SECRET) {
-  throw new Error("SESSION_SECRET could not be resolved or generated.");
-}
-if (SESSION_SECRET.length < 32) {
-  throw new Error(
-    "SESSION_SECRET must be at least 32 characters long. Generate with: openssl rand -hex 32",
-  );
-}
+const sessionSecret = lazySecret("SESSION_SECRET");
 
 // Scrypt parameters — OWASP 2024 recommended (N=2^17, r=8, p=1). The default
 // (N=2^14) is too weak for a 6-digit PIN keyspace (10^6); with N=2^17 an
@@ -189,7 +186,7 @@ export type AuthUser = {
 export type SessionWithUser = SessionPayload & { user: AuthUser };
 
 function sign(data: string): string {
-  return createHmac("sha256", SESSION_SECRET!).update(data).digest("hex");
+  return createHmac("sha256", sessionSecret()).update(data).digest("hex");
 }
 
 function encodeSession(payload: SessionPayload): string {

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/api-handler";
 import { db } from "@/lib/db";
-import { armChainKey, CHAIN_KEY } from "@/lib/services/secret-store";
+import { armChainKey, CHAIN_KEY, unacknowledgedSecrets } from "@/lib/services/secret-store";
 import { audit } from "@/lib/services/audit";
 
 // POST /api/setup/chain-key — arm `FISCAL_CHAIN_KEY`. This is R6.2, as a
@@ -34,11 +34,39 @@ export const POST = withAuth(
 
     const { value, alreadyArmed } = armChainKey();
     if (alreadyArmed) {
-      // Not an error, and not a second key either: re-arming would orphan
-      // every hash already written under the first one. The value is returned
-      // so the screen can still put it in front of somebody who has not
-      // recorded it, which is the failure this whole flow exists to prevent.
-      return NextResponse.json({ value, alreadyArmed: true });
+      // L-119 (R9.4) — RETURNED ONLY WHILE IT IS STILL UNACKNOWLEDGED.
+      //
+      // This returned the live key on EVERY call, and audited only the first —
+      // so every later read-back was untraced. `setup/secrets/route.ts`
+      // documents the bound in the same feature: « After POST, this route
+      // answers with nothing to show and cannot be used to read a key back. »
+      // It could, through this sibling. The real bound was « the journal is
+      // still empty », which is precisely the R6.2 → first-sale window.
+      //
+      // Not an error, and still not a second key: re-arming would orphan every
+      // hash already written under the first one. The value is still put in
+      // front of somebody who has not recorded it — that is the failure this
+      // whole flow exists to prevent — but once they say they have, this route
+      // stops being a way to read it.
+      const pending = unacknowledgedSecrets().includes(CHAIN_KEY);
+      await audit(
+        "FISCAL_CHAIN_KEY_READ_BACK",
+        "Secret",
+        null,
+        // Names only, never values — the rule this file already follows.
+        { name: CHAIN_KEY, disclosed: pending },
+        user.id,
+      );
+      return pending
+        ? NextResponse.json({ value, alreadyArmed: true })
+        : NextResponse.json({
+            alreadyArmed: true,
+            acknowledged: true,
+            message:
+              "La clé de chaînage est déjà armée et vous avez confirmé l'avoir enregistrée. " +
+              "Elle n'est plus affichée ici. Elle se trouve dans le fichier " +
+              "db/secrets.json de cette installation.",
+          });
     }
     await audit("FISCAL_CHAIN_KEY_ARMED", "Secret", null, { name: CHAIN_KEY, events: 0 }, user.id);
     return NextResponse.json({ value, alreadyArmed: false });

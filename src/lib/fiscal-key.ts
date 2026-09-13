@@ -42,12 +42,23 @@ export function fiscalChainKey(): string | null {
   if (raw === undefined) return null;
   const key = raw.trim();
   if (key.length === 0) return null;
-  if (key.length < 32) {
-    // Deliberately names the variable and not the value. A secret in an error
-    // message is a secret in a log (Batch 7.3's rule).
-    throw new Error(
-      "FISCAL_CHAIN_KEY must be at least 32 characters long. Generate with: openssl rand -hex 32",
-    );
+  if (key.length < CHAIN_KEY_MIN_LENGTH) {
+    // L-115 (R9.4) — `ChainKeyMisconfiguredError`, NOT a plain `Error`.
+    //
+    // This threw a plain `Error` **three lines above the typed error built for
+    // exactly this purpose**, and `isChainKeyMisconfigured()` is an `instanceof`
+    // test — so `withAuth` could not map it and every fiscal write answered
+    // **500 with a zero-byte body.** Measured by the audit, not inferred:
+    // started with a short key, login 200, `POST /api/fiscal/drawer` → HTTP 500,
+    // empty. The docblock below describes that symptom and calls it « the worst
+    // version of this »; the file contained its own diagnosis and the wrong
+    // throw at the same time.
+    //
+    // `ChainKeyMisconfiguredError` is declared further down — a class
+    // declaration is hoisted for this purpose, and keeping it beside the
+    // mixed-chain message it shares a wrapper with is worth more than moving it
+    // up here.
+    throw new ChainKeyMisconfiguredError(CHAIN_KEY_TOO_SHORT_MESSAGE);
   }
   return key;
 }
@@ -58,6 +69,23 @@ export function fiscalChainKey(): string | null {
 export function isChainKeyed(): boolean {
   return fiscalChainKey() !== null;
 }
+
+/**
+ * What a MALFORMED key says — L-115 (R9.4).
+ *
+ * French, because it reaches the cashier through the same channel the
+ * mixed-chain message does. Names the variable and never the value: a secret in
+ * an error message is a secret in a log (Batch 7.3's rule).
+ */
+export const CHAIN_KEY_TOO_SHORT_MESSAGE =
+  "FISCAL_CHAIN_KEY est mal configurée : elle doit contenir au moins 32 caractères. " +
+  "Aucune vente ne peut être enregistrée tant qu'elle ne l'est pas. " +
+  "Générez-en une avec : openssl rand -hex 32 — ou, sous Windows, " +
+  'bun -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"';
+
+/** The minimum length. Exported so `chainKeyArmed()` and the tests cannot
+ *  drift from what `fiscalChainKey()` enforces — L-115. */
+export const CHAIN_KEY_MIN_LENGTH = 32;
 
 /** The message the guard raises, kept here so the test asserts the real text
  *  rather than a copy of it. */

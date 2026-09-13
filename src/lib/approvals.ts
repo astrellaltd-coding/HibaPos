@@ -4,10 +4,35 @@
 
 import { createHmac, randomBytes, timingSafeEqual } from "crypto";
 
-const SECRET = process.env.SESSION_SECRET;
-if (!SECRET || SECRET.length < 32) {
-  throw new Error("SESSION_SECRET missing or too short for approvals module.");
-}
+// L-117 (R9.4) — THE LAST READER ON THE OLD CONTRACT.
+//
+// This was `process.env.SESSION_SECRET`, read at module load, throwing at
+// IMPORT if it was absent. PREP-3 moved secret resolution onto the secret store
+// and converted **only `auth.ts`** — and `resolveSecret()` does not write
+// `process.env`; only `bootstrapSecrets()` does, from the async `register()`
+// hook that `auth.ts`'s own comment says a route module can beat.
+//
+// So on an install with no `.env`, `auth.ts` resolves happily from
+// `secrets.json` while THIS FILE throws in the same process. Measured by the
+// audit: `resolveSecret` → `generated`, `process.env` still absent,
+// `import('@/lib/approvals')` → THREW.
+//
+// **The blast radius is the checkout.** `orders/route.ts` → `services/step-up.ts`
+// → here, so `POST /api/orders`, `/orders/[id]/refund`, `/auth/step-up` and
+// `/cash-movements` are all in that module graph — a till that cannot ring a
+// sale on a fresh install, which is exactly what PREP-3 exists to make possible.
+//
+// Mirrors `auth.ts` line for line, including both guards: the app still cannot
+// run without a usable secret and still refuses one under 32 characters. **The
+// environment still wins**, so the existing install reaches the same value by
+// the same path.
+//
+// L-116 (R9.4): and the refusal is deferred to first use, for the same reason
+// it is in `auth.ts` — throwing at import is what turned a configuration
+// mistake into an unexplained 500.
+import { lazySecret } from "@/lib/services/secret-store";
+
+const secret = lazySecret("SESSION_SECRET");
 
 /** What a step-up PIN is being asked for.
  *
@@ -40,10 +65,17 @@ export type ApprovalPayload = {
 
 // Single-use enforcement. NOTE: the `consumed` map is in-memory, so a
 // process restart loses the consumed-state — a token can be replayed
-// once within its 60s TTL after a restart. This is an accepted
+// once within its remaining TTL after a restart. This is an accepted
 // trade-off for the intended single-tenant local-POS deployment
 // (restarts are rare and operator-initiated). If this app is ever
 // multi-instance / resold, persist `consumed` to a DB table.
+//
+// L-152 (R9.4): this said « 60s TTL », which is **half the real window**. The
+// 60 belongs to `issueApprovalToken`'s own default and is still correct there —
+// but no production caller uses it. The only one is `step-up.ts`, which passes
+// `STEP_UP_TTL_SEC = 120`. So the sentence is now written in terms of the TTL
+// rather than a number, because the number is the CALLER's and copying it here
+// is what made it wrong.
 //
 // M-27 (Batch 4.3): it was a `Set<string>` of whole tokens that nothing ever
 // removed from, so every approval a till granted stayed in memory for the
@@ -83,12 +115,19 @@ export class ApprovalError extends Error {
 }
 
 function sign(data: string): string {
-  return createHmac("sha256", SECRET!).update(data).digest("hex");
+  return createHmac("sha256", secret()).update(data).digest("hex");
 }
 
 /**
  * Issue a signed approval token bound to (approverId, action, amount?).
- * Default TTL 60s. Single-use enforced by verifyApprovalToken.
+ *
+ * Default TTL 60 s — and **that default is not what production uses.** The only
+ * caller is `step-up.ts`, which passes `STEP_UP_TTL_SEC = 120`; the 60 applies
+ * to a caller that omits `ttlSec`, which today means the tests. Spelled out
+ * because copying « 60 s » into the replay note above is precisely how L-152
+ * happened.
+ *
+ * Single-use enforced by verifyApprovalToken.
  */
 export function issueApprovalToken(input: {
   approverId: string;

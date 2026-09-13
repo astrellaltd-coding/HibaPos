@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { hashPin, verifyPinDetail, createSession } from "@/lib/auth";
 import { isScryptBusyError } from "@/lib/pin-hash-queue";
-import { scryptBusyResponse } from "@/lib/api-handler";
+import { scryptBusyResponse, secretMisconfiguredResponse } from "@/lib/api-handler";
+import { isSecretMisconfigured } from "@/lib/services/secret-store";
 import { loginSchema } from "@/lib/validation";
 import { audit } from "@/lib/services/audit";
 import { clientIp } from "@/lib/http-rate-limit";
@@ -58,6 +59,12 @@ export async function POST(req: NextRequest) {
     return await login(req);
   } catch (e) {
     if (isScryptBusyError(e)) return scryptBusyResponse();
+    // L-116 (R9.4) — a malformed SESSION_SECRET answered 500 with the body
+    // « Internal Server Error » while `/` and `/api/auth/profiles` both served
+    // 200: a till that looks fine and cannot take a login. This route is NOT
+    // behind `withAuth` — it is the one an unauthenticated operator reaches —
+    // so it has to answer for itself.
+    if (isSecretMisconfigured(e)) return secretMisconfiguredResponse(e.message);
     throw e;
   }
 }
