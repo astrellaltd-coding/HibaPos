@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { generateZReport, computeShiftReport } from "@/lib/services/reports";
 import { nextReceiptNumber, nextShiftNumber, ensureFiscalCounter } from "@/lib/services/sequence";
 import { appendFiscalEvent, incrementGrandTotal } from "@/lib/services/fiscal";
+import { saveSettings } from "@/lib/services/settings";
 
 // Integration tests for Z report generation (Phase 8c) + grand total.
 // All amounts in CENTS.
@@ -54,6 +55,21 @@ async function seedShiftWithOrders() {
 
 describe("generateZReport integration", () => {
   beforeEach(async () => {
+    // L-153, CLOSED EARLY BY R8.6 (2026-09-13) — it belongs to R9.7 and it
+    // stopped being optional.
+    //
+    // THE FINDING: `expect(events[0].factice).toBe(false)` below is **the
+    // suite's one live order dependency**. `generateZReport` reads
+    // `getSettings().factice`, whose default is `true`, and this file's wipe
+    // never touched `Setting`. It passed only because some earlier file had
+    // left a `Setting{factice:false}` row behind. Run alone: 3 pass / 1 fail.
+    //
+    // R8.6 added two files that set the settings they need and then CLEAN UP
+    // after themselves — which is the correct behaviour, and which removed the
+    // row this file was free-riding on. So the choice was to fix this line or
+    // to make the new files leave litter, and leaving litter to keep a latent
+    // bug invisible is not a choice. One line, exactly as the audit specified.
+    await saveSettings({ factice: false });
     await db.refund.deleteMany();
     await db.order.deleteMany();
     await db.payment.deleteMany();

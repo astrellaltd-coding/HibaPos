@@ -334,8 +334,10 @@ type PeriodAgg = {
   // convention, applied to the period closes it named only `ZReport` for.
   refundsCount: number;
   // M-05 (Batch 5.5): the period's cash movements. Here for the reason Batch
-  // 3.2 exists — a close equals the sum of its Z reports, and a Z showing a
-  // 200 € payout inside a close that does not is the C-10 shape in a new column.
+  // 3.2 exists — a close equals the sum of the Z reports whose ORDERS fall
+  // inside it (L-99 narrowed that claim; see `assertNoOpenShift`) — and a Z
+  // showing a 200 € payout inside a close that does not is the C-10 shape in a
+  // new column.
   cashInTotal: number; // cents
   cashOutTotal: number; // cents
   cashMovementsCount: number;
@@ -502,11 +504,35 @@ function assertNextPeriod(latest: string | null, period: string, expected: strin
  * convention rather than two. Refusing at 23:30 on the last day of the period
  * is accepted behaviour.
  */
-function assertPeriodEnded(bounds: PeriodBounds, period: string, label: string, now: Date) {
+/**
+ * L-130 (R8.6) — the refusal agrees with its own noun.
+ *
+ * One template served three labels of different gender — « la journée »,
+ * « le mois », « l'exercice » — and hard-coded masculine agreement. The
+ * operator read: « Clôture prématurée : **la journée** 2026-09-12 n'est pas
+ * **terminé**. **Il** ne pourra être **clôturé** qu'à partir du … »
+ *
+ * It is one string, and it is **the most likely fiscal refusal a tired person
+ * meets at 23:00** — the moment when a message that reads as broken makes the
+ * software look broken. The agreement travels with the label rather than being
+ * inferred, because inferring gender from a French noun phrase is a worse
+ * problem than passing two words.
+ */
+type PeriodLabel = { readonly le: string; readonly agreement: "m" | "f" };
+
+export const PERIOD_LABELS = {
+  day: { le: "la journée", agreement: "f" },
+  month: { le: "le mois", agreement: "m" },
+  year: { le: "l'exercice", agreement: "m" },
+} as const satisfies Record<string, PeriodLabel>;
+
+function assertPeriodEnded(bounds: PeriodBounds, period: string, label: PeriodLabel, now: Date) {
   if (hasPeriodEnded(bounds, now)) return;
+  const f = label.agreement === "f";
   throw new Error(
-    `Clôture prématurée : ${label} ${period} n'est pas terminé. ` +
-      `Il ne pourra être clôturé qu'à partir du ${localBoundary(bounds.to)}. ` +
+    `Clôture prématurée : ${label.le} ${period} n'est pas ${f ? "terminée" : "terminé"}. ` +
+      `${f ? "Elle" : "Il"} ne pourra être ${f ? "clôturée" : "clôturé"} qu'à partir du ` +
+      `${localBoundary(bounds.to)}. ` +
       `Une clôture scellée ne peut être ni modifiée ni supprimée.`,
   );
 }
@@ -516,8 +542,29 @@ function assertPeriodEnded(bounds: PeriodBounds, period: string, label: string, 
  * caisse is still OPEN.
  *
  * Otherwise the sealed period exists before its own last Z report does, and
- * the reconciliation Batch 3.2 established — a period close equals the sum of
- * its Z reports — cannot be checked at sealing time.
+ * the reconciliation Batch 3.2 established cannot be checked at sealing time.
+ *
+ * L-99 (R8.6) — WHAT THAT RECONCILIATION ACTUALLY SAYS. This read « a period
+ * close equals the sum of its Z reports », flatly, and that is **false for a
+ * shift that straddles the cut-off**. A Z's scope is `shiftId`; a month's is
+ * `Order.createdAt` inside `monthBounds(…, cutoffHour)`, and nothing stops one
+ * shift holding orders from two trading months.
+ *
+ * Measured with the real `aggregateOrders`: one shift opened 31 Aug 20:00,
+ * orders at 22:00 (1000) and 05:30 on 1 Sep (2000), closed 06:00 → **Z = 3000,
+ * `MonthlyClose 2026-08` = 1000, `2026-09` = 2000**. Reconciliation fails in
+ * both directions, and August gets a close with no Z at all.
+ *
+ * **The money is right.** 1000 + 2000 = 3000, counted exactly once, and the VAT
+ * telescopes. What fails is the arithmetic an inspector performs first. The
+ * true statement is: *a period close equals the sum of the Z reports whose
+ * ORDERS fall inside it* — which is the same thing whenever no shift straddles
+ * a period boundary, and that is every shift on this install so far.
+ *
+ * Whether to make it unconditionally true — by refusing a checkout into a shift
+ * whose trading day has moved on — is DD-23 territory and a behaviour change.
+ * Recorded for the accountant in `docs/politique-ventilation-tva.md` § 8 rather
+ * than decided here.
  *
  * L-27 (Batch 3.6c): this used to add `openedAt: { gte: bounds.from, lt: bounds.to }`,
  * which is how DD-18 scoped it and how Batch 3.6b implemented it. The scope was
@@ -573,9 +620,20 @@ export function nextMonthlyPeriod(period: string): string {
  * an **earlier day that actually traded** is still open. A day with no sale and
  * no cash movement may be skipped — there is nothing to seal and nothing lost.
  *
- * "Traded" is deliberately orders **or** cash movements, not orders alone: a
- * day whose only event was a payout from the drawer still has something the
- * close would have recorded.
+ * "Traded" is deliberately orders **or** cash movements **or refunds**, not
+ * orders alone: a day whose only event was a payout from the drawer still has
+ * something the close would have recorded.
+ *
+ * L-95 (R8.6) — REFUNDS WERE MISSING, and the docstring above already stated
+ * the criterion this function failed. A refund IS a payout from the drawer, and
+ * `periodOrdersWhere` selects an order for a period *because* it was refunded
+ * there. So a day whose only event was a refund counted as untraded and could
+ * be skipped — and once a later day is sealed, the out-of-sequence guard above
+ * refuses it **permanently**. The daily-close chain then carries a hole for a
+ * day on which cash left the drawer, and nothing can fill it.
+ *
+ * Reachable without contrivance: pay out a refund against an older order, sell
+ * nothing, run the Z, go home; next day, sell and seal.
  */
 async function assertDaySequence(period: string, cutoffHour: number, bounds: PeriodBounds) {
   const latest = await db.dailyClose.findFirst({
@@ -591,7 +649,7 @@ async function assertDaySequence(period: string, cutoffHour: number, bounds: Per
 
   // `period` sorts lexicographically as "YYYY-MM-DD", which is chronological.
   const searchFrom = latest ? businessDayBounds(latest.period, cutoffHour).to : new Date(0);
-  const [earlierOrder, earlierMovement] = await Promise.all([
+  const [earlierOrder, earlierMovement, earlierRefund] = await Promise.all([
     db.order.findFirst({
       where: { createdAt: { gte: searchFrom, lt: bounds.from } },
       orderBy: { createdAt: "asc" },
@@ -602,8 +660,16 @@ async function assertDaySequence(period: string, cutoffHour: number, bounds: Per
       orderBy: { createdAt: "asc" },
       select: { createdAt: true },
     }),
+    // L-95 (R8.6). `Refund.createdAt` is when the money left the drawer, which
+    // is the day that has something to seal — NOT the sale's own date, which
+    // may be months earlier and already sealed. DD-10 allows exactly that.
+    db.refund.findFirst({
+      where: { createdAt: { gte: searchFrom, lt: bounds.from } },
+      orderBy: { createdAt: "asc" },
+      select: { createdAt: true },
+    }),
   ]);
-  const earliest = [earlierOrder?.createdAt, earlierMovement?.createdAt]
+  const earliest = [earlierOrder?.createdAt, earlierMovement?.createdAt, earlierRefund?.createdAt]
     .filter((d): d is Date => d != null)
     .sort((a, b) => a.getTime() - b.getTime())[0];
   if (earliest) {
@@ -635,8 +701,8 @@ export async function closeDay(
   // Same order as the month: sequencing and timing before the aggregation, so
   // a refused attempt costs nothing and writes nothing (M-01's convention).
   await assertDaySequence(day, cutoffHour, bounds);
-  assertPeriodEnded(bounds, day, "la journée", now);
-  await assertNoOpenShift(day, "la journée");
+  assertPeriodEnded(bounds, day, PERIOD_LABELS.day, now);
+  await assertNoOpenShift(day, PERIOD_LABELS.day.le);
 
   const agg = await aggregatePeriod(bounds.from, bounds.to);
   const [year, month, dayOfMonth] = day.split("-").map(Number);
@@ -818,8 +884,8 @@ export async function closeMonth(
   // instead of the two disagreeing.
   const cutoffHour = (await getSettings()).businessDayCutoffHour;
   const bounds = monthBounds(year, month, cutoffHour);
-  assertPeriodEnded(bounds, period, "le mois", now);
-  await assertNoOpenShift(period, "le mois");
+  assertPeriodEnded(bounds, period, PERIOD_LABELS.month, now);
+  await assertNoOpenShift(period, PERIOD_LABELS.month.le);
 
   const { from, to } = bounds;
   const agg = await aggregatePeriod(from, to);
@@ -925,8 +991,8 @@ export async function closeYear(
   // the cut-off on 1 January rather than at midnight.
   const cutoffHour = (await getSettings()).businessDayCutoffHour;
   const bounds = yearBounds(year, cutoffHour);
-  assertPeriodEnded(bounds, period, "l'exercice", now);
-  await assertNoOpenShift(period, "l'exercice");
+  assertPeriodEnded(bounds, period, PERIOD_LABELS.year, now);
+  await assertNoOpenShift(period, PERIOD_LABELS.year.le);
 
   const { from, to } = bounds;
   const agg = await aggregatePeriod(from, to);

@@ -245,6 +245,39 @@ faute de prix de référence. Ils y seront ajoutés une fois le catalogue à jou
    référence devient une valeur notionnelle et cette justification ne tient plus
    pour ces menus-là. Les vendre aussi à l'unité suffirait à la rétablir.
 
+5. **Un service à cheval sur l'heure de bascule — ajouté le 2026-09-13 (L-99).**
+   Une clôture de période **n'égale pas** toujours la somme de ses rapports Z,
+   et c'est la première vérification qu'un contrôleur effectue.
+
+   La portée d'un Z est la **caisse** (`shiftId`) ; celle d'un mois est la
+   **date de la commande** à l'intérieur des bornes de la journée commerciale
+   (bascule à 05:00, DD-23 / DD-24). Rien n'empêche une même caisse de contenir
+   des commandes de deux mois commerciaux.
+
+   **Mesuré sur le logiciel réel.** Une caisse ouverte le 31 août à 20:00, une
+   commande à 22:00 (10,00 €) et une autre le 1ᵉʳ septembre à 05:30 (20,00 €),
+   caisse fermée à 06:00 :
+
+   | | montant |
+   |---|---|
+   | Rapport Z (une seule caisse) | **30,00 €** |
+   | Clôture mensuelle 2026-08 | 10,00 € |
+   | Clôture mensuelle 2026-09 | 20,00 € |
+
+   Le rapprochement échoue **dans les deux sens**, et le mois d'août reçoit une
+   clôture sans aucun Z.
+
+   **L'argent, lui, est juste** : 10,00 + 20,00 = 30,00, comptés une seule fois,
+   et la TVA se télescope correctement. Ce qui est faux, c'est l'énoncé « une
+   clôture égale la somme de ses Z », désormais corrigé dans le code en « la
+   somme des Z **dont les commandes tombent à l'intérieur** de la période ».
+
+   **La question pour le comptable :** cet énoncé restreint suffit-il, ou
+   faut-il rendre l'égalité inconditionnelle en **refusant un encaissement dans
+   une caisse dont la journée commerciale est passée** ? Le second choix est un
+   changement de comportement au comptoir (territoire DD-23) et n'a pas été
+   fait. Aucune caisse de cette installation n'a encore chevauché une bascule.
+
 ## 9. Correction des tableaux du § 5 — 2026-09-09
 
 Les neuf lignes publiées le matin du 2026-09-09 annonçaient être « produites

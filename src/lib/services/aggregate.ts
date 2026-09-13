@@ -30,7 +30,15 @@
 //
 // An order refunded by a later period contributes, to that later period, the
 // DIFFERENCE between its state before and after — so the periods telescope and
-// a month still equals the sum of the Z reports inside it, whichever till paid.
+// a month still equals the sum of the Z reports INSIDE it, whichever till paid.
+//
+// L-99 (R8.6): "inside it" is doing real work in that sentence and used not to
+// be there. A Z's scope is `shiftId`; a month's is `Order.createdAt` within
+// `monthBounds`. A shift that STRADDLES the cut-off belongs wholly to neither,
+// so its Z is not "inside" either month and the arithmetic does not close.
+// Measured: Z = 3000, August = 1000, September = 2000. The money is right and
+// counted once; it is the reconciliation that needs the qualifier. See
+// `fiscal.ts`'s `assertNoOpenShift` for the full note.
 
 import { addVatMoveToBreakdown, apportion, sum2, type VatBreakdown } from "@/lib/money";
 // Type-only: names the two statuses Prisma expects in a `where`. No runtime
