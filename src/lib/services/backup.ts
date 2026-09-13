@@ -104,13 +104,94 @@ export function defaultBackupPaths(): BackupPaths {
 }
 
 // Strong scrypt parameters. N=2^17 (~131k) is the OWASP 2024 recommendation
-// for an "interactive / file-key" workload. r=8 p=1 keeps memory ~1 GiB peak,
-// which is acceptable for a once-per-Z-report cadence.
+// for an "interactive / file-key" workload.
+//
+// L-142 (R9.3) — THE MEMORY FIGURE. This said "~1 GiB peak". It is **128 MiB**:
+// scrypt's working set is `128 · N · r · p`, which at these parameters is
+// exactly 134 217 728 bytes. Measured rather than left as arithmetic, because
+// the audit could only do the arithmetic: RSS delta **128.8 MiB** across a real
+// `crypto.scrypt` call, and the smallest `maxmem` that does not throw
+// `Invalid scrypt params` is between 128 and 129 MiB — the 0.8 is scrypt's own
+// bookkeeping on top of the block.
+//
+// It matters because it is the number anyone sizing a till, a container or an
+// installer reaches for, and 8× high in that direction is the expensive way to
+// be wrong.
 const SCRYPT_N = 1 << 17;
 const SCRYPT_R = 8;
 const SCRYPT_P = 1;
 const KEY_LEN = 32;
+
+/**
+ * The ceiling `crypto.scrypt` is allowed to allocate — L-142 (R9.3).
+ *
+ * DERIVED, not typed. It was a hard-coded 2 GiB here and a hard-coded 512 MiB
+ * in `scripts/decrypt-backup.ts`; both work, both are far above the 128 MiB the
+ * parameters actually need, and neither would follow the parameters if someone
+ * raised N. A literal that is 16× the requirement does not fail when the
+ * requirement changes — it silently allocates whatever the new one is.
+ *
+ * Twice the working set: enough headroom for the bookkeeping the measurement
+ * found, tight enough that raising `SCRYPT_N` without thinking about memory
+ * fails loudly at the first backup instead of on the till.
+ */
+const SCRYPT_WORKING_SET = 128 * SCRYPT_N * SCRYPT_R * SCRYPT_P;
+const SCRYPT_MAXMEM = SCRYPT_WORKING_SET * 2;
 const GCM_IV_LEN = 12; // 12 bytes is the conventional GCM IV; random per-file.
+
+/**
+ * The backup key — L-141 (R9.3). **The only place that decides.**
+ *
+ * `process.env.BACKUP_ENCRYPTION_KEY || process.env.BACKUP_SECRET` was written
+ * out in four places and `BACKUP_SECRET` was documented in none of them — not
+ * `.env.example`, not `docs/INVARIANTS.md`, not the plan. `bootstrapSecrets()`
+ * and `scripts/rotate-secrets.ts` know only the long name, so an install
+ * holding its key under the short one would have a fresh long-named key
+ * generated, the `||` would prefer it, and **every existing backup would be
+ * orphaned — silently, because both names "work".** Undecryptable backups
+ * discovered at the moment they are needed.
+ *
+ * Three rules, and the middle one is the finding:
+ *
+ *   * `BACKUP_ENCRYPTION_KEY` alone — the normal case, and this install's.
+ *   * BOTH set and DIFFERENT — **refuse.** This is the orphaning scenario
+ *     itself, and the one outcome that must not be resolved by a coin toss
+ *     hidden in an operator. Backups made under either key are still readable
+ *     with `scripts/decrypt-backup.ts`; nothing is lost by stopping.
+ *   * `BACKUP_SECRET` alone — used, and said out loud, every time. The
+ *     fallback is kept rather than dropped because it is the only key an
+ *     install provisioned under the old name has, and taking it away would
+ *     turn a documentation gap into unreadable backups. It is now documented
+ *     in `.env.example` as legacy.
+ *
+ * Nothing in this project uses the short name: `.env` here holds
+ * `BACKUP_ENCRYPTION_KEY`, and the app has never shipped. So this guards a
+ * scenario that does not exist yet — which is the only time it is cheap.
+ */
+export async function backupSecret(): Promise<string | null> {
+  const primary = process.env.BACKUP_ENCRYPTION_KEY?.trim() || null;
+  const legacy = process.env.BACKUP_SECRET?.trim() || null;
+
+  if (primary && legacy && primary !== legacy) {
+    throw new Error(
+      "BACKUP_ENCRYPTION_KEY et BACKUP_SECRET sont tous les deux définis et diffèrent. " +
+        "Les sauvegardes chiffrées avec l'un ne s'ouvrent pas avec l'autre : " +
+        "supprimez celui qui n'est plus utilisé avant de continuer. " +
+        "Les fichiers existants restent lisibles avec scripts/decrypt-backup.ts.",
+    );
+  }
+  if (!primary && legacy) {
+    await logTechnical(
+      "WARN",
+      "backup-service",
+      "BACKUP_SECRET est utilisé : c'est l'ancien nom de BACKUP_ENCRYPTION_KEY. " +
+        "Renommez-le — bootstrapSecrets() et rotate-secrets.ts ne connaissent que " +
+        "BACKUP_ENCRYPTION_KEY et généreraient une nouvelle clé à côté de celle-ci, " +
+        "ce qui rendrait toutes les sauvegardes existantes illisibles.",
+    );
+  }
+  return primary ?? legacy;
+}
 
 async function ensureDir(backupDir: string) {
   await fs.mkdir(backupDir, { recursive: true });
@@ -136,7 +217,7 @@ async function deriveKey(secret: string, salt: Buffer): Promise<Buffer> {
         N: SCRYPT_N,
         r: SCRYPT_R,
         p: SCRYPT_P,
-        maxmem: 2 * 1024 * 1024 * 1024,
+        maxmem: SCRYPT_MAXMEM,
       },
       (err, key) => (err ? reject(err) : resolve(key)),
     );
@@ -191,12 +272,18 @@ export async function decryptFile(
 function mediaSources(paths: { uploadsDir: string; archivesDir: string }) {
   const base = commonBaseDir(paths.uploadsDir, paths.archivesDir);
   const entries: string[] = [];
+  // L-108 (R9.3): which of the two configured directories are not on disk.
+  // `entries` alone cannot answer that — an empty list means « neither is
+  // there », and the caller needs to know it was LOOKING for them.
+  const missing: string[] = [];
   for (const dir of [paths.uploadsDir, paths.archivesDir]) {
     if (existsSync(dir)) {
       entries.push(path.relative(base, dir).split(path.sep).join("/"));
+    } else {
+      missing.push(dir);
     }
   }
-  return { base, entries };
+  return { base, entries, missing };
 }
 
 /** Deepest directory that contains both paths. */
@@ -227,6 +314,38 @@ function commonBaseDir(a: string, b: string): string {
  * carries slightly stale images, and the very next upload changes the
  * fingerprint again.
  */
+/**
+ * Does the media set contain a single file? — L-108 (R9.3).
+ *
+ * `entries.length` cannot answer it: an entry is a DIRECTORY THAT EXISTS,
+ * whatever is inside. Distinguishing « the configured directory is not there »
+ * from « it is there and empty » is the whole of L-108, and the second must
+ * stay a completely successful backup — that is L-79's invariant and it is
+ * still right.
+ *
+ * Stops at the first file. On a full media library that is one `readdir`; on an
+ * empty one it walks a tree with nothing in it, which is also nothing.
+ */
+async function hasAnyMedia(base: string, entries: string[]): Promise<boolean> {
+  const walk = async (dir: string): Promise<boolean> => {
+    let items: import("fs").Dirent<string>[];
+    try {
+      items = (await fs.readdir(dir, { withFileTypes: true })) as import("fs").Dirent<string>[];
+    } catch {
+      return false;
+    }
+    for (const item of items) {
+      if (item.isFile()) return true;
+      if (item.isDirectory() && (await walk(path.join(dir, item.name)))) return true;
+    }
+    return false;
+  };
+  for (const entry of entries) {
+    if (await walk(path.join(base, entry))) return true;
+  }
+  return false;
+}
+
 async function mediaFingerprint(base: string, entries: string[]): Promise<string> {
   const hash = crypto.createHash("sha256");
   const walk = async (dir: string) => {
@@ -284,11 +403,56 @@ async function ensureMediaArchive(
   secret: string,
   tarLoader: TarLoader = loadTar,
 ): Promise<MediaArchive | MediaUnavailable | null> {
-  const { base, entries } = mediaSources(paths);
-  // NULL means « there is nothing to archive » and is a completely successful
-  // backup. It must stay distinguishable from the failure below — conflating
-  // the two is exactly L-79.
-  if (entries.length === 0) return null;
+  const { base, entries, missing } = mediaSources(paths);
+
+  // L-108 (R9.3) — « THE DIRECTORY IS NOT THERE » IS NOT « THERE ARE NO IMAGES ».
+  //
+  // `mediaSources` includes a directory only `if (existsSync(dir))`, and with
+  // neither present this returned `null` — which by the R4.1 invariant means
+  // « nothing to archive », the same answer an install with genuinely no images
+  // gets. So a backup containing no images at all was recorded exactly like a
+  // complete one. **Observed in the audit's pass-4 run: `media: null` while
+  // 48 MB of catalogue images sat in `public/uploads`.**
+  //
+  // A NEW FACET OF L-79, which closed this same conflation at the LOADER and
+  // left it open at the PATH. Reported through the channel L-79 built, so
+  // nothing downstream changes shape: `{ unavailable }` is already « the
+  // database backup succeeded, the media did not ».
+  //
+  // **This fires the day the data directory moves** — `uploadsDir()` answers
+  // `public/uploads` today and `<HIBAPOS_DATA_DIR>/uploads` once
+  // `HIBAPOS_DATA_DIR` is set, which is a deployment step that has not happened
+  // yet. Which is why it is worth fixing now and not then.
+  if (entries.length === 0) {
+    const reason = `dossier(s) média introuvable(s) : ${missing.join(", ")}`;
+    await logTechnical(
+      "WARN",
+      "backup-service",
+      `Sauvegarde : archive média ignorée — ${reason}. ` +
+        `Cette sauvegarde contient UNIQUEMENT la base de données. Si ce dossier devrait ` +
+        `exister, HIBAPOS_DATA_DIR a probablement changé sans que les fichiers aient suivi.`,
+    );
+    return { unavailable: reason };
+  }
+
+  // …and « the directories are there and hold nothing » is still NULL: a
+  // completely successful backup of an installation with no images. That is
+  // L-79's invariant and this batch does not touch it — it only stops the
+  // OTHER case from borrowing the same answer.
+  if (!(await hasAnyMedia(base, entries))) return null;
+
+  // One of the two is missing while the other is present. Not fatal — the
+  // archive is built from what is there — but it is not silent either: the
+  // fiscal archives directory going absent is exactly the case an inspector's
+  // request would discover at the worst moment.
+  if (missing.length > 0) {
+    await logTechnical(
+      "WARN",
+      "backup-service",
+      `Sauvegarde : ${missing.join(", ")} introuvable(s) — l'archive média est construite ` +
+        `sans ce contenu.`,
+    );
+  }
 
   let tar: typeof import("tar") | null = null;
   try {
@@ -447,7 +611,7 @@ export async function createBackup(
 ) {
   const { backupDir, uploadsDir, archivesDir } = paths;
   await ensureDir(backupDir);
-  const secret = process.env.BACKUP_ENCRYPTION_KEY || process.env.BACKUP_SECRET;
+  const secret = await backupSecret();
   if (!secret) {
     throw new Error("BACKUP_ENCRYPTION_KEY environment variable is required to create backups.");
   }
@@ -458,24 +622,54 @@ export async function createBackup(
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const plainDbFilename = `hibapos-backup-${stamp}.db`;
   const plainDbPath = path.join(backupDir, plainDbFilename);
-
-  // Crash-safe snapshot using `VACUUM INTO` — SQLite atomically copies the
-  // database into a new file, applying any pending WAL writes. Prisma rejects
-  // `PRAGMA journal_mode = WAL` via raw query (result rows), but VACUUM INTO
-  // returns no rows and works here.
-  await db.$executeRawUnsafe(`VACUUM INTO '${plainDbPath.replace(/'/g, "''")}'`);
-
-  // Compute SHA-256 of the plaintext snapshot.
-  const checksum = await sha256OfFile(plainDbPath);
-
-  // Media archive (uploads + fiscal archives), reused when unchanged.
-  const media = await ensureMediaArchive(backupDir, { uploadsDir, archivesDir }, secret, tarLoader);
-
-  // Encrypt the DB snapshot.
   const encDbFilename = `hibapos-backup-${stamp}.dbenc`;
   const encDbPath = path.join(backupDir, encDbFilename);
-  await encryptFile(plainDbPath, encDbPath, secret);
-  await fs.unlink(plainDbPath);
+
+  // L-104 (R9.3) — THE PLAINTEXT WINDOW IS CLOSED ON EVERY EXIT.
+  //
+  // `VACUUM INTO` writes the ENTIRE DATABASE to disk unencrypted, and it stayed
+  // that way until the `unlink` after `encryptFile`. `createBackup` had no
+  // `try`/`finally` anywhere in its body, so any throw in between left the file
+  // there — a full disk being the obvious one. It gets no `Backup` row, so
+  // `pruneBackups` never removes it and `listBackups` never shows it: it is
+  // permanent and invisible.
+  //
+  // MEASURED, not feared. The audit patched `writeFile` to throw `ENOSPC` and
+  // ran the real `createBackup`: **741 376 bytes of readable database left in
+  // the backup directory, `User.pinHash` column and all.** And on this install
+  // `BACKUP_LOCATION` is inside OneDrive, **so the plaintext leaves the
+  // machine.**
+  //
+  // `finally`, not `catch`, for L-62's reason one function down: the failure
+  // that leaves litter is by definition the one nobody predicted. The unlink
+  // swallows its own error so a housekeeping detail cannot mask the real cause,
+  // and on the success path it is a no-op because the file is already gone.
+  let checksum: string;
+  let media: MediaArchive | MediaUnavailable | null;
+  try {
+    // Crash-safe snapshot using `VACUUM INTO` — SQLite atomically copies the
+    // database into a new file, applying any pending WAL writes. Prisma rejects
+    // `PRAGMA journal_mode = WAL` via raw query (result rows), but VACUUM INTO
+    // returns no rows and works here.
+    await db.$executeRawUnsafe(`VACUUM INTO '${plainDbPath.replace(/'/g, "''")}'`);
+
+    // Compute SHA-256 of the plaintext snapshot.
+    checksum = await sha256OfFile(plainDbPath);
+
+    // Media archive (uploads + fiscal archives), reused when unchanged.
+    media = await ensureMediaArchive(backupDir, { uploadsDir, archivesDir }, secret, tarLoader);
+
+    // Encrypt the DB snapshot.
+    await encryptFile(plainDbPath, encDbPath, secret);
+  } catch (e) {
+    // A half-written `.dbenc` is worse than none: `createBackup` would go on to
+    // `fs.stat` it and record a `Backup` row for a file that cannot be
+    // decrypted. Nothing reuses this name, so removing it costs nothing.
+    await fs.unlink(encDbPath).catch(() => {});
+    throw e;
+  } finally {
+    await fs.unlink(plainDbPath).catch(() => {});
+  }
 
   // L-79: three outcomes now, not two. `archived` is the success case; a
   // `unavailable` reason is a degraded backup; `null` is an installation with
@@ -548,7 +742,21 @@ export async function createBackup(
  * is untouched, and always disconnects it — a leaked handle would block the
  * rename that follows.
  */
-async function assertCompatibleSchema(stagedDbPath: string): Promise<void> {
+async function assertCompatibleSchema(stagedDbPath: string): Promise<string[]> {
+  // L-140 (R9.3) — RETURNED, not logged here.
+  //
+  // This function runs BEFORE the swap and `logTechnical` writes through `db`,
+  // which is connected to the file the swap is about to replace. So every
+  // warning it emitted was destroyed by the restore it was describing — the
+  // extra-TABLES warning included, which has been in this function since Batch
+  // 2.2 and has therefore never once been readable afterwards. Measured, not
+  // reasoned: after a successful restore the only `backup-service` row left is
+  // the post-swap « restored by » one.
+  //
+  // A refusal is unaffected — it throws, nothing is swapped, and the message
+  // reaches the operator directly. It is only the warnings, which by definition
+  // accompany a restore that GOES AHEAD, that could not survive.
+  const warnings: string[] = [];
   const { PrismaClient } = await import("@prisma/client");
   const staged = new PrismaClient({
     // SQLite URLs want forward slashes even on Windows. Built by splitting on
@@ -594,11 +802,18 @@ async function assertCompatibleSchema(stagedDbPath: string): Promise<void> {
     };
 
     const missingColumns: string[] = [];
+    // L-140 (R9.3): extra COLUMNS were silent while extra TABLES warned. Same
+    // signal — the file came from a newer HibaPOS — and no reason for the two
+    // to be reported differently.
+    const extraColumns: string[] = [];
     for (const table of liveTables) {
       const live = await columnsOf(db, table);
       const stagedCols = await columnsOf(staged, table);
       for (const col of live) {
         if (!stagedCols.includes(col)) missingColumns.push(`${table}.${col}`);
+      }
+      for (const col of stagedCols) {
+        if (!live.includes(col)) extraColumns.push(`${table}.${col}`);
       }
     }
     if (missingColumns.length > 0) {
@@ -609,20 +824,78 @@ async function assertCompatibleSchema(stagedDbPath: string): Promise<void> {
       );
     }
 
+    // ── L-140 (R9.3) — UNIQUE INDEXES, which are a fiscal control ────────────
+    //
+    // The check compared names only: no types, no NOT NULL, and **no unique
+    // indexes**. A file carrying `Order.number`, `FiscalEvent.sequence` and
+    // `ZReport.number` as ordinary columns — the same names, the same tables —
+    // passed every assertion above and restored cleanly, and **the gapless
+    // numbering backstop was simply gone.** Not a schema nicety: those three
+    // indexes are what make a duplicated receipt number impossible at the
+    // storage layer, and R8.2's whole idempotency design ends at
+    // `Order.idempotencyKey`'s unique index. A restore is exactly when a file
+    // of unknown provenance is admitted.
+    //
+    // Missing unique index ⇒ REFUSE, on the same footing as a missing column,
+    // because what is lost is a guarantee rather than a field. Types and NOT
+    // NULL are still not checked and that is still a gap — recorded here rather
+    // than half-done, because comparing them properly means parsing
+    // `sqlite_master` DDL and the plan asks for the cheap parts.
+    const uniqueKeysOf = async (client: {
+      $queryRawUnsafe: typeof db.$queryRawUnsafe;
+    }): Promise<Set<string>> => {
+      const keys = new Set<string>();
+      for (const table of liveTables) {
+        const list = await client
+          .$queryRawUnsafe<{ name: string; unique: number | bigint }[]>(
+            `PRAGMA index_list("${table.replace(/"/g, '""')}")`,
+          )
+          .catch(() => [] as { name: string; unique: number | bigint }[]);
+        for (const idx of list) {
+          if (Number(idx.unique) !== 1) continue;
+          const cols = await client
+            .$queryRawUnsafe<{ name: string }[]>(
+              `PRAGMA index_info("${idx.name.replace(/"/g, '""')}")`,
+            )
+            .catch(() => [] as { name: string }[]);
+          if (cols.length === 0) continue;
+          keys.add(`${table}(${cols.map((c) => c.name).join(",")})`);
+        }
+      }
+      return keys;
+    };
+    const liveUnique = await uniqueKeysOf(db);
+    const stagedUnique = await uniqueKeysOf(staged);
+    const missingUnique = [...liveUnique].filter((k) => !stagedUnique.has(k)).sort();
+    if (missingUnique.length > 0) {
+      throw new Error(
+        `Sauvegarde incompatible : ${missingUnique.length} contrainte(s) d'unicité ` +
+          `manquante(s) — ${missingUnique.slice(0, 5).join(", ")}` +
+          `${missingUnique.length > 5 ? "…" : ""}. ` +
+          "Ces index sont ce qui rend impossible un numéro de ticket en double ; " +
+          "restaurer sans eux retirerait cette garantie. Restauration refusée. " +
+          "Le fichier reste lisible avec scripts/decrypt-backup.ts.",
+      );
+    }
+
     // Extra tables mean the backup came from a NEWER version. The running
     // code does not read them, so the restore is safe for it — but the
     // mismatch is worth a trace rather than silence.
     const extraTables = stagedTables.filter((t) => !liveTables.includes(t));
     if (extraTables.length > 0) {
-      await logTechnical(
-        "WARN",
-        "backup-service",
+      warnings.push(
         `Restore: backup carries ${extraTables.length} table(s) this version does not use (${extraTables.join(", ")}). It was probably taken by a newer HibaPOS.`,
+      );
+    }
+    if (extraColumns.length > 0) {
+      warnings.push(
+        `Restore: backup carries ${extraColumns.length} column(s) this version does not use (${extraColumns.slice(0, 10).join(", ")}${extraColumns.length > 10 ? "…" : ""}). It was probably taken by a newer HibaPOS.`,
       );
     }
   } finally {
     await staged.$disconnect().catch(() => {});
   }
+  return warnings;
 }
 
 /**
@@ -714,7 +987,7 @@ export async function restoreBackup(
   const backup = await db.backup.findUnique({ where: { id: backupId } });
   if (!backup) throw new Error("Sauvegarde introuvable");
 
-  const secret = process.env.BACKUP_ENCRYPTION_KEY || process.env.BACKUP_SECRET;
+  const secret = await backupSecret();
   if (!secret) {
     throw new Error("BACKUP_ENCRYPTION_KEY manquant — impossible de déchiffrer");
   }
@@ -737,8 +1010,9 @@ export async function restoreBackup(
   }
 
   // Structure check before anything irreversible (L-15).
+  let schemaWarnings: string[] = [];
   try {
-    await assertCompatibleSchema(stagedDbPath);
+    schemaWarnings = await assertCompatibleSchema(stagedDbPath);
   } catch (e) {
     await fs.unlink(stagedDbPath).catch(() => {});
     throw e;
@@ -779,13 +1053,41 @@ export async function restoreBackup(
   });
 
   // Pre-restore safety snapshot — encrypted on disk BEFORE the swap.
+  //
+  // L-105 (R9.3) — L-104's leak on the restore path, and structurally the same
+  // three lines: `VACUUM INTO` → `sha256OfFile` → `encryptFile` → `unlink`.
+  // These sat OUTSIDE the `try` that begins below, so L-62's cleanup — which
+  // exists precisely to catch what nobody predicted — could not reach them: it
+  // guards the STAGED files, and this one is created before the block it
+  // guards. A failure at `encryptFile` stranded a plaintext copy of the whole
+  // live database, on the same install whose backup directory is inside
+  // OneDrive.
+  //
+  // Same shape as L-104 above and for the same reason. The staged database and
+  // the staged media archive are NOT unlinked here — those belong to L-62's
+  // `finally`, which runs later and covers the irreversible part too.
   const safetyStamp = `pre-restore-${new Date().toISOString().replace(/[:.]/g, "-")}`;
   const safetyPlain = path.join(backupDir, `${safetyStamp}.db`);
-  await db.$executeRawUnsafe(`VACUUM INTO '${safetyPlain.replace(/'/g, "''")}'`);
-  const safetyChecksum = await sha256OfFile(safetyPlain);
   const safetyEncPath = path.join(backupDir, `${safetyStamp}.dbenc`);
-  await encryptFile(safetyPlain, safetyEncPath, secret);
-  await fs.unlink(safetyPlain);
+  let safetyChecksum: string;
+  try {
+    await db.$executeRawUnsafe(`VACUUM INTO '${safetyPlain.replace(/'/g, "''")}'`);
+    safetyChecksum = await sha256OfFile(safetyPlain);
+    await encryptFile(safetyPlain, safetyEncPath, secret);
+  } catch (e) {
+    // Nothing irreversible has happened yet — the live database is untouched
+    // and the swap is still ahead. Clear the staged restore too and stop,
+    // rather than proceeding without the rollback point.
+    await fs.unlink(safetyEncPath).catch(() => {});
+    await fs.unlink(stagedDbPath).catch(() => {});
+    if (stagedUploadsTar) await fs.unlink(stagedUploadsTar).catch(() => {});
+    throw new Error(
+      `Instantané de sécurité impossible — restauration annulée avant toute modification : ` +
+        `${e instanceof Error ? e.message : String(e)}`,
+    );
+  } finally {
+    await fs.unlink(safetyPlain).catch(() => {});
+  }
   const safetyStat = await fs.stat(safetyEncPath);
 
   // --- The irreversible part. Hold the maintenance gate across all of it. ---
@@ -844,6 +1146,12 @@ export async function restoreBackup(
   }
 
   // --- Everything below runs against the RESTORED database. ---
+
+  // L-140 (R9.3): the schema check's warnings, written HERE because writing
+  // them where they were produced put them in the file the swap replaced.
+  for (const message of schemaWarnings) {
+    await logTechnical("WARN", "backup-service", message);
+  }
 
   const counterAfter = await db.fiscalCounter.findFirst();
   const rewind =
@@ -1010,6 +1318,48 @@ export async function pruneBackups(
   const doomed = all.slice(keep);
   if (doomed.length === 0) return { deleted: 0, freedBytes: 0 };
 
+  // L-107 (R9.3) — THE TRACE IS WRITTEN BEFORE THE FILES GO.
+  //
+  // This journalled `SUPPRESSION_SAUVEGARDE` after the loop, once every file
+  // was already unlinked. `deleteBackup` — the RARE, manual path — journals
+  // first and says why in its own comment: « a trace written afterwards would
+  // be lost if the process died mid-delete ». **The rule was stated in the rare
+  // path and broken in the common one.** This is the automatic path; it runs at
+  // every Z close, so it is the one that will actually be interrupted one day.
+  //
+  // What is journalled is therefore the DOOMED list, decided and recorded
+  // before anything is destroyed, not a list of what was successfully removed.
+  // That is the right record either way: an interrupted prune leaves an event
+  // naming files that may still exist, which is recoverable and obvious, where
+  // the old order left destroyed files and no event at all.
+  //
+  // `freedBytes` is measured during the loop and cannot be in the event —
+  // stated here rather than silently dropped. The sizes are in the `Backup`
+  // rows the event names, and the technical log below still reports the total.
+  const doomedForEvent = doomed.map((b) => ({
+    id: b.id,
+    filename: b.filename,
+    imagesPath: b.imagesPath,
+    checksum: b.checksum,
+    sizeBytes: b.sizeBytes,
+    createdAt: b.createdAt.toISOString(),
+  }));
+  try {
+    await db.$transaction((tx) =>
+      appendFiscalEvent(tx, {
+        type: "SUPPRESSION_SAUVEGARDE",
+        userId,
+        data: { reason: "retention", keep, doomed: doomedForEvent },
+      }),
+    );
+  } catch (e) {
+    await logTechnical(
+      "ERROR",
+      "backup-service",
+      `Retention prune: SUPPRESSION_SAUVEGARDE event could not be appended: ${e instanceof Error ? e.message : String(e)}`,
+    );
+  }
+
   let freedBytes = 0;
   const removed: { id: string; filename: string; createdAt: string }[] = [];
 
@@ -1042,22 +1392,6 @@ export async function pruneBackups(
       filename: backup.filename,
       createdAt: backup.createdAt.toISOString(),
     });
-  }
-
-  try {
-    await db.$transaction((tx) =>
-      appendFiscalEvent(tx, {
-        type: "SUPPRESSION_SAUVEGARDE",
-        userId,
-        data: { reason: "retention", keep, deleted: removed, freedBytes },
-      }),
-    );
-  } catch (e) {
-    await logTechnical(
-      "ERROR",
-      "backup-service",
-      `Retention prune: SUPPRESSION_SAUVEGARDE event could not be appended: ${e instanceof Error ? e.message : String(e)}`,
-    );
   }
 
   await logTechnical(

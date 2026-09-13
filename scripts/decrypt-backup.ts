@@ -45,6 +45,13 @@ function fail(message: string): never {
 }
 
 function loadSecret(): string {
+  // L-141 (R9.3) — the fallback is KEPT HERE deliberately, and it is the reason
+  // the application keeps it too. This is the recovery tool: the file in front
+  // of it may have been encrypted under either name, and a tool that refuses
+  // the only key an operator has is not a recovery tool. The application's
+  // `backupSecret()` adds the guard this cannot — refusing when both names are
+  // set and differ — because it is choosing which key to WRITE with, and this
+  // is only ever reading.
   let secret = process.env.BACKUP_ENCRYPTION_KEY || process.env.BACKUP_SECRET;
   if (!secret) {
     // Fall back to .env so the tool works on a machine where the app has
@@ -52,7 +59,13 @@ function loadSecret(): string {
     const envPath = path.join(process.cwd(), ".env");
     if (existsSync(envPath)) {
       const raw = readFileSync(envPath, "utf8");
-      const match = raw.match(/^\s*BACKUP_ENCRYPTION_KEY\s*=\s*"?([^"\r\n]+)"?/m);
+      const match =
+        raw.match(/^\s*BACKUP_ENCRYPTION_KEY\s*=\s*"?([^"\r\n]+)"?/m) ??
+        // L-141: the .env fallback read only the long name while the env-var
+        // path accepted both, so a machine holding the key under the old name
+        // in .env — and the app never started, which is when this tool is
+        // used — was told the key was absent.
+        raw.match(/^\s*BACKUP_SECRET\s*=\s*"?([^"\r\n]+)"?/m);
       if (match) secret = match[1];
     }
   }

@@ -87,6 +87,12 @@ async function tarWarnings() {
   return db.technicalLog.findMany({ where: { source: "backup-service" } });
 }
 
+/** Backup-service log lines whose message contains `needle` (R9.3, L-108). */
+async function warningsMatching(needle: string): Promise<string[]> {
+  const rows = await db.technicalLog.findMany({ where: { source: "backup-service" } });
+  return rows.map((r) => r.message).filter((m) => m.includes(needle));
+}
+
 async function backupAudit() {
   const row = await db.auditLog.findFirst({
     where: { action: "BACKUP_CREATED" },
@@ -208,16 +214,30 @@ describe("L-79 — when tar cannot be loaded", () => {
   });
 
   it("KEEPS « nothing to archive » distinct from « could not archive »", async () => {
-    // THE WHOLE FINDING, in one test. With neither media directory present,
+    // THE WHOLE OF L-79, in one test. With nothing to archive,
     // `ensureMediaArchive` returns before it ever touches the loader — so even
     // with a broken tar this is a completely successful backup and must report
     // as one. If this ever starts reporting `mediaUnavailable`, the two
     // outcomes have been conflated again, in the other direction.
     //
-    // The directories must be ABSENT, not merely empty: `mediaSources` counts a
-    // directory as an entry when it EXISTS, regardless of contents.
+    // AMENDED 2026-09-13 (R9.3 / L-108). This used to DELETE both directories,
+    // and its comment explained why: « the directories must be ABSENT, not
+    // merely empty — `mediaSources` counts a directory as an entry when it
+    // EXISTS, regardless of contents ». That was a true description of the code
+    // and it is exactly what L-108 found wrong. A configured media directory
+    // that is not on disk is not an installation without images; it is an
+    // installation whose images are somewhere else, and the audit watched a
+    // backup report `media: null` while 48 MB of catalogue photos sat in
+    // `public/uploads`.
+    //
+    // So « nothing to archive » is now what it says: the directories are there
+    // and hold no files. **L-79's invariant is unchanged and still asserted** —
+    // only the fixture moved to the case that actually means it, and the case
+    // it used to use is asserted immediately below as its opposite.
     await fs.rm(paths.uploadsDir, { recursive: true, force: true });
     await fs.rm(paths.archivesDir, { recursive: true, force: true });
+    await fs.mkdir(paths.uploadsDir, { recursive: true });
+    await fs.mkdir(paths.archivesDir, { recursive: true });
 
     const backup = await createBackup(null, paths, brokenTar);
 
@@ -228,5 +248,92 @@ describe("L-79 — when tar cannot be loaded", () => {
     const audit = await backupAudit();
     expect(audit?.mediaIncluded).toBe(false);
     expect(audit).not.toHaveProperty("mediaUnavailable");
+  });
+
+  // ── L-108 (R9.3) — a configured directory that is not there ────────────────
+  //
+  // The facet of L-79 that stayed open at the PATH after R4.1 closed it at the
+  // LOADER. `mediaSources` includes a directory only `if (existsSync(dir))`, so
+  // with none present the backup answered `null` — « nothing to archive », the
+  // same answer the test above gets, and a completely successful backup.
+  //
+  // **It fires the day the data directory moves.** `uploadsDir()` answers
+  // `public/uploads` today and `<HIBAPOS_DATA_DIR>/uploads` once that variable
+  // is set, which is a deployment step nobody has taken yet.
+
+  it("reports a MISSING media directory as unavailable, not as no media", async () => {
+    await fs.rm(paths.uploadsDir, { recursive: true, force: true });
+    await fs.rm(paths.archivesDir, { recursive: true, force: true });
+
+    const backup = await createBackup(null, paths);
+
+    expect(backup.media, "a missing directory is not an archive").toBeNull();
+    expect(
+      backup.mediaUnavailable,
+      "the backup silently claimed there were no images to take",
+    ).toBeTruthy();
+    // Named, because « which directory » is the whole of the operator's next
+    // move — and the answer is usually « HIBAPOS_DATA_DIR moved ».
+    expect(backup.mediaUnavailable).toContain(paths.uploadsDir);
+    expect(backup.mediaUnavailable).toContain(paths.archivesDir);
+  });
+
+  it("puts the same fact in the audit row, where it is read afterwards", async () => {
+    await fs.rm(paths.uploadsDir, { recursive: true, force: true });
+    await fs.rm(paths.archivesDir, { recursive: true, force: true });
+
+    await createBackup(null, paths);
+
+    const audit = await backupAudit();
+    expect(audit?.mediaIncluded).toBe(false);
+    // L-79's channel, unchanged: present ONLY when the archive could not be
+    // built, so a row without this key still means what it always meant.
+    expect(audit).toHaveProperty("mediaUnavailable");
+    expect(String(audit?.mediaUnavailable)).toContain("introuvable");
+  });
+
+  it("still builds the archive when only ONE of the two is missing, and says so", async () => {
+    // Not fatal — there is real content to protect and losing it because the
+    // other directory is absent would be the wrong trade. But not silent
+    // either: `db/fiscal-archives` going missing is the case an inspector's
+    // request discovers at the worst possible moment.
+    await fs.rm(paths.archivesDir, { recursive: true, force: true });
+    await fs.mkdir(paths.uploadsDir, { recursive: true });
+    await fs.writeFile(path.join(paths.uploadsDir, "photo.jpg"), "not really a jpeg");
+
+    const backup = await createBackup(null, paths);
+
+    expect(backup.media, "the images that WERE there went unarchived").not.toBeNull();
+    expect(backup.mediaUnavailable, "a partial media set is not a failure").toBeNull();
+    const warned = await warningsMatching("introuvable");
+    expect(warned.length, "the missing archives directory passed unmentioned").toBeGreaterThan(0);
+    expect(warned.join(" ")).toContain(paths.archivesDir);
+  });
+
+  it("distinguishes all three outcomes from each other", async () => {
+    // The three-way property stated once, because two of them were the same
+    // value for a year and the test above is only meaningful beside the others.
+    const outcomes: Record<string, [unknown, unknown]> = {};
+
+    await fs.rm(paths.uploadsDir, { recursive: true, force: true });
+    await fs.rm(paths.archivesDir, { recursive: true, force: true });
+    let b = await createBackup(null, paths);
+    outcomes.missing = [b.media, b.mediaUnavailable];
+
+    await fs.mkdir(paths.uploadsDir, { recursive: true });
+    await fs.mkdir(paths.archivesDir, { recursive: true });
+    b = await createBackup(null, paths);
+    outcomes.empty = [b.media, b.mediaUnavailable];
+
+    await fs.writeFile(path.join(paths.uploadsDir, "photo.jpg"), "not really a jpeg");
+    b = await createBackup(null, paths);
+    outcomes.present = [b.media, b.mediaUnavailable];
+
+    expect(outcomes.missing[0]).toBeNull();
+    expect(outcomes.missing[1]).toBeTruthy();
+    expect(outcomes.empty[0]).toBeNull();
+    expect(outcomes.empty[1]).toBeNull();
+    expect(outcomes.present[0]).not.toBeNull();
+    expect(outcomes.present[1]).toBeNull();
   });
 });

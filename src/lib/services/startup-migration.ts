@@ -195,8 +195,14 @@ function defaultDeps(): GateDeps {
       return { filename: b.filename, checksum: b.checksum, encrypted: b.encrypted };
     },
     openBackup: async (filename) => {
-      const { decryptFile, defaultBackupPaths } = await import("@/lib/services/backup");
-      const secret = process.env.BACKUP_ENCRYPTION_KEY || process.env.BACKUP_SECRET;
+      const { decryptFile, defaultBackupPaths, backupSecret } = await import(
+        "@/lib/services/backup"
+      );
+      // L-141 (R9.3): one place decides which key is used. This is the gate
+      // that RE-OPENS the backup it just took, so reading a different key here
+      // than `createBackup` used would report a verification failure that is
+      // really a configuration one.
+      const secret = await backupSecret();
       if (!secret) throw new Error("BACKUP_ENCRYPTION_KEY absente.");
       const file = path.join(defaultBackupPaths().backupDir, filename);
       const out = `${file}.verify-${process.pid}.tmp`;

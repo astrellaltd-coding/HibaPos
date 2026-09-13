@@ -244,7 +244,15 @@ describe("plan freshness — the plan and the done file may not disagree", () =>
     //   ids as well (L-96·L-97·L-98·L-143·L-144); those live in
     //   `docs/audit/FINDINGS.md` and have never been counted here, for the
     //   reason the 2026-09-12 entry gives.
-    expect(taskStatuses(src).size).toBe(15);
+    //   2026-09-13, R9.3 DONE: tasks 15 → 14, and Phase 9 has six batches left.
+    //   `backup.ts` closed seven audit ids in one file — L-104 · L-105 · L-107 ·
+    //   L-108 · L-140 · L-141 · L-142 — which is what « by the file the work
+    //   lands in » is for.
+    //   FINDINGS STAY AT 8. R9.3 opened none and closed none of § 7's: all
+    //   seven of its ids are audit-sequence and live in
+    //   `docs/audit/FINDINGS.md`. Eight is still
+    //   L-84·L-81·L-75·L-05·L-11·L-47·L-51·L-52.
+    expect(taskStatuses(src).size).toBe(14);
     expect(openFindings(src).size).toBe(8);
     expect(done()).toContain("# HibaPOS France — Completed Work");
   });

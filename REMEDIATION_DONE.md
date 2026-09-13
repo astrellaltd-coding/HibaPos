@@ -71,6 +71,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - R8.6 — a refund-only day cannot be skipped — **PHASE 8 COMPLETE**
 - R8.2 + R8.5 MIGRATIONS — APPLIED to production, and verified
 - R9.1 — the printer tells the truth, and the day's slip reaches paper
+- R9.3 — a failed backup leaves nothing readable behind
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -3174,6 +3175,132 @@ files got the same `afterAll`. This is L-154's shape a third time.
   change this batch did not need and did not make.
 - **The plan is at 38 635 bytes** against the 40 960 ceiling — R9.1's row and L-88's row both
   left it. That is the first time since the audit landed that the file got smaller.
+---
+
+### R9.3 — a failed backup leaves nothing readable behind
+**Done:** 2026-09-13 · **Commit:** `SHA` · **Findings:** L-104 · L-105 · L-107 · L-108 ·
+L-140 · L-141 · L-142
+
+Seven audit ids in one file, which is what « by the file the work lands in » is for.
+
+**L-104 (High) — the plaintext window is closed on every exit.** `VACUUM INTO` writes the
+ENTIRE DATABASE unencrypted and it stays that way until the `unlink` after `encryptFile`.
+`createBackup` had **no `try`/`finally` anywhere in its body**, so any throw in between left
+the file there — and it gets no `Backup` row, so `pruneBackups` never removes it and
+`listBackups` never shows it: permanent and invisible. The audit measured it rather than
+arguing it — `writeFile` patched to throw `ENOSPC`, the real `createBackup` run, **741 376
+bytes of readable database with `User.pinHash` in it**. On this install `BACKUP_LOCATION` is
+inside OneDrive, **so the plaintext leaves the machine.** Now in a `finally`, for the reason
+L-62 gives one function down: the failure that leaves litter is the one nobody predicted.
+
+**L-105 (Medium) — the same leak on the restore path.** Structurally identical three lines
+for the pre-restore safety snapshot, sitting OUTSIDE the `try` that L-62's cleanup runs in —
+which is why L-62 could not reach them: they are created before the block they guard. Same
+shape applied, plus a refusal that stops the restore rather than proceeding without a
+rollback point, since nothing irreversible has happened at that moment.
+
+**L-107 (Medium) — the trace goes in before the files go.** `deleteBackup`, the RARE manual
+path, journals first and says why in its own comment: « a trace written afterwards would be
+lost if the process died mid-delete ». `pruneBackups`, the AUTOMATIC path that runs at every
+Z close, journalled last. **The rule was stated in the rare path and broken in the common
+one.** The event now names the DOOMED list, decided before anything is destroyed. `deleted`
+became `doomed` in the payload, because at the moment it is written nothing has been.
+
+**L-108 (Medium) — a missing directory is not an absence of images.** `mediaSources` includes
+a directory only `if (existsSync(dir))`, so with none present the backup answered `null` —
+« nothing to archive », a completely successful backup. The audit watched exactly that:
+`media: null` while **48 MB of catalogue photos sat in `public/uploads`**. **My first cut got
+this wrong in the other direction**: reporting the missing case as `{ unavailable }` made
+`null` unreachable, because a directory that exists is an entry whatever it holds — one
+conflation traded for another, and L-79's test failed for the right reason with the wrong
+result. There are three outcomes and all three are now reachable: missing ⇒ `unavailable`,
+present-and-empty ⇒ `null`, present-with-files ⇒ the archive.
+
+**L-140 (Low) — unique indexes, and warnings that survive.** The schema check compared names
+only. A file carrying `Order.number`, `FiscalEvent.sequence` and `ZReport.number` **without
+their unique index** passed every assertion and restored cleanly, and the gapless-numbering
+backstop was simply gone — those indexes are what make a duplicated receipt number impossible
+at the storage layer, and R8.2's idempotency design ends at `Order.idempotencyKey`'s index.
+Missing unique index now refuses, on the same footing as a missing column. Extra columns warn,
+as extra tables always did.
+
+**AND A DEFECT FOUND WHILE TESTING THAT ONE, fixed in the same batch because without it
+L-140's warning means nothing: `assertCompatibleSchema` runs BEFORE the swap and logs through
+`db`, which is connected to the file the swap replaces — so every warning it has ever written
+was destroyed by the restore it described.** The extra-TABLES warning has been in that
+function since Batch 2.2 and has therefore **never once been readable afterwards**. Measured:
+after a successful restore the only `backup-service` row left is the post-swap « restored by »
+one. The function now returns its warnings and `restoreBackup` emits them after the swap,
+beside the audit entry that already survives for the same reason. A refusal was never affected
+— it throws, nothing is swapped.
+
+**L-141 (Low) — one place decides which backup key is used.**
+`BACKUP_ENCRYPTION_KEY || BACKUP_SECRET` in four places, documented in none. `bootstrapSecrets()`
+and `rotate-secrets.ts` know only the long name, so an install holding its key under the short
+one gets a fresh long-named key generated beside it, the `||` prefers it, and **every existing
+backup is orphaned — silently, because both names "work"**. Now one `backupSecret()`:
+**refuses when both are set and differ** (that is the orphaning scenario itself), warns every
+time the legacy name is the one in use, and is documented in `.env.example` at last. **The
+fallback is kept, not dropped** — it is the only key an install provisioned under the old name
+has. `scripts/decrypt-backup.ts` keeps its own inline fallback deliberately: it is the recovery
+tool and only ever reads. Its `.env` reader gained the old name too, which it lacked while its
+env-var path accepted both.
+
+**L-142 (Low) — the scrypt figure, measured.** The comment said « ~1 GiB peak »; it is
+**128 MiB** (`128 · N · r · p` = 134 217 728 exactly). The audit could only do the arithmetic,
+so this batch instrumented it: **RSS delta 128.8 MiB**, and the smallest `maxmem` that does not
+throw sits between 128 and 129 MiB. `maxmem` was a hard-coded 2 GiB here and 512 MiB in
+`decrypt-backup.ts`; it is now derived as twice the working set, so raising `SCRYPT_N` without
+thinking about memory fails loudly instead of silently allocating.
+
+**HOW IT WAS VERIFIED.** 1 609 pass · 0 fail · 134 files · **zero `prisma:error` blocks**.
+49 new tests across two new files plus additions to two existing ones. Ten reverts, restoring
+from a copy before each:
+
+| revert | what it restores | went red |
+|---|---|---|
+| A104 | no `try`/`finally` in `createBackup` | 5 |
+| A104b | the truncated `.dbenc` is left behind | 2 |
+| A105 | the safety snapshot outside any `try` | 2 |
+| A107 | the prune journals after deleting | 1 |
+| A108 | a missing directory is « no media » | 5 |
+| A108b | an empty directory is « unavailable » | 3 |
+| A140 | no unique-index comparison | 3 |
+| A140b | extra columns silent | 2 |
+| A141 | the open-coded `||` fallback | 1 |
+| A142 | the 2 GiB literal | 1 |
+
+**FOUR SURVIVED FIRST and each one taught something.** A104b — nothing forced a PARTIAL
+`.dbenc` to exist, because a mock that throws BEFORE the real write leaves no file to clean
+up; a mock that writes half and then fails is the one that reproduces a filling disk. A107 —
+the obvious test (make `unlink` throw, check the event exists anyway) proves nothing, because
+the prune wraps each `unlink` in its own `catch {}`: the throw is swallowed, the prune
+completes, and the old code journals afterwards exactly as before. The ordering is now
+OBSERVED from inside the patched `unlink`, which asks the database whether the trace is
+already there. A140 and A140b had no test at all.
+
+**TESTS OUTSIDE THE BATCH, one amended and none weakened.** `backup-media-failure.test.ts`'s
+L-79 case deleted both directories to produce « nothing to archive », and its comment
+explained why: « the directories must be ABSENT, not merely empty ». That was a true
+description of the code and exactly what L-108 found wrong. **L-79's invariant is unchanged
+and still asserted**; only the fixture moved to the case that actually means it, and the case
+it used to use is now asserted immediately below as its opposite.
+
+**Left behind.**
+- **L-140 has two parts still open, deliberately.** The check measures the backup against the
+  LIVE database rather than against the code, so a degraded live schema lowers the bar; and
+  types and NOT NULL are still not compared, which needs `sqlite_master` DDL parsing. The plan
+  asked for the cheap parts and these are named in the test file so nobody reads its coverage
+  as complete.
+- **A successful restore replaces the live database, including the test one.** The new
+  `backup-schema-guard.test.ts` doctors backups and restores them, so it undoes its own schema
+  changes in `afterEach` — conditionally, not with `.catch(() => {})`, because a statement that
+  fails is still a statement Prisma logs and blind-dropping a column seven of nine tests never
+  add cost **seven `prisma:error` blocks** against a pinned zero.
+- **`BACKUP_SECRET` has no user anywhere in this project.** `.env` here holds
+  `BACKUP_ENCRYPTION_KEY`, and the app has never shipped — so the guard protects a scenario
+  that does not exist yet, which is the only time it is cheap to add.
+- **The plan is at 38 560 bytes** against the 40 960 ceiling.
 ---
 
 ## Retired from the plan's § 6 on 2026-09-11

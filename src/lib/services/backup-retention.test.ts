@@ -143,9 +143,98 @@ describe("retention pruning (C-06)", () => {
     expect(retentionEvents.length).toBeGreaterThan(0);
     for (const e of retentionEvents) {
       const data = JSON.parse(e.dataJson);
-      expect(Array.isArray(data.deleted)).toBe(true);
+      // RENAMED 2026-09-13 (R9.3 / L-107): `deleted` → `doomed`. The event is
+      // now written BEFORE the files go, so a key called « deleted » would be
+      // a claim the event cannot make — at the moment it is appended, nothing
+      // has been. The list is the same list; only its tense is honest.
+      expect(Array.isArray(data.doomed)).toBe(true);
+      expect(data.doomed.length).toBeGreaterThan(0);
       expect(data.keep).toBe(1);
+      // Enough to identify each file afterwards, which is the point of a trace
+      // that may outlive an interrupted prune.
+      for (const row of data.doomed) {
+        expect(row).toHaveProperty("id");
+        expect(row).toHaveProperty("filename");
+        expect(row).toHaveProperty("checksum");
+      }
     }
+  });
+
+  // ── L-107 (R9.3) — the trace goes in BEFORE the files go ───────────────────
+  //
+  // THE FINDING: this journalled after unlinking every file, while
+  // `deleteBackup` — the RARE, manual path — journals first and states the rule
+  // in its own comment: « a trace written afterwards would be lost if the
+  // process died mid-delete ». **The rule was stated in the rare path and
+  // broken in the common one.** Prune is the automatic path and runs at every Z
+  // close, so it is the one that will actually be interrupted.
+
+  it("has already journalled by the time the first file is unlinked", async () => {
+    // ORDER, observed from inside the deletion itself.
+    //
+    // The obvious test — make `unlink` throw and check an event exists anyway —
+    // proves nothing here, and that is worth writing down: the prune's loop
+    // wraps each `unlink` in its own `try { … } catch { }`, so a throwing
+    // deletion is swallowed, the prune runs to completion, and the OLD code
+    // journals afterwards exactly as it always did. Measured: the revert
+    // survived that version of this test.
+    //
+    // So the patched `unlink` does not fail. It asks the database, at the
+    // moment the first file is about to go, whether the trace is already there.
+    // That is the property the finding is about, and it is directly observable.
+    process.env.BACKUP_RETENTION_COUNT = "30";
+    await createBackup(TEST_USER_ID, paths);
+    await createBackup(TEST_USER_ID, paths);
+    await createBackup(TEST_USER_ID, paths);
+    expect(await db.backup.count()).toBe(3);
+    await db.fiscalEvent.deleteMany({ where: { type: "SUPPRESSION_SAUVEGARDE" } });
+    process.env.BACKUP_RETENTION_COUNT = "1";
+
+    const realUnlink = fs.unlink;
+    let seen: number | null = null;
+    (fs as { unlink: typeof fs.unlink }).unlink = (async (...args: Parameters<typeof fs.unlink>) => {
+      if (seen === null && String(args[0]).endsWith(".dbenc")) {
+        seen = await db.fiscalEvent.count({ where: { type: "SUPPRESSION_SAUVEGARDE" } });
+      }
+      return realUnlink(...args);
+    }) as typeof fs.unlink;
+
+    try {
+      await pruneBackups(TEST_USER_ID, paths);
+    } finally {
+      (fs as { unlink: typeof fs.unlink }).unlink = realUnlink;
+    }
+
+    expect(seen, "no backup file was unlinked — this test proved nothing").not.toBeNull();
+    expect(
+      seen,
+      "the first file was deleted before any trace of the prune was journalled",
+    ).toBeGreaterThan(0);
+  });
+
+  it("names the same files the prune goes on to remove", async () => {
+    // The event is written from the doomed list rather than from what
+    // succeeded, so the two must not be allowed to drift apart.
+    process.env.BACKUP_RETENTION_COUNT = "1";
+    await createBackup(TEST_USER_ID, paths);
+    const second = await createBackup(TEST_USER_ID, paths);
+    await db.fiscalEvent.deleteMany({ where: { type: "SUPPRESSION_SAUVEGARDE" } });
+    const survivors = await db.backup.findMany({ select: { id: true } });
+    expect(survivors.map((b) => b.id)).toEqual([second.id]);
+
+    const third = await createBackup(TEST_USER_ID, paths);
+    const events = await db.fiscalEvent.findMany({
+      where: { type: "SUPPRESSION_SAUVEGARDE" },
+    });
+    const retention = events
+      .map((e) => JSON.parse(e.dataJson))
+      .filter((d) => d.reason === "retention");
+    expect(retention).toHaveLength(1);
+    const named: string[] = retention[0].doomed.map((r: { id: string }) => r.id);
+    expect(named).toEqual([second.id]);
+    // …and the one that survived is not in it.
+    expect(named).not.toContain(third.id);
+    expect(await db.backup.count()).toBe(1);
   });
 });
 

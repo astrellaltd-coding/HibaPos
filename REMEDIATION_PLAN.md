@@ -11,7 +11,7 @@ Completed work lives in **`REMEDIATION_DONE.md`**. This file only ever shows out
 **Overall:** NOT READY FOR PRODUCTION, and **not trading** — the fiscal journal is empty and
 every trading table is at zero.
 
-> ### ▶ CURRENT TASK — **R9.3**, and Phase 9 is running
+> ### ▶ CURRENT TASK — **R9.4**, and Phase 9 is running
 >
 > **§ 6 opens with the execution order. Follow that, not the order the tables print in.**
 >
@@ -27,10 +27,13 @@ every trading table is at zero.
 > it is the operator's to choose between, not a session's.
 >
 > **PHASE 8 IS COMPLETE** (2026-09-13) — seven batches, R8.0 through R8.6, and every
-> group-A finding the audit raised. **PHASE 9 IS OPEN** on the operator's word, and **R9.1 is
-> done** (2026-09-13): the printer now refuses to call a print a print when the helper was
-> never there, the customer's paper IS the sealed `Receipt.content`, and the day's closing
-> slip both prints and carries what was given away. **R6.4's software blocker is cleared.**
+> group-A finding the audit raised. **PHASE 9 IS OPEN** on the operator's word. **R9.1 is
+> done** (`d634faf`): the printer refuses to call a print a print when the helper was never
+> there, the customer's paper IS the sealed `Receipt.content`, and the day's closing slip
+> both prints and carries what was given away — **R6.4's software blocker is cleared.**
+> **R9.3 is done** (2026-09-13): no failure leaves a readable copy of the database behind,
+> the retention prune journals before it deletes, a missing media directory is no longer
+> reported as « no images », and a backup missing a unique index is refused.
 >
 > **Two things are waiting, and neither is a batch.**
 >
@@ -59,7 +62,7 @@ applied. What each did, how it was verified and what it cost is in `REMEDIATION_
 - **Phase 6** — the fiscal go-live, five `OPERATOR` rows. **R8.1 unblocked R6.3** (2026-09-13,
   `622411c`) and **R9.1 unblocked R6.4** (2026-09-13). Row-by-row status below.
 - **Phase 8** — money and the fiscal record. **COMPLETE 2026-09-13**, all seven batches.
-- **Phase 9** — fix before the app is called complete. **R9.1 done**; seven batches left.
+- **Phase 9** — fix before the app is called complete. **R9.1 · R9.3 done**; six batches left.
 - **Phase 10** — the leftovers no other batch owns. Three rows (group C).
 
 **Phases 8-10 come from the audit.** Six read-only passes and a seventh that consolidated
@@ -365,7 +368,6 @@ their own riding along. Order inside the phase is not fixed except where a row s
 
 | ID | Status | Task |
 |---|---|---|
-| **R9.3** | `TODO` | **Backup and restore leave no plaintext.** L-104 · L-105 · L-107 · L-108 · L-140 · L-141 · L-142. `backup.ts`, one file. L-104 and L-105 are the same `try`/`finally` shape and land together. L-140's schema check composes with L-110, which **R9.2 fixed on 2026-09-13** — the coupling is discharged. |
 | **R9.4** | `TODO` | **Secrets resolve on an install with no `.env`.** L-106 · L-115 · L-116 · L-117 · L-119 · L-152. **L-115 before R6.2** — R6.2 is the row that arms the chain key, and a short one answers every fiscal write with an empty 500 while reporting itself armed. |
 | **R9.5** | `TODO` | **The front door.** L-102 · L-103 · L-118 · L-147. `auth.ts` · `login/route.ts` · `login-screen.tsx`. L-118 is the one that reaches the France install — the published-PIN denylist is enforced in a script and nowhere in the app. L-102 and L-103 are both « the till will not open ». |
 | **R9.7** | `TODO` | **The guards that are not guarding.** L-121 · L-122 · L-123 · L-125 · L-126 · L-154 · L-155 · L-156 · L-157 · L-158 · L-159. *(**L-153 was closed early by R8.6** — that batch's new files stopped leaving behind the `Setting` row `reports.test.ts` was free-riding on, so it failed and was fixed at the source.)* *(L-124 left this batch for **R8.0** — it is one line and it gates every clone.)* Start with L-121 and L-158, one to three lines each, both guarding an invariant. L-154's shared wipe helper is the largest piece, and **L-154 has now bitten twice** (R8.2 and R8.6) rather than staying latent. |
