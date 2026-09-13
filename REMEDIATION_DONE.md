@@ -3053,7 +3053,7 @@ The completion history, one line each, newest first:
 ---
 
 ### R9.1 — the printer tells the truth, and the day's slip reaches paper
-**Done:** 2026-09-13 · **Commit:** `SHA` · **Findings:** L-96 · L-97 · L-98 · L-143 · L-144,
+**Done:** 2026-09-13 · **Commit:** `d634faf` · **Findings:** L-96 · L-97 · L-98 · L-143 · L-144,
 and **L-88 closed with them**
 
 **Phase 9's first batch**, taken first because L-96 was R6.4's remaining software blocker.
