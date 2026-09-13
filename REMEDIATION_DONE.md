@@ -66,6 +66,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - R9.2 — the startup migration gate stops reporting failure as success
 - R8.2 — one tap, one sale, and the OFFERT tender stops crashing the till
 - R8.3 — a category save stops destroying the menu rules that depend on it
+- R8.4 — a report measures the same period the sealed close measured
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -2585,6 +2586,93 @@ sha256 `0d304ee7…`.
   a stale browser tab, a future client written from the GET shape — now gets a 409 naming the
   menu instead of silently destroying the rules. That is the intended trade: a save that
   fails loudly beats one that succeeds and takes the fiscal weight with it.
+
+---
+
+### R8.4 — a report measures the same period the sealed close measured
+**Done:** 2026-09-13 · **Commit:** `31ebd9d` · **Finding:** L-92 (High) · **Decision taken by
+the operator on the day**
+
+**What changed:** `lib/report-range.ts` · the three report routes ·
+`features/reports/reports-view.tsx` · `lib/services/log-retention.test.ts` · two new test
+files · `README.md`.
+
+**The defect.** Three report routes measured a period by calendar midnight while **every
+sealed fiscal document runs on the trading-day cut-off** (DD-23 / DD-24). So the VAT figure a
+manager files could differ from the sealed close for the same month — *in both directions,
+silently*. Audit pass 1 measured it with a single 02:30 ticket: `MonthlyClose 2026-08` sealed
+`vatTotal 104` while `GET /api/reports/vat?from=2026-08-01&to=2026-08-31` answered
+`totalVat 0, rows []`.
+
+**Why the module escaped.** `period.ts` had already learned this and wrote the reason down:
+*« `cutoffHour` is a REQUIRED argument everywhere, deliberately … Making it required means the
+compiler finds every caller. »* `report-range.ts` was a **separate module the compiler never
+saw**. That is the whole mechanism of the finding — and making the argument required here
+found all nine call sites at once, which is the mechanism used as its own fix.
+
+**THE DECISION, and it was the operator's.** With a 05:00 cut-off, « Du 2026-08-01 Au
+2026-08-31 » asked for `01/08 00:00 → 01/09 00:00` where the close sealed
+`01/08 05:00 → 01/09 05:00`. Both ends out by five hours; a 02:30 ticket on 1 August belongs
+to trading day 07-31, so it was sealed into July and reported in August. Put to the operator
+with that arithmetic and three options — and taken, 2026-09-13:
+
+> **Snap, and say so on screen.**
+
+The two rejected options are worth keeping written down. *Snap silently* reconciles the
+figures but leaves a label reading « 1 août → 31 août » over numbers measured from 05:00 to
+05:00 — a claim the screen cannot support. *Stay on calendar days with a warning* is honest
+and leaves the manager holding a VAT figure they cannot file against the sealed record, which
+is the harm L-92 describes.
+
+**What that produced:**
+
+| | |
+|---|---|
+| the clock | `parseReportRange` takes `cutoffHour` and builds **both** bounds on it |
+| required, not defaulted | for `period.ts`'s stated reason. A default is exactly how this module and the closes came to measure different periods |
+| the label | the response carries `cutoffHour` beside `from`/`to`, and the screen states **the server's own boundaries** — « Période mesurée : 01/08/2026 05:00 → 01/09/2026 05:00 (journée commerciale, clôture à 05:00) » |
+| read, never re-derived | a screen computing the boundaries itself would be a second implementation of the rule, and the two would drift |
+
+The old conditional hint was also corrected in passing: it printed « Période affichée : … »
+**only while the inputs differed from the computed range**, which is an unsaved-changes
+indicator wearing the wrong words. It now says that in those words, and the period line is
+always present.
+
+**How it was verified.** Twenty tests — the rule in `report-range.test.ts`, and the routes
+**driven** in `reports-trading-day.test.ts` with the audit's own 02:30 ticket, because a unit
+test on an extracted rule proves the rule and not that anything calls it. Both ends are
+asserted: a 02:30 ticket on 1 August must land in **July**, and one on 1 September must land
+in **August**. Then reverted, restored by sha:
+
+| revert | result |
+|---|---|
+| midnight bounds again (L-92 itself) | **6 fail** |
+| only the START snapped | **6 fail** — the half-fix that survives a spot check on one date |
+| the route hard-codes 5 | **2 fail** |
+| the response omits `cutoffHour` | **4 fail** — and this is the half the operator's decision was *about* |
+| no validation of the cut-off | **1 fail** |
+| the sales route left on the old clock | **1 fail** — three routes shared the module and all three had it |
+
+`README.md` 1466 → 1486 (+20), files 122 → 124. `bun run test` **1486 pass / 0 fail / 124
+files, zero `prisma:error`, exit 0**; `typecheck` and `lint` clean. Live database untouched:
+sha256 `0d304ee7…`.
+
+**Left behind:**
+
+- **Cut-off `0` still means calendar days**, and is asserted. It is a supported setting and
+  not a disabled feature (`validation.ts` says so), so the previous behaviour stays reachable
+  **by the operator saying so** rather than by the code omitting an argument.
+- **`/api/reports/vat` and `/api/reports/cashiers` have no client in `src/` at all.** Noted,
+  not changed — they are API-only, so the « say so » half of the decision lands on the Sales
+  tab, the one screen that reads a range. Both routes report `cutoffHour` regardless, so
+  whatever reads them can say it too. Whether an API-only route should exist is not this
+  batch's question.
+- **Nothing was migrated and nothing was re-sealed.** The change is to how a period is
+  *measured*, not to any stored figure: no sealed document moves, and the closes were already
+  right — they are what the reports now agree with.
+- **`businessDayCutoffHour` is SUPER_ADMIN-only** (DD-26, R8.1). Moving it moves the edges of
+  every sealed document *and* now every report at once, which is the coupling that made it
+  one of the four fields DD-26 kept back from the MANAGER.
 
 ---
 

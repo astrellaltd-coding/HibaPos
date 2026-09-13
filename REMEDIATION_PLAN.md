@@ -26,10 +26,15 @@ every trading table is at zero.
 > apply it itself at next start, behind a verified backup** — that is a real second route and
 > it is the operator's to choose between, not a session's.
 >
-> **R8.4 is next — report periods use the trading-day cut-off** (L-92). `report-range.ts` and
-> the three report routes. **It carries a decision**: does a free `Du`/`Au` range snap to
-> trading-day edges, and what does the screen then say it showed? Bring that one to the
-> operator rather than choosing it.
+> **R8.5 is next — a supplement carries its own VAT rate** (L-94 · L-127 · L-128 · L-136,
+> and the question L-134). `combo.ts` · `pricing.ts` · `checkout.ts` · `orders/route.ts`.
+> **It is a migration** — `CategoryAddOn` has no rate — so settle its shape before the small
+> guards, rehearse it, and hand the command over. **Answer L-134 in the same session**: is
+> `Product.price` meant to be inert for sized products?
+>
+> **R8.2's migration is still unapplied** and R8.5 will add a second one. They are independent
+> — different tables — but the gate applies them in filename order, so R8.2's goes first
+> whichever route is used.
 
 **Phases 0-5 and 7 are COMPLETE**, with all four operator items and all three migrations
 applied. What each did, how it was verified and what it cost is in `REMEDIATION_DONE.md`;
@@ -39,7 +44,7 @@ applied. What each did, how it was verified and what it cost is in `REMEDIATION_
 
 - **Phase 6** — the fiscal go-live, five `OPERATOR` rows. **R8.1 unblocked R6.3** (2026-09-13,
   `622411c`); **R6.4 still waits on R9.1**, its non-fiscal blocker. Row-by-row status below.
-- **Phase 8** — money and the fiscal record. Three batches (group A).
+- **Phase 8** — money and the fiscal record. Two batches (group A).
 - **Phase 9** — fix before the app is called complete. Eight batches (group B).
 - **Phase 10** — the leftovers no other batch owns. Three rows (group C).
 
@@ -121,7 +126,11 @@ printer are in France. So R6.1-R6.3 belong to that install, not to this machine,
 **nothing in the app exports or imports a catalogue today** — carrying it is unsolved.
 `FISCAL_CHAIN_KEY` is in `.env`, `factice` is in the database: they do not travel together.
 
-**Last updated:** 2026-09-13 — **R8.3 done** (`6a580dd`): a category save reconciles its
+**Last updated:** 2026-09-13 — **R8.4 done** (`31ebd9d`): report periods sit on the
+trading-day cut-off, so a filed VAT figure measures the same window the sealed close measured;
+**the operator decided to snap AND say so**, and the screen states the boundaries the server
+returned rather than the dates typed into the boxes. Nineteen task rows became eighteen.
+Earlier the same day — **R8.3** (`6a580dd`): a category save reconciles its
 option groups by id instead of replacing them, so the seven menu rules that pin `Pizzas →
 Taille` survive it, and a save that would remove one is refused in French naming the menu.
 **The client had to be fixed in the same commit** — it sent no ids at all, so match-by-id
@@ -323,7 +332,7 @@ them is outstanding except the three items under § 1 « Awaiting the operator �
 **EXECUTION ORDER — not the order the tables are printed in.** The tables group by subject;
 this is the sequence, and each step is here because of a dependency, not a preference.
 
-1. **Phase 8** (R8.4 … R8.6), then **Phase 9**, then **Phase 10** — the order the tables
+1. **Phase 8** (R8.5, R8.6), then **Phase 9**, then **Phase 10** — the order the tables
    print in, now that the dependencies above are discharged.
 2. **Phase 6** — R6.3 is reachable; **R6.4 still waits on R9.1**.
 
@@ -362,7 +371,6 @@ that gate to apply.
 
 | ID | Status | Task |
 |---|---|---|
-| **R8.4** | `TODO` | **Report periods use the trading-day cut-off.** L-92. `report-range.ts` + the three report routes. Carries a decision: does a free `Du`/`Au` range snap to trading-day edges, and what does the screen then say it showed? |
 | **R8.5** | `TODO` | **A supplement carries its own VAT rate.** L-94 · L-127 · L-128 · L-136, and the question L-134. `combo.ts` · `pricing.ts` · `checkout.ts` · `orders/route.ts`. **A migration** — `CategoryAddOn` has no rate. Settle its shape before the small guards. Answer L-134 (is `Product.price` meant to be inert for sized products?) in the same session. |
 | **R8.6** | `TODO` | **A refund-only day cannot be skipped.** L-95 · L-99 · L-130. `fiscal.ts`. L-95 first: its absence becomes **permanent** the moment a day is sealed past the hole. L-99 is prose plus the missing reconciliation test; L-130 is one ungrammatical string — check `close-timing.test.ts` pins it first. |
 

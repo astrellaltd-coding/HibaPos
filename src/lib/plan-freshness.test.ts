@@ -205,7 +205,15 @@ describe("plan freshness — the plan and the done file may not disagree", () =>
     //   one open QUESTION inside `schema.prisma` (should `comboProductId`
     //   become a real SET NULL FK?) and left it for R9.8, where the data model
     //   is the subject.
-    expect(taskStatuses(src).size).toBe(19);
+    //   2026-09-13, R8.4 DONE: tasks 19 → 18, Phase 8 is two batches. L-92
+    //   carried a DECISION and it was put to the operator with the arithmetic
+    //   rather than chosen: report ranges snap to the trading-day cut-off AND
+    //   the screen says so. Making `cutoffHour` a required argument — for
+    //   `period.ts`'s stated reason, that the compiler finds every caller —
+    //   found all nine call sites at once, which is the mechanism of the
+    //   finding used as its own fix.
+    //   FINDINGS STAY AT 9 for the eighth time. R8.4 opened none.
+    expect(taskStatuses(src).size).toBe(18);
     expect(openFindings(src).size).toBe(9);
     expect(done()).toContain("# HibaPOS France — Completed Work");
   });
