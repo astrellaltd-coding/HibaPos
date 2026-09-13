@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync, existsSync, mkdtempSync } from "node:fs";
+import { readFileSync, existsSync, mkdtempSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {
@@ -18,6 +18,24 @@ import {
 // the only way to test what is SENT rather than what was intended.
 
 const tmp = () => mkdtempSync(path.join(os.tmpdir(), "hibapos-spool-test-"));
+
+/**
+ * A helper that EXISTS — L-96 (R9.1).
+ *
+ * These tests used `"C:/x/print-raw.ps1"`, which does not. That was harmless
+ * until R9.1: the transport handed any path to PowerShell, and with the runner
+ * injected nothing looked. `powershell.exe -File <missing>` **exits 0**, so the
+ * transport now refuses a helper it cannot find, and a fixture pointing at
+ * nowhere is a fixture describing a print that could never happen.
+ *
+ * Written once, next to the staged jobs, and left for the OS to reap with the
+ * rest of its temp directory.
+ */
+const HELPER = (() => {
+  const p = path.join(mkdtempSync(path.join(os.tmpdir(), "hibapos-spool-helper-")), "print-raw.ps1");
+  writeFileSync(p, "# a stand-in for .zscripts/print-raw.ps1\n");
+  return p;
+})();
 
 /** Records the invocation and, optionally, the bytes staged for it. */
 function fakeRun(
@@ -55,7 +73,7 @@ describe("createWindowsRawTransport — the happy path", () => {
     const payload = Buffer.from([0x1b, 0x40, 0x1b, 0x74, 0x10, 0xe9, 0x80, 0x0a, 0x00]);
 
     const t = createWindowsRawTransport(
-      { printerName: "SUNSO WTP-800", tmpDir: tmp(), scriptPath: "C:/x/print-raw.ps1" },
+      { printerName: "SUNSO WTP-800", tmpDir: tmp(), scriptPath: HELPER },
       { run },
     );
     await t.send(payload);
@@ -66,7 +84,7 @@ describe("createWindowsRawTransport — the happy path", () => {
     expect(calls[0].exe).toBe("powershell.exe");
     expect(calls[0].args).toContain("-PrinterName");
     expect(calls[0].args[calls[0].args.indexOf("-PrinterName") + 1]).toBe("SUNSO WTP-800");
-    expect(calls[0].args).toContain("C:/x/print-raw.ps1");
+    expect(calls[0].args).toContain(HELPER);
     // -NoProfile and -NonInteractive: a till must never wait on a prompt.
     expect(calls[0].args).toContain("-NoProfile");
     expect(calls[0].args).toContain("-NonInteractive");

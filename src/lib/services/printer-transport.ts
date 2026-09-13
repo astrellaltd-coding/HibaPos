@@ -13,6 +13,8 @@ import { randomBytes } from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { existsSync } from "node:fs";
+import { appRoot } from "@/lib/paths";
 
 /** Anything that can deliver a finished ESC/POS job to a printer. */
 export type PrinterTransport = {
@@ -230,8 +232,20 @@ function codeForExit(exit: number): PrinterErrorCode {
   return "WRITE_FAILED";
 }
 
+/**
+ * Where `print-raw.ps1` lives — L-96 (R9.1).
+ *
+ * This was `path.join(process.cwd(), …)`: **the sixth `process.cwd()` anchor,
+ * and the one `paths.ts` exists to remove.** Under Tauri the working directory
+ * is not the install directory, so a packaged build would look for the helper
+ * somewhere it is not — and, before the guard below, would then record every
+ * ticket as printed.
+ *
+ * `appRoot()` is the same anchor R9.2 gave the migration gate: `HIBAPOS_APP_DIR`
+ * when set, otherwise the tree containing `prisma/migrations`.
+ */
 export function defaultSpoolerScriptPath(): string {
-  return path.join(process.cwd(), ".zscripts", "print-raw.ps1");
+  return path.join(appRoot(), ".zscripts", "print-raw.ps1");
 }
 
 /** Run PowerShell, capture its output, and never leave the promise pending. */
@@ -298,6 +312,27 @@ export function createWindowsRawTransport(
         throw fail("NOT_CONFIGURED", "No Windows printer selected.");
       }
 
+      // L-96 (R9.1) — THE HELPER MUST BE THERE.
+      //
+      // `powershell.exe -File <missing>` **exits 0**. Measured, with this
+      // transport's own spawn: exit code 0, 300 bytes on stderr, and nothing on
+      // the contract the code checks. So `result.code !== 0` passed, and
+      // `orders/[id]/print` wrote `printStatus: "PRINTED", printedAt: now` for a
+      // ticket that had never reached a printer. Nothing on the paper, and the
+      // till said nothing.
+      //
+      // Checked BEFORE the job file is staged so a missing helper costs
+      // nothing, and named in the message because « the helper is not there »
+      // and « the printer is not there » need different actions from the
+      // operator.
+      if (!existsSync(scriptPath)) {
+        throw fail(
+          "WRITE_FAILED",
+          `Le programme d'impression est introuvable : ${scriptPath}. ` +
+            `Aucun ticket n'a été imprimé.`,
+        );
+      }
+
       const jobFile = path.join(
         options.tmpDir ?? os.tmpdir(),
         `hibapos-job-${randomBytes(8).toString("hex")}.bin`,
@@ -339,6 +374,22 @@ export function createWindowsRawTransport(
           throw fail(
             codeForExit(result.code),
             `print-raw.ps1 exited ${result.code}: ${result.stdout.trim() || result.stderr.trim()}`,
+          );
+        }
+
+        // L-96, second half: exit 0 is not on its own a print.
+        //
+        // PowerShell exits 0 for a whole class of start-up failures — a script
+        // it cannot parse, an argument it rejects, a policy that stops it —
+        // writing the reason to stderr and nothing to the exit code. The helper
+        // itself writes nothing to stderr on success, so anything there means
+        // the job did not go the way it was supposed to, and recording it as
+        // PRINTED is the failure this finding is about.
+        const noise = result.stderr.trim();
+        if (noise) {
+          throw fail(
+            "WRITE_FAILED",
+            `Le programme d'impression a signalé une erreur : ${noise.slice(0, 300)}`,
           );
         }
       } finally {

@@ -68,12 +68,19 @@ export const POST = withAuthParams(
     // the till — a reprint that opened the drawer would be a way around the
     // traced manual-open path.
     const outcome = await printReceiptText(copieContent);
-    await db.receipt.update({
-      where: { id: receipt.id },
-      data: outcome.ok
-        ? { printStatus: "PRINTED", printedAt: new Date() }
-        : { printStatus: "FAILED" },
-    });
+    // L-143 (R9.1): FAILED means ATTEMPTED AND FAILED. This wrote it for any
+    // non-ok outcome, so a reprint with printing switched off in the settings
+    // marked the receipt failed — when nothing had been tried and nothing was
+    // wrong with it. `print/route.ts` had it right and this now matches:
+    // NOT_CONFIGURED and DISABLED leave the status alone.
+    if (outcome.ok) {
+      await db.receipt.update({
+        where: { id: receipt.id },
+        data: { printStatus: "PRINTED", printedAt: new Date() },
+      });
+    } else if (outcome.reason === "FAILED") {
+      await db.receipt.update({ where: { id: receipt.id }, data: { printStatus: "FAILED" } });
+    }
 
     return NextResponse.json(
       {

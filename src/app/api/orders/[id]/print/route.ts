@@ -40,8 +40,23 @@ export const POST = withAuthParams(async (_req, { params }) => {
 
   const outcome = await printReceiptText(order.receipt.content, { openDrawer });
 
-  // Record what actually happened. PENDING receipts that never printed stay
-  // visible as FAILED so a shift's unprinted tickets can be found later.
+  // Record what actually happened — L-143 (R9.1) settled which of the two
+  // routes was right, because they disagreed.
+  //
+  // Three states have to carry four outcomes, so they are read as:
+  //
+  //   PRINTED  the job reached the printer
+  //   FAILED   it was ATTEMPTED and did not
+  //   PENDING  it was never attempted — printing is off, or no printer is
+  //            configured. Nothing is wrong with the ticket.
+  //
+  // This route already made that distinction; `reprint` wrote FAILED for any
+  // non-ok outcome, so a reprint with printing disabled marked the receipt
+  // failed. It now matches this one. **The comment that used to sit here
+  // claimed unprinted tickets « stay visible as FAILED so a shift's unprinted
+  // tickets can be found later » — they do not, and could not: nothing reads
+  // this column.** Zero readers in `.tsx`, three writers. Whether to surface it
+  // or drop it is recorded as L-143's remaining half and is not this batch's.
   if (outcome.ok) {
     await db.receipt.update({
       where: { id: order.receipt.id },

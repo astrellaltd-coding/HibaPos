@@ -217,6 +217,21 @@ export type OrderDto = {
   cashier?: { name: string; username: string };
   customer?: { name: string } | null;
   shift?: { number: number };
+  /**
+   * L-97 (R9.1) — the SEALED receipt text, `Receipt.content`.
+   *
+   * What `renderReceipt` produced inside the checkout transaction and what the
+   * ESC/POS path prints. The browser print path used to re-render its own from
+   * the fields above and dropped four things the sealed text carries: the
+   * FACTICE / SIMULATION stamp, `Caisse N°`, the per-rate `Détail TVA`, and the
+   * software identity line. With `factice = true` — production's value today —
+   * that handed the customer a ticket which did not say it was invalid.
+   *
+   * Optional because an order fetched by a route that does not include it has
+   * none, and the dialog falls back to disabling its print button rather than
+   * printing something else.
+   */
+  receipt?: { content: string } | null;
 };
 
 export type ShiftDto = {

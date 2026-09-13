@@ -70,6 +70,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - R8.5 — a supplement carries its own VAT rate
 - R8.6 — a refund-only day cannot be skipped — **PHASE 8 COMPLETE**
 - R8.2 + R8.5 MIGRATIONS — APPLIED to production, and verified
+- R9.1 — the printer tells the truth, and the day's slip reaches paper
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -3051,6 +3052,130 @@ The completion history, one line each, newest first:
 
 ---
 
+### R9.1 — the printer tells the truth, and the day's slip reaches paper
+**Done:** 2026-09-13 · **Commit:** `SHA` · **Findings:** L-96 · L-97 · L-98 · L-143 · L-144,
+and **L-88 closed with them**
+
+**Phase 9's first batch**, taken first because L-96 was R6.4's remaining software blocker.
+
+**WHAT CHANGED, finding by finding.**
+
+**L-96 — a helper that never runs is not a print.** `printer-transport.ts`. Measured before
+anything was written, with this transport's own `spawn` rather than `Start-Process` (which
+reports a non-zero code and would have hidden it): **`powershell.exe -File <missing>` exits
+0**, with 300 bytes on stderr and nothing on the contract the code checked. So
+`result.code !== 0` passed and `orders/[id]/print` wrote `printStatus: "PRINTED",
+printedAt: now` for a ticket that had never reached a printer. Three changes:
+`defaultSpoolerScriptPath()` now anchors on `appRoot()` — R9.2's anchor, and **the sixth
+`process.cwd()` that `paths.ts` exists to remove**; a missing helper is refused BY NAME
+before the job file is staged; and exit 0 with anything on stderr is a failure.
+
+**L-97 — the paper the customer is handed IS the archived document.** `globals.css` hides
+`body *` in print media and shows only `#receipt-print`, and that id sat on the styled block
+the cashier reads — a SECOND rendering, built from the order DTO, missing four things the
+sealed `Receipt.content` carries: the FACTICE / SIMULATION stamp, `Caisse N°`, the per-rate
+`Détail TVA` and the software identity line. **With `factice = true`, which is production's
+value today, the customer's copy did not say it was invalid**, and `autoPrint` fires it 350 ms
+after the dialog opens with nobody watching. The sealed text now comes back on the DTO
+(`ORDER_DTO_INCLUDE`), the id moved onto it, and where there is no sealed text the dialog
+disables its print button and `autoPrint` stays quiet rather than pushing out a blank page.
+
+**L-98 — the closing slip can be printed at all.** `renderDayCloseTicket` had one caller, a
+`<pre>` on the fiscal screen, and Ctrl+P there produced a blank page. New route
+`POST /api/fiscal/closes/[period]/print` renders the SEALED ROW server-side and sends it down
+the same ESC/POS path as an order ticket; an « Imprimer » button sits beside « Fermer ». **The
+drawer is deliberately not opened** — a close is not a tender. **The operator settled this on
+2026-09-13**; the question had been put to them because « add a print path » and « this
+document is not meant to be printed » are both defensible and only they could say which.
+
+**L-88 — the slip prints what was given away.** Unblocked by L-98's answer, so it joined this
+batch. **My first attempt read `close.givenAwayCount` off the row and was wrong**:
+`givenAwayCount` and `givenAwayProductsJson` are columns on `ZReport`, and `DailyClose` has
+neither — for a trading day the figures exist only inside `dataJson`, the string the hash is
+taken over. It would have printed nothing for ever and looked exactly like « there were no
+give-aways ». The line reads from the sealed payload instead, under `if (count > 0)` and on
+its own band — printed without the band it lands under « Encaissements » and reads as a fourth
+tender, which is the opposite of DD-20. Found by looking at the rendered slip.
+
+**L-143 — FAILED means it was attempted and failed.** The two routes writing
+`Receipt.printStatus` disagreed: `print` wrote FAILED only for an attempted print, `reprint`
+for any non-ok outcome — so a reprint with printing switched OFF marked the receipt failed.
+Printing is off in this database, which is the default, so the wrong one was the one the
+restaurant would hit. `reprint` now matches `print`, and the same three-state distinction was
+given to the new close route's audit action (PRINTED / PRINT_FAILED / PRINT_SKIPPED).
+
+**L-144 — a comment that said the opposite of what the code does.** `resolvePrinter` claimed
+`printerConnection` defaults to `"network"`. True when Batch 1.3d wrote it, **reversed on
+2026-09-11**: the default is `"usb"`. Corrected in place. **No test was added and that is
+deliberate** — the substance is already pinned by `settings-defaults-agree.test.ts:98`, and a
+test asserting the text of a comment pins the prose, not the behaviour.
+
+**HOW IT WAS VERIFIED.** 1 573 pass · 0 fail · 132 files · **zero `prisma:error` blocks**,
+which `docs/BASELINES.md` pins. 49 new tests in four files. **Every property was proved
+against the old code, one at a time, restoring from a copy taken before each revert:**
+
+| revert | what it restores | went red |
+|---|---|---|
+| L-96 R1 | the `process.cwd()` anchor | 1 |
+| L-96 R2 | no `existsSync` guard | 4 |
+| L-96 R3 | no stderr check | 2 |
+| L-97 A | the id back on the styled block | 2 |
+| L-97 B | no sealed text on the DTO | 1 |
+| L-97 C | auto-print ignores the seal | 1 |
+| L-88 A | no give-away block | 4 |
+| L-88 B | no `count > 0` guard | 3 |
+| L-88 C | no band rule | 1 |
+| L-88 D | a bad payload throws | 1 |
+| L-88 E | the sealed rows trusted blindly | 1 |
+| L-98 A | the route does not exist | all 12 |
+| L-98 B | two audit states | 2 |
+| L-98 C | the period from the request body | 1 |
+| L-98 D | the drawer opens | 1 |
+| L-143 | reprint writes FAILED for any non-ok outcome | 3 |
+
+**TWO REVERTS SURVIVED FIRST, and both found something.** L-88 E — trusting the sealed rows
+blindly — passed with « Offerts (1) is there, Tacos is not » in place, because the blind cast
+iterates a STRING's characters and prints `  undefined   xundefined` once per character, and
+both those assertions are true of that document too. **What was missing was an assertion about
+what the slip does NOT say.** Adding it (`not.toContain("undefined")`, across eight malformed
+payload shapes) then found a real hole in the fix itself: `[null]` **threw**, because
+`typeof null === "object"` let a null row reach `r.name` — in a function whose whole contract
+is that it never throws while rendering an already-sealed document. And L-96's staging test
+passed under its revert because the `finally` deletes the job file on every path; it now
+records whether anything was spawned, which is what the guard actually changes.
+
+**THREE FILES OUTSIDE THE BATCH WERE CORRECTED, none of them weakened.**
+`printer-spooler.test.ts` used `"C:/x/print-raw.ps1"`, a path that does not exist — harmless
+until the helper's existence became part of the contract, and a fixture describing a print
+that could never happen. It now writes a real file; **every assertion in it is unchanged**.
+`touch-and-labels.test.ts` swept `.test.tsx` files: `receipt-printable.test.tsx` asserts
+`id="receipt-print"` four times in string literals and the duplicate-id check counted them as
+four elements. Its scope narrowed to screens — a component test is not a screen — **with a
+new guard that the sweep still covers 50+ real files**, because a glob that quietly matches
+nothing is L-124's shape. And `daily-close.test.ts` now leaves the database as it found it:
+its `reset()` runs BEFORE each test, so L-88's give-away order outlived the file and
+`fiscal-chain-key.test.ts` — which deletes shifts without deleting orders — died on a P2003.
+**Ten failures in three files, none of them about what those files test.** The two new route
+files got the same `afterAll`. This is L-154's shape a third time.
+
+**Left behind.**
+- **R6.4's software blocker is cleared.** Choosing the Windows queue is now the whole of what
+  is left, and it is the operator's. R6.3 and R6.4 are both reachable and neither is done.
+- **L-143's other half is open and recorded.** **Nothing reads `Receipt.printStatus`** — zero
+  readers across the `.tsx` files, three writers — and the comment that used to claim
+  otherwise (« unprinted tickets stay visible as FAILED so a shift's unprinted tickets can be
+  found later ») was false. Whether to surface the column or drop it is the operator's, not a
+  session's. **A test now pins the zero**, so the day a screen starts reading it, that
+  decision gets taken deliberately.
+- **The success path of both print routes is not driven by any test**, and cannot be honestly:
+  `printReceiptText` resolves its own transport from settings, so a test can only reach
+  « printing is off ». The transport's own success path is covered in `printer-spooler.test.ts`
+  with an injected runner. Making the routes accept an injected transport would be a design
+  change this batch did not need and did not make.
+- **The plan is at 38 635 bytes** against the 40 960 ceiling — R9.1's row and L-88's row both
+  left it. That is the first time since the audit landed that the file got smaller.
+---
+
 ## Retired from the plan's § 6 on 2026-09-11
 
 *These four blocks described **completed** phases and were sitting in `REMEDIATION_PLAN.md`
@@ -3156,4 +3281,3 @@ It replaced `REMEDIATION_PLAN.md` (2 173 lines) and `REMEDIATION_RECORD.md` (5 5
 the nine methods, the hard invariants, the open findings, the answered decisions — was
 carried across into this document. The originals are recoverable in full from git
 (`git show HEAD~1:REMEDIATION_RECORD.md`); nothing was lost, only retired.
-

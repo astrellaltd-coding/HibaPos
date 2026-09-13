@@ -231,8 +231,21 @@ describe("plan freshness — the plan and the done file may not disagree", () =>
     //   and it failed. R9.7's id list is one shorter; its row COUNT is not,
     //   because R9.7 has not run.
     //   FINDINGS STAY AT 9 for the tenth time. R8.6 opened none.
-    expect(taskStatuses(src).size).toBe(16);
-    expect(openFindings(src).size).toBe(9);
+    //   2026-09-13, R9.1 DONE and PHASE 9 OPENED: tasks 16 → 15, and **findings
+    //   9 → 8 — the first time this number has moved since 2026-09-11.**
+    //   **L-88 CLOSED**, and the way it closed is the point: it had sat in § 7
+    //   as « omission or decision is written down nowhere » since R7.1, and it
+    //   was not actionable while the slip could not be printed by any route.
+    //   The operator settled L-98 on 2026-09-13 — the slip needs to print — and
+    //   L-88 became a line on a document somebody files rather than a line on a
+    //   document nobody could produce. So it joined this batch and left § 7.
+    //   Eight is L-84·L-81·L-75·L-05·L-11·L-47·L-51·L-52.
+    //   FINDINGS ARE NOT AT 8 BECAUSE THE WORK SHRANK. R9.1 fixed five audit
+    //   ids as well (L-96·L-97·L-98·L-143·L-144); those live in
+    //   `docs/audit/FINDINGS.md` and have never been counted here, for the
+    //   reason the 2026-09-12 entry gives.
+    expect(taskStatuses(src).size).toBe(15);
+    expect(openFindings(src).size).toBe(8);
     expect(done()).toContain("# HibaPOS France — Completed Work");
   });
 

@@ -39,6 +39,21 @@ export type DayCloseForTicket = {
   cashInTotal: number;
   cashOutTotal: number;
   cashMovementsCount: number;
+  /**
+   * The canonical sealed payload — L-88 (R9.1).
+   *
+   * **Where the give-aways are.** `DailyClose` has no column for them:
+   * `givenAwayCount` and `givenAwayProductsJson` are columns on `ZReport`, and
+   * for a trading day the figures exist only in here, which is the string the
+   * hash is taken over. So the line below prints from the sealed record itself
+   * rather than from a field beside it, and cannot disagree with what was
+   * sealed.
+   *
+   * Optional because a close sealed before R7.1 has no give-away keys in its
+   * payload, and a slip reprinted from one must say nothing rather than print a
+   * zero it cannot stand behind — the rule `perpetualSalesTotal` follows below.
+   */
+  dataJson?: string | null;
   perpetualSalesTotal: number | null;
   vatBreakdownJson: string | null;
   sealedAt: Date | string;
@@ -69,6 +84,48 @@ function frenchDay(period: string): string {
  *  `toFixed(1)`, which would print a 1,05 % rate as "1,1 %" (L-19). */
 function rateLabel(key: string): string {
   return `${key.replace(".", ",")} %`;
+}
+
+/**
+ * The give-aways, read out of the sealed payload — L-88 (R9.1).
+ *
+ * `dataJson` is the exact string the close's hash is taken over, so this is the
+ * figure that was sealed rather than one recomputed beside it.
+ *
+ * NOTHING HERE THROWS. This renders a document that has already been sealed,
+ * and a close whose slip cannot be printed at all is worse than one that omits
+ * a line: an unparseable payload is a verification failure, which
+ * `verifyDailyCloses()` is what reports. A payload from before R7.1 simply has
+ * no give-away keys, and this returns zero for it — which is also the truth,
+ * because the tender did not exist yet.
+ */
+function sealedGiveaways(
+  dataJson: string | null | undefined,
+): { count: number; products: { name: string; quantity: number }[] } {
+  const none = { count: 0, products: [] };
+  if (!dataJson) return none;
+  let payload: unknown;
+  try {
+    payload = JSON.parse(dataJson);
+  } catch {
+    return none;
+  }
+  if (typeof payload !== "object" || payload === null) return none;
+  const raw = payload as { givenAwayCount?: unknown; givenAwayProducts?: unknown };
+  const count = typeof raw.givenAwayCount === "number" ? raw.givenAwayCount : 0;
+  if (count <= 0) return none;
+  // Row by row, and `null` first: `typeof null === "object"`, so a null entry
+  // reaches `r.name` and throws — which this function must never do. Measured;
+  // the hardened case in `daily-close.test.ts` is what found it.
+  const products = Array.isArray(raw.givenAwayProducts)
+    ? raw.givenAwayProducts.flatMap((row) => {
+        if (typeof row !== "object" || row === null) return [];
+        const r = row as { name?: unknown; quantity?: unknown };
+        if (typeof r.name !== "string" || typeof r.quantity !== "number") return [];
+        return [{ name: r.name, quantity: r.quantity }];
+      })
+    : [];
+  return { count, products };
 }
 
 export function renderDayCloseTicket(
@@ -134,6 +191,35 @@ export function renderDayCloseTicket(
   if (close.cashMovementsCount > 0) {
     leftRight("Entrées de caisse", formatEuro(close.cashInTotal));
     leftRight("Sorties de caisse", `-${formatEuro(close.cashOutTotal)}`);
+  }
+
+  // L-88 (R9.1) — the give-aways, on the paper as well as in the seal.
+  //
+  // `closeDay` has sealed both figures into `dataJson` since R7.1, and this
+  // document — the one the operator files with the books — had no line for
+  // either. The sealed record carried them; the paper did not, and nothing said
+  // why. A ticket handed over free is the transaction an inspector asks about
+  // precisely because it left no money behind.
+  //
+  // Under `if (count > 0)`, which is the same « no permanent zero » rule the
+  // refund and cash-movement lines above follow: a give-away is exceptional and
+  // a standing « 0 offert » on every slip is noise on a document read in a
+  // hurry. Not counted as a sale, per DD-20 — listed after the takings, never
+  // among them, and priced at 0,00 € because that is what it was.
+  const gifts = sealedGiveaways(close.dataJson);
+  if (gifts.count > 0) {
+    // Its own band. Printed without one it lands under the « Encaissements »
+    // heading and reads as a fourth tender, which is the opposite of DD-20 —
+    // measured on the rendered slip, not reasoned about.
+    rule();
+    // `formatEuro(0)`, not a literal "0,00 €": every other amount on this
+    // slip comes from it, and it separates the figure from the sign with a
+    // NO-BREAK space (U+00A0). A hand-typed ASCII space here would be the one
+    // amount on the document punctuated differently — measured, not assumed.
+    leftRight(`Offerts (${gifts.count})`, formatEuro(0));
+    for (const g of gifts.products) {
+      lines.push(...layoutLeftRight(`  ${g.name}`, `x${g.quantity}`, w));
+    }
   }
   rule();
 

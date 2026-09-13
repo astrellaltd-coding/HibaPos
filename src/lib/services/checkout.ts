@@ -154,6 +154,11 @@ const ORDER_DTO_INCLUDE = {
   cashier: { select: { name: true, username: true } },
   customer: { select: { name: true } },
   shift: { select: { number: true } },
+  // L-97 (R9.1): the SEALED receipt text, so the till can print the archived
+  // document rather than re-render one from the DTO. `renderReceipt` writes
+  // this row inside the same transaction, a few lines below, and it is what the
+  // ESC/POS path already prints — the browser path was the odd one out.
+  receipt: { select: { content: true } },
 } as const;
 
 /**

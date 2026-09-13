@@ -11,7 +11,7 @@ Completed work lives in **`REMEDIATION_DONE.md`**. This file only ever shows out
 **Overall:** NOT READY FOR PRODUCTION, and **not trading** — the fiscal journal is empty and
 every trading table is at zero.
 
-> ### ▶ CURRENT TASK — **R8.3**, then the rest of Phase 8
+> ### ▶ CURRENT TASK — **R9.3**, and Phase 9 is running
 >
 > **§ 6 opens with the execution order. Follow that, not the order the tables print in.**
 >
@@ -27,8 +27,10 @@ every trading table is at zero.
 > it is the operator's to choose between, not a session's.
 >
 > **PHASE 8 IS COMPLETE** (2026-09-13) — seven batches, R8.0 through R8.6, and every
-> group-A finding the audit raised. **§ 2 says stop at a phase boundary**, so the next phase
-> is not open: the operator says start.
+> group-A finding the audit raised. **PHASE 9 IS OPEN** on the operator's word, and **R9.1 is
+> done** (2026-09-13): the printer now refuses to call a print a print when the helper was
+> never there, the customer's paper IS the sealed `Receipt.content`, and the day's closing
+> slip both prints and carries what was given away. **R6.4's software blocker is cleared.**
 >
 > **Two things are waiting, and neither is a batch.**
 >
@@ -44,8 +46,9 @@ every trading table is at zero.
 > recorded in `REMEDIATION_DONE.md`. `CLAUDE.md`'s rule that this is the operator's action is
 > unchanged; that was a one-off, not a standing waiver.)*
 >
-> **When Phase 9 opens, R9.1 is the one to take first** — L-96 writes `PRINTED` for a helper
-> that never ran, and it is **R6.4's remaining blocker**.
+> **R6.3 and R6.4 are both unblocked now** — R8.1 cleared the settings 403 and R9.1 cleared
+> the printer. They are `OPERATOR` rows and neither has been done; being reachable is not
+> being finished.
 
 **Phases 0-5 and 7 are COMPLETE**, with all four operator items and all three migrations
 applied. What each did, how it was verified and what it cost is in `REMEDIATION_DONE.md`;
@@ -54,9 +57,9 @@ applied. What each did, how it was verified and what it cost is in `REMEDIATION_
 **Three phases are open.** Phase 8 closed on 2026-09-13.
 
 - **Phase 6** — the fiscal go-live, five `OPERATOR` rows. **R8.1 unblocked R6.3** (2026-09-13,
-  `622411c`); **R6.4 still waits on R9.1**, its non-fiscal blocker. Row-by-row status below.
+  `622411c`) and **R9.1 unblocked R6.4** (2026-09-13). Row-by-row status below.
 - **Phase 8** — money and the fiscal record. **COMPLETE 2026-09-13**, all seven batches.
-- **Phase 9** — fix before the app is called complete. Eight batches (group B).
+- **Phase 9** — fix before the app is called complete. **R9.1 done**; seven batches left.
 - **Phase 10** — the leftovers no other batch owns. Three rows (group C).
 
 **Phases 8-10 come from the audit.** Six read-only passes and a seventh that consolidated
@@ -89,10 +92,10 @@ audit exercised produced screen figures matching the database to the cent.
   machine's `SUNSO WTP-800` queue sits on `COM1:`, `Error`, with no `USBPRINT` device: a
   developer artefact. § 4a — a `COM1:` queue « prints nothing and reports success ».
   **L-101 is fixed** (R8.1, 2026-09-13) so the MANAGER can now pick the queue, but **L-96 is
-  the same sentence reached another way and is still open**: the USB helper is resolved from
-  `process.cwd()` and `powershell.exe -File <missing>` exits 0, so a helper that never runs is
-  written to the database as `PRINTED`. **R9.1 owns it.** Choosing the queue is not enough on
-  its own.
+  the same sentence reached another way — **fixed by R9.1 on 2026-09-13**: the helper is
+  resolved from `appRoot()`, a missing one is refused by name, and exit 0 with anything on
+  stderr is a failure. Nothing is written as `PRINTED` that was not printed. **Choosing the
+  queue is now the whole of what is left**, and it is the operator's.
 - **R6.5** — the restaurant's `BACKUP_LOCATION` belongs to its install; **this** machine's is
   set (`docs/BASELINES.md`). See its backup-gap row for what is still outstanding.
 
@@ -145,7 +148,7 @@ order**: the startup migration gate no longer reports a half-applied schema as `
 a deploy that says it failed is a failure, and every startup failure leaves a row rather than
 a stdout line. Twenty-two task rows became twenty-one. Earlier the same day: **R8.1**
 (`622411c`) — the settings defaults agree and the write splits by field, so **R6.3 is
-reachable from the till**, R6.4's remaining blocker being R9.1 — and **R9.6** (`f918578`) —
+reachable from the till** — and **R9.6** (`f918578`) —
 the authorization map distinguishes a guard from a no-op — which recorded **L-183 and L-184**
 in a new *Found after the audit* section of `docs/audit/FINDINGS.md` that keeps the audit's 94
 (L-89 … L-182) a closed set. 2026-09-12: **R8.0** (`f68dcf6`), and the audit was phased into
@@ -332,8 +335,8 @@ them is outstanding except the three items under § 1 « Awaiting the operator �
 
 **ORDER.** Every dependency that reordered this list is discharged — the four steps and why
 each existed are recorded in `REMEDIATION_DONE.md`. What is left is **Phase 9, then Phase 10,
-in the order the tables print**, and **Phase 6** alongside them: R6.3 is reachable, R6.4 still
-waits on R9.1.
+in the order the tables print**, and **Phase 6** alongside them: **R6.3 and R6.4 are both
+reachable** since R8.1 and R9.1.
 
 ### Phase 6 — Before the first real sale
 
@@ -341,8 +344,8 @@ waits on R9.1.
 whatever the app is packaged as. **R6.1, R6.2 and R6.3 are fiscal and their order is not a
 preference** — arming the chain key before the reset makes the reset refuse. **R6.4 (printer)
 and R6.5 (a second volume for backups) are technical, not fiscal**, and can be done at any
-point before the first sale. **R8.1 landed 2026-09-13: R6.3 is reachable, R6.4 still waits on
-R9.1.***
+point before the first sale. **R8.1 and R9.1 both landed 2026-09-13, so R6.3 and R6.4 are
+each reachable — unblocked, not done.***
 
 | ID | Status | Task |
 |---|---|---|
@@ -362,7 +365,6 @@ their own riding along. Order inside the phase is not fixed except where a row s
 
 | ID | Status | Task |
 |---|---|---|
-| **R9.1** | `TODO` | **The printer tells the truth.** L-96 · L-97 · L-98 · L-143 · L-144. L-96 first — it writes `PRINTED` for a helper that never ran. Resolve the helper from a real app root, not `process.cwd()`, and stop treating exit 0 with a start-up failure on stderr as success. **L-98 is a question that gates L-88.** |
 | **R9.3** | `TODO` | **Backup and restore leave no plaintext.** L-104 · L-105 · L-107 · L-108 · L-140 · L-141 · L-142. `backup.ts`, one file. L-104 and L-105 are the same `try`/`finally` shape and land together. L-140's schema check composes with L-110, which **R9.2 fixed on 2026-09-13** — the coupling is discharged. |
 | **R9.4** | `TODO` | **Secrets resolve on an install with no `.env`.** L-106 · L-115 · L-116 · L-117 · L-119 · L-152. **L-115 before R6.2** — R6.2 is the row that arms the chain key, and a short one answers every fiscal write with an empty 500 while reporting itself armed. |
 | **R9.5** | `TODO` | **The front door.** L-102 · L-103 · L-118 · L-147. `auth.ts` · `login/route.ts` · `login-screen.tsx`. L-118 is the one that reaches the France install — the published-PIN denylist is enforced in a script and nowhere in the app. L-102 and L-103 are both « the till will not open ». |
@@ -402,7 +404,6 @@ its own new id; FINDINGS.md's « Already known » section maps them.
 
 | ID | Severity | Finding | Owner |
 |---|---|---|---|
-| **L-88** | Low | The day's paper slip does not print what was given away. `DailyClose` SEALS `givenAwayCount` and `givenAwayProducts` (`fiscal.ts:357`); `day-close-ticket.ts` has no line for either, though it prints refunds and cash movements under `if (count > 0)` — the same « no permanent zero » rule a give-away line would follow. The sealed record carries the figure; the document the operator files does not. Found during R7.1; omission or decision is written down nowhere. | none |
 | **L-84** | Low | `showOnPos` is a display rule, not a guard: `orders/route.ts` checks only `active`/`available`, so a request naming a hidden product directly is still booked. Not a fraud vector (the till is the only client, at the real catalogue price), but « cannot be sold alone » is true of the interface, not the API. Pinned by `hidden-product.test.ts`, so closing it is a decision. | none |
 | **L-81** | Cosmetic | A test product, `5 nuggets test` (Croustillants, 5,00 €), was created in the live catalogue on 2026-09-10 and left `active=0` / `available=0`. Invisible on the till and harmless, but the catalogue is meant to be real work only — and it is now inside the verified backup. Delete it with the operator, or keep it deliberately. | none |
 | **L-75** | Deferred | The app cannot run on a 32-bit Windows: both Prisma engines are `machine 0x8664` and Bun is x64/ARM64 only. **Carried to the Tauri v2 phase**, where the runtime and the packaging are both decided. No software fix at this layer. | none |

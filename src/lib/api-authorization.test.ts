@@ -318,6 +318,12 @@ describe("T-03 — every API route declares an authorization gate", () => {
   "fiscal/close-day:POST": "BOTH",
   "fiscal/close-month:POST": "BOTH",
   "fiscal/close-year:POST": "SUPER_ADMIN",
+  // L-98 (R9.1) — printing the day's slip. BOTH, like every other row on the
+  // fiscal screen: the MANAGER is the account that will be at the till, and a
+  // screen that offers a button the API refuses is L-101, which blocks R6.3
+  // and R6.4. It reads a sealed row and sends it to a printer; it writes no
+  // fiscal event and cannot alter the close.
+  "fiscal/closes/[period]/print:POST": "BOTH",
   "fiscal/closes:GET": "BOTH",
   "fiscal/drawer:POST": "BOTH",
   "fiscal/events:GET": "BOTH",
@@ -643,7 +649,7 @@ describe("T-03 — every API route declares an authorization gate", () => {
     // assertion earning its keep: it is the proof that opening the settings
     // write to the MANAGER did not widen anything else on the way past.
     expect(counts).toEqual({
-      BOTH: 32,
+      BOTH: 33,
       ANY: 26,
       INLINE_SA: 5,
       INLINE_ANY: 7,

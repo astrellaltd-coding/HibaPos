@@ -46,9 +46,16 @@ export async function resolvePrinter(deps: { transport?: PrinterTransport } = {}
     };
   }
   // Batch 1.3d (L-70): which transport, decided by an explicit setting rather
-  // than by which field happens to be filled. `printerConnection` defaults to
-  // "network" everywhere it is absent, so an install that predates this batch
-  // resolves to exactly the transport it resolved to before.
+  // than by which field happens to be filled.
+  //
+  // L-144 (R9.1): this used to say « `printerConnection` defaults to "network"
+  // everywhere it is absent », which was true when Batch 1.3d wrote it and was
+  // **reversed on 2026-09-11**. `DEFAULT_SETTINGS.printerConnection` is `"usb"`,
+  // because the restaurant's Sunso WTP-801 is on a USB cable and the network
+  // default meant every print answered « Renseignez l'adresse IP » — an answer
+  // that was never available. A reader of `resolvePrinter` was being told the
+  // opposite of what production does. The two defaults are pinned against each
+  // other by `settings-defaults-agree.test.ts` since R8.1.
   if (settings.printerConnection === "usb") {
     const queue = (settings.printerQueue ?? "").trim();
     if (!queue) {

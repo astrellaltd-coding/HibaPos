@@ -41,8 +41,7 @@ import {
   Sigma,
   Loader2,
   Inbox,
-  RefreshCw,
-} from "lucide-react";
+  RefreshCw, Printer } from "lucide-react";
 
 type ChainResult = { ok: boolean; checked?: number; eventsChecked?: number; firstBreakAt: number | string | null; total?: number };
 type VerifyResult = {
@@ -89,6 +88,10 @@ type DailyCloseRow = CloseRow & {
   cashMovementsCount: number;
   perpetualSalesTotal: number | null;
   vatBreakdownJson: string | null;
+  // L-88 (R9.1): the sealed payload, which is where a daily close keeps its
+  // give-away figures — `DailyClose` has no column for them. The slip reads
+  // them from here so the paper and the hash cannot disagree.
+  dataJson?: string | null;
 };
 type ArchiveRow = {
   id: string;
@@ -175,6 +178,28 @@ export function FiscalView() {
   const [dayOverride, setDayOverride] = useState<string | null>(null);
   const closeDayInput = dayOverride ?? lastCompletedBusinessDay(now, cutoffHour);
   const [ticketFor, setTicketFor] = useState<DailyCloseRow | null>(null);
+
+  // L-98 (R9.1) — the slip reaches paper.
+  //
+  // It could not, by any route: `printReceiptText` had two callers and both
+  // were order tickets, and Ctrl+P here printed a blank page because
+  // `globals.css` shows only `#receipt-print` in print media. The operator
+  // settled on 2026-09-13 that the slip is filed with the books, so it prints
+  // through the SAME ESC/POS path as a receipt — the server renders it from the
+  // sealed row rather than the browser re-rendering what is on screen, for
+  // L-97's reason.
+  const printTicket = useMutation({
+    mutationFn: (period: string) =>
+      api.post<{ printed: boolean; message?: string }>(
+        `/api/fiscal/closes/${encodeURIComponent(period)}/print`,
+        {},
+      ),
+    onSuccess: (r) => {
+      if (r.printed) toast.success("Ticket de clôture imprimé.");
+      else toast.warning(r.message ?? "Le ticket n'a pas pu être imprimé.");
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Impression impossible."),
+  });
   const [archiveYearInput, setArchiveYearInput] = useState(now.getFullYear() - 1);
   const [drawerReason, setDrawerReason] = useState("");
 
@@ -534,9 +559,24 @@ export function FiscalView() {
                 <p className="text-sm font-medium text-foreground">
                   Ticket de clôture — {ticketFor.period}
                 </p>
-                <Button type="button" variant="outline" size="sm" onClick={() => setTicketFor(null)}>
-                  Fermer
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => printTicket.mutate(ticketFor.period)}
+                    disabled={printTicket.isPending}
+                  >
+                    {printTicket.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Printer className="h-4 w-4" />
+                    )}
+                    Imprimer
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" onClick={() => setTicketFor(null)}>
+                    Fermer
+                  </Button>
+                </div>
               </div>
               <pre className="overflow-x-auto rounded bg-background p-3 font-mono text-[11px] leading-tight text-foreground">
                 {renderDayCloseTicket(

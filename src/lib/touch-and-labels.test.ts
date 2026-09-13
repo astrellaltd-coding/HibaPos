@@ -31,6 +31,13 @@ function tsxFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {
     const full = path.join(dir, entry);
     if (statSync(full).isDirectory()) return tsxFiles(full);
+    // R9.1: `.test.tsx` excluded. Every check in this file is about what a
+    // screen reader meets on a SCREEN, and a component test is not one — its
+    // `id="…"` occurrences are assertions about a screen, counted here as if
+    // they were the screen. `receipt-printable.test.tsx` (L-97) is what found
+    // this; the two component tests that predate it declare no ids, so the
+    // case had simply never arisen. The scope narrows, no check does.
+    if (full.endsWith(".test.tsx")) return [];
     return full.endsWith(".tsx") ? [full] : [];
   });
 }
@@ -176,6 +183,15 @@ describe("L-10 — every control has a name a screen reader can read", () => {
       }
     }
     expect(offenders, offenders.join("\n")).toEqual([]);
+  });
+
+  it("sweeps the real screens, and enough of them", () => {
+    // The guard on the exclusion above: a glob that quietly matched nothing —
+    // or started skipping real files — would make every check in this file
+    // vacuous, which is L-124's shape and the reason this line exists.
+    expect(FILES.length).toBeGreaterThan(50);
+    expect(FILES.filter((f) => f.endsWith(".test.tsx"))).toEqual([]);
+    expect(FILES.some((f) => rel(f) === "src/components/pos/receipt-dialog.tsx")).toBe(true);
   });
 
   it("the ids these associations point at are unique within their file", () => {

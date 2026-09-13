@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterAll } from "vitest";
 import { db } from "@/lib/db";
 import {
   closeDay,
@@ -26,7 +26,16 @@ import type { FiscalEventType } from "@/lib/fiscal";
 
 const CUTOFF = 5;
 
-async function reset(cutoffHour = CUTOFF) {
+/**
+ * Everything these tests create, in an order the foreign keys allow.
+ *
+ * Shared by `reset()` and by the `afterAll` below — R9.1. `reset()` runs
+ * BEFORE each test, so without the second caller the last test's rows outlive
+ * this file, and the next file's reset is written for the tables IT uses.
+ * `fiscal-chain-key.test.ts` deletes shifts without deleting orders; L-88's
+ * give-away order is enough to turn that into a P2003 three files away.
+ */
+async function wipe() {
   await db.fiscalEvent.deleteMany();
   await db.dailyClose.deleteMany();
   await db.monthlyClose.deleteMany();
@@ -45,6 +54,10 @@ async function reset(cutoffHour = CUTOFF) {
   await db.setting.deleteMany();
   await db.user.deleteMany();
   await db.fiscalCounter.deleteMany();
+}
+
+async function reset(cutoffHour = CUTOFF) {
+  await wipe();
   await ensureFiscalCounter();
   await db.setting.create({
     data: { key: "businessDayCutoffHour", value: JSON.stringify(cutoffHour) },
@@ -98,6 +111,34 @@ async function sale(userId: string, shiftId: string, when: Date, total = 2000) {
         ],
       },
       payments: { create: [{ method: "CASH", amount: total, cashierId: userId }] },
+    },
+  });
+}
+
+/**
+ * One order handed over free — L-88 (R9.1).
+ *
+ * `isGiveaway` keys on the TENDER, not the total: `total === 0` plus an OFFERT
+ * payment line. A zero total on its own is a fully refunded order, which DD-20
+ * says is a different thing and must not land in the same figure.
+ */
+async function giveaway(userId: string, shiftId: string, when: Date, productName = "Tacos", quantity = 1) {
+  const number = ++seq;
+  return db.order.create({
+    data: {
+      number,
+      shiftId,
+      cashierId: userId,
+      status: "COMPLETED",
+      subtotal: 0,
+      discountTotal: 0,
+      total: 0,
+      vatTotal: 0,
+      itemCount: quantity,
+      createdAt: when,
+      completedAt: when,
+      items: { create: [{ productName, quantity, lineTotal: 0, vatRate: 10, unitPrice: 0 }] },
+      payments: { create: [{ method: "OFFERT", amount: 0, cashierId: userId }] },
     },
   });
 }
@@ -477,4 +518,186 @@ describe("the closing slip (DD-25's paper half)", () => {
     const text = renderDayCloseTicket({ ...day, perpetualSalesTotal: null });
     expect(text).toContain("non enregistré");
   });
+
+  // ── L-88 (R9.1) — what was given away is on the paper ──────────────────────
+  //
+  // THE FINDING. `closeDay` has sealed `givenAwayCount` and `givenAwayProducts`
+  // into `dataJson` since R7.1, and this document — the one the operator files
+  // with the books — printed neither. A meal handed over free is the
+  // transaction that gets asked about precisely because it left no money
+  // behind, and the slip was silent about it while the seal was not.
+  //
+  // It was held open until the operator settled, on 2026-09-13, that the slip
+  // must PRINT (L-98). A line missing from a document nobody can print is a
+  // different problem from one missing from a document they file.
+  //
+  // These run end to end — a real OFFERT order, a real `closeDay`, the real
+  // renderer — because the mistake worth catching is not a formatting one. My
+  // own first attempt read `close.givenAwayCount` off the row; those are
+  // columns on `ZReport`, and `DailyClose` has none, so it would have printed
+  // nothing for ever and looked exactly like « there were no give-aways ». A
+  // test built from a literal would have passed.
+
+  it("prints the give-aways sealed with the day, named and counted", async () => {
+    const userId = await reset();
+    const shift = await closedShift(userId, 1, new Date(2026, 5, 12, 10, 0));
+    await sale(userId, shift.id, new Date(2026, 5, 12, 12, 0), 2000);
+    await giveaway(userId, shift.id, new Date(2026, 5, 12, 13, 0), "Tacos", 2);
+    const day = await closeDay("2026-06-12", userId, false, new Date(2026, 5, 20));
+
+    const text = renderDayCloseTicket(day, { restaurantName: "HIBA FOOD", receiptWidth: 42 });
+    expect(text).toContain("Offerts (1)");
+    expect(text).toContain("Tacos");
+    expect(text).toContain("x2");
+    // Priced at nothing, because that is what it was.
+    expect(text).toMatch(/Offerts \(1\)\s+0,00\s€/);
+  });
+
+  it("takes the figure from the sealed payload, not from a field beside it", async () => {
+    // The seal is the record. If the paper could be produced from anything
+    // else, the two could disagree and the paper would be the one in the
+    // binder. Same close, `dataJson` withheld: the line must vanish rather than
+    // be reconstructed from somewhere else on the row.
+    const userId = await reset();
+    const shift = await closedShift(userId, 1, new Date(2026, 5, 12, 10, 0));
+    await giveaway(userId, shift.id, new Date(2026, 5, 12, 13, 0), "Tacos", 2);
+    const day = await closeDay("2026-06-12", userId, false, new Date(2026, 5, 20));
+
+    expect(JSON.parse(day.dataJson).givenAwayCount, "the payload is where this lives").toBe(1);
+    expect(renderDayCloseTicket(day)).toContain("Offerts (1)");
+    expect(renderDayCloseTicket({ ...day, dataJson: "" })).not.toContain("Offerts");
+  });
+
+  it("prints no give-away line on a day with none", async () => {
+    // The « no permanent zero » rule the refund and cash-movement lines follow.
+    // A standing « Offerts (0) » on every slip is noise on a document read in a
+    // hurry, and it is the reason this is not simply always printed.
+    const userId = await reset();
+    const shift = await closedShift(userId, 1, new Date(2026, 5, 12, 10, 0));
+    await sale(userId, shift.id, new Date(2026, 5, 12, 12, 0), 2000);
+    const day = await closeDay("2026-06-12", userId, false, new Date(2026, 5, 20));
+    expect(renderDayCloseTicket(day)).not.toContain("Offerts");
+  });
+
+  it("keeps the give-away out of the takings, on the same slip", async () => {
+    // DD-20's other half, and the one that would make this line dangerous if
+    // it were wrong: shown beside the sales, never inside them. Asserted HERE,
+    // on the printed document, because that is where an inspector reads it.
+    const userId = await reset();
+    const shift = await closedShift(userId, 1, new Date(2026, 5, 12, 10, 0));
+    await sale(userId, shift.id, new Date(2026, 5, 12, 12, 0), 2000);
+    await giveaway(userId, shift.id, new Date(2026, 5, 12, 13, 0), "Tacos", 1);
+    const day = await closeDay("2026-06-12", userId, false, new Date(2026, 5, 20));
+
+    expect(day.salesCount).toBe(1);
+    expect(day.salesTotal).toBe(2000);
+    // And on its own band. Printed without one it lands under the
+    // « Encaissements » heading, three indented tenders below it, and reads as
+    // a fourth tender — which is precisely what DD-20 says it is not. Found by
+    // looking at the rendered slip rather than at the code.
+    const rows = renderDayCloseTicket(day, { receiptWidth: 42 }).split("\n");
+    const at = rows.findIndex((l) => l.startsWith("Offerts"));
+    expect(at, "no give-away line to place").toBeGreaterThan(0);
+    expect(rows[at - 1], "the give-aways are inside the takings block").toMatch(/^-+$/);
+    const text = renderDayCloseTicket(day, { receiptWidth: 42 });
+    expect(text).toContain("Offerts (1)");
+    expect(text).toMatch(/Ventes TTC\s+20,00\s€/);
+  });
+
+  it("renders a slip whose payload cannot be parsed, rather than throwing", async () => {
+    // This renders a document that has ALREADY been sealed. A close whose slip
+    // cannot be printed at all is worse than one missing a line — an
+    // unparseable payload is a verification failure, and `verifyDailyCloses()`
+    // is what reports that.
+    const userId = await reset();
+    const day = await closeDay("2026-06-12", userId, false, new Date(2026, 5, 20));
+    for (const bad of ["{not json", "null", "[]", '{"givenAwayCount":"two"}']) {
+      const text = renderDayCloseTicket({ ...day, dataJson: bad });
+      expect(text, `a slip with dataJson ${bad} lost its integrity code`).toContain(
+        "Code d'intégrité",
+      );
+      expect(text).not.toContain("Offerts");
+    }
+  });
+
+  it("prints the count even when the product detail is unusable", async () => {
+    // The count is the fiscally interesting figure. Losing the names must not
+    // lose the fact that something was given away.
+    //
+    // ASSERTING WHAT THE SLIP DOES NOT SAY, not only what it does. Trusting the
+    // sealed rows blindly survived the revert with the two obvious assertions
+    // in place: casting `givenAwayProducts` instead of checking it iterates a
+    // STRING's characters, printing `  undefined   xundefined` once per
+    // character — and « Offerts (1) is there, Tacos is not » is true of that
+    // document too. A fiscal slip with `undefined` on it is not a slip.
+    const userId = await reset();
+    const shift = await closedShift(userId, 1, new Date(2026, 5, 12, 10, 0));
+    await giveaway(userId, shift.id, new Date(2026, 5, 12, 13, 0), "Tacos", 1);
+    const day = await closeDay("2026-06-12", userId, false, new Date(2026, 5, 20));
+
+    const shapes = [
+      "not an array",
+      42,
+      { name: "Tacos", quantity: 1 },
+      [{ name: 7, quantity: 1 }],
+      [{ name: "Tacos" }],
+      [{ quantity: 2 }],
+      [null],
+      [{ name: "Tacos", quantity: 1 }, "rubbish"],
+    ];
+    for (const givenAwayProducts of shapes) {
+      const payload = { ...JSON.parse(day.dataJson), givenAwayProducts };
+      const text = renderDayCloseTicket({ ...day, dataJson: JSON.stringify(payload) });
+      const label = JSON.stringify(givenAwayProducts);
+
+      expect(text, `${label} lost the count`).toContain("Offerts (1)");
+      expect(text, `${label} put "undefined" on a fiscal document`).not.toContain("undefined");
+      expect(text, `${label} put "null" on a fiscal document`).not.toContain("null");
+      expect(text, `${label} lost the integrity code`).toContain("Code d'intégrité");
+      // Every detail line is « two spaces, a name, a quantity » or is not
+      // printed at all. Nothing half-read reaches the paper.
+      const detail = text
+        .split("\n")
+        .filter((l) => l.startsWith("  ") && /x\d+\s*$/.test(l));
+      for (const line of detail) {
+        expect(line.trim(), `${label} produced a malformed detail line`).toMatch(
+          /^\S.*\s+x\d+$/,
+        );
+      }
+    }
+
+    // The one well-formed row in the last shape still prints — a bad neighbour
+    // does not cost a good row its line.
+    const mixed = {
+      ...JSON.parse(day.dataJson),
+      givenAwayProducts: [{ name: "Tacos", quantity: 1 }, "rubbish"],
+    };
+    expect(renderDayCloseTicket({ ...day, dataJson: JSON.stringify(mixed) })).toContain("Tacos");
+  });
+
+  it("puts the give-away lines inside the paper, at every supported width (L-63)", async () => {
+    // L-63's rule applies to every line this file adds, not only the ones that
+    // existed when it was written.
+    const userId = await reset();
+    const shift = await closedShift(userId, 1, new Date(2026, 5, 12, 10, 0));
+    await giveaway(
+      userId,
+      shift.id,
+      new Date(2026, 5, 12, 13, 0),
+      "Assiette mixte grillades maison très généreuse",
+      12,
+    );
+    const day = await closeDay("2026-06-12", userId, false, new Date(2026, 5, 20));
+    for (let w = 32; w <= 48; w++) {
+      const over = renderDayCloseTicket(day, { receiptWidth: w })
+        .split("\n")
+        .filter((l) => l.length > w);
+      expect({ w, over }).toEqual({ w, over: [] });
+    }
+  });
+});
+
+// Leave the database as we found it — see `wipe()`.
+afterAll(async () => {
+  await wipe();
 });
