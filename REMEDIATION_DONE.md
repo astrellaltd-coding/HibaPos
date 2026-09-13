@@ -3305,7 +3305,7 @@ it used to use is now asserted immediately below as its opposite.
 ---
 
 ### R9.4 — a misconfigured secret says so, instead of answering an empty 500
-**Done:** 2026-09-13 · **Commit:** `SHA` · **Findings:** L-106 · L-115 · L-116 · L-117 ·
+**Done:** 2026-09-13 · **Commit:** `86dc3c5` · **Findings:** L-106 · L-115 · L-116 · L-117 ·
 L-119 · L-152
 
 Three of the six are High, and all three share a shape: **something is wrong with a secret
