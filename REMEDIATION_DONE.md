@@ -4133,7 +4133,7 @@ without refusing the sanctioned value.
 ---
 
 ### L-193 — the governing file held back two rows that were ready
-**Done:** 2026-09-14 · **Commit:** `SHA` · **Finding:** L-193 (Medium). **No plan row** — found
+**Done:** 2026-09-14 · **Commit:** `bc20439` · **Finding:** L-193 (Medium). **No plan row** — found
 while answering « what remains and what is next », and fixed the same day on the operator's
 word, `CLAUDE.md` being their file.
 
