@@ -4167,7 +4167,7 @@ files instead of two.
 ---
 
 ### L-183 · L-192 — the guards that refused nobody, and the one field the denylist missed
-**Done:** 2026-09-14 · **Commit:** `SHA` · **Findings:** L-183 (Low-Med) · L-192 (Low). **No
+**Done:** 2026-09-14 · **Commit:** `1033ad6` · **Findings:** L-183 (Low-Med) · L-192 (Low). **No
 plan row** — both were decided by the operator the same day and done as their own item.
 
 ## L-183 — eight inline role guards, none of which refused anybody
