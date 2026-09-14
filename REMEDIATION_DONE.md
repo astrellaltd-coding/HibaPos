@@ -4576,7 +4576,7 @@ yes on garbage. It is now an explicit two-step check, with the reason in place.
 ---
 
 ### L-171 — which item came back, and the answer that did not exist
-**Done:** 2026-09-14 · **Commit:** `SHA` · **Findings:** L-171 (Group D, reopened by the
+**Done:** 2026-09-14 · **Commit:** `8e42dd2` · **Findings:** L-171 (Group D, reopened by the
 operator). **Opened L-195.** **No plan row.** **A MIGRATION IS PREPARED AND IS THE OPERATOR'S TO
 APPLY** — see *Awaiting the operator* in the plan.
 
