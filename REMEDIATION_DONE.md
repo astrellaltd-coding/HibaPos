@@ -4384,7 +4384,7 @@ Group E's three that wait on packaging, and the operator's own rows.
 ---
 
 ### L-172 · L-176 · L-177 — Group D reopened: three cheap ones
-**Done:** 2026-09-14 · **Commit:** `SHA` · **Findings:** L-172 (code half) · L-176 · L-177.
+**Done:** 2026-09-14 · **Commit:** `21659d0` · **Findings:** L-172 (code half) · L-176 · L-177.
 **No plan row.** Group D is the audit's « record and leave » pile; **the operator reopened it on
 2026-09-14** and chose these three, plus L-174 and L-171 which follow separately. L-173 they
 left open deliberately — see below.
