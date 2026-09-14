@@ -85,6 +85,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - L-183 · L-192 — the guards that refused nobody, and the one field the denylist missed
 - L-184 — a route that declared one rule and enforced another
 - L-186 — the print that succeeded, finally executed by a test
+- L-172 · L-176 · L-177 — Group D reopened: three cheap ones
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -4380,6 +4381,119 @@ instead of its product.
 **Left behind.** Nothing from this finding. **§ 6 and `docs/audit/FINDINGS.md` now hold no open
 item that is a session's to decide or to do** — what remains is Group D's nine recorded-and-left,
 Group E's three that wait on packaging, and the operator's own rows.
+---
+
+### L-172 · L-176 · L-177 — Group D reopened: three cheap ones
+**Done:** 2026-09-14 · **Commit:** `SHA` · **Findings:** L-172 (code half) · L-176 · L-177.
+**No plan row.** Group D is the audit's « record and leave » pile; **the operator reopened it on
+2026-09-14** and chose these three, plus L-174 and L-171 which follow separately. L-173 they
+left open deliberately — see below.
+
+## L-172 — the same day, counted twice, differently
+
+`DailyClose` seals BOTH `salesCount` and `perpetualTotalsJson`, and the `totalOrders` inside
+that payload is a **different number**. Measured: four tickets, three sold and one given away →
+`salesCount` 3, `totalOrders` 4.
+
+* **`salesCount` excludes give-aways**, DD-20's choice, so « average spend per meal » stays
+  truthful and « top products » keeps meaning what SOLD. `aggregate.ts` deliberately does not
+  fall through into the sales arithmetic for an OFFERT order.
+* **`totalOrders` counts them.** `incrementGrandTotal` runs unconditionally inside the checkout
+  transaction — one ticket issued, one increment — because the perpetual total is a count of
+  TICKETS, which is what BOFiP § 170 asks a « total perpétuel » to be.
+
+**Both are defensible and nothing wrote the difference down.** An inspector comparing two
+figures inside ONE sealed document gets no answer from the software, and a sealed document
+cannot be annotated afterwards. That is the finding: not an arithmetic error, an undocumented
+disagreement.
+
+**What was done here is the code half.** `sealed-counts.test.ts` makes the difference
+observable and **pins its SIZE rather than the two numbers**: whatever the fixture, the gap
+between `totalOrders` and `salesCount` must equal `givenAwayCount` exactly — so the two can
+neither silently converge nor drift further apart. It also proves both land in the same
+`DailyClose`, and that the **money** figures agree to the cent, which is what makes the
+difference a definition rather than a defect and is worth a separate assertion because « two
+counts disagree » reads like a bug until you check that nothing about the money does.
+
+**The `docs/INVARIANTS.md` paragraph is drafted and HELD.** That file is the operator's.
+
+## L-176 — the prune that only ran at a shift close
+
+`pruneLogs()` had exactly one call site: after a Z close. **A till restarted daily but closed
+rarely therefore accumulates `TechnicalLog` without bound** — and that table is the only durable
+record of a refused startup migration or a degraded backup, so the rows that matter end up
+buried among the ones that do not. Production already carries nine identical WAL-refusal WARNs,
+one per start.
+
+**A boot is the right second trigger precisely because it is the event the failing case HAS**:
+the till that never closes a shift is still restarted. Three properties come with it, and each
+is asserted:
+
+* **It runs LAST in `register()`**, after the migration gate, so it deletes from the schema this
+  process is going to serve.
+* **It cannot fail a boot** — the same contract as the close-time call. A till that will not open
+  is worse than a till with a long log table.
+* **It logs only when it actually deleted something.** A row per boot is exactly what the
+  migration gate's `UP_TO_DATE: null` exists to avoid, and writing one here would be this
+  finding again from the other end: the prune that exists to keep the table readable, making it
+  longer.
+
+`log-retention.test.ts` gained a block about **WHEN** the prune runs. Everything already in that
+file tested what it DOES — which is why the missing trigger was invisible to it.
+
+## L-177 — what a null means on the Z report's two JSON columns
+
+`ZReport.topProductsJson` and `vatBreakdownJson` are nullable while the same two columns on
+`DailyClose`, `MonthlyClose` and `AnnualClose` are NOT NULL. Readers papered over it with
+`?? "{}"` / `?? "[]"`, so a Z with a null breakdown would print an **empty VAT table** rather
+than refuse — the same shape as **L-129**, whose null silently became 10 %.
+
+**The fix is a stated meaning, not a migration.** The schema now says null means « never
+computed », that it is unreachable today, and that a reader finding one must treat the Z as
+INCOMPLETE rather than render an empty table as a measured zero. Making the columns NOT NULL
+stays declined: a migration on a fiscal table for zero rows, which this project has correctly
+refused before.
+
+**A comment saying « not reachable today » is worth exactly as much as the check behind it**, so
+the claim is now checked: both columns written and parseable, including **for a shift that only
+gave things away** — the case most likely to produce an empty breakdown and therefore the one
+that would make a null look reasonable.
+
+## L-173 — left open, and that is the operator's decision
+
+Physically opening the cash drawer still needs no step-up PIN, while a discount, a refund and a
+cash-out all do. **The operator chose to leave it, 2026-09-14**, on the grounds that the open is
+already journalled with who did it and that a drawer opened many times an hour to make change
+would collect a PIN entry so frequent it stops being a control. Recorded as their decision, not
+as an oversight.
+
+## How it was verified
+
+1 827 pass · 0 fail · **148 files** · zero `prisma:error` blocks, typecheck and lint clean.
+`prisma validate` clean; the schema change is **comments only**, so no migration and nothing for
+the operator to apply.
+
+**Eight reverts**, one property at a time, each restored from a copy with its sha256 compared
+after: the Z counting give-aways as sales; the perpetual total skipping the ticket it issued;
+the money figures made to disagree (which WOULD be an arithmetic error, and the test says so);
+the startup prune removed; the prune moved before the migration gate; the prune logging on every
+boot; a Z sealed with a null breakdown; the schema comment removed.
+
+**ONE REVERT WAS A NO-OP AND THAT WAS MY ERROR.** To seal a null breakdown I wrote
+`null as unknown as string ?? JSON.stringify(...)` — and `null ?? x` is `x`, so the mutation
+changed nothing and the test « passed » against an unchanged file. Redone as a plain
+substitution it turns both L-177 assertions red. A revert that produces no failure is a question
+before it is a verdict, and the first question is whether the revert did anything.
+
+**One fixture manoeuvre worth naming.** A day cannot be closed until it has ended
+(`assertPeriodEnded`), and the tickets have to go through the REAL checkout because
+`incrementGrandTotal` runs inside that transaction and is the thing under test. So the rows are
+rung first and **backdated afterwards** into a finished trading day. The perpetual total is
+period-independent by definition, so moving them cannot disturb it; only `salesCount`, computed
+from the period, is affected — and that is the number the test needs to come from the close.
+
+**Left behind.** L-172's `docs/INVARIANTS.md` paragraph, drafted and waiting. L-174 and L-171,
+which the operator also reopened, follow as their own items.
 ---
 
 ## Retired from the plan's § 6 on 2026-09-11

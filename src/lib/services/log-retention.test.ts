@@ -182,6 +182,70 @@ describe("pruneLogs", () => {
   });
 });
 
+describe("L-176 — WHEN the prune runs, which was the whole finding", () => {
+  const read = async (rel: string) => {
+    const { readFileSync } = await import("fs");
+    const path = (await import("path")).default;
+    return readFileSync(path.join(process.cwd(), rel), "utf8");
+  };
+
+  // THE FINDING: everything above tests what `pruneLogs` DOES. Nothing tested
+  // when it is CALLED, and it was called in exactly one place — after a Z close.
+  // **A till restarted daily but closed rarely therefore accumulates
+  // `TechnicalLog` without bound**, and that table is the only durable record
+  // of a refused startup migration or a degraded backup, so the rows that
+  // matter end up buried among the ones that do not. Production already carries
+  // nine identical WAL-refusal WARNs, one per start.
+  //
+  // Asserted as source because a Next startup hook cannot be invoked from the
+  // suite — `register()` is called by the framework, in a runtime this test has
+  // no way to enter. The same bargain `deployment.test.ts` makes for PowerShell
+  // and `small-findings.test.ts` already makes for this very file.
+
+  it("runs after a Z close, as it always did", async () => {
+    const src = await read("src/app/api/shifts/[id]/close/route.ts");
+    expect(src, "the close-time prune is gone").toContain("pruneLogs()");
+  });
+
+  it("ALSO runs at startup — L-176's fix", async () => {
+    // The boot is the right second trigger precisely because it is the event
+    // the failing case HAS: the till that never closes a shift is still
+    // restarted.
+    const src = await read("src/instrumentation.ts");
+    expect(src, "the startup prune is gone — L-176 is back").toContain("pruneLogs");
+    expect(src, "it is not actually called").toMatch(/await pruneLogs\(\)/);
+  });
+
+  it("runs last, after the migration gate, and cannot fail the boot", async () => {
+    // ORDER: it deletes from the schema this process is going to serve, so it
+    // has to come after the gate that may have migrated it. FAILURE: the same
+    // contract as the close-time call — housekeeping, never able to fail the
+    // thing it is attached to. A till that will not open is worse than a till
+    // with a long log table.
+    const src = await read("src/instrumentation.ts");
+    const gate = src.indexOf("runStartupMigrationGate");
+    const prune = src.indexOf("await pruneLogs()");
+    expect(gate, "the migration gate left instrumentation.ts").toBeGreaterThan(-1);
+    expect(prune, "the prune left instrumentation.ts").toBeGreaterThan(-1);
+    expect(prune, "the prune now runs BEFORE the migration gate").toBeGreaterThan(gate);
+
+    // The `catch` that makes it housekeeping, matched as a block containing the
+    // call rather than as the word « catch » somewhere in a 150-line file.
+    const after = src.slice(prune);
+    expect(after.slice(0, 600), "the startup prune is no longer guarded").toContain("} catch");
+  });
+
+  it("logs only when it actually deleted something", async () => {
+    // A row per boot is what the migration gate's `UP_TO_DATE: null` exists to
+    // avoid, and writing one here would be this finding again from the other
+    // end: the prune that exists to keep the table readable, making it longer.
+    const src = await read("src/instrumentation.ts");
+    const prune = src.indexOf("await pruneLogs()");
+    const block = src.slice(prune, prune + 900);
+    expect(block, "the startup prune logs unconditionally").toMatch(/if \(total > 0\)/);
+  });
+});
+
 describe("chain verification paging (M-31)", () => {
   it("gives the same verdict whatever the page size", async () => {
     // The journal is append-only and grows for the life of the business, so

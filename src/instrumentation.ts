@@ -78,8 +78,10 @@ export async function register() {
     // ERROR here instead of another silence.
     const LEVEL: Record<GateStatus, "INFO" | "WARN" | "ERROR" | null> = {
       // The normal case, every boot. Deliberately not logged: a row per start
-      // would bury the ones that matter, and `pruneLogs()` only runs at shift
-      // close (L-176).
+      // would bury the ones that matter. **L-176 is fixed at the bottom of this
+      // file** — the prune now runs at boot as well as at shift close — but the
+      // reasoning here is unchanged: pruning by AGE does not help a row written
+      // every few hours, and not writing it is what keeps the table readable.
       UP_TO_DATE: null,
       APPLIED: "INFO",
       REFUSED_NO_VERIFIED_BACKUP: "ERROR",
@@ -146,5 +148,42 @@ export async function register() {
       `Pragma setup failed: ${e instanceof Error ? e.message : String(e)}`,
       e instanceof Error ? e.stack : undefined,
     );
+  }
+
+  // ── L-176 — THE SECOND TRIGGER FOR THE LOG PRUNE ──────────────────────────
+  //
+  // `pruneLogs()` ran in exactly one place: after a Z close
+  // (`shifts/[id]/close/route.ts`). **A till restarted daily but closed rarely
+  // therefore accumulates `TechnicalLog` without bound** — and that table is
+  // the only durable record of a refused startup migration or a degraded
+  // backup, so the rows that matter end up buried among the ones that do not.
+  // Production already carries nine identical WAL-refusal WARNs, one per start.
+  //
+  // A boot is the right second trigger precisely because it is the event the
+  // failing case HAS: the till that never closes a shift is still restarted.
+  // It runs LAST, after the migration gate, so the schema it deletes from is
+  // the one this process is going to serve.
+  //
+  // Same contract as the close-time call: housekeeping, never able to fail the
+  // thing it is attached to. `pruneLogs` swallows its own errors per table and
+  // the `catch` here covers the import.
+  //
+  // **Logged only when it actually deleted something.** A row per boot is what
+  // the migration gate's `UP_TO_DATE: null` exists to avoid, and it would be
+  // this finding again from the other end.
+  try {
+    const { pruneLogs } = await import("@/lib/services/log-retention");
+    const pruned = await pruneLogs();
+    const total = pruned.technicalLogsDeleted + pruned.auditLogsDeleted + pruned.sessionsDeleted;
+    if (total > 0) {
+      await logTechnical(
+        "INFO",
+        "startup",
+        `Purge des journaux : ${pruned.technicalLogsDeleted} technique(s), ` +
+          `${pruned.auditLogsDeleted} audit, ${pruned.sessionsDeleted} session(s).`,
+      );
+    }
+  } catch (e) {
+    console.error("[startup] log prune failed", e);
   }
 }

@@ -899,7 +899,26 @@ model ZReport {
   // not carry a figure that was never measured. A missing figure reads missing.
   perpetualSalesTotal   Int? // cents — GrandTotal.totalSales at the seal
   perpetualTotalsJson   String? // the whole GrandTotal snapshot, as sealed
-  topProductsJson       String? // JSON snapshot
+  // L-177 — NULLABLE HERE, NOT NULL ON THE THREE CLOSES, AND THAT IS THE
+  // POINT OF THIS COMMENT RATHER THAN A MIGRATION.
+  //
+  // `DailyClose`, `MonthlyClose` and `AnnualClose` all declare
+  // `vatBreakdownJson` and `topProductsJson` as NOT NULL. These two are
+  // nullable and nothing said why, so every reader papers over it with
+  // `?? "{}"` / `?? "[]"` — and a Z report with a null breakdown would print an
+  // EMPTY VAT TABLE rather than refuse. Same shape as L-129: a nullable column
+  // in the fiscal path whose null has no stated meaning.
+  //
+  // **NULL MEANS « NEVER COMPUTED », AND IT IS NOT REACHABLE TODAY.**
+  // `generateZReport` always writes both, so every row this software has
+  // produced has them. Null is reserved for rows that predate the column, of
+  // which there are none in any live database.
+  //
+  // Not made NOT NULL because that is a migration on a fiscal table for zero
+  // rows, which this project has correctly declined before (L-129). A reader
+  // finding null here should treat the Z as INCOMPLETE and say so, never render
+  // an empty VAT table as though it were a measured zero.
+  topProductsJson       String? // JSON snapshot — see L-177 above; null = never computed
   // L-83 (R7.1). DD-20 reports what was GIVEN AWAY beside what was sold, and
   // `ZReportDto` has declared all three of these since Batch 7.4a — while the
   // sealed row had no column for them and `GET /api/reports/z` sent none. The
@@ -925,7 +944,7 @@ model ZReport {
   givenAwayCount        Int?
   givenAwayItemsCount   Int?
   givenAwayProductsJson String? // JSON snapshot of GivenAwayProduct[]
-  vatBreakdownJson      String? // {rate: {base, vat, ttc}}
+  vatBreakdownJson      String? // {rate: {base, vat, ttc}} — L-177: null = never computed, not « no VAT »
   fiscalEventId         String? // link to the FiscalEvent (CLOTURE_Z) journal entry (plain id, no FK)
 
   shift Shift @relation(fields: [shiftId], references: [id], onDelete: Restrict)
