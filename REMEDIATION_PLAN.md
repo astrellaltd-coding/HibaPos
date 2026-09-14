@@ -151,6 +151,14 @@ audit exercised produced screen figures matching the database to the cent.
 ### Awaiting the operator
 
 
+- **R8.2's migration, rehearsed 2026-09-11 and NOT applied** — `Order.idempotencyKey`, one
+  nullable column and a unique index. With the app stopped:
+  `bun scripts/apply-migration.ts --apply --expect ../db-snapshots/r82-acceptance/fp-r82-after.json`.
+  Dry run without `--apply`. **`--expect` takes that PATH, not a migration name**, and since
+  R10.2 a path it cannot read **fails** the run instead of printing « skipped » under a tick.
+  Nothing is blocked by the wait: the column is absent, so the till has no idempotency until
+  it is applied — and **since PREP-4 the application would apply it itself at next start**,
+  behind a backup it verifies. Which of the two routes to take is the operator's choice.
 - **Delete `5 nuggets test` (L-81), prepared and rehearsed.** With the app stopped:
   `bun scripts/delete-product.ts --id cmtvwzr050004n368crvp0mw3 --apply`. Dry run without
   `--apply`. Rehearsed on a copy 2026-09-11: 84 → 83 products, 0 FK errors, `integrity_check`
@@ -269,8 +277,8 @@ fiscal document.)*
   fiscal table before and after: row counts, `FiscalCounter`, `GrandTotal`, every event hash,
   sealed rows, order lines, `integrity_check`, FK errors, column order. Only the intended
   columns and the `_prisma_migrations` row may differ. Then hand over **`bun
-  scripts/apply-migration.ts --apply --expect <migration_name>`** — not a bare `bunx prisma
-  migrate deploy`. *(Phase 2's went out as the bare command and was reported applied twice
+  scripts/apply-migration.ts --apply --expect <path to the fingerprint the rehearsal wrote>`**
+  — **a PATH, never a migration name** (L-166) — not a bare `bunx prisma migrate deploy`. *(Phase 2's went out as the bare command and was reported applied twice
   when it was not, because `migrate deploy` prints the same green banner whichever
   migration it ran. The script names what it applied and verifies it; § 5 says why.)*
 - **Prove the test fails on the old code.** Temporarily revert the fix, re-run, confirm the

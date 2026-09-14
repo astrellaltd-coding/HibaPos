@@ -3932,8 +3932,9 @@ saying what to do.
 ---
 
 ### R10.2 — the index names every script, and a check that cannot run is a failure
-**Done:** 2026-09-14 · **Commits:** `00da78d` (four findings) · `6c5a81a` (the two operator files)
-· **Findings:** L-146 · L-165 · L-166 · L-167 · L-168 · L-169. **Opened L-191.**
+**Done:** 2026-09-14 · **Commits:** `00da78d` (four findings) · `6c5a81a` (the two operator
+files) · `SHA` (L-166's second instance) · **Findings:** L-146 · L-165 · L-166 · L-167 ·
+L-168 · L-169. **Opened L-191.**
 
 **This was the last row in § 6 that was a session's to do.** What remains there is R6.1 … R6.5
 and R10.3, all `OPERATOR`. That is not the same as finished: the audit's group-C and group-D
@@ -3963,6 +3964,22 @@ spelled `--expect <name>`, which reads as the migration name — so the likelies
 exactly the one that produced a green banner and no comparison. The replacement was brought
 verbatim and **approved on 2026-09-14**; it now reads `--expect <path to the rehearsal's
 fingerprint JSON>` with an example, and says what R10.2 changed about a path it cannot read.
+
+**IT WAS IN TWO FILES, AND THE SECOND WAS FOUND AFTER THE FIRST WAS CLOSED.**
+`REMEDIATION_PLAN.md:272` said `--expect <migration_name>` — more plainly wrong, in the file
+`CLAUDE.md` tells a session to read **first**, so the wrong spelling was the first one met and
+the corrected `CLAUDE.md` would have read as the outlier. That file is mine, so it was fixed
+rather than recorded: fixing one of two instances of the batch's own finding is not doing the
+item. The assertion became a **sweep** over both governing documents — a placeholder is fine,
+a placeholder containing « name » is the bug — so a third document repeating it fails too.
+
+**AND THE POINTER TO IT DANGLED.** Two places in the plan say « see *Awaiting the operator*
+below for the exact command » for R8.2's pending migration, and that section carried three
+bullets, none of them the migration — while `../db-snapshots/r82-acceptance/fp-r82-after.json`
+has been sitting there since the 2026-09-11 rehearsal. The bullet is now written, with the real
+path, because a pointer to « the exact command » that lands on no command is the same class of
+defect as the misspelling it points at, and folding it in was cheaper than leaving the operator
+one file short of the one action that is waiting.
 
 **L-167 — three live routes a cleanup would have deleted.** `docs/INVARIANTS.md`'s
 *Deliberately retained* listed `tables-view.tsx` and two unreachable branches, and not
@@ -4005,11 +4022,11 @@ own comment — « the operator already knows them » — is exactly false in th
 `deployment.test.ts:107` pins that fallback deliberately, for L-59's own reasons, so whoever
 fixes L-191 has a test to **update**, not delete. The README warns until then.
 
-**HOW IT WAS VERIFIED.** 1 794 pass · 0 fail · 145 files · zero `prisma:error` blocks,
-typecheck and lint clean. `scripts-docs.test.ts` was proved against **sixteen reverts**, one
-property at a time, each restored from a copy taken immediately before it — the four touching
-`CLAUDE.md`, `docs/INVARIANTS.md` and `table-withdrawal.test.ts` also compare a sha256 before
-and after, because those files are not mine to leave edited.
+**HOW IT WAS VERIFIED.** 1 795 pass · 0 fail · 145 files · zero `prisma:error` blocks,
+typecheck and lint clean. `scripts-docs.test.ts` was proved against **twenty reverts**, one
+property at a time, each restored from a copy taken immediately before it — the eight touching
+`CLAUDE.md`, `REMEDIATION_PLAN.md`, `docs/INVARIANTS.md` and `table-withdrawal.test.ts` also
+compare a sha256 before and after, because those files are not mine to leave edited.
 
 **TWO OF THOSE REVERTS MISSED FIRST TIME, AND BOTH WERE THE TEST'S FAULT.** The FK assertion
 walked straight past the same false sentence re-wrapped across two `//` lines — comment
@@ -4021,7 +4038,9 @@ running the revert rather than by reading the test.
 
 **Left behind.**
 - **L-191**, above. The README warns; the code does not.
-- **The plan has ~1 KB of headroom** against its 40 960-byte ceiling.
+- **THE PLAN IS AT 40 523 BYTES against its 40 960 ceiling — 437 to spare.** The migration
+  bullet took most of what was left. The next batch that writes to § 1 will have to retire
+  something first, and that is a decision rather than a step.
 ---
 
 ## Retired from the plan's § 6 on 2026-09-11

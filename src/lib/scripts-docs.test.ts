@@ -168,19 +168,55 @@ describe("L-166 — a verification that cannot happen is a failure, not a footno
     );
   });
 
-  it("and so does the hand-over command in CLAUDE.md", () => {
-    // The prose half, added on the operator's word 2026-09-14 — that file is
+  it("and no governing document spells the flag as taking a name", () => {
+    // The prose half, added on the operator's word 2026-09-14 — `CLAUDE.md` is
     // theirs. It spelled the command `--expect <name>`, which reads as the
     // MIGRATION name, so the likeliest wrong value was exactly the one that
     // used to end ✅ APPLIED AND VERIFIED without comparing anything.
-    const claude = readFileSync(path.join(REPO, "CLAUDE.md"), "utf8");
-    expect(claude, "CLAUDE.md spells `--expect <name>` again").not.toMatch(
-      /--expect <name>/,
-    );
-    expect(claude).toMatch(/`--expect` takes a PATH/);
-    expect(claude, "the hand-over command left CLAUDE.md").toMatch(
-      /scripts\/apply-migration\.ts --apply --expect/,
-    );
+    //
+    // **IT WAS IN TWO FILES.** `REMEDIATION_PLAN.md` said `<migration_name>`,
+    // even more plainly, in the file `CLAUDE.md` tells you to read FIRST — so
+    // the wrong spelling was the first one a session met and the corrected
+    // `CLAUDE.md` would have looked like the outlier. Hence a sweep, not two
+    // assertions: a third document repeating it has to fail too.
+    const DOCS = ["CLAUDE.md", "REMEDIATION_PLAN.md"];
+    const offences: string[] = [];
+    for (const d of DOCS) {
+      const src = readFileSync(path.join(REPO, d), "utf8");
+      if (!/scripts\/apply-migration\.ts --apply --expect/.test(src)) {
+        offences.push(`${d}: the hand-over command is gone`);
+        continue;
+      }
+      // A placeholder is fine; a placeholder that says « name » is the bug.
+      for (const m of src.matchAll(/--expect <([^>]*)>/g)) {
+        if (/name/i.test(m[1]) && !/path/i.test(m[1])) offences.push(`${d}: --expect <${m[1]}>`);
+      }
+    }
+    expect(
+      offences,
+      `the hand-over command reads as taking a migration name:\n${offences.join("\n")}\n` +
+        "`--expect` takes a PATH to the rehearsal's fingerprint JSON. Since R10.2 a path " +
+        "the script cannot read fails the run, so the wrong value is now loud — but the " +
+        "documents are what produce the wrong value in the first place.",
+    ).toEqual([]);
+    expect(readFileSync(path.join(REPO, "CLAUDE.md"), "utf8")).toMatch(/`--expect` takes a PATH/);
+  });
+
+  it("points the operator at a command that is actually there", () => {
+    // Two places in the plan say « see *Awaiting the operator* below for the
+    // exact command » for R8.2's pending migration, and that section carried
+    // three bullets, none of them the migration. A pointer to the exact command
+    // has to land on the exact command — the more so now that its spelling has
+    // just changed in both governing documents.
+    const plan = readFileSync(path.join(REPO, "REMEDIATION_PLAN.md"), "utf8");
+    const start = plan.indexOf("### Awaiting the operator");
+    expect(start, "the « Awaiting the operator » section is gone or renamed").toBeGreaterThan(-1);
+    const end = plan.indexOf("\n### ", start + 1);
+    const section = plan.slice(start, end > start ? end : undefined);
+    expect(
+      section,
+      "the plan points here « for the exact command » and the command is not here",
+    ).toMatch(/bun scripts\/apply-migration\.ts --apply --expect \S+\.json/);
   });
 });
 
