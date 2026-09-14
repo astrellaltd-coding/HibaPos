@@ -3869,7 +3869,7 @@ comment is not a rule anybody will keep. That is the fourth time this session.
 ---
 
 ### R10.1 — no database in the browser, and the build runs where it is read
-**Done:** 2026-09-14 · **Commit:** `SHA` · **Findings:** L-160 · L-161 · L-162 · L-163 ·
+**Done:** 2026-09-14 · **Commit:** `cd319f8` · **Findings:** L-160 · L-161 · L-162 · L-163 ·
 L-164. **L-178 read and left**, as its row instructs.
 
 **L-160 — half a megabyte of Prisma, in the browser, to draw a dialog.**
