@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { withAuthParams } from "@/lib/api-handler";
 import { db } from "@/lib/db";
 import { getSettings } from "@/lib/services/settings";
-import { printReceiptText } from "@/lib/services/printer";
+import { printReceiptText, type PrinterDeps } from "@/lib/services/printer";
 import { renderDayCloseTicket } from "@/lib/services/day-close-ticket";
 import { audit } from "@/lib/services/audit";
 
@@ -32,59 +32,74 @@ import { audit } from "@/lib/services/audit";
 // The drawer is deliberately NOT opened: a close is not a tender, and
 // `orders/[id]/reprint` already establishes that a document reprint must not
 // become an untraced way to open the till.
-export const POST = withAuthParams(
+/**
+ * L-186 — the handler is built rather than declared, so the printer can be
+ * injected. `POST` below is the production one, built with no deps.
+ *
+ * No test could drive a SUCCESSFUL print through any of the three print routes:
+ * each called `printReceiptText` with no `deps`, so `resolvePrinter` built its
+ * own transport from settings and a test could reach `DISABLED` and
+ * `NOT_CONFIGURED` and nothing else. The branch that writes
+ * `printStatus: "PRINTED"` — **the branch L-96 was about** — was asserted only
+ * as source text, in this route's own test file, which said so out loud.
+ */
+export function createDayClosePrintHandler(deps: PrinterDeps = {}) {
+  return withAuthParams(
   async (_req, { user, params }) => {
-    const close = await db.dailyClose.findUnique({ where: { period: params.period } });
-    if (!close) {
-      return NextResponse.json({ error: "Clôture introuvable." }, { status: 404 });
-    }
+      const close = await db.dailyClose.findUnique({ where: { period: params.period } });
+      if (!close) {
+        return NextResponse.json({ error: "Clôture introuvable." }, { status: 404 });
+      }
 
-    const settings = await getSettings();
-    const content = renderDayCloseTicket(close, {
-      restaurantName: settings.restaurantName,
-      receiptWidth: settings.receiptWidth,
-      factice: settings.factice,
-    });
+      const settings = await getSettings();
+      const content = renderDayCloseTicket(close, {
+        restaurantName: settings.restaurantName,
+        receiptWidth: settings.receiptWidth,
+        factice: settings.factice,
+      });
 
-    const outcome = await printReceiptText(content);
+      const outcome = await printReceiptText(content, {}, deps);
 
-    // Journalled either way, and in three states rather than two — the same
-    // distinction L-143 settled for `Receipt.printStatus` in this batch, made
-    // here for the same reason:
-    //
-    //   PRINTED  the slip reached the printer
-    //   FAILED   it was ATTEMPTED and did not
-    //   SKIPPED  it was never attempted — printing is off, or no printer is
-    //            configured. Nothing is wrong, and an audit trail that calls
-    //            that a failure teaches its reader to ignore the failures.
-    //
-    // A slip the operator believes they printed and did not is the shape L-96
-    // is about, and this log is where « did it actually go » is answered
-    // afterwards, so the three must stay distinguishable.
-    const action = outcome.ok
-      ? "DAY_CLOSE_TICKET_PRINTED"
-      : outcome.reason === "FAILED"
-        ? "DAY_CLOSE_TICKET_PRINT_FAILED"
-        : "DAY_CLOSE_TICKET_PRINT_SKIPPED";
-    await audit(
-      action,
-      "DailyClose",
-      close.id,
-      { period: close.period, ...(outcome.ok ? {} : { reason: outcome.reason }) },
-      user.id,
-    );
-
-    if (!outcome.ok) {
-      return NextResponse.json(
-        { printed: false, reason: outcome.reason, message: outcome.message },
-        // 200, not an error status: the caller asked whether it printed and is
-        // being told. `orders/[id]/print` answers the same shape for the same
-        // reason — a printer that is off is not a bad request.
-        { status: 200 },
+      // Journalled either way, and in three states rather than two — the same
+      // distinction L-143 settled for `Receipt.printStatus` in this batch, made
+      // here for the same reason:
+      //
+      //   PRINTED  the slip reached the printer
+      //   FAILED   it was ATTEMPTED and did not
+      //   SKIPPED  it was never attempted — printing is off, or no printer is
+      //            configured. Nothing is wrong, and an audit trail that calls
+      //            that a failure teaches its reader to ignore the failures.
+      //
+      // A slip the operator believes they printed and did not is the shape L-96
+      // is about, and this log is where « did it actually go » is answered
+      // afterwards, so the three must stay distinguishable.
+      const action = outcome.ok
+        ? "DAY_CLOSE_TICKET_PRINTED"
+        : outcome.reason === "FAILED"
+          ? "DAY_CLOSE_TICKET_PRINT_FAILED"
+          : "DAY_CLOSE_TICKET_PRINT_SKIPPED";
+      await audit(
+        action,
+        "DailyClose",
+        close.id,
+        { period: close.period, ...(outcome.ok ? {} : { reason: outcome.reason }) },
+        user.id,
       );
-    }
 
-    return NextResponse.json({ printed: true });
-  },
-  { roles: ["SUPER_ADMIN", "MANAGER"] },
-);
+      if (!outcome.ok) {
+        return NextResponse.json(
+          { printed: false, reason: outcome.reason, message: outcome.message },
+          // 200, not an error status: the caller asked whether it printed and is
+          // being told. `orders/[id]/print` answers the same shape for the same
+          // reason — a printer that is off is not a bad request.
+          { status: 200 },
+        );
+      }
+
+      return NextResponse.json({ printed: true });
+    },
+    { roles: ["SUPER_ADMIN", "MANAGER"] },
+  );
+}
+
+export const POST = createDayClosePrintHandler();

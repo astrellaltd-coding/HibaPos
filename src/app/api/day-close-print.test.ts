@@ -23,16 +23,23 @@ import { renderDayCloseTicket } from "@/lib/services/day-close-ticket";
 // L-88 — the give-away figures the close seals and the slip did not carry —
 // which is fixed in `day-close-ticket.ts` in the same batch.
 //
-// WHAT THIS FILE PROVES, and what it deliberately does not. It drives the real
-// handler through `route-harness.ts` with a real session, against a real sealed
-// close. It does NOT prove that ink reaches paper: `printReceiptText` resolves
-// its own transport from settings, so with printing switched off the honest
-// answer is « not attempted », and that is the case asserted. The success path
-// is covered where it can be covered honestly — `printer.test.ts` for the
-// transport, `daily-close.test.ts` for the document — and what is asserted here
-// is the part that was missing: that a route exists, that it renders THE SEALED
-// ROW rather than anything a client sends, that it says truthfully what
-// happened, and that it never opens the drawer.
+// WHAT THIS FILE PROVES. It drives the real handler through `route-harness.ts`
+// with a real session, against a real sealed close: that the route exists, that
+// it renders THE SEALED ROW rather than anything a client sends, that it says
+// truthfully what happened, and that it never opens the drawer.
+//
+// ── WHAT IT USED TO SAY IT COULD NOT DO — L-186, and it can now ─────────────
+// This paragraph read « It does NOT prove that ink reaches paper:
+// `printReceiptText` resolves its own transport from settings, so with printing
+// switched off the honest answer is « not attempted », and that is the case
+// asserted. » That was true and it was the FINDING: no test could drive a
+// SUCCESSFUL print through any of the three print routes, so the branch writing
+// `DAY_CLOSE_TICKET_PRINTED` was asserted as source text and never executed.
+//
+// The routes now take an injectable printer, and **`print-success.test.ts`
+// drives all three to a successful print, a failed one, and the drawer rules
+// in the bytes.** What stays here is the not-attempted case, which is still the
+// one production hits: printing is off in this database, which is the default.
 
 const PIN = "424242";
 let manager: { id: string; username: string; role: "MANAGER" };
@@ -222,13 +229,27 @@ describe("L-98 — what it prints is the sealed row", () => {
     // A close is not a tender. `orders/[id]/reprint` already establishes that a
     // document reprint must not become an untraced way to open the till, and a
     // slip printed at the end of the day is exactly when that would be worth
-    // abusing. Read as source because the drawer is decided by an argument this
-    // route does not pass, and an absent argument cannot be observed at runtime.
+    // abusing.
+    //
+    // NARROWED 2026-09-14 (L-186). This matched `printReceiptText(content)` as
+    // source text, saying « the drawer is decided by an argument this route
+    // does not pass, and an absent argument cannot be observed at runtime ».
+    // **It can be observed now**: `print-success.test.ts` drives this route
+    // with a capturing transport and asserts no `ESC p` in the job — the rule
+    // proved in the bytes rather than in the spelling of a call.
+    //
+    // What stays here is the SOURCE half, and it is not redundant: the runtime
+    // test proves the drawer did not open on the paths it drives, and this
+    // proves the route has no way to open it at all. A route that grew an
+    // `openDrawer` branch behind a condition no test happens to take would pass
+    // the first and fail this.
     const src = readFileSync(
       path.join(process.cwd(), "src/app/api/fiscal/closes/[period]/print/route.ts"),
       "utf8",
     );
-    expect(src).toContain("printReceiptText(content)");
+    expect(src, "the print call changed shape — check it still passes no options").toContain(
+      "printReceiptText(content, {}, deps)",
+    );
     expect(src, "the drawer must not be reachable from a close").not.toContain("openDrawer");
   });
 });

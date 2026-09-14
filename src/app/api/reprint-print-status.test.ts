@@ -196,9 +196,17 @@ describe("L-143 — the two routes agree", () => {
 
   it("both write FAILED only for an attempted print", async () => {
     // The finding was a DISAGREEMENT between two files, so the property is
-    // about both of them. Source-read because the FAILED branch needs a printer
-    // that answers and then breaks, which this suite cannot produce honestly —
-    // the branch above is the one that regressed, and it is driven for real.
+    // about both of them, and this reads both as source.
+    //
+    // AMENDED 2026-09-14 (L-186). It used to say the FAILED branch « needs a
+    // printer that answers and then breaks, which this suite cannot produce
+    // honestly ». It can now: the routes take an injectable printer, and
+    // `print-success.test.ts` drives that exact branch with a transport whose
+    // send rejects. **This assertion is kept anyway and is not redundant** —
+    // the runtime test proves the branch behaves on the paths it drives, and
+    // this proves the two files still express the rule the SAME way. The
+    // finding was that they did not, and that is a property of the pair, which
+    // no single run can observe.
     for (const rel of [
       "src/app/api/orders/[id]/print/route.ts",
       "src/app/api/orders/[id]/reprint/route.ts",

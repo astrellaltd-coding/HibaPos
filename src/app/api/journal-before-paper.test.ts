@@ -230,11 +230,24 @@ describe("L-125 — POST /api/orders/[id]/reprint, driven", () => {
   it("never opens the drawer — a reprint is not a tender", async () => {
     // Stated in the route's own comment: a reprint that opened the till would
     // be a way around the traced manual-open path, which is the route above.
+    //
+    // NARROWED 2026-09-14 (L-186). This matched `printReceiptText(copieContent)`
+    // as source text because the drawer was decided by an argument the route did
+    // not pass, and an absent argument could not be observed at runtime. **It
+    // can be now**: `print-success.test.ts` drives this route with a capturing
+    // transport and asserts no `ESC p` in the bytes it sends.
+    //
+    // The SOURCE half stays, and is not redundant: the runtime test proves the
+    // drawer did not open on the paths it drives, this proves the route has no
+    // way to open it at all. A route that grew an `openDrawer` branch behind a
+    // condition no test happens to take would pass the first and fail this.
     const src = readFileSync(
       path.join(process.cwd(), "src/app/api/orders/[id]/reprint/route.ts"),
       "utf8",
     );
-    expect(src).toContain("printReceiptText(copieContent)");
+    expect(src, "the print call changed shape — check it still passes no options").toContain(
+      "printReceiptText(copieContent, {}, deps)",
+    );
     expect(src, "a reprint can open the till").not.toContain("openDrawer");
   });
 });

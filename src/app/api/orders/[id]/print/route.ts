@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { withAuthParams } from "@/lib/api-handler";
 import { getSettings } from "@/lib/services/settings";
-import { printReceiptText } from "@/lib/services/printer";
+import { printReceiptText, type PrinterDeps } from "@/lib/services/printer";
 
 /**
  * POST /api/orders/[id]/print — print the ticket for a completed sale.
@@ -16,65 +16,86 @@ import { printReceiptText } from "@/lib/services/printer";
  * sale: a printer problem comes back as `printed: false` with a message for
  * the cashier, who can retry from the order's reprint button.
  */
-export const POST = withAuthParams(async (_req, { params }) => {
-  const orderId = params.id;
+/**
+ * L-186 — the handler is built rather than declared, so the printer can be
+ * injected. `POST` below is the production one, built with no deps, and is
+ * what Next imports; nothing else changes.
+ *
+ * THE FINDING: no test could drive a SUCCESSFUL print through any of the three
+ * print routes. Each called `printReceiptText` with no `deps`, so
+ * `resolvePrinter` built its own transport from settings — a test could reach
+ * `DISABLED` and `NOT_CONFIGURED` and nothing else, because the alternative was
+ * a real socket or a real spooler. The branch just below that writes
+ * `printStatus: "PRINTED", printedAt: now` — **the branch L-96 was about** —
+ * was asserted only as source text, in two test files that said so out loud.
+ *
+ * `printer.ts` and `printer-spooler.test.ts` already covered the layer BELOW
+ * this with an injected transport. What had no cover was the route's own
+ * bookkeeping around it, which is the part that writes to the database.
+ */
+export function createPrintHandler(deps: PrinterDeps = {}) {
+  return withAuthParams(async (_req, { params }) => {
+    const orderId = params.id;
 
-  const order = await db.order.findUnique({
-    where: { id: orderId },
-    include: { receipt: true, payments: { select: { method: true } } },
+    const order = await db.order.findUnique({
+      where: { id: orderId },
+      include: { receipt: true, payments: { select: { method: true } } },
+    });
+
+    if (!order) {
+      return NextResponse.json({ error: "Commande introuvable." }, { status: 404 });
+    }
+    if (!order.receipt) {
+      return NextResponse.json({ error: "Aucun reçu trouvé pour cette commande." }, { status: 404 });
+    }
+
+    // Whether the drawer opens is decided here, from the order's own payments —
+    // never from the request body. A client that could ask for a drawer kick on
+    // demand would be a till-control hole.
+    const settings = await getSettings();
+    const paidWithCash = order.payments.some((p) => p.method === "CASH");
+    const openDrawer = paidWithCash && settings.openDrawerOnCash !== false;
+
+    const outcome = await printReceiptText(order.receipt.content, { openDrawer }, deps);
+
+    // Record what actually happened — L-143 (R9.1) settled which of the two
+    // routes was right, because they disagreed.
+    //
+    // Three states have to carry four outcomes, so they are read as:
+    //
+    //   PRINTED  the job reached the printer
+    //   FAILED   it was ATTEMPTED and did not
+    //   PENDING  it was never attempted — printing is off, or no printer is
+    //            configured. Nothing is wrong with the ticket.
+    //
+    // This route already made that distinction; `reprint` wrote FAILED for any
+    // non-ok outcome, so a reprint with printing disabled marked the receipt
+    // failed. It now matches this one. **The comment that used to sit here
+    // claimed unprinted tickets « stay visible as FAILED so a shift's unprinted
+    // tickets can be found later » — they do not, and could not: nothing reads
+    // this column.** Zero readers in `.tsx`, three writers. Whether to surface it
+    // or drop it is recorded as L-143's remaining half and is not this batch's.
+    if (outcome.ok) {
+      await db.receipt.update({
+        where: { id: order.receipt.id },
+        data: { printStatus: "PRINTED", printedAt: new Date() },
+      });
+    } else if (outcome.reason === "FAILED") {
+      await db.receipt.update({
+        where: { id: order.receipt.id },
+        data: { printStatus: "FAILED" },
+      });
+    }
+
+    return NextResponse.json(
+      {
+        printed: outcome.ok,
+        drawerOpened: outcome.ok && openDrawer,
+        ...(outcome.ok ? {} : { reason: outcome.reason, message: outcome.message }),
+      },
+      { status: 200 },
+    );
   });
+}
 
-  if (!order) {
-    return NextResponse.json({ error: "Commande introuvable." }, { status: 404 });
-  }
-  if (!order.receipt) {
-    return NextResponse.json({ error: "Aucun reçu trouvé pour cette commande." }, { status: 404 });
-  }
-
-  // Whether the drawer opens is decided here, from the order's own payments —
-  // never from the request body. A client that could ask for a drawer kick on
-  // demand would be a till-control hole.
-  const settings = await getSettings();
-  const paidWithCash = order.payments.some((p) => p.method === "CASH");
-  const openDrawer = paidWithCash && settings.openDrawerOnCash !== false;
-
-  const outcome = await printReceiptText(order.receipt.content, { openDrawer });
-
-  // Record what actually happened — L-143 (R9.1) settled which of the two
-  // routes was right, because they disagreed.
-  //
-  // Three states have to carry four outcomes, so they are read as:
-  //
-  //   PRINTED  the job reached the printer
-  //   FAILED   it was ATTEMPTED and did not
-  //   PENDING  it was never attempted — printing is off, or no printer is
-  //            configured. Nothing is wrong with the ticket.
-  //
-  // This route already made that distinction; `reprint` wrote FAILED for any
-  // non-ok outcome, so a reprint with printing disabled marked the receipt
-  // failed. It now matches this one. **The comment that used to sit here
-  // claimed unprinted tickets « stay visible as FAILED so a shift's unprinted
-  // tickets can be found later » — they do not, and could not: nothing reads
-  // this column.** Zero readers in `.tsx`, three writers. Whether to surface it
-  // or drop it is recorded as L-143's remaining half and is not this batch's.
-  if (outcome.ok) {
-    await db.receipt.update({
-      where: { id: order.receipt.id },
-      data: { printStatus: "PRINTED", printedAt: new Date() },
-    });
-  } else if (outcome.reason === "FAILED") {
-    await db.receipt.update({
-      where: { id: order.receipt.id },
-      data: { printStatus: "FAILED" },
-    });
-  }
-
-  return NextResponse.json(
-    {
-      printed: outcome.ok,
-      drawerOpened: outcome.ok && openDrawer,
-      ...(outcome.ok ? {} : { reason: outcome.reason, message: outcome.message }),
-    },
-    { status: 200 },
-  );
-});
+export const POST = createPrintHandler();

@@ -84,6 +84,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - L-193 — the governing file held back two rows that were ready
 - L-183 · L-192 — the guards that refused nobody, and the one field the denylist missed
 - L-184 — a route that declared one rule and enforced another
+- L-186 — the print that succeeded, finally executed by a test
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -4302,6 +4303,83 @@ disagreement fails **both** the per-key map check and the contradiction check; w
 gate back to the MANAGER with no guard behind it fails the map check alone.
 
 **Left behind.** Nothing. **This was the last open finding that was mine to decide.**
+---
+
+### L-186 — the print that succeeded, finally executed by a test
+**Done:** 2026-09-14 · **Commit:** `SHA` · **Finding:** L-186 (Low). **No plan row** — the last
+open finding that was a session's to do.
+
+**« No test can drive a SUCCESSFUL print through any of the three print routes. »** Each called
+`printReceiptText` with no `deps`, so `resolvePrinter` built its own transport from settings —
+a test could reach `DISABLED` and `NOT_CONFIGURED` and nothing else, because the only
+alternative was a real socket or a real Windows spooler. So the branch writing
+`printStatus: "PRINTED", printedAt: now` — **the branch L-96 was about** — was asserted as
+source text and never executed. Not a regression: true since Batch 1.3, and the reason L-96
+could sit undetected.
+
+**THE FIX IS THE ONE THE FINDING PRESCRIBED.** Each route exports a factory taking
+`PrinterDeps`, and `POST` is that factory called with none — **one code path**, which the tests
+drive. `resolvePrinter` already returned an injected transport BEFORE reading settings, so a
+test supplies a transport and nothing else; it does not have to arrange a printer
+configuration, which would have made these tests depend on `DEFAULT_SETTINGS` staying as it is.
+`printer.ts` gained `PrinterDeps` as a name for a shape it had written out four times and
+nothing outside it could refer to — which is why the routes could not accept one.
+
+**`mock.module` was not considered in the abstract**: this repository already records it being
+tried and rejected. `checkout-rollback.test.ts` says in its own header that it is global to the
+whole run and that the live namespace is mutated, and `backup.ts:391` records
+`mock.module("tar", …)` abandoned on measurement. Mocking `@/lib/services/printer` would reach
+every other file in the run. An argument does not.
+
+**WHAT THE NEW FILE PROVES** (`print-success.test.ts`, 11 tests): PRINTED with `printedAt`
+actually stamped and the receipt text on the wire; FAILED on a rejecting send, with `printedAt`
+still null; the **not-attempted** case left alone, driven with NO deps because an injected
+transport bypasses settings by design; the drawer kicked for a cash sale and not for a card
+one, in the response AND in the bytes; the reprint printing the COPIE marking and **never**
+kicking the drawer though the sale was cash; the REIMPRESSION journalled even when the print
+fails; `DAY_CLOSE_TICKET_PRINTED` audited on success with the sealed slip — heading, French
+date and integrity code — on the wire, `DAY_CLOSE_TICKET_PRINT_FAILED` on a rejection, and the
+closing slip never kicking the drawer either.
+
+**THE DRAWER RULES ARE NOW PROVED IN THE BYTES.** Three files asserted them as source text,
+each saying some version of « the drawer is decided by an argument this route does not pass,
+and an absent argument cannot be observed at runtime ». It can be observed now: the job must
+contain no `ESC p`, which is the only ESC/POS command beginning those two bytes — `init()` is
+ESC @, the code page ESC t, the cut GS V. **All three source assertions are kept and narrowed
+rather than deleted**, and each says why in place: the runtime test proves the drawer stayed
+shut on the paths it drives, the source one proves the route has no way to open it at all. A
+route that grew an `openDrawer` branch behind a condition no test happens to take would pass
+the first and fail the second.
+
+**Two stale claims were retired with it.** `day-close-print.test.ts`'s header said the success
+path could not be covered honestly, and `reprint-print-status.test.ts` said the FAILED branch
+« needs a printer that answers and then breaks, which this suite cannot produce honestly ».
+Both were true when written and both are now false; each says so and points at the file that
+does it.
+
+**HOW IT WAS VERIFIED.** 1 817 pass · 0 fail · **147 files** · zero `prisma:error` blocks,
+typecheck and lint clean. **Eight reverts**, one property at a time, each restored from a copy
+with its sha256 compared after: the PRINTED branch dropping `printedAt`; FAILED widened to any
+non-ok outcome (L-143's original shape); the drawer opening whatever the sale was paid with; a
+reprint opening the till; the closing slip opening the till; a successful slip journalled as
+something else; a failed print un-journalling the reprint; `POST` exported as the factory
+instead of its product.
+
+**TWO OF THE EIGHT MISSED FIRST TIME AND BOTH MADE THE TESTS BETTER.**
+- **Widening `else if (outcome.reason === "FAILED")` to a bare `else` changed nothing** under
+  every assertion I had written, because they all inject a transport that REJECTS — and a
+  rejection *is* `FAILED`, so both spellings agree. The bug only shows on a NOT-ATTEMPTED
+  outcome, which needs the real resolver and printing switched off. That test did not exist
+  for this route — `reprint-print-status.test.ts` covers it for the reprint only — and now
+  does. The revert that looked like a miss was pointing at a real gap.
+- **`export const POST = createPrintHandler` (no call) passed** `typeof POST === "function"`,
+  because a factory is a function too. What distinguishes them is the gate `withAuth` stamps on
+  what it returns, so the assertion is now `roleGateOf(POST)` non-null and `roleGateOf(factory)`
+  null — which also catches the opposite error of wrapping twice.
+
+**Left behind.** Nothing from this finding. **§ 6 and `docs/audit/FINDINGS.md` now hold no open
+item that is a session's to decide or to do** — what remains is Group D's nine recorded-and-left,
+Group E's three that wait on packaging, and the operator's own rows.
 ---
 
 ## Retired from the plan's § 6 on 2026-09-11

@@ -29,7 +29,25 @@ export type PrintOutcome =
  * printer yet) and must stay silent, the second is a mistake worth telling
  * the operator about.
  */
-export async function resolvePrinter(deps: { transport?: PrinterTransport } = {}): Promise<
+/**
+ * What a caller may supply in place of the configured printer — L-186.
+ *
+ * The shape was written out four times in this file and nowhere else could name
+ * it, so the three print ROUTES could not accept one and forward it: they
+ * called `printReceiptText` with no `deps` at all, `resolvePrinter` built its
+ * own transport from settings, and a test could reach `DISABLED` and
+ * `NOT_CONFIGURED` and nothing else — because the only alternative was a real
+ * socket or a real Windows spooler. **So the branch that writes
+ * `printStatus: "PRINTED"` — the one L-96 was about — was asserted as source
+ * text and never executed.**
+ *
+ * `resolvePrinter` returns an injected transport BEFORE it reads settings, so
+ * supplying one is all a test needs; it does not have to arrange a printer
+ * configuration as well.
+ */
+export type PrinterDeps = { transport?: PrinterTransport };
+
+export async function resolvePrinter(deps: PrinterDeps = {}): Promise<
   { ok: true; transport: PrinterTransport } | { ok: false; outcome: PrintOutcome }
 > {
   if (deps.transport) return { ok: true, transport: deps.transport };
@@ -124,7 +142,7 @@ async function deliver(transport: PrinterTransport, job: Buffer): Promise<PrintO
 export async function printReceiptText(
   text: string,
   opts: { openDrawer?: boolean } = {},
-  deps: { transport?: PrinterTransport } = {},
+  deps: PrinterDeps = {},
 ): Promise<PrintOutcome> {
   const resolved = await resolvePrinter(deps);
   if (!resolved.ok) return resolved.outcome;
@@ -140,7 +158,7 @@ export async function printReceiptText(
  * best-effort.
  */
 export async function openCashDrawer(
-  deps: { transport?: PrinterTransport } = {},
+  deps: PrinterDeps = {},
 ): Promise<PrintOutcome> {
   const resolved = await resolvePrinter(deps);
   if (!resolved.ok) return resolved.outcome;
@@ -157,7 +175,7 @@ export async function openCashDrawer(
  */
 export async function printTestPage(
   opts: { openDrawer?: boolean } = {},
-  deps: { transport?: PrinterTransport } = {},
+  deps: PrinterDeps = {},
 ): Promise<PrintOutcome & { columns?: number }> {
   const settings = await getSettings();
   const columns = normalizeReceiptColumns(settings.receiptWidth);
