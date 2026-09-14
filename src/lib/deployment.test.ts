@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import path from "path";
 import manifest from "@/app/manifest";
+import { PUBLISHED_DEFAULT_PINS, SANCTIONED_ADMIN_SEED_PIN } from "@/lib/auth";
 
 // C-07 / L-59 (Batch 1.4) — the deployment contract, asserted.
 //
@@ -113,8 +114,22 @@ describe("no launcher may bootstrap a database (L-59)", () => {
     //
     // `seed-pin-parity.test.ts` owns the manager half and will fail if the
     // fallback comes back. Do not re-add it here to make this read tidier.
+    //
+    // RE-EXPRESSED 2026-09-14 (L-192), and STRONGER for it. This matched the
+    // literal `process.env.SEED_ADMIN_PIN ?? "123456"`, which L-192 replaced
+    // with a named constant shared by both seed paths. Matching a spelling was
+    // always the weaker form: what L-59 needs is that the fallback IS a value
+    // this repository publishes, and that is now asserted about the values
+    // themselves rather than about the source text.
     const seed = readFileSync(path.join(process.cwd(), "prisma", "seed.ts"), "utf8");
-    expect(seed).toContain('process.env.SEED_ADMIN_PIN ?? "123456"');
+    expect(seed, "the CLI seed no longer falls back at all").toContain(
+      "process.env.SEED_ADMIN_PIN?.trim() || SANCTIONED_ADMIN_SEED_PIN",
+    );
+    expect(
+      PUBLISHED_DEFAULT_PINS,
+      "the admin's seeded PIN is no longer a published one — L-59's refusals can be " +
+        "reconsidered on evidence, which is what this assertion exists to provide",
+    ).toContain(SANCTIONED_ADMIN_SEED_PIN);
     expect(seed, "the manager fallback is back — see L-191").not.toContain(
       'process.env.SEED_MANAGER_PIN ?? "111111"',
     );

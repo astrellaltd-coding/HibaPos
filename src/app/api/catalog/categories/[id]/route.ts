@@ -70,9 +70,15 @@ export const GET = withAuthParams(async (_req, { params }) => {
 });
 
 export const PUT = withAuthParams(async (req, { user, params }) => {
-  if (user.role !== "SUPER_ADMIN" && user.role !== "MANAGER") {
-    return NextResponse.json({ error: "Réservé au manager ou super administrateur" }, { status: 403 });
-  }
+  // L-183 (2026-09-14) — the role rule moved INTO the wrapper: the
+  // `{ roles: [...] }` closing this handler. It used to sit here as
+  // `if (user.role !== "SUPER_ADMIN" && user.role !== "MANAGER") return 403`,
+  // which DD-07 made unsatisfiable when it removed CASHIER: two roles exist and
+  // the condition names both, so it refused nobody and this handler was open to
+  // any authenticated caller. Declaring it instead changes nothing today and
+  // three things tomorrow — a third role is refused rather than admitted, the
+  // refusal is JOURNALLED (L-151) where the inline one was silent, and
+  // `api-authorization.test.ts` can read the rule without running the handler.
   const body = (await parseJson(req)) as Record<string, unknown>;
 
   // Validate basic category fields if present
@@ -221,12 +227,18 @@ export const PUT = withAuthParams(async (req, { user, params }) => {
     optionGroups: cat!.optionGroups,
     addOns: cat!.addOns,
   });
-});
+}, { roles: ["SUPER_ADMIN", "MANAGER"] });
 
 export const DELETE = withAuthParams(async (_req, { user, params }) => {
-  if (user.role !== "SUPER_ADMIN" && user.role !== "MANAGER") {
-    return NextResponse.json({ error: "Réservé au manager ou super administrateur" }, { status: 403 });
-  }
+  // L-183 (2026-09-14) — the role rule moved INTO the wrapper: the
+  // `{ roles: [...] }` closing this handler. It used to sit here as
+  // `if (user.role !== "SUPER_ADMIN" && user.role !== "MANAGER") return 403`,
+  // which DD-07 made unsatisfiable when it removed CASHIER: two roles exist and
+  // the condition names both, so it refused nobody and this handler was open to
+  // any authenticated caller. Declaring it instead changes nothing today and
+  // three things tomorrow — a third role is refused rather than admitted, the
+  // refusal is JOURNALLED (L-151) where the inline one was silent, and
+  // `api-authorization.test.ts` can read the rule without running the handler.
 
   // Block if children exist
   const childCount = await db.category.count({ where: { parentId: params.id } });
@@ -251,4 +263,4 @@ export const DELETE = withAuthParams(async (_req, { user, params }) => {
   });
   await audit("CATEGORY_DEACTIVATED", "Category", params.id, { name: cat.name }, user.id);
   return NextResponse.json({ ok: true });
-});
+}, { roles: ["SUPER_ADMIN", "MANAGER"] });

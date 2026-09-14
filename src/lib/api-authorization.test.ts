@@ -287,17 +287,17 @@ describe("T-03 — every API route declares an authorization gate", () => {
   "cash-movements:GET": "BOTH",
   "cash-movements:POST": "BOTH",
   "catalog/categories:GET": "ANY",
-  "catalog/categories:POST": "INLINE_ANY",
-  "catalog/categories/[id]:DELETE": "INLINE_ANY",
+  "catalog/categories:POST": "BOTH",
+  "catalog/categories/[id]:DELETE": "BOTH",
   "catalog/categories/[id]:GET": "ANY",
-  "catalog/categories/[id]:PUT": "INLINE_ANY",
+  "catalog/categories/[id]:PUT": "BOTH",
   "catalog/export:GET": "SUPER_ADMIN",
   "catalog/import:POST": "SUPER_ADMIN",
   "catalog/products:GET": "ANY",
-  "catalog/products:POST": "INLINE_ANY",
-  "catalog/products/[id]:DELETE": "INLINE_ANY",
+  "catalog/products:POST": "BOTH",
+  "catalog/products/[id]:DELETE": "BOTH",
   "catalog/products/[id]:GET": "ANY",
-  "catalog/products/[id]:PUT": "INLINE_ANY",
+  "catalog/products/[id]:PUT": "BOTH",
   "catalog/products/availability:GET": "ANY",
   "catalog/products/availability:POST": "BOTH",
   "catalog/products/favorites:GET": "ANY",
@@ -330,7 +330,7 @@ describe("T-03 — every API route declares an authorization gate", () => {
   "fiscal/grand-total:GET": "BOTH",
   "fiscal/verify:GET": "BOTH",
   "logs:GET": "SUPER_ADMIN",
-  "media:DELETE": "INLINE_ANY",
+  "media:DELETE": "BOTH",
   "media:GET": "ANY",
   "orders:GET": "ANY",
   "orders:POST": "ANY",
@@ -648,14 +648,32 @@ describe("T-03 — every API route declares an authorization gate", () => {
     // **ANY, INLINE_ANY and SUPER_ADMIN are unmoved**, and that is this
     // assertion earning its keep: it is the proof that opening the settings
     // write to the MANAGER did not widen anything else on the way past.
+    // AMENDED 2026-09-14 (L-183): **INLINE_ANY 7 -> 0 and BOTH 33 -> 40** — the
+    // same seven routes, moving together, and nothing else moving at all. This
+    // is L-183 closed on the operator's decision of that day: the inline guards
+    // named both roles the product has, so they refused nobody, and each was
+    // DELETED with the rule DECLARED on the wrapper instead. **No caller gains
+    // or loses access today** — two roles exist and the declared gate names
+    // both, which is what the inline guard failed to restrict. What changes is
+    // tomorrow: a third role would now be refused rather than admitted, the
+    // refusal is journalled (L-151) where the inline one returned silently, and
+    // the map reads the rule without running the handler.
+    //
+    // **INLINE_ANY IS ABSENT BELOW, AND THAT IS THE ASSERTION.** `counts` is
+    // built by reducing over the map, so a kind with no routes has no key at
+    // all — writing `INLINE_ANY: 0` fails, which is how this was found. The
+    // kind was introduced by R9.6 to stop the map counting seven non-guards
+    // among the guards; it is now empty, and a route reappearing in it is a NEW
+    // instance of L-183 rather than a known one. ANY, INLINE_SA, INLINE_SELF
+    // and SUPER_ADMIN are unmoved.
     expect(counts).toEqual({
-      BOTH: 33,
+      BOTH: 40,
       ANY: 26,
       INLINE_SA: 5,
-      INLINE_ANY: 7,
       INLINE_SELF: 1,
       SUPER_ADMIN: 12,
     });
+    expect(counts.INLINE_ANY, "a guard that refuses nobody is back — L-183").toBeUndefined();
   });
 
   it("matches the expected gate wherever one is pinned", async () => {

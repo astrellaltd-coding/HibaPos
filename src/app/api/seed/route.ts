@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { randomInt } from "crypto";
-import { hashPin, isPublishedDefaultPin } from "@/lib/auth";
+import {
+  hashPin,
+  isPublishedDefaultPin,
+  isRefusedAdminSeedPin,
+  SANCTIONED_ADMIN_SEED_PIN,
+} from "@/lib/auth";
 import { PUBLISHED_PIN_REFUSAL } from "@/lib/services/account-policy";
 import { seedCatalogAndSettings, isEmojiImage } from "@/lib/services/seed";
 import { isScryptBusyError } from "@/lib/pin-hash-queue";
@@ -29,7 +34,9 @@ export { isEmojiImage };
  * THEIR ANSWER, 2026-09-13: « Admin always 123456, manager chose his own or
  * generate a random one and show it. »
  *
- *   * **admin — `123456`, deliberately.** `SEED_ADMIN_PIN` still overrides it.
+ *   * **admin — `123456`, deliberately** (`SANCTIONED_ADMIN_SEED_PIN`).
+ *     `SEED_ADMIN_PIN` still overrides it, though since **L-192** it may not be
+ *     set to a DIFFERENT published default — `111111` is refused here too.
  *     Recorded as their decision and not as an oversight: the value is
  *     published in this repository and in a commit message, so anyone holding a
  *     copy knows the super-administrator's PIN on a freshly seeded install.
@@ -105,9 +112,18 @@ async function seed() {
   }
 
   // Bootstrap path — see the docblock for whose decision each of these is.
-  const adminPin = process.env.SEED_ADMIN_PIN ?? "123456";
+  //
+  // L-192 (2026-09-14): the sanctioned `123456` is accepted, and any OTHER
+  // published default set deliberately in this variable is refused. The
+  // denylist could not simply be applied here — the sanctioned value is itself
+  // published — so the operator chose the rule and `isRefusedAdminSeedPin`
+  // states it once for both seed paths.
+  const adminPin = process.env.SEED_ADMIN_PIN?.trim() || SANCTIONED_ADMIN_SEED_PIN;
   if (!/^\d{6}$/.test(adminPin)) {
     return NextResponse.json({ error: "SEED_ADMIN_PIN doit contenir 6 chiffres." }, { status: 500 });
+  }
+  if (isRefusedAdminSeedPin(adminPin)) {
+    return NextResponse.json({ error: PUBLISHED_PIN_REFUSAL }, { status: 400 });
   }
 
   // The manager's: chosen, or made. `generatedManagerPin` is non-null only when

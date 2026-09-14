@@ -27,9 +27,11 @@ export const PUT = withAuthParams(async (req, { user, params }) => {
 });
 
 export const DELETE = withAuthParams(async (_req, { user, params }) => {
-  if (user.role !== "SUPER_ADMIN" && user.role !== "MANAGER") {
-    return NextResponse.json({ error: "Réservé au manager" }, { status: 403 });
-  }
+  // L-183 — the inline guard here was pure duplication: this handler ALREADY
+  // declares `{ roles: ["SUPER_ADMIN", "MANAGER"] }` below, and DD-07 leaves
+  // exactly those two roles, so the check refused nobody the wrapper had not
+  // already refused. **The audit's L-183 named seven; this was an eighth of the
+  // same shape** and is why the fix swept for the pattern rather than the list.
   await db.table.delete({ where: { id: params.id } });
   await audit("TABLE_DELETED", "Table", params.id, null, user.id);
   return NextResponse.json({ ok: true });

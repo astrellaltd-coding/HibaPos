@@ -30,7 +30,12 @@
 // already one named import away from.
 import { PrismaClient } from "@prisma/client";
 import { randomInt } from "crypto";
-import { hashPin, isPublishedDefaultPin } from "../src/lib/auth";
+import {
+  hashPin,
+  isPublishedDefaultPin,
+  isRefusedAdminSeedPin,
+  SANCTIONED_ADMIN_SEED_PIN,
+} from "../src/lib/auth";
 import { PUBLISHED_PIN_REFUSAL } from "../src/lib/services/account-policy";
 
 /**
@@ -65,9 +70,14 @@ async function main() {
     return;
   }
 
-  // The admin's is the operator's decision — see the header. `123456` stands.
-  const adminPin = process.env.SEED_ADMIN_PIN ?? "123456";
+  // The admin's is the operator's decision — see the header. The sanctioned
+  // value stands; a DIFFERENT published default set deliberately does not
+  // (L-192, their rule of 2026-09-14).
+  const adminPin = process.env.SEED_ADMIN_PIN?.trim() || SANCTIONED_ADMIN_SEED_PIN;
   if (!/^\d{6}$/.test(adminPin)) throw new Error("SEED_ADMIN_PIN doit contenir 6 chiffres.");
+  if (isRefusedAdminSeedPin(adminPin)) {
+    throw new Error(`SEED_ADMIN_PIN : ${PUBLISHED_PIN_REFUSAL}`);
+  }
 
   // The manager's: chosen, or made. `generatedManagerPin` is non-null only when
   // this run made one, and only then is it printed.

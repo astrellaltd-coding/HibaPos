@@ -135,6 +135,41 @@ export function isPublishedDefaultPin(pin: string): boolean {
   return PUBLISHED_DEFAULT_PINS.includes(pin);
 }
 
+/**
+ * The super-administrator's PIN on a freshly seeded install — **`123456`, and
+ * that is a decision, not an oversight.**
+ *
+ * The operator settled it on 2026-09-13, having been told first that the value
+ * is published in this repository and in a commit message, so anyone holding a
+ * copy knows it: « Admin always 123456, manager chose his own or generate a
+ * random one and show it. » Both seed paths default to this and rotate after
+ * the first login.
+ *
+ * It is a named constant so that the two paths cannot drift apart, and so that
+ * `isRefusedAdminSeedPin` below can say « the sanctioned one » rather than
+ * repeating a literal that looks like a mistake wherever it appears.
+ */
+export const SANCTIONED_ADMIN_SEED_PIN = "123456";
+
+/**
+ * L-192 — should this explicitly-set `SEED_ADMIN_PIN` be refused?
+ *
+ * The denylist could not simply be pointed at that variable: `123456` IS a
+ * published default and is also the sanctioned value, so refusing every
+ * published default would refuse the operator's own decision. **The rule they
+ * chose on 2026-09-14 is « refuse any published default except the sanctioned
+ * one ».** So `SEED_ADMIN_PIN=111111` is refused, `SEED_ADMIN_PIN=123456` is
+ * accepted and is what the code would have used anyway, and any other
+ * six-digit value is the operator's own choice.
+ *
+ * This is narrower than `SEED_MANAGER_PIN`'s rule, where every published
+ * default is refused (L-191), and the asymmetry is the decision itself rather
+ * than an accident of where the check was written.
+ */
+export function isRefusedAdminSeedPin(pin: string): boolean {
+  return pin !== SANCTIONED_ADMIN_SEED_PIN && isPublishedDefaultPin(pin);
+}
+
 export type PinVerifyResult = {
   valid: boolean;
   /** true = matched under the LEGACY params (pre-Phase-2A N=2^14) — the

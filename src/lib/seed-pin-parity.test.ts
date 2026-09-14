@@ -1,7 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import path from "path";
-import { PUBLISHED_DEFAULT_PINS, isPublishedDefaultPin } from "@/lib/auth";
+import {
+  PUBLISHED_DEFAULT_PINS,
+  isPublishedDefaultPin,
+  isRefusedAdminSeedPin,
+  SANCTIONED_ADMIN_SEED_PIN,
+} from "@/lib/auth";
 
 // L-191 — THE TWO SEED PATHS, AND THE ONE THAT WAS LEFT BEHIND.
 //
@@ -99,8 +104,39 @@ describe("L-191 — the CLI seed installs no published default", () => {
     // The half that must NOT change. R9.5 put it to them on 2026-09-13 knowing
     // the value is published: « Admin always 123456 ». A later session tidying
     // « a published PIN in the seed » would remove this too.
-    expect(code(CLI)).toContain('process.env.SEED_ADMIN_PIN ?? "123456"');
-    expect(code(ROUTE)).toContain('process.env.SEED_ADMIN_PIN ?? "123456"');
+    //
+    // The literal moved into `SANCTIONED_ADMIN_SEED_PIN` with L-192, so both
+    // halves are asserted: the constant still holds that value, and both paths
+    // still fall back to the constant.
+    expect(SANCTIONED_ADMIN_SEED_PIN, "the admin's seeded PIN changed").toBe("123456");
+    for (const [name, src] of [["prisma/seed.ts", code(CLI)], ["seed/route.ts", code(ROUTE)]] as const) {
+      expect(src, `${name} no longer falls back to the sanctioned admin PIN`).toContain(
+        "process.env.SEED_ADMIN_PIN?.trim() || SANCTIONED_ADMIN_SEED_PIN",
+      );
+    }
+  });
+
+  it("refuses a DIFFERENT published default in SEED_ADMIN_PIN — L-192", () => {
+    // The operator's rule of 2026-09-14, after being shown that the denylist
+    // could not simply be pointed at this variable: `123456` IS published and
+    // IS the sanctioned value, so refusing every published default would refuse
+    // their own decision. « Refuse any published default except the sanctioned
+    // one » is what they chose, and `isRefusedAdminSeedPin` states it once.
+    expect(isRefusedAdminSeedPin("111111"), "111111 is accepted for the admin").toBe(true);
+    expect(isRefusedAdminSeedPin("123456"), "the sanctioned value is refused").toBe(false);
+    expect(isRefusedAdminSeedPin("482913"), "an ordinary chosen PIN is refused").toBe(false);
+    // And both paths actually call it, before hashing anything.
+    for (const [name, src] of [["prisma/seed.ts", code(CLI)], ["seed/route.ts", code(ROUTE)]] as const) {
+      expect(src, `${name} does not check the admin PIN at all`).toMatch(
+        /isRefusedAdminSeedPin\(adminPin\)/,
+      );
+      const check = src.indexOf("isRefusedAdminSeedPin(adminPin)");
+      const hash = src.indexOf("hashPin(adminPin)");
+      expect(hash, `${name} stopped hashing the admin PIN`).toBeGreaterThan(-1);
+      expect(check, `${name} refuses AFTER hashing — C-09 bounds hashPin, so a`
+        + " denylist checked after it lets a caller burn the queue on values that"
+        + " were never going to be accepted").toBeLessThan(hash);
+    }
   });
 
   it("prints the generated PIN, and says so where it used to promise not to", () => {

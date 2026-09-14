@@ -82,6 +82,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - R10.2 — the index names every script, and a check that cannot run is a failure
 - L-191 — the other seed path, and the PIN it was still installing
 - L-193 — the governing file held back two rows that were ready
+- L-183 · L-192 — the guards that refused nobody, and the one field the denylist missed
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -4163,6 +4164,95 @@ Proved red by restoring the old paragraph — one failure, naming L-101.
 **Left behind.** Nothing of this one. The same class elsewhere — a document that describes a
 state the code has left — is what `plan-freshness.test.ts` exists for, and it now covers three
 files instead of two.
+---
+
+### L-183 · L-192 — the guards that refused nobody, and the one field the denylist missed
+**Done:** 2026-09-14 · **Commit:** `SHA` · **Findings:** L-183 (Low-Med) · L-192 (Low). **No
+plan row** — both were decided by the operator the same day and done as their own item.
+
+## L-183 — eight inline role guards, none of which refused anybody
+
+Each read `if (user.role !== "SUPER_ADMIN" && user.role !== "MANAGER") return 403`. **DD-07
+left exactly those two roles**, so the condition was unsatisfiable: creating, editing and
+deleting products and categories, and deleting media, were open to any authenticated caller and
+had been since CASHIER was removed. Not a regression — and until L-120 repaired the detector,
+the test suite counted all of them among the guards.
+
+**THE DECISION WAS THE OPERATOR'S, AND SO WAS THE READING OF IT.** They chose « delete the dead
+guard and let the declarative gate carry the meaning ». Seven of the eight declared **no roles
+at all** — they were plain `withAuth(...)`, meaning « any authenticated caller » — so deleting
+the check and stopping there would have left nothing stating anything, and a third role added
+later would silently gain catalogue write access. « The declarative gate carries the meaning »
+was therefore taken as **move the rule into the wrapper**: each is now
+`withAuth(..., { roles: ["SUPER_ADMIN", "MANAGER"] })`.
+
+**Nobody gains or loses access today.** Two roles exist and the declared gate names both, which
+is precisely what the inline guard failed to restrict. What changes is tomorrow: a third role
+is refused rather than admitted, the refusal is **journalled** (L-151, `api-handler.ts:160`)
+where the inline one returned silently, and `api-authorization.test.ts` can read the rule
+without running the handler.
+
+**THERE WERE EIGHT, NOT THE SEVEN THE AUDIT NAMED.** `tables/[id]:DELETE` carried the identical
+guard and was absent from L-183's list — found because the fix swept for the *pattern* rather
+than working the list. There the wrapper already declared both roles, so the inline check was
+pure duplication and simply went.
+
+**The map moved with the code**: INLINE_ANY **7 → absent**, BOTH 33 → 40, and nothing else. The
+`INLINE_ANY` kind was introduced by R9.6 to stop the table counting seven non-guards among the
+guards; **it is now empty**, so a route reappearing in it is a new instance of L-183 rather
+than a known one. Writing `INLINE_ANY: 0` in the expectation FAILS — the counts object is built
+by reduction and a kind with no routes has no key — so it is asserted as `toBeUndefined()`
+instead, with the reason in place.
+
+## L-192 — the denylist stopped one field short of the account that matters most
+
+`SEED_ADMIN_PIN` was validated against `/^\d{6}$/` and nothing else, **in both seed paths**, so
+`SEED_ADMIN_PIN=111111` installed a published PIN on the SUPER_ADMIN while the same value in
+`SEED_MANAGER_PIN` was refused outright.
+
+**It could not be fixed without asking.** `123456` IS a published default and IS the sanctioned
+value — pointing the denylist at that variable would have refused the operator's own decision
+of 2026-09-13. **Their rule, 2026-09-14: refuse any published default EXCEPT the sanctioned
+one.** So `111111` is refused, `123456` is accepted and is what the code would have used
+anyway, and any other six-digit value is their own choice.
+
+`auth.ts` gained two things: **`SANCTIONED_ADMIN_SEED_PIN`**, so the literal has one home and a
+docblock saying whose decision it is rather than looking like a mistake wherever it appears,
+and **`isRefusedAdminSeedPin`**, which states the rule once for both paths. The asymmetry with
+`SEED_MANAGER_PIN` — where every published default is refused — **is the decision itself**, not
+an accident of where a check was written, and both docblocks say so.
+
+**The order is pinned, not just the presence.** Both paths check **before** `hashPin`, because
+C-09 bounds that call at 128 MiB and a denylist checked after it lets a caller burn the queue
+on values that were never going to be accepted. R9.5 made that argument for the user routes;
+the test now asserts the index of the check is less than the index of the hash.
+
+**`deployment.test.ts` was re-expressed, not weakened — for the second time in two days.** It
+matched the literal `process.env.SEED_ADMIN_PIN ?? "123456"`, which L-192 replaced with the
+constant. Matching a spelling was always the weaker form: what L-59 needs is that the fallback
+**is** a value this repository publishes, and that is now asserted about the values themselves
+— `PUBLISHED_DEFAULT_PINS` contains `SANCTIONED_ADMIN_SEED_PIN` — rather than about source
+text. A revert that changes the constant to an unpublished value turns it red, which is the
+whole point of the premise being stated at all.
+
+## How it was verified
+
+1 806 pass · 0 fail · 146 files · zero `prisma:error` blocks, typecheck and lint clean.
+
+**Nine reverts**, one property at a time, each restored from a copy and its sha256 compared
+after: the CLI accepting `111111` again; the route accepting it, so the two paths diverge
+again; the refusal moved to after the hash; the sanctioned constant changed to an unpublished
+value; the denylist pointed at the variable wholesale so it refuses the operator's own choice;
+a route going back to a dead guard with no declared gate; the declared gate dropped on its own.
+
+**TWO OF THOSE REVERTS LOOKED LIKE MISSES AND WERE MY OWN ERROR.** I expected the aggregate
+counts assertion to fail on a code change. It cannot: `counts` is reduced over the test's
+**expected table**, not over the live routes, so the per-key comparison guards the code and the
+aggregate guards the table against being edited without noticing the shift. Both were then
+proved separately — a code drift fails the per-key test, a table edit fails the counts test —
+which is the design the file's own comment describes and which I had misread.
+
+**Left behind.** Nothing from either. L-184 is still open and is still the operator's.
 ---
 
 ## Retired from the plan's § 6 on 2026-09-11

@@ -56,9 +56,15 @@ export const GET = withAuth(async () => {
 });
 
 export const POST = withAuth(async (req, { user }) => {
-  if (user.role !== "SUPER_ADMIN" && user.role !== "MANAGER") {
-    return NextResponse.json({ error: "Réservé au manager ou super administrateur" }, { status: 403 });
-  }
+  // L-183 (2026-09-14) — the role rule moved INTO the wrapper: the
+  // `{ roles: [...] }` closing this handler. It used to sit here as
+  // `if (user.role !== "SUPER_ADMIN" && user.role !== "MANAGER") return 403`,
+  // which DD-07 made unsatisfiable when it removed CASHIER: two roles exist and
+  // the condition names both, so it refused nobody and this handler was open to
+  // any authenticated caller. Declaring it instead changes nothing today and
+  // three things tomorrow — a third role is refused rather than admitted, the
+  // refusal is JOURNALLED (L-151) where the inline one was silent, and
+  // `api-authorization.test.ts` can read the rule without running the handler.
   const body = await parseJson(req);
   const parsed = categorySchema.safeParse(body);
   if (!parsed.success) {
@@ -81,4 +87,4 @@ export const POST = withAuth(async (req, { user }) => {
   const cat = await db.category.create({ data: { ...data, parentId: parentId ?? null } });
   await audit("CATEGORY_CREATED", "Category", cat.id, parsed.data, user.id);
   return NextResponse.json(cat, { status: 201 });
-});
+}, { roles: ["SUPER_ADMIN", "MANAGER"] });
