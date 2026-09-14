@@ -86,6 +86,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - L-184 — a route that declared one rule and enforced another
 - L-186 — the print that succeeded, finally executed by a test
 - L-172 · L-176 · L-177 — Group D reopened: three cheap ones
+- L-174 — the PIN hash says what made it
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -4494,6 +4495,83 @@ from the period, is affected — and that is the number the test needs to come f
 
 **Left behind.** L-172's `docs/INVARIANTS.md` paragraph, drafted and waiting. L-174 and L-171,
 which the operator also reopened, follow as their own items.
+---
+
+### L-174 — the PIN hash says what made it
+**Done:** 2026-09-14 · **Commit:** `SHA` · **Finding:** L-174 (Group D, reopened by the operator
+the same day). **No plan row.**
+
+**A stored hash was `salt:hash` and nothing else, so nothing could tell a legacy `N=2^14` hash
+from a strong `N=2^17` one.** Three consequences, all of them permanent while that was true:
+
+1. **the legacy fallback could never be retired** — nothing could establish that no legacy hash
+   remained;
+2. a legacy hash is upgraded only on a SUCCESSFUL login, so **an account nobody uses keeps its
+   weak hash for ever**;
+3. every failed PIN cost two derivations.
+
+**THE LIVE HASHES ARE ALMOST CERTAINLY STRONG** — both PINs were reset 2026-09-04, after the
+hardening. The finding was never that they were weak; it was that **the system could not
+demonstrate it**. `isStampedPinHash` is how it demonstrates it now.
+
+**THE FORMAT.** `scrypt:<N>:<r>:<p>:<salt>:<hash>` — six colon-separated fields against the old
+two, which is unambiguous, and a hex salt can never be the string `scrypt`. It is a PHC string
+without the base64 and the dollar signs, which would have meant re-encoding every existing salt
+for no gain.
+
+**NOTHING REWROTE THE DATABASE.** This is a migration *window*: an unstamped hash verifies
+exactly as it did, and is re-stamped by the transparent upgrade the login and unlock routes have
+always performed. The window closes when every row is stamped — a thing that can now be checked.
+
+**THE ONE REAL BEHAVIOUR CHANGE, and it is the one that closes the window.**
+`verifyPinDetail` now returns `legacy: true` for a **strong-but-unstamped** hash as well as a
+weak one. The old code returned `false` there — correctly, under the old meaning of the word —
+and that is precisely why such a hash was never replaced and the fallback could never be
+retired. `legacy` now means **« re-hash me »**, not « N=2^14 », so raising `N` again later needs
+no new code at all.
+
+**PARAMETERS READ BACK OUT OF A DATABASE ARE BOUNDED.** `N` sizes an allocation of
+`128 · N · r · p` bytes, so a row saying `N = 2^40` is a way to ask this process for a terabyte.
+The values are written by `hashPin` and nothing else — but a hash is a value in a database and
+this code is what stands between a tampered row and the till. The ceiling is 2^20: eight times
+today's `N`, room for two more doublings of the OWASP recommendation, and 1 GiB rather than a
+terabyte if it is ever hit. Refusing fails **closed** — a login that does not succeed, never one
+that succeeds wrongly.
+
+## THE AUDIT'S FIGURE FOR THIS FINDING IS WRONG, AND THE MEASUREMENT IS WHY
+
+L-174 says « every failed PIN costs two derivations (**~780 ms**) ». Two derivations, yes.
+**~780 ms, no** — that assumes both run at N=2^17. The second is the LEGACY one at N=2^14,
+**eight times cheaper**. Measured on this machine: **N=2^17 ≈ 252 ms, N=2^14 ≈ 30 ms**, so a
+failed PIN against an unstamped hash cost ≈ 282 ms and against a stamped one costs ≈ 252 ms.
+
+**An 11 % saving, not a halving.** Recorded in the finding rather than quietly fixed: a finding
+whose cost is overstated gets prioritised wrongly, and the two consequences that actually
+justify this work are the first two. The timing test derives its bound from a legacy derivation
+**measured in the same run** rather than from a ratio, because a fixed multiple is a flaky
+assertion on whatever machine the suite happens to run on.
+
+## How it was verified
+
+1 840 pass · 0 fail · **149 files** · zero `prisma:error` blocks, typecheck and lint clean.
+
+**Six reverts**, one property at a time, each restored from a copy with its sha256 compared
+after: `hashPin` back to `salt:hash` (**eight failures**, including two of T-04's own, which is
+the existing suite proving it covers this); the optional-chaining bug below; a strong-unstamped
+hash never restamped; the legacy fallback dropped, which locks out every pre-hardening account
+and fails four tests; the parameter bounds removed; the login route stopping acting on `legacy`.
+
+**A BUG THE TEST CAUGHT ON ITS FIRST RUN.** `isStampedPinHash` was
+`parseStoredHash(stored)?.params !== null` — and for an UNPARSEABLE value that is
+`undefined !== null`, which is **true**, so every malformed hash reported itself as stamped. The
+one function whose whole job is to answer « is the migration window closed » would have answered
+yes on garbage. It is now an explicit two-step check, with the reason in place.
+
+**Left behind.**
+- **Nothing rewrites existing hashes in bulk**, and nothing should: the upgrade happens on a
+  successful login, which is the only moment the software holds the plaintext PIN.
+- **The fallback is still there**, and must stay until `isStampedPinHash` is true of every row.
+  That is now a question with an answer rather than a hope.
 ---
 
 ## Retired from the plan's § 6 on 2026-09-11

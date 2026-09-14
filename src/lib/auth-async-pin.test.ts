@@ -57,7 +57,12 @@ describe("C-09 — PIN derivation does not block the event loop", () => {
     await hashPin("000000"); // warm-up
     const probe = await probeEventLoop(() => hashPin("123456"));
 
-    expect(probe.value).toMatch(/^[0-9a-f]{32}:[0-9a-f]{128}$/);
+    // AMENDED 2026-09-14 (L-174): the stored format gained a parameter stamp,
+    // `scrypt:<N>:<r>:<p>:<salt>:<hash>`. This assertion is incidental to
+    // C-09 — it exists so the probe is measuring a real derivation and not a
+    // thrown-away value — so it follows the format rather than pinning it;
+    // `auth-pin-params.test.ts` owns the format itself.
+    expect(probe.value).toMatch(/^scrypt:131072:8:1:[0-9a-f]{32}:[0-9a-f]{128}$/);
     expect(probe.elapsedMs).toBeGreaterThan(30);
     expect(probe.ticks).toBeGreaterThan(probe.elapsedMs / 25);
     expect(probe.maxGapMs).toBeLessThan(probe.elapsedMs * 0.6);

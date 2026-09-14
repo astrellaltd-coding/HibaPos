@@ -89,7 +89,7 @@ const LEGACY_SCRYPT_OPTS = { N: 1 << 14, r: 8, p: 1 } as const;
 function derive(
   pin: string,
   salt: string,
-  opts: typeof SCRYPT_OPTS | typeof LEGACY_SCRYPT_OPTS,
+  opts: typeof SCRYPT_OPTS | typeof LEGACY_SCRYPT_OPTS | ScryptParams,
 ): Promise<Buffer> {
   return runPinDerivation(
     () =>
@@ -101,10 +101,111 @@ function derive(
   );
 }
 
+/**
+ * L-174 — THE STORED HASH NOW RECORDS THE PARAMETERS IT WAS MADE WITH.
+ *
+ * THE FINDING: a stored hash was `salt:hash` and nothing else, so **nothing
+ * could tell a legacy `N=2^14` hash from a strong `N=2^17` one.** Three
+ * consequences, all of them permanent:
+ *
+ *   1. the legacy fallback can never be retired — there is no way to establish
+ *      that no legacy hash remains;
+ *   2. a legacy hash is upgraded only on a SUCCESSFUL login, so an account
+ *      nobody uses keeps its weak hash for ever;
+ *   3. **every failed PIN costs two derivations** (~780 ms), on the single
+ *      process serving the till, because a miss under the strong parameters is
+ *      indistinguishable from « this is a legacy hash » and has to be retried.
+ *
+ * The live hashes are almost certainly strong — both PINs were reset
+ * 2026-09-04, after the hardening. The point was that **the system could not
+ * demonstrate it.** `isStampedPinHash` below is how it demonstrates it now.
+ *
+ * ── THE FORMAT, AND WHY THIS ONE ────────────────────────────────────────────
+ *   stamped     `scrypt:<N>:<r>:<p>:<salt>:<hash>`   — six colon-separated
+ *                fields, written by this function from today.
+ *   unstamped   `<salt>:<hash>`                      — two fields, everything
+ *                written before today, of either parameter set.
+ *
+ * Two fields versus six is unambiguous, and a hex salt can never be the string
+ * `scrypt`, so the two shapes cannot be confused for one another. It is the
+ * same idea as a PHC string without the base64 and the dollar signs, which
+ * would have meant re-encoding every existing salt.
+ *
+ * **This is a migration WINDOW, not a migration.** Nothing rewrites the
+ * database: an unstamped hash goes on verifying exactly as it did, and is
+ * re-stamped by the transparent upgrade the login and unlock routes already
+ * perform. The window closes when `isStampedPinHash` is true of every row —
+ * which is a thing that can now be checked, and could not be before.
+ */
+const HASH_FORMAT = "scrypt";
+
 export async function hashPin(pin: string): Promise<string> {
   const salt = randomBytes(16).toString("hex");
   const hash = (await derive(pin, salt, SCRYPT_OPTS)).toString("hex");
-  return `${salt}:${hash}`;
+  return [HASH_FORMAT, SCRYPT_OPTS.N, SCRYPT_OPTS.r, SCRYPT_OPTS.p, salt, hash].join(":");
+}
+
+/**
+ * Does this stored hash record its own parameters? — L-174.
+ *
+ * The question the finding is really about. While any row answers false, the
+ * legacy fallback must stay and a failed PIN against that row costs two
+ * derivations. When every row answers true, `LEGACY_SCRYPT_OPTS` and the second
+ * derivation can both be deleted — and that will be a decision taken on
+ * evidence rather than on the hope that nothing old is left.
+ */
+export function isStampedPinHash(stored: string): boolean {
+  // NOT `parseStoredHash(stored)?.params !== null` — for an UNPARSEABLE value
+  // that is `undefined !== null`, which is true, so every malformed hash
+  // reported itself as stamped. Caught by the test below, on its first run.
+  const parsed = parseStoredHash(stored);
+  return parsed !== null && parsed.params !== null;
+}
+
+/** The scrypt parameters a derivation needs, with `maxmem` derived from them. */
+type ScryptParams = { N: number; r: number; p: number; maxmem: number };
+
+/**
+ * Bounds on the parameters read back OUT OF THE DATABASE.
+ *
+ * `N` sizes an allocation of `128 · N · r · p` bytes, so a row saying
+ * `N = 2^40` is a way to ask this process for a terabyte. The stored values are
+ * written by `hashPin` and by nothing else, but a hash is a value in a database
+ * and this code is what stands between a tampered row and the till. Refusing is
+ * safe: an unparseable hash fails closed, which is a login that does not
+ * succeed, not a login that succeeds wrongly.
+ *
+ * The ceiling is 2^20 — eight times today's `N`, room for two more doublings of
+ * the OWASP recommendation, and 1 GiB rather than a terabyte if it is ever hit.
+ */
+const MAX_N = 1 << 20;
+
+function parseStoredHash(
+  stored: string,
+): { salt: string; hash: string; params: ScryptParams | null } | null {
+  const parts = stored.split(":");
+
+  // Unstamped — everything written before L-174, of either parameter set.
+  if (parts.length === 2) {
+    const [salt, hash] = parts;
+    return salt && hash ? { salt, hash, params: null } : null;
+  }
+
+  if (parts.length === 6 && parts[0] === HASH_FORMAT) {
+    const [, rawN, rawR, rawP, salt, hash] = parts;
+    if (!salt || !hash) return null;
+    const N = Number(rawN);
+    const r = Number(rawR);
+    const p = Number(rawP);
+    const sane =
+      Number.isInteger(N) && N > 1 && N <= MAX_N && (N & (N - 1)) === 0 &&
+      Number.isInteger(r) && r > 0 && r <= 16 &&
+      Number.isInteger(p) && p > 0 && p <= 4;
+    if (!sane) return null;
+    return { salt, hash, params: { N, r, p, maxmem: 128 * N * r * p * 2 } };
+  }
+
+  return null;
 }
 
 /**
@@ -192,20 +293,48 @@ export async function verifyPinDetail(
   pin: string,
   stored: string,
 ): Promise<PinVerifyResult> {
-  const [salt, hash] = stored.split(":");
-  if (!salt || !hash) return { valid: false, legacy: false };
+  const parsed = parseStoredHash(stored);
+  if (!parsed) return { valid: false, legacy: false };
+  const { salt, hash, params } = parsed;
   const hashBuf = Buffer.from(hash, "hex");
   if (hashBuf.length !== 64) return { valid: false, legacy: false };
 
-  // Current strong params (N=2^17, r=8, p=1).
-  const strongTest = await derive(pin, salt, SCRYPT_OPTS);
-  if (timingSafeEqual(hashBuf, strongTest)) {
-    return { valid: true, legacy: false };
+  // ── STAMPED (L-174): ONE DERIVATION, whatever the answer ──────────────────
+  //
+  // This is the half of the finding that costs something every day. An
+  // unstamped hash has to be tried under both parameter sets before a wrong PIN
+  // can be called wrong — ~780 ms on the single process serving the till. A
+  // stamped one says which parameters made it, so a miss is a miss after one.
+  //
+  // `legacy` means « re-hash me », not « N=2^14 »: a hash stamped with anything
+  // other than today's parameters is upgraded on the next successful login, the
+  // same mechanism that has always upgraded the pre-hardening ones. So raising
+  // `N` again later needs no new code.
+  if (params) {
+    const test = await derive(pin, salt, params);
+    if (timingSafeEqual(hashBuf, test)) {
+      const current =
+        params.N === SCRYPT_OPTS.N && params.r === SCRYPT_OPTS.r && params.p === SCRYPT_OPTS.p;
+      return { valid: true, legacy: !current };
+    }
+    return { valid: false, legacy: false };
   }
 
-  // Legacy fallback (N=2^14 — pre-Phase-2A hashes).
-  // Without this, every user created before the scrypt hardening is
-  // permanently locked out (their stored hash can never match the new params).
+  // ── UNSTAMPED: the migration window, and it behaves exactly as before ──────
+  //
+  // Current strong params (N=2^17, r=8, p=1) first, then the pre-Phase-2A ones.
+  // Without the fallback, every user created before the scrypt hardening is
+  // permanently locked out — their stored hash can never match the new params.
+  const strongTest = await derive(pin, salt, SCRYPT_OPTS);
+  if (timingSafeEqual(hashBuf, strongTest)) {
+    // **`legacy: true` even though the parameters were already strong.** The
+    // hash is unstamped, so this is the one moment the software can replace it
+    // with one that records what it is — and until every row is stamped, the
+    // fallback below cannot be retired. Returning `false` here would leave a
+    // strong-but-unstamped hash in place for ever and keep the window open.
+    return { valid: true, legacy: true };
+  }
+
   const legacyTest = await derive(pin, salt, LEGACY_SCRYPT_OPTS);
   if (hashBuf.length === legacyTest.length && timingSafeEqual(hashBuf, legacyTest)) {
     return { valid: true, legacy: true };
