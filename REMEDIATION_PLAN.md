@@ -77,9 +77,10 @@ every trading table is at zero.
 > R10.3, which belongs in the accountant's envelope. **That is not the same as finished.**
 > R10.2 opened **L-191** (Medium, `prisma/seed.ts:19`): the CLI seed path still falls back to
 > `111111`, the PIN `POST /api/seed` has refused since R9.5, and `scripts/README.md` is what
-> points a first boot at it. It is recorded in `docs/audit/FINDINGS.md` with the rest of the
-> group-C and group-D work, and **§ 7 is still closed to new rows** until the operator reopens
-> it. The README warns in the meantime.
+> points a first boot at it. **L-191 IS FIXED** (2026-09-14, its own item — no row to attach it
+> to): that PIN is now generated, re-checked and shown once, and a published default in
+> `SEED_MANAGER_PIN` is refused before a row is written. It opened **L-192** (Low), which needs
+> the operator's word first. **§ 7 stays closed** — their call, the plan being near its ceiling.
 >
 > **Two things are waiting, and neither is a batch.**
 >

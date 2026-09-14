@@ -87,14 +87,16 @@ Both remain in git history if the code is ever needed.
     describes the machine you are reading it on — and without this clause a
     reader following the README runs a command the safety register forbids.
     That collision is **L-168**, and this clause is the fix (R10.2).
-  - ⚠ **SET `SEED_MANAGER_PIN` FIRST.** Left unset, `prisma/seed.ts` installs
-    **`111111`** — one of the two PINs published in this repository, and the
-    value `POST /api/seed` has REFUSED since R9.5. The two seed paths diverged
-    there: the route generates a manager PIN and shows it once, the CLI still
-    takes its default, and the denylist it would need (`PUBLISHED_DEFAULT_PINS`
-    in `src/lib/auth.ts`) is one import away from a file that already imports
-    `hashPin` from it. Recorded as **L-191**; R10.2 is documentation and the
-    operator scripts, so it is recorded here and not fixed here.
+  - **The manager's PIN is GENERATED and shown once**, in a box, unless you set
+    `SEED_MANAGER_PIN` yourself — and a published default (`123456`, `111111`)
+    is REFUSED in that variable, before anything is written. **Write the printed
+    one down as it appears**: it is stored only as a scrypt hash and this is the
+    only time anything sees it. A PIN you chose yourself is never printed.
+  - ⚠ **Until 2026-09-14 this path installed `111111`** — the value
+    `POST /api/seed` had refused since R9.5, because R9.5's row named the route
+    and not the CLI, and this file is what points a first boot at the CLI. That
+    was **L-191**, and it is fixed; if you seeded an install before that date,
+    the manager's PIN is the published one and must be rotated.
   - The admin PIN stays **`123456`** by default, and that is **the operator's
     decision of 2026-09-13**, taken knowing the value is published — not an
     oversight. It is recorded under R9.5 in `REMEDIATION_DONE.md`.

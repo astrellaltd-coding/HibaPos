@@ -80,6 +80,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - R9.10 — what the operator's fingers and eyes actually meet
 - R10.1 — no database in the browser, and the build runs where it is read
 - R10.2 — the index names every script, and a check that cannot run is a failure
+- L-191 — the other seed path, and the PIN it was still installing
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -4041,6 +4042,93 @@ running the revert rather than by reading the test.
 - **THE PLAN IS AT 40 523 BYTES against its 40 960 ceiling — 437 to spare.** The migration
   bullet took most of what was left. The next batch that writes to § 1 will have to retire
   something first, and that is a decision rather than a step.
+---
+
+### L-191 — the other seed path, and the PIN it was still installing
+**Done:** 2026-09-14 · **Commit:** `SHA` · **Finding:** L-191 (Medium). **Opened L-192.**
+**No plan row** — § 6 has nothing left that is a session's, and § 7 is closed to new rows, so
+this was done as its own item on the operator's word.
+
+**R9.5 fixed the bootstrap PINs in `POST /api/seed` and did not touch `prisma/seed.ts`.**
+Its row named the route — the unauthenticated first-boot button on the login screen — and
+that is what was fixed: the manager's PIN generated with `randomInt` and shown once, a
+published default in `SEED_MANAGER_PIN` refused. The CLI orchestrator behind `bun run db:seed`
+went on reading `process.env.SEED_MANAGER_PIN ?? "111111"` — **the exact value the route had
+begun refusing** — behind a header comment that called its own defaults « insecure », which is
+not the same as refusing them. It imports `hashPin` from `auth.ts`; `PUBLISHED_DEFAULT_PINS`
+sits in that same file, one named import away, unused.
+
+**It was found from the other end.** R10.2's L-168 was about `scripts/README.md` telling a
+reader « for first boot use `bun run db:seed` » while the plan's § 5 forbids that command here.
+Writing the clarification meant checking what the command actually does. **That is the path a
+fresh install in France takes**, which is why it did not wait for a batch to own the file.
+
+**WHAT CHANGED.**
+- The manager's PIN is **generated**, re-checked against the denylist, and **printed once** —
+  in a box built from its own contents, because the first version hard-coded the rules and the
+  padding and the digits sat visibly off-centre. It is the one line an operator has to copy
+  correctly, at install time, once.
+- A published default in `SEED_MANAGER_PIN` is **refused before a row is written**.
+- A PIN that was **chosen** is still never printed. Whoever set the variable knows it.
+- `.env.example` stopped offering `SEED_MANAGER_PIN="111111"` as its example value.
+- `scripts/README.md` describes what the code does, and tells anyone who seeded before today
+  that their manager PIN is the published one and must be rotated.
+
+**THE ADMIN'S `123456` STAYS, AND THAT IS THE POINT OF SAYING SO.** It is the operator's
+decision of 2026-09-13 — « Admin always 123456, manager chose his own or generate a random one
+and show it » — taken knowing the value is published in this repository. A later session
+tidying « a published PIN in the seed file » would remove it as an oversight, so the test
+asserts it is still there, and says whose decision it is.
+
+**A TEST WAS NARROWED, NOT DELETED.** `deployment.test.ts:102` asserted that `prisma/seed.ts`
+falls back to BOTH published PINs — deliberately, as the premise L-59's launcher refusals rest
+on. One of its two examples is now gone. The admin's alone still carries the premise: a
+launcher that seeds on a path typo still produces a live till whose SUPER_ADMIN opens with a
+published value. So the assertion keeps the admin half, **adds a `not.toContain` for the
+manager half**, and says in place why re-adding it would be wrong.
+
+**HOW IT WAS VERIFIED — BY RUNNING IT, NOT ONLY BY READING IT.** `prisma/seed.ts` calls
+`main()` at the top level, so it cannot be imported into the suite: importing it would seed
+whatever `DATABASE_URL` holds. So it was driven by hand against a throwaway database under the
+OS temp directory, with `DATABASE_URL`, `HIBAPOS_DATA_DIR` and `BACKUP_LOCATION` all
+overridden and the override **proved by a read-only probe before anything was allowed to
+write**. Six runs:
+1. unset → generated, printed, aligned; **a different PIN each run**;
+2. `SEED_MANAGER_PIN=111111` → refused, message in French;
+3. `SEED_MANAGER_PIN=123456` → refused;
+4. `SEED_MANAGER_PIN=12345` → refused as malformed;
+5. after a refusal, **0 users** — nothing half-written;
+6. `SEED_MANAGER_PIN=482913` → accepted, nothing printed.
+
+Then the thing that actually matters: **the PIN the run printed opens the manager account and
+no other**, checked through the real `verifyPin` against the stored hash. The admin opens with
+`123456`, and the checker said so out loud rather than leaving it to be assumed.
+
+**Eight reverts**, one property at a time, each restored from a copy taken immediately before
+it and its sha256 compared after. Including the finding itself, the denylist, the generator's
+own re-check, the printing, the hand-drawn box, and « a later session tidies away the admin
+default the operator chose ».
+
+**AND THE SELF-MATCH BIT AGAIN, TWICE IN ONE FILE.** The new header quotes the line it
+removed, and the new comment quotes the promise it retracts — so an assertion read against the
+raw source found `SEED_MANAGER_PIN ?? "111111"` in the *explanation of why it is gone*, and
+found the old promise in its own retraction. Comments are stripped for one and « » spans
+dropped for the other. **Third and fourth instances in two batches**; the pattern is now
+written up where the next session will meet it.
+
+**OPENED — L-192 (Low).** Reading `seed/route.ts` closely enough to copy it showed that
+**L-191's own row had described it wrongly**: it said `SEED_ADMIN_PIN=111111` « is accepted
+here while the route rejects it », and the route does not check the admin variable either.
+Corrected in place, with the correction marked. The real gap — neither path denylists
+`SEED_ADMIN_PIN`, so a published PIN can be installed deliberately on the account with every
+power — is narrow, uniform, and **needs the operator's word before code**: `123456` is the
+admin's default by their own choice, so the denylist cannot simply be pointed at that variable
+without refusing the sanctioned value.
+
+**Left behind.**
+- **L-192**, above.
+- **The plan is 437 bytes from its ceiling.** § 7 stays closed; the operator's call of
+  2026-09-14.
 ---
 
 ## Retired from the plan's § 6 on 2026-09-11

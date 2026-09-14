@@ -99,12 +99,25 @@ describe("no launcher may bootstrap a database (L-59)", () => {
   // `prisma migrate deploy` AND `prisma db seed`, and `prisma/seed.ts` falls
   // back to the PINs this repository publishes. A path typo therefore produced
   // a live till with an empty journal and known credentials.
-  it("prisma/seed.ts really does fall back to the published PINs", () => {
+  it("prisma/seed.ts really does fall back to a published PIN", () => {
     // Asserted, not assumed — this is the premise the refusals rest on, and if
     // it ever stops being true the refusals can be reconsidered on evidence.
+    //
+    // NARROWED 2026-09-14 (L-191), NOT WEAKENED. This asserted BOTH fallbacks,
+    // `123456` and `111111`. The manager's is gone: that path now generates a
+    // PIN and shows it once, which is L-191's fix. **The admin's remains, by
+    // the operator's decision of 2026-09-13**, and it alone is enough for L-59
+    // — a launcher that seeds on a path typo still produces a live till whose
+    // SUPER_ADMIN opens with a value published in this repository. The finding
+    // is unchanged; one of its two examples went away.
+    //
+    // `seed-pin-parity.test.ts` owns the manager half and will fail if the
+    // fallback comes back. Do not re-add it here to make this read tidier.
     const seed = readFileSync(path.join(process.cwd(), "prisma", "seed.ts"), "utf8");
     expect(seed).toContain('process.env.SEED_ADMIN_PIN ?? "123456"');
-    expect(seed).toContain('process.env.SEED_MANAGER_PIN ?? "111111"');
+    expect(seed, "the manager fallback is back — see L-191").not.toContain(
+      'process.env.SEED_MANAGER_PIN ?? "111111"',
+    );
   });
 
   it("neither production launcher seeds", () => {

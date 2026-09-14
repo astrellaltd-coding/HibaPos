@@ -359,14 +359,34 @@ describe("L-168 — the index never offers what § 5 forbids on this machine", (
     expect(README).toMatch(/bun run db:seed/);
   });
 
-  it("does not send that reader to a published PIN in silence", () => {
-    // L-191, recorded not fixed: `prisma/seed.ts` still falls back to `111111`,
-    // which `POST /api/seed` has refused since R9.5. Until the code is fixed the
-    // index must say so, because the index is what points at that command.
-    // `deployment.test.ts` pins the fallback itself, for L-59's own reasons.
-    expect(README, "the README stopped warning about SEED_MANAGER_PIN (L-191)").toMatch(
-      /SET `SEED_MANAGER_PIN` FIRST/,
+  it("describes the seed PIN the code actually installs", () => {
+    // L-191. When this was written the index had to WARN, because
+    // `prisma/seed.ts` still fell back to `111111`. It was fixed the same day,
+    // and the index had to change with it — a warning about a fixed defect
+    // sends the reader to set a variable they no longer need, and reads as
+    // though nothing was done.
+    //
+    // So the assertion is a CROSS-CHECK rather than a phrase: whatever the code
+    // does, the index must say that. If the fallback ever comes back, this goes
+    // red at the same time as `seed-pin-parity.test.ts`.
+    //
+    // Comments stripped first. `seed.ts`'s new header QUOTES the line it
+    // removed, so reading the raw file finds `SEED_MANAGER_PIN ?? "111111"` in
+    // the explanation of why it is gone — the third time in two batches an
+    // assertion has matched the prose about the bug instead of the bug.
+    const seed = readFileSync(path.join(REPO, "prisma", "seed.ts"), "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, " ")
+      .split("\n")
+      .filter((l) => !/^\s*(\/\/|\*)/.test(l))
+      .join("\n");
+    const fallsBack = /SEED_MANAGER_PIN\s*\?\?/.test(seed);
+    expect(fallsBack, "the CLI seed fallback is back — see L-191").toBe(false);
+    expect(README, "the index does not say the manager PIN is generated").toMatch(
+      /GENERATED and shown once/,
     );
-    expect(README).toContain("L-191");
+    expect(README, "the index stopped naming the finding").toContain("L-191");
+    // An install seeded before the fix still holds the published PIN, and the
+    // index is the only place that would tell its operator so.
+    expect(README).toMatch(/must be rotated/);
   });
 });
