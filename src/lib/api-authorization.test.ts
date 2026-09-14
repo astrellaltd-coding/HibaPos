@@ -368,7 +368,7 @@ describe("T-03 — every API route declares an authorization gate", () => {
   "tables:POST": "INLINE_SA",
   "tables/[id]:DELETE": "BOTH",
   "tables/[id]:PUT": "ANY",
-  "tables/seed:POST": "BOTH",
+  "tables/seed:POST": "SUPER_ADMIN",
   "upload:POST": "BOTH",
   "users:GET": "SUPER_ADMIN",
   "users:POST": "INLINE_SA",
@@ -569,15 +569,31 @@ describe("T-03 — every API route declares an authorization gate", () => {
     // the opposite side, and invisible to every assertion in this file until
     // now.
     //
-    // Found by this check on the day it was written, and NOT fixed here:
-    // whether a MANAGER should be able to seed the default tables is a product
-    // question, not a test-suite one. Recorded as **L-184**. Pinning the known
-    // case keeps the suite honest — green, but green with the exception
-    // written down — and makes a SECOND one a failure.
-    const KNOWN: Record<string, string> = {
-      "tables/seed:POST": "L-184 — declares BOTH, body answers a MANAGER 403 " +
-        "« Réservé au super administrateur ». Decide which is right, then delete this line.",
-    };
+    // Found by this check on the day it was written, and not fixed then:
+    // whether a MANAGER should be able to seed the default tables read as a
+    // product question. Recorded as **L-184**, with the known case pinned so
+    // the suite stayed honest — green, with the exception written down — and a
+    // SECOND one would be a failure.
+    //
+    // ── EMPTIED 2026-09-14, L-184 CLOSED ────────────────────────────────────
+    // It was not a product question after all. `POST /api/tables` — creating
+    // ONE table — is already SUPER_ADMIN-only, so seeding eight at once cannot
+    // be less privileged than creating one, and whether table service ever
+    // returns (DD-09) does not move that line. The HANDLER was right; the
+    // declaration was wrong, and is now `{ roles: ["SUPER_ADMIN"] }` with the
+    // inline check deleted.
+    //
+    // What settled the FORM is L-151: a declarative refusal writes an audit
+    // row, an inline `return 403` writes nothing, so a MANAGER attempting this
+    // was refused SILENTLY in a system whose point is that refused privileged
+    // actions leave a trace.
+    //
+    // **The empty object is the assertion now.** The last line of this test
+    // requires the known contradictions to be exactly the ones listed here, so
+    // the exception could not have outlived its cause — and any NEW route that
+    // declares one gate and enforces another fails immediately, with nothing
+    // to add itself to.
+    const KNOWN: Record<string, string> = {};
 
     const contradictions: string[] = [];
     for (const route of ROUTES) {
@@ -666,12 +682,17 @@ describe("T-03 — every API route declares an authorization gate", () => {
     // among the guards; it is now empty, and a route reappearing in it is a NEW
     // instance of L-183 rather than a known one. ANY, INLINE_SA, INLINE_SELF
     // and SUPER_ADMIN are unmoved.
+    // AMENDED 2026-09-14 (L-184): BOTH 40 -> 39 and SUPER_ADMIN 12 -> 13, one
+    // route moving between them — `tables/seed:POST`, whose declaration was
+    // narrowed to match the handler that had been refusing the MANAGER all
+    // along. **ANY, INLINE_SA and INLINE_SELF are unmoved**, and INLINE_ANY is
+    // still absent: this closed a contradiction without widening anything.
     expect(counts).toEqual({
-      BOTH: 40,
+      BOTH: 39,
       ANY: 26,
       INLINE_SA: 5,
       INLINE_SELF: 1,
-      SUPER_ADMIN: 12,
+      SUPER_ADMIN: 13,
     });
     expect(counts.INLINE_ANY, "a guard that refuses nobody is back — L-183").toBeUndefined();
   });

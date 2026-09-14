@@ -83,6 +83,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - L-191 — the other seed path, and the PIN it was still installing
 - L-193 — the governing file held back two rows that were ready
 - L-183 · L-192 — the guards that refused nobody, and the one field the denylist missed
+- L-184 — a route that declared one rule and enforced another
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -4253,6 +4254,54 @@ proved separately — a code drift fails the per-key test, a table edit fails th
 which is the design the file's own comment describes and which I had misread.
 
 **Left behind.** Nothing from either. L-184 is still open and is still the operator's.
+---
+
+### L-184 — a route that declared one rule and enforced another
+**Done:** 2026-09-14 · **Commit:** `SHA` · **Finding:** L-184 (Low). **No plan row**; the
+operator decided it the same day.
+
+**`POST /api/tables/seed` said two different things about who may call it.** The wrapper
+declared `{ roles: ["SUPER_ADMIN", "MANAGER"] }`; the handler's first three lines answered a
+MANAGER `403 « Réservé au super administrateur »`. The authorization map reads the
+DECLARATION, so the map said a MANAGER could seed the default tables and the route said
+otherwise — **L-120's lie reached from the opposite side**, and invisible to every assertion in
+`api-authorization.test.ts` until the contradiction check R9.6 added found it.
+
+**IT WAS FILED AS A DD-09 QUESTION AND IT WAS NOT ONE.** The row read « whether a MANAGER
+should be able to seed the default tables is a product question », and I repeated that to the
+operator before checking. `POST /api/tables` — creating **ONE** table — is already
+SUPER_ADMIN-only. Seeding eight at once cannot be less privileged than creating one, and
+whether table service is ever reinstated does not move that line. The decision was available in
+the sibling route the whole time. *(Recorded here because the framing was mine and it was
+wrong: reading the finding's prose instead of the code is the exact failure the plan's own
+method section warns about.)*
+
+**What settled the FORM, rather than the side, is L-151.** A declarative refusal writes an
+audit row (`api-handler.ts`); an inline `return 403` writes nothing. So a MANAGER attempting
+this was refused **silently**, in a system whose entire point is that refused privileged
+actions leave a trace. Declaring it is also the direction R8.1 took with `settings:PUT` —
+« declared, not inline » (DD-26) — and it is what L-183 had just done to eight other handlers
+in the same session.
+
+**The exception could not outlive its cause, by design.** `api-authorization.test.ts`'s `KNOWN`
+map carried this one contradiction with the instruction « decide which is right, then delete
+this line », and its last assertion requires the observed contradictions to equal the listed
+ones exactly — so deleting the guard without emptying `KNOWN` fails too. The map is now `{}`,
+and **that empty object is the assertion**: any new route declaring one gate and enforcing
+another fails immediately, with nothing to add itself to.
+
+**Nothing calls the route.** Only `table-withdrawal.test.ts` and `api-authorization.test.ts`
+reference it; `tables-view.tsx` is unreachable by design (DD-09), so no screen reaches it. The
+running app is unaffected either way — this closes a contradiction in what the system SAYS
+about itself.
+
+**HOW IT WAS VERIFIED.** 1 806 pass · 0 fail · 146 files, typecheck and lint clean. Map: BOTH
+40 → 39, SUPER_ADMIN 12 → 13, ANY / INLINE_SA / INLINE_SELF unmoved and INLINE_ANY still
+absent — a contradiction closed without widening anything. Two reverts: restoring the
+disagreement fails **both** the per-key map check and the contradiction check; widening the
+gate back to the MANAGER with no guard behind it fails the map check alone.
+
+**Left behind.** Nothing. **This was the last open finding that was mine to decide.**
 ---
 
 ## Retired from the plan's § 6 on 2026-09-11

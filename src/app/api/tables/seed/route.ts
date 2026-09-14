@@ -4,10 +4,25 @@ import { withAuth } from "@/lib/api-handler";
 import { audit } from "@/lib/services/audit";
 
 // Seed default tables if none exist.
+//
+// ── L-184 (2026-09-14) — THE DECLARATION NOW MATCHES THE HANDLER ────────────
+// This declared `{ roles: ["SUPER_ADMIN", "MANAGER"] }` and then answered a
+// MANAGER `403 « Réservé au super administrateur »` in its first three lines.
+// Two statements of the same rule, disagreeing — and the one the authorization
+// map reads is the DECLARATION, so the map said a MANAGER could seed the
+// default tables and the route said otherwise.
+//
+// **Which side is right did NOT need DD-09 reopened**, though the finding was
+// filed as though it did. `POST /api/tables` — creating ONE table — is already
+// SUPER_ADMIN-only, and seeding eight at once cannot be less privileged than
+// creating one. Whether table service ever returns does not move that line.
+//
+// What settled the FORM is L-151: the declarative refusal writes an audit row
+// (`api-handler.ts`), and an inline `return 403` writes nothing. A MANAGER
+// attempting this was refused SILENTLY, in a system whose whole point is that
+// refused privileged actions leave a trace. Declaring it is also the direction
+// R8.1 took with `settings:PUT` — « declared, not inline » (DD-26).
 export const POST = withAuth(async (_req, { user }) => {
-  if (user.role !== "SUPER_ADMIN") {
-    return NextResponse.json({ error: "Réservé au super administrateur" }, { status: 403 });
-  }
   const count = await db.table.count();
   if (count > 0) {
     return NextResponse.json({ ok: true, message: "Tables déjà créées", skipped: true });
@@ -33,4 +48,4 @@ export const POST = withAuth(async (_req, { user }) => {
 
   await audit("TABLES_SEEDED", "Table", null, { count: defaultTables.length }, user.id);
   return NextResponse.json({ ok: true, created: defaultTables.length });
-}, { roles: ["SUPER_ADMIN", "MANAGER"] });
+}, { roles: ["SUPER_ADMIN"] });
