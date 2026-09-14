@@ -11,7 +11,7 @@ Completed work lives in **`REMEDIATION_DONE.md`**. This file only ever shows out
 **Overall:** NOT READY FOR PRODUCTION, and **not trading** — the fiscal journal is empty and
 every trading table is at zero.
 
-> ### ▶ CURRENT TASK — **R10.1**, and **PHASE 9 IS COMPLETE**
+> ### ▶ CURRENT TASK — **R10.2**, the last batch that is mine
 >
 > **§ 6 opens with the execution order. Follow that, not the order the tables print in.**
 >
@@ -58,6 +58,11 @@ every trading table is at zero.
 > **`docs/INVARIANTS.md` gained two paragraphs** on the operator's instruction the same day —
 > L-134's pricing rule and L-129's null-`vatRate` rule. Both had been drafted and held since
 > R8.5 and R9.8, because that file is theirs.
+>
+> **R10.1 is done** (2026-09-14). The client bundle no longer carries Prisma — largest chunk
+> **501.7 KB → 376 KB**, total client JS **2.68 MB → 2.3 MB**, measured in the built artifact —
+> `bun run build` runs in the fast CI job, two dead devDependencies are gone, and `db.ts` stops
+> claiming the `DATABASE_URL` query string sets its pragmas.
 >
 > **Two things are waiting, and neither is a batch.**
 >
@@ -399,7 +404,6 @@ their own riding along. Order inside the phase is not fixed except where a row s
 
 | ID | Status | Task |
 |---|---|---|
-| **R10.1** | `TODO` | **Build, dependencies, CI.** L-160 · L-161 · L-162 · L-163 · L-164 · L-178. Adding `bun run build` to the fast CI job is trivial and worth doing first; a `windows-latest` leg belongs with whatever CI the packaging gets. |
 | **R10.2** | `TODO` | **Documentation and the operator scripts.** L-146 · L-165 · L-166 · L-167 · L-168 · L-169. **`CLAUDE.md` (L-166) and `docs/INVARIANTS.md` (L-167) are the operator's files — bring the exact text and wait.** |
 | **R10.3** | `OPERATOR` | **The VAT policy's untabulated menus.** L-170. Not a code batch: extend § 5 of `docs/politique-ventilation-tva.md` to the six menus it does not tabulate, and answer § 8.4 for the three `showOnPos = 0` box components. Belongs in the accountant's envelope beside VAT-METHOD (§ 8). |
 

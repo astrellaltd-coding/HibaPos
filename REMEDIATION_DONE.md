@@ -78,6 +78,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - R9.8 — what a null means, written where the reader is
 - R9.9 — the catalogue transfer checks its own stamp
 - R9.10 — what the operator's fingers and eyes actually meet
+- R10.1 — no database in the browser, and the build runs where it is read
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -3865,6 +3866,68 @@ comment is not a rule anybody will keep. That is the fourth time this session.
 - **Ten undersized controls remain, listed and guarded.** Not hidden behind a rule, and the
   list can only shrink.
 - **The plan is at 38 555 bytes** against the 40 960 ceiling.
+---
+
+### R10.1 — no database in the browser, and the build runs where it is read
+**Done:** 2026-09-14 · **Commit:** `SHA` · **Findings:** L-160 · L-161 · L-162 · L-163 ·
+L-164. **L-178 read and left**, as its row instructs.
+
+**L-160 — half a megabyte of Prisma, in the browser, to draw a dialog.**
+`cash-movement-dialog.tsx` is `"use client"` and imported two pure values from
+`services/cash-movement.ts`, whose module graph is `@/lib/db` -> `@prisma/client`. The audit
+confirmed it in the built artifact with a reverse import graph over 104 modules: a **501.7 KB
+client chunk**, the largest, **19 % of 2.68 MB** of client JS, containing `db.ts` compiled for
+the browser. It did not crash and **no secret leaked**.
+
+**R9.7 made it worse before this fixed it**, and that is worth recording: L-155 pointed the
+dialog at the exported category list so DD-12's rule stopped living in three hand-copied
+places — right — and added a second import across this boundary — not. Both are resolved by
+`src/lib/cash-movement-policy.ts`: one copy of the rule, and no database on the client. The
+service **re-exports** rather than being emptied, so every existing importer is untouched.
+
+**The fix is on the service side, never in `db.ts`.** That module's top-level `globalThis`
+assignment is an invariant — it is what stops two PrismaClients existing, which was L-61's
+cause — and it is also what makes the module un-tree-shakeable.
+
+**Measured after, the same way: largest chunk 376 KB, total client JS 2.3 MB, and no Prisma in
+any chunk.** About 380 KB off what the till loads.
+
+**L-161 — two devDependencies declared and used by nothing.** `@types/tar`, superseded by
+`tar@7`'s own types, which resolve automatically; and `bun-types`, which is **deliberately**
+unreferenced — `src/types/bun-test.d.ts` exists precisely because referencing it redefines
+`fetch` and friends and fights the `dom` lib. That file said « `bun-types` IS a devDependency »,
+so it was corrected in the same commit: a dependency nothing can use is one somebody will one
+day try to use.
+
+**L-162 — `X-Powered-By: Next.js`**, naming the framework to anyone who asks. Disabled; the
+five deliberate headers are untouched.
+
+**L-163 — the build now runs in the fast CI job.** It ran only inside the slower `e2e` job, so
+a break surfaced as an e2e failure: misattributed, and after the long leg. **The other half is
+NOT fixed**: both jobs are `ubuntu-latest` for a Windows product whose every platform failure
+to date — `EPERM` on rename, OneDrive locks, `MoveFileEx` — has been Windows-only. A
+`windows-latest` leg costs runner minutes and belongs with whatever CI the packaging gets.
+
+**L-164 — a comment stating a mechanism that does not hold.** `db.ts` said the `DATABASE_URL`
+query string sets the SQLite pragmas. **Prisma ignores both and sets the same values itself**,
+which the audit probed: no parameters gave `foreign_keys=1, busy_timeout=5000`; with them,
+identical; **`?_busy_timeout=99999` still gave 5000**. Anyone raising it for a slow disk would
+have changed nothing and believed they had. The values are right; only the explanation was
+wrong.
+
+**HOW IT WAS VERIFIED.** 1 776 pass · 0 fail · 144 files · **zero `prisma:error` blocks**, plus
+`bun run build` — which this batch added to CI and therefore ran. New `client-bundle.test.ts`
+asserts the invariant over the IMPORT GRAPH rather than the artifact, because `bun test src`
+does not build and `.next/` may be stale; the bundle is checked only when a build happens to
+be present, since the graph is what is actually true and the artifact is evidence of it.
+Reverting the dialog's import to the service turns it red, with a message naming the path and
+saying what to do.
+
+**Left behind.**
+- **A `windows-latest` CI leg.** Named in L-163 and deliberately not added.
+- **The `DATABASE_URL` query string still ships**, in `.env` and `.env.example`. Removing it
+  changes nothing (measured) and is a separate decision from correcting the comment.
+- **The plan is at 38 631 bytes** against the 40 960 ceiling.
 ---
 
 ## Retired from the plan's § 6 on 2026-09-11

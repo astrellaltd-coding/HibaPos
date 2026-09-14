@@ -17,7 +17,15 @@ import { api } from "@/lib/api-client";
 import { parseEuroInput } from "@/lib/money";
 import { Money } from "@/components/shared/money";
 import { StepUpPinDialog, type StepUpConfirmation } from "@/components/pos/step-up-pin-dialog";
-import { CASH_MOVEMENT_CATEGORIES, CASH_MOVEMENT_DIRECTION, CASH_MOVEMENT_LABELS, requiresStepUp } from "@/lib/services/cash-movement";
+// L-160 (R10.1): from the POLICY module, which has no `@/lib/db` in its
+// graph. Importing these four from `services/cash-movement` pulled 501.7 KB
+// of Prisma into the client bundle — the largest chunk in it.
+import {
+  CASH_MOVEMENT_CATEGORIES,
+  CASH_MOVEMENT_DIRECTION,
+  CASH_MOVEMENT_LABELS,
+  requiresStepUp,
+} from "@/lib/cash-movement-policy";
 import type { CashMovementDto } from "@/types/api";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";

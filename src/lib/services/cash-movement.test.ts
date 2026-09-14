@@ -147,7 +147,16 @@ describe("L-155 — the screen offers the list this file pins", () => {
     // `REQUIRED_SIGN` was, so scanning for the bare word matches the sentence
     // describing its removal.
     expect(src, "REQUIRED_SIGN is back").not.toContain("const REQUIRED_SIGN");
-    expect(src).toContain("export const CASH_MOVEMENT_DIRECTION");
+    // MOVED 2026-09-14 (R10.1 / L-160). The definition left this file for
+    // `@/lib/cash-movement-policy`, which has no `@/lib/db` in its graph — a
+    // `"use client"` dialog importing from here pulled 501.7 KB of Prisma into
+    // the browser bundle. The property L-155 is about is ONE DEFINITION, and
+    // there still is one; it is one module along. The service re-exports, so
+    // every existing importer is unaffected.
+    expect(src).toContain('from "@/lib/cash-movement-policy"');
+    expect(src, "the service declares its own copy again").not.toMatch(
+      /const CASH_MOVEMENT_DIRECTION\s*:/,
+    );
   });
 });
 

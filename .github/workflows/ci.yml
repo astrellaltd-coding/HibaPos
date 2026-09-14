@@ -36,6 +36,19 @@ jobs:
       - run: bunx prisma generate
       - run: bun run typecheck
       - run: bun run lint
+      # L-163 (R10.1): the BUILD, in the fast job.
+      #
+      # It ran only inside the slower `e2e` job, so a break in it surfaced as an
+      # e2e failure — misattributed, and after the long leg rather than the
+      # short one. `bun run build` is the cheapest signal that catches a
+      # type-clean, lint-clean tree that will not compile.
+      #
+      # The other half of this finding — both jobs are `ubuntu-latest` for a
+      # WINDOWS product, whose every platform failure to date (EPERM on rename,
+      # OneDrive locks, MoveFileEx) has been Windows-only — is NOT fixed here. A
+      # `windows-latest` leg costs runner minutes and belongs with whatever CI
+      # the packaging gets, which is the Tauri phase's.
+      - run: bun run build
       # `--timeout 30000` for the same reason the plan's L-24 gives: the
       # scrypt-heavy tests are slow on a shared runner.
       #

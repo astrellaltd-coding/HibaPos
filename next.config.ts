@@ -1,6 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // L-162 (R10.1): `X-Powered-By: Next.js` was served on the HTML route. It
+  // names the framework and its major version to anyone who asks, which is a
+  // free hint and buys nothing. The five deliberate headers below are
+  // unaffected.
+  poweredByHeader: false,
   // `output: "standalone"` was removed in Batch 2.4 (L-04, L-05).
   //
   // It was built on every `next build` and used by nothing. The launcher

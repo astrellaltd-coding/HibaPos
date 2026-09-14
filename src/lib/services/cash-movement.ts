@@ -28,6 +28,11 @@ import { db } from "@/lib/db";
 import { appendFiscalEvent } from "@/lib/services/fiscal";
 import { TX_FISCAL, isTransactionBusyError } from "@/lib/tx-options";
 import type { CashMovementType } from "@prisma/client";
+import {
+  CASH_MOVEMENT_DIRECTION,
+  NO_OPEN_SHIFT_FOR_MOVEMENT_MESSAGE,
+  ZERO_AMOUNT_MESSAGE,
+} from "@/lib/cash-movement-policy";
 
 /** In-transaction validation failure carrying the HTTP status the route returns. */
 export class CashMovementError extends Error {
@@ -40,69 +45,27 @@ export class CashMovementError extends Error {
 }
 
 /** The four, in the order the screen offers them. */
-export const CASH_MOVEMENT_CATEGORIES = [
-  "APPROVISIONNEMENT",
-  "PRELEVEMENT",
-  "DEPENSE",
-  "ERREUR_DE_CAISSE",
-] as const;
+// L-160 (R10.1) — THE PURE VALUES LIVE IN `@/lib/cash-movement-policy`.
+//
+// This file's graph is `@/lib/db` → `@prisma/client`, and a `"use client"`
+// dialog importing two constants from here pulled **501.7 KB** of Prisma into
+// the browser bundle — the largest client chunk, 19 % of 2.68 MB. Measured in
+// the built artifact, not inferred.
+//
+// Re-exported rather than moved-and-forgotten, so every existing importer of
+// this module keeps working and there is still exactly one definition. The
+// CLIENT must import from the policy module directly; `client-bundle.test.ts`
+// is what enforces that.
+export {
+  CASH_MOVEMENT_CATEGORIES,
+  CASH_MOVEMENT_DIRECTION,
+  CASH_MOVEMENT_LABELS,
+  requiresStepUp,
+  NO_OPEN_SHIFT_FOR_MOVEMENT_MESSAGE,
+  ZERO_AMOUNT_MESSAGE,
+  type CashMovementCategory,
+} from "@/lib/cash-movement-policy";
 
-/** What the operator reads. The enum values are stable; these are not. */
-export const CASH_MOVEMENT_LABELS: Record<CashMovementType, string> = {
-  APPROVISIONNEMENT: "Approvisionnement",
-  PRELEVEMENT: "Prélèvement",
-  DEPENSE: "Dépense",
-  ERREUR_DE_CAISSE: "Erreur de caisse",
-};
-
-/**
- * Which sign a category is allowed to carry.
- *
- * `null` means either — and `ERREUR_DE_CAISSE` is the only one, because a
- * counting correction genuinely goes both ways. Everything else has exactly one
- * honest direction, and a row that disagreed with its own category would make
- * every per-category total meaningless — which is the one thing DD-12 chose a
- * fixed list to protect.
- */
-/**
- * Which way each category moves the money — L-155 (R9.7). **Exported, and the
- * only copy.**
- *
- * THE FINDING: DD-12's « fixed category list » existed in THREE hand-copied
- * places. `CASH_MOVEMENT_CATEGORIES` above was pinned by a test as « the order
- * the screen offers them » and **the screen used none of it** — it built its
- * list from a local `DIRECTION` map in `cash-movement-dialog.tsx` — while this
- * service kept a third copy as a private `REQUIRED_SIGN`. So the test pinned a
- * constant nothing read, and the two that were read could drift from it and
- * from each other without anything noticing.
- *
- * One exported map now, imported by the dialog. `ERREUR_DE_CAISSE` is `null`
- * because it genuinely goes both ways, and it is the only one that does.
- */
-export const CASH_MOVEMENT_DIRECTION: Record<CashMovementType, 1 | -1 | null> = {
-  APPROVISIONNEMENT: 1,
-  PRELEVEMENT: -1,
-  DEPENSE: -1,
-  ERREUR_DE_CAISSE: null,
-};
-
-/**
- * Does this movement need the operator's PIN?
- *
- * The direction of the money, not the category name (operator, 2026-09-05).
- * Exported and pure so the route, the client and the tests all ask the same
- * question — the client needs it to know whether to raise the PIN pad at all,
- * and a client that guessed differently from the server would either prompt for
- * nothing or be refused after the operator had typed.
- */
-export function requiresStepUp(amountCents: number): boolean {
-  return amountCents < 0;
-}
-
-export const NO_OPEN_SHIFT_FOR_MOVEMENT_MESSAGE =
-  "Aucune caisse ouverte. Ouvrez une caisse avant d'enregistrer un mouvement.";
-
-export const ZERO_AMOUNT_MESSAGE = "Le montant doit être différent de zéro.";
 
 export const WRONG_SIGN_MESSAGES: Record<string, string> = {
   APPROVISIONNEMENT: "Un approvisionnement ajoute de l'argent : le montant doit être positif.",

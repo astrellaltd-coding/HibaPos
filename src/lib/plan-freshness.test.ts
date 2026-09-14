@@ -301,7 +301,12 @@ describe("plan freshness — the plan and the done file may not disagree", () =>
     //   What remains is Phase 6's five OPERATOR rows, Phase 10's three, and
     //   nothing else.
     //   FINDINGS STAY AT 8 for the last time in Phase 9.
-    expect(taskStatuses(src).size).toBe(8);
+    //   2026-09-14, R10.1 DONE: tasks 8 → 7. Phase 10 has R10.2 (mine) and
+    //   R10.3 (the operator's) left. L-160 · L-161 · L-162 · L-163 · L-164;
+    //   **L-178 is read and left**, as its own row says — « a measurement, not
+    //   a defect », and the reason L-05 cannot be closed by flipping a key.
+    //   FINDINGS STAY AT 8. R10.1 opened none.
+    expect(taskStatuses(src).size).toBe(7);
     expect(openFindings(src).size).toBe(8);
     expect(done()).toContain("# HibaPOS France — Completed Work");
   });
