@@ -220,6 +220,94 @@ export function parseCatalogueExport(raw: unknown): CatalogueExport {
   };
 }
 
+
+export const MIGRATION_MISMATCH_REFUSAL = (fileStamp: string, here: string) =>
+  `Ce catalogue a été exporté sous une autre version de la base : ` +
+  `« ${fileStamp} » contre « ${here} » ici. ` +
+  `Ré-exportez le catalogue depuis l'installation d'origine, puis réimportez-le.`;
+
+export const MISSING_COLUMNS_REFUSAL = (missing: string[]) =>
+  `Ce catalogue a été exporté avant que ${missing.length} colonne(s) n'existent : ` +
+  `${missing.slice(0, 6).join(", ")}${missing.length > 6 ? "…" : ""}. ` +
+  `Elles prendraient leur valeur par défaut sans que rien ne le dise — des produits ` +
+  `masqués réapparaîtraient sur la grille, par exemple. ` +
+  `Ré-exportez le catalogue depuis l'installation d'origine, puis réimportez-le.`;
+
+/**
+ * Which declared columns the file does not carry — L-109 (R9.9).
+ *
+ * A table with no rows tells us nothing and is skipped: an installation with no
+ * add-ons exports an empty `categoryAddOn`, and that is not an old file.
+ *
+ * The UNION across a table's rows, not the first row: `pick()` drops a field a
+ * row does not carry, so a nullable column absent from ONE row is normal and
+ * absent from EVERY row is the signal.
+ */
+export function missingColumns(tables: Record<string, Row[]>): string[] {
+  const missing: string[] = [];
+  for (const { model, fields } of CATALOGUE_TABLES) {
+    const rows = tables[model] ?? [];
+    if (rows.length === 0) continue;
+    const present = new Set<string>();
+    for (const row of rows) for (const k of Object.keys(row)) present.add(k);
+    for (const field of fields) {
+      if (!present.has(field)) missing.push(`${model}.${field}`);
+    }
+  }
+  return missing.sort();
+}
+
+/**
+ * Refuse a catalogue this install cannot apply faithfully — L-109 (R9.9).
+ *
+ * THE FINDING. `exportCatalogue` has always written
+ * `migration: await latestMigration(client)`, `parseCatalogueExport` has always
+ * carried it through, and **nothing ever looked at it.** An OLDER export into a
+ * NEWER install succeeded and left the new columns at their defaults: a
+ * catalogue exported before `showOnPos` existed imports with every product
+ * `showOnPos = true`, **putting R3.3's three deliberately-hidden menu components
+ * back on the till grid.** Silently — the file is valid, the rows insert, the
+ * counts match. The newer-into-older direction already failed loudly, which is
+ * the right way round; this is the direction that was quiet.
+ *
+ * **THIS IS THE MECHANISM THAT CARRIES THIS RESTAURANT'S REAL WORK TO FRANCE.**
+ *
+ * ── WHY COLUMNS AND NOT JUST THE STAMP ──────────────────────────────────────
+ * The stamp cannot stand alone: an install bootstrapped with `prisma db push`
+ * has no `_prisma_migrations` at all — **the test database is one** — so both
+ * sides read `null`, and « I cannot tell » would have to be treated as « it
+ * matches », which is the exact conflation this finding is about. `backup.ts`
+ * declined to require migration history for the same reason and compares
+ * STRUCTURE instead.
+ *
+ * So the columns are the check, and the stamp is a cheaper one layered on top:
+ * when BOTH sides have one and they differ, say so precisely, because that
+ * message names a version an operator can act on. When either is missing, the
+ * column comparison still answers — and it is the more direct question anyway,
+ * since the stamp was only ever a proxy for it.
+ *
+ * ── WHY A REFUSAL AND NOT A WARNING ─────────────────────────────────────────
+ * There is no safe way to fill in what an older file does not contain. A column
+ * added since the export has a default, and a default is a guess about a
+ * catalogue somebody built by hand — the same rule this project follows
+ * everywhere for a figure nobody measured. Re-exporting from the source install
+ * costs one click and produces a file that needs no guessing.
+ */
+export async function assertImportable(
+  parsed: CatalogueExport,
+  client: Tx = db,
+): Promise<void> {
+  const missing = missingColumns(parsed.tables);
+  if (missing.length > 0) {
+    throw new CatalogueImportError(MISSING_COLUMNS_REFUSAL(missing), 409);
+  }
+
+  const here = await latestMigration(client);
+  if (parsed.migration && here && parsed.migration !== here) {
+    throw new CatalogueImportError(MIGRATION_MISMATCH_REFUSAL(parsed.migration, here), 409);
+  }
+}
+
 /**
  * Every reference inside a catalogue file, as `model.field -> model`.
  *
@@ -320,6 +408,10 @@ export async function importCatalogue(payload: CatalogueExport): Promise<ImportR
   // cannot be applied should be refused without a database round trip, and
   // with a message that names the reference.
   assertReferencesResolve(parsed.tables);
+
+  // L-109 (R9.9) — and a file this install cannot apply faithfully is refused
+  // before anything is written, for the same reason as the line above.
+  await assertImportable(parsed);
 
   await db.$transaction(async (tx) => {
     await assertEmpty(tx as unknown as Tx);

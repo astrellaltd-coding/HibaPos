@@ -281,7 +281,13 @@ describe("plan freshness — the plan and the done file may not disagree", () =>
     //   alongside** — the four CRLF working-tree files were re-checked out,
     //   which produced no diff, as that finding said it would.
     //   FINDINGS STAY AT 8. R9.8 opened none.
-    expect(taskStatuses(src).size).toBe(10);
+    //   2026-09-14, R9.9 DONE: tasks 10 → 9, and **R9.10 is the last batch of
+    //   Phase 9**. One finding, L-109: the catalogue export has always stamped
+    //   the migration it was taken under and the import never compared it. The
+    //   audit could only mark it SUSPECTED — « no export file older than a
+    //   migration exists to test against » — so this batch built one.
+    //   FINDINGS STAY AT 8. R9.9 opened none.
+    expect(taskStatuses(src).size).toBe(9);
     expect(openFindings(src).size).toBe(8);
     expect(done()).toContain("# HibaPOS France — Completed Work");
   });

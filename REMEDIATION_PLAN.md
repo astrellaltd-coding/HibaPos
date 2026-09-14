@@ -11,7 +11,7 @@ Completed work lives in **`REMEDIATION_DONE.md`**. This file only ever shows out
 **Overall:** NOT READY FOR PRODUCTION, and **not trading** — the fiscal journal is empty and
 every trading table is at zero.
 
-> ### ▶ CURRENT TASK — **R9.9**, and Phase 9 is running
+> ### ▶ CURRENT TASK — **R9.10**, the last batch of Phase 9
 >
 > **§ 6 opens with the execution order. Follow that, not the order the tables print in.**
 >
@@ -45,7 +45,9 @@ every trading table is at zero.
 > guard, the WAL guard and the payment check now all go red when broken. **R9.8 is done**
 > (2026-09-14): a null `OrderItem.vatRate` is no longer silently 10 % — the aggregation
 > refuses it and the ticket says the rate is unknown — and every FK-less id column explains
-> itself. **L-185 closed with it**: the four CRLF files were re-checked out.
+> itself. **L-185 closed with it**: the four CRLF files were re-checked out. **R9.9 is done**
+> (2026-09-14): the catalogue import refuses a file exported under an older schema instead of
+> filling the new columns with defaults — the mechanism that carries this catalogue to France.
 >
 > **Two things are waiting, and neither is a batch.**
 >
@@ -74,7 +76,7 @@ applied. What each did, how it was verified and what it cost is in `REMEDIATION_
 - **Phase 6** — the fiscal go-live, five `OPERATOR` rows. **R8.1 unblocked R6.3** (2026-09-13,
   `622411c`) and **R9.1 unblocked R6.4** (2026-09-13). Row-by-row status below.
 - **Phase 8** — money and the fiscal record. **COMPLETE 2026-09-13**, all seven batches.
-- **Phase 9** — fix before the app is called complete. **six batches done**; R9.9 and R9.10 left.
+- **Phase 9** — fix before the app is called complete. **seven batches done**; R9.10 left.
 - **Phase 10** — the leftovers no other batch owns. Three rows (group C).
 
 **Phases 8-10 come from the audit.** Six read-only passes and a seventh that consolidated
@@ -380,7 +382,6 @@ their own riding along. Order inside the phase is not fixed except where a row s
 
 | ID | Status | Task |
 |---|---|---|
-| **R9.9** | `TODO` | **The catalogue transfer checks its own stamp.** L-109. It is the mechanism that carries this catalogue to France; an older export into a newer install currently succeeds with new columns silently at their defaults. |
 | **R9.10** | `TODO` | **Touch targets and French.** L-131 · L-132 · L-133 · L-148 · L-149 · L-150. L-131's durable form is widening `touch-and-labels.test.ts` past `<Button>`, which makes it a test-suite item as much as a UI one. |
 
 ### Phase 10 — The batches that own the leftovers

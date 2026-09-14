@@ -2,12 +2,14 @@ import { describe, it, expect, beforeEach, afterAll } from "vitest";
 import { signInAs, callJson, clearCookies } from "@/lib/route-harness";
 import { db } from "@/lib/db";
 import {
-  CATALOGUE_TABLES,
   CATALOGUE_FORMAT,
-  exportCatalogue,
   CATALOGUE_REFERENCES,
+  CATALOGUE_TABLES,
   CatalogueImportError,
   NOT_EMPTY_REFUSAL,
+  exportCatalogue,
+  importCatalogue,
+  missingColumns,
   type CatalogueExport,
 } from "@/lib/services/catalogue-transfer";
 import { saveSettings, getSettings } from "@/lib/services/settings";
@@ -183,6 +185,30 @@ async function importOverHttp(body: unknown) {
 // ---------------------------------------------------------------------------
 // 1. The column lists must not go stale
 // ---------------------------------------------------------------------------
+
+
+/** A catalogue with something in it, exported. */
+async function freshExport() {
+  if ((await db.product.count()) === 0) {
+    const cat = await db.category.create({ data: { name: `L109-${Math.random()}`, vatRate: 10 } });
+    await db.product.create({
+      data: { name: `P-${Math.random()}`, price: 1000, categoryId: cat.id, vatRate: 10 },
+    });
+  }
+  return exportCatalogue();
+}
+
+/** This install's migration stamp, or null on a `db push` database. */
+async function latestMigrationForTest(): Promise<string | null> {
+  const present = await db.$queryRawUnsafe<{ name: string }[]>(
+    `SELECT name FROM sqlite_master WHERE type = 'table' AND name = '_prisma_migrations'`,
+  );
+  if (!present.length) return null;
+  const rows = await db.$queryRawUnsafe<{ migration_name: string }[]>(
+    `SELECT migration_name FROM _prisma_migrations WHERE rolled_back_at IS NULL ORDER BY finished_at DESC LIMIT 1`,
+  );
+  return rows[0]?.migration_name ?? null;
+}
 
 describe("the travelling column lists track the schema", () => {
   it("names every column of every catalogue table, except updatedAt", async () => {
@@ -571,3 +597,145 @@ describe("the export file itself", () => {
     expect(after).toEqual(before);
   });
 });
+
+// ── L-109 (R9.9) — AN OLDER EXPORT IS REFUSED, NOT SILENTLY DEFAULTED ────────
+//
+// THE FINDING: the export has always stamped the migration it was taken under,
+// and the import never compared it. An older file into a newer install
+// succeeded and left the new columns at their defaults — **a catalogue exported
+// before `showOnPos` existed imports with every product `showOnPos = true`,
+// putting R3.3's three deliberately-hidden menu components back on the till
+// grid.** Silently: the file is valid, the rows insert, the counts match.
+//
+// The newer-into-older direction already failed loudly, because the file
+// carries columns the target has no place for. That is the right way round;
+// this is the direction that was quiet.
+//
+// **This export/import is the mechanism that carries this restaurant's real
+// work to France**, so a silent partial import is not a theoretical cost.
+//
+// The audit could only mark it SUSPECTED — « no export file older than a
+// migration exists to test against ». One is built here, by deleting a column
+// from a real export, which is exactly what an older file looks like.
+describe("L-109 — a catalogue from an older schema is refused", () => {
+  it("refuses a file whose products predate `showOnPos`", async () => {
+    // The named case, and the one with a real consequence: R3.3 hid three menu
+    // components from the grid on purpose.
+    const exported = await exportCatalogue();
+    expect(exported.tables.product.length, "no products to strip").toBeGreaterThan(0);
+    const older = {
+      ...exported,
+      tables: {
+        ...exported.tables,
+        product: exported.tables.product.map((r) => {
+          const { showOnPos: _dropped, ...rest } = r as Record<string, unknown>;
+          return rest;
+        }),
+      },
+    };
+    await expect(importCatalogue(older as never)).rejects.toThrow(/showOnPos/);
+  });
+
+  it("names every missing column, not just the first", async () => {
+    const exported = await exportCatalogue();
+    const older = {
+      ...exported,
+      tables: {
+        ...exported.tables,
+        product: exported.tables.product.map((r) => {
+          const { showOnPos: _a, inheritCategoryVat: _b, ...rest } = r as Record<string, unknown>;
+          return rest;
+        }),
+      },
+    };
+    let message = "";
+    try {
+      await importCatalogue(older as never);
+    } catch (e) {
+      message = e instanceof Error ? e.message : String(e);
+    }
+    expect(message).toContain("showOnPos");
+    expect(message).toContain("inheritCategoryVat");
+    // …and says what to do about it.
+    expect(message).toContain("Ré-exportez");
+  });
+
+  it("writes NOTHING when it refuses", async () => {
+    // A refusal after a partial insert would be worse than the silent default:
+    // half a catalogue, and no way to tell which half.
+    await wipeCatalogue();
+    const exported = await freshExport();
+    const older = {
+      ...exported,
+      tables: {
+        ...exported.tables,
+        product: exported.tables.product.map((r) => {
+          const { showOnPos: _dropped, ...rest } = r as Record<string, unknown>;
+          return rest;
+        }),
+      },
+    };
+    await wipeCatalogue();
+    await expect(importCatalogue(older as never)).rejects.toThrow();
+    expect(await db.product.count(), "rows were written by a refused import").toBe(0);
+    expect(await db.category.count()).toBe(0);
+  });
+
+  it("ACCEPTS a current export — the direction that must keep working", async () => {
+    // Without this the check is satisfied by refusing every file, and the
+    // mechanism that carries the catalogue to France stops working entirely.
+    const exported = await freshExport();
+    await wipeCatalogue();
+    await expect(importCatalogue(exported as never)).resolves.toBeTruthy();
+    expect(await db.product.count()).toBeGreaterThan(0);
+  });
+
+  it("ignores an EMPTY table, which tells us nothing", async () => {
+    // An installation with no add-ons exports an empty `categoryAddOn`. That is
+    // not an old file, and refusing it would make the check unusable on a
+    // catalogue that simply does not use a feature.
+    expect(missingColumns({ categoryAddOn: [] })).toEqual([]);
+    expect(missingColumns({})).toEqual([]);
+  });
+
+  it("takes the UNION across rows, so one sparse row is not an old file", async () => {
+    // `pick()` drops a field a row does not carry, so a nullable column absent
+    // from ONE row is normal. Absent from EVERY row is the signal.
+    const full = {
+      id: "p1", name: "x", description: null, price: 1, pickupPrice: null,
+      deliveryPrice: null, vatRate: 10, categoryId: "c1", image: null, active: true,
+      available: true, inheritCategoryGlobals: true, inheritCategoryVat: false,
+      isCombo: false, showOnPos: true, sortOrder: 0, createdAt: "x",
+    };
+    const sparse = { ...full } as Record<string, unknown>;
+    delete sparse.showOnPos;
+    // One row carries it, the other does not — that is not an old export.
+    //
+    // THE SPARSE ROW GOES FIRST, deliberately. With the complete row first, a
+    // check reading only `rows[0]` gives the same answer and the revert
+    // survives — measured. Both orders are asserted so neither can pass alone.
+    expect(missingColumns({ product: [sparse, full] })).toEqual([]);
+    expect(missingColumns({ product: [full, sparse] })).toEqual([]);
+    // Neither carries it — that is.
+    expect(missingColumns({ product: [sparse] })).toEqual(["product.showOnPos"]);
+  });
+
+  it("refuses a MIGRATION mismatch with a message naming both versions", async () => {
+    // The cheaper check layered on top. It cannot stand alone — a `db push`
+    // install has no `_prisma_migrations`, and this test database is one — but
+    // when both sides have a stamp it names a version the operator can act on.
+    const exported = await freshExport();
+    await wipeCatalogue();
+    const fromElsewhere = { ...exported, migration: "20250101000000_something_older" };
+    // With no stamp on THIS side the mismatch cannot be detected, and the
+    // column check is what protects the import. Asserted so the limitation is
+    // recorded rather than assumed away.
+    const here = await latestMigrationForTest();
+    if (here) {
+      await expect(importCatalogue(fromElsewhere as never)).rejects.toThrow(/version de la base/);
+    } else {
+      await expect(importCatalogue(fromElsewhere as never)).resolves.toBeTruthy();
+    }
+  });
+});
+

@@ -76,6 +76,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - R9.5 — the front door opens, and refuses a PIN the repository publishes
 - R9.7 — the guards that were not guarding
 - R9.8 — what a null means, written where the reader is
+- R9.9 — the catalogue transfer checks its own stamp
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -3721,6 +3722,65 @@ guard written the short way would refuse a zero-rated line as unrecorded.
 > « Taux non enregistré » bucket, because printing must never lose a sale. 10 % is the
 > restauration rate and a drink à emporter is 5,5 %, so no default is conservative. Same rule,
 > and same reason, as `lineNetTotal`, `lineHt`, `perpetualSalesTotal` and `referencePrice`.
+---
+
+### R9.9 — the catalogue transfer checks its own stamp
+**Done:** 2026-09-14 · **Commit:** `SHA` · **Finding:** L-109
+
+**The export has always stamped the migration it was taken under, and the import never
+compared it.** An OLDER export into a NEWER install succeeded and left the new columns at
+their defaults — **a catalogue exported before `showOnPos` existed imports with every product
+`showOnPos = true`, putting R3.3's three deliberately-hidden menu components back on the till
+grid.** Silently: the file is valid, the rows insert, the counts match. The newer-into-older
+direction already failed loudly, because the file carries columns the target has no place for;
+that is the right way round, and this was the direction that was quiet.
+
+**This export/import is the mechanism that carries this restaurant's real work to France** — a
+fresh install, retaining this catalogue — so a silent partial import is not a theoretical cost.
+
+**THE STAMP COULD NOT BE THE CHECK, and finding out why was the substance of the batch.** An
+install bootstrapped with `prisma db push` has **no `_prisma_migrations` at all** — and the
+test database is one, which is how it surfaced: comparing stamps made both sides read `null`
+and failed every round-trip test in the file. Treating « I cannot tell » as « it matches » is
+the exact conflation this finding is about, and `backup.ts` had already declined to require
+migration history for the same reason, comparing structure instead.
+
+So **the columns are the check**: `CATALOGUE_TABLES` declares what the transfer carries, and a
+file whose rows are missing one is an older export. That is the more direct question anyway —
+the stamp was only ever a proxy for it. The stamp comparison stays as a cheaper layer on top,
+because when both sides have one it names a version an operator can act on.
+
+Two details that took measuring. The check takes the **union across a table's rows**, because
+`pick()` drops a field a row does not carry — a nullable column absent from ONE row is normal
+and absent from EVERY row is the signal. And an **empty table is skipped**: an installation
+with no add-ons exports an empty `categoryAddOn`, which is not an old file.
+
+**A refusal, not a warning.** There is no safe way to fill in what an older file does not
+contain: a column added since the export has a default, and a default is a guess about a
+catalogue somebody built by hand — the rule this project follows everywhere for a figure
+nobody measured. Re-exporting from the source install costs one click.
+
+**HOW IT WAS VERIFIED.** 1 746 pass · 0 fail · 142 files · **zero `prisma:error` blocks**.
+Seven new cases. The audit could only mark this SUSPECTED — « no export file older than a
+migration exists to test against » — so one is **built**, by deleting a column from a real
+export, which is exactly what an older file looks like. Four reverts:
+
+| revert | what it restores | went red |
+|---|---|---|
+| F109a | the import compares nothing | 3 |
+| F109b | only the first row is read | 1 |
+| F109c | an empty table counts as missing everything | 2 |
+| F109d | the check runs after the rows are written | 2 |
+
+**F109b survived first, and the fixture was the reason.** The union test listed the COMPLETE
+row first, so a check reading only `rows[0]` gave the same answer. The sparse row goes first
+now and both orders are asserted, so neither can pass alone.
+
+**Left behind.**
+- **A `db push` install still cannot detect a stamp mismatch**, only a column one. That is
+  stated in the code and asserted in the test rather than assumed away — the column check is
+  what protects those installs, and it is the one that catches the case this finding names.
+- **The plan is at 37 934 bytes** against the 40 960 ceiling.
 ---
 
 ## Retired from the plan's § 6 on 2026-09-11
