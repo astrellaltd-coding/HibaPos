@@ -40,7 +40,13 @@
 // counted once; it is the reconciliation that needs the qualifier. See
 // `fiscal.ts`'s `assertNoOpenShift` for the full note.
 
-import { addVatMoveToBreakdown, apportion, sum2, type VatBreakdown } from "@/lib/money";
+import {
+  addVatMoveToBreakdown,
+  apportion,
+  requireVatRate,
+  sum2,
+  type VatBreakdown,
+} from "@/lib/money";
 // Type-only: names the two statuses Prisma expects in a `where`. No runtime
 // import, so this module still pulls in no database client.
 import type { OrderStatus } from "@prisma/client";
@@ -502,7 +508,13 @@ export function aggregateOrders<T extends AggregatableOrder>(
         ((after.counted ? 1 : 0) - (before.counted ? 1 : 0)) * (order.discountTotal ?? 0);
 
       order.items.forEach((item, idx) => {
-        addVatMoveToBreakdown(vatBreakdown, before.lineNets[idx], after.lineNets[idx], item.vatRate ?? 10);
+        addVatMoveToBreakdown(
+          vatBreakdown,
+          before.lineNets[idx],
+          after.lineNets[idx],
+          // L-129 (R9.8): no invented rate in a figure that gets sealed.
+          requireVatRate(item.vatRate, `une ligne « ${item.productName} »`),
+        );
         const key = productKey(item);
         productAgg[key] ??= { productId: item.productId ?? null, name: item.productName, quantity: 0, total: 0 };
         // Revenue moves, quantity does not: nothing was sold or un-sold here,
@@ -577,7 +589,13 @@ export function aggregateOrders<T extends AggregatableOrder>(
 
     order.items.forEach((item, idx) => {
       const netLineTotal = after.lineNets[idx];
-      addVatMoveToBreakdown(vatBreakdown, 0, netLineTotal, item.vatRate ?? 10);
+      addVatMoveToBreakdown(
+        vatBreakdown,
+        0,
+        netLineTotal,
+        // L-129 (R9.8): no invented rate in a figure that gets sealed.
+        requireVatRate(item.vatRate, `une ligne « ${item.productName} »`),
+      );
       const key = productKey(item);
       productAgg[key] ??= { productId: item.productId ?? null, name: item.productName, quantity: 0, total: 0 };
       productAgg[key].quantity += item.quantity;

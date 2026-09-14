@@ -633,7 +633,19 @@ model OrderItem {
   unitPrice   Int // TTC cents unit price (base + options)
   quantity    Int
   lineTotal   Int // cents, TTC, BEFORE the order's discount
-  vatRate     Float? // snapshot of VAT rate at time of sale
+  // L-129 (R9.8) — **NULL MEANS THE RATE WAS NEVER RECORDED**, and nothing
+  // may invent one. `aggregate.ts` and `receipt.ts` both did `?? 10`, into
+  // the printed ticket's VAT table, the order's breakdown and therefore the
+  // Z report and every close. 10 % is the restauration rate and a drink à
+  // emporter is 5,5 %, so that default was not conservative in either
+  // direction. The rule and both answers are in `money.ts`
+  // (`requireVatRate`): the aggregation REFUSES, because a sealed figure may
+  // not be guessed, and the ticket PRINTS while saying the rate is unknown,
+  // because printing must never lose a sale.
+  //
+  // Same treatment and same reason as `lineNetTotal`/`lineHt` below and
+  // `referencePrice`'s « Null is the statement. Never backfill it. »
+  vatRate     Float? // snapshot of VAT rate at time of sale; null = not recorded
 
   // L-58 (Batch 3.11) — BOFiP § 50 lists « total HT de la ligne » among the
   // data in scope for the fonctionnalité de caisse, and it was stored nowhere.
@@ -676,6 +688,10 @@ model OrderItem {
   // the sum of the group's shares and stored anyway, so a reader can check the
   // allocation with a calculator instead of re-implementing it - L-58's
   // argument for storing `lineNetTotal` beside `lineHt`, at the level above.
+  // L-145 (R9.8) — **plain id, NO FK**, and a different kind from the rest: it
+  // is not a row id at all. It is a per-order grouping token, minted at
+  // checkout to tie one menu's exploded lines together, and it points at
+  // nothing in any table. A foreign key here would have nothing to reference.
   comboGroupId String?
   comboName    String?
   comboPrice   Int? // cents, TTC, the menu's forfait for this order type
@@ -936,6 +952,11 @@ model AuditLog {
   userId    String?
   action    String // e.g. ORDER_CREATED, SHIFT_OPENED, USER_CREATED
   entity    String
+  // L-145 (R9.8) — **plain id, NO FK, and it could not be one**: `entity` names
+  // which table it points into, so this is polymorphic. It also holds things
+  // that are not row ids at all — `ACCESS_DENIED` (L-151) stores the route
+  // path here. An audit row must survive whatever it describes being deleted,
+  // which is the same rule the sealed documents follow.
   entityId  String?
   details   String? // JSON string
   createdAt DateTime @default(now())
@@ -989,6 +1010,20 @@ model FiscalEvent {
   id             String   @id @default(cuid())
   sequence       Int      @unique // gapless monotonic journal sequence
   type           String // VENTE | ANNULATION | REMBOURSEMENT | MOUVEMENT_CAISSE | CLOTURE_Z | CLOTURE_M | CLOTURE_A | OUVERTURE_TIROIR | REIMPRESSION | SESSION_OPEN | SESSION_CLOSE | SESSION_LOCK | ARCHIVE_GENEREE | RESTAURATION | SUPPRESSION_SAUVEGARDE
+
+  // L-145 (R9.8) — EVERY ID BELOW IS A **PLAIN ID, NO FK**, and the reason is
+  // the one the header states: THE JOURNAL IS IMMUTABLE.
+  //
+  // A foreign key would let the database refuse, cascade or null one of these
+  // when the row it points at changes — and a journal entry that can be edited
+  // by deleting something else is not a journal. The same convention, and the
+  // same reason, as `Refund.approvedById` and `DailyClose.sealedById`: a sealed
+  // record outlives the rows it names.
+  //
+  // Said here once for all eight rather than eight times, and pinned by
+  // `schema-fk-comments.test.ts` so a ninth cannot arrive silently. It was
+  // stated in the block comment above this model and nowhere on the columns,
+  // which is why the audit counted this model's ids among the undocumented.
   orderId        String?
   refundId       String?
   zReportId      String?
@@ -1171,6 +1206,11 @@ model FiscalArchive {
   checksum      String // SHA-256 of the archive content
   sizeBytes     Int
   generatedAt   DateTime @default(now())
+  // L-145 (R9.8) — **plain ids, NO FK**, both of them, and the same convention
+  // as `DailyClose.sealedById`: the operator who generated an archive may be
+  // soft-deleted later, and an archive whose row could be refused or nulled by
+  // a change to `User` is not an archive. `fiscalEventId` points into the
+  // immutable journal, which takes no foreign keys at all.
   generatedById String
   fiscalEventId String? // link to the FiscalEvent (ARCHIVE_GENEREE) journal entry
 }

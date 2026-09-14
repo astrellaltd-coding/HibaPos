@@ -75,6 +75,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - R9.4 — a misconfigured secret says so, instead of answering an empty 500
 - R9.5 — the front door opens, and refuses a PIN the repository publishes
 - R9.7 — the guards that were not guarding
+- R9.8 — what a null means, written where the reader is
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -3632,6 +3633,94 @@ not by reading.
   free-riding on state it never created — and nothing checks for that. The wipe guard does not
   address it and is not meant to.
 - **The plan is at 38 570 bytes** against the 40 960 ceiling.
+---
+
+### R9.8 — what a null means, written where the reader is
+**Done:** 2026-09-14 · **Commit:** `SHA` · **Findings:** L-129 · L-145, and **L-185 closed
+with them**
+
+**L-129 (Medium) — a null `OrderItem.vatRate` was silently booked at 10 %.** Three readers,
+all in the money path, did `item.vatRate ?? 10` — into the printed ticket's VAT table, the
+order's VAT breakdown, and therefore the Z report and every close. **10 % is the restauration
+rate; a drink à emporter is 5,5 %**, so the default was not conservative in either direction:
+it understated the VAT due on one and overstated it on the other.
+
+**THE DECISION WAS SETTLED BY THE SCHEMA, not by preference.** The audit called it a decision
+and it is — but `OrderItem` already answers it, two lines below `vatRate`: `lineNetTotal` and
+`lineHt` are nullable « rather than writing invented figures into the fiscal record. Same
+treatment and same reason as L-57's `perpetualSalesTotal` », and `referencePrice` says « Null
+is the statement. Never backfill it. » `?? 10` was exactly that backfill, in the same model,
+in the money path. So **null means the rate was never recorded**, and:
+
+  * **The aggregation REFUSES**, with a typed `UnrecordedVatRateError` naming the line. Its
+    figures get sealed, and a sealed figure may not be guessed.
+  * **The receipt PRINTS**, and says the rate is unknown. « Printing must never lose a sale »,
+    so the line goes on the ticket in a `Taux non enregistré` bucket carrying TTC only — `ht`
+    and `vat` stay at zero, because neither can be computed without a rate and putting the TTC
+    in the HT column would be the same invention somewhere else.
+
+They are asked different questions, which is why they answer differently. Nothing writes a
+null rate today; this is reachable through a restore of an older database, a hand edit, or any
+future writer, and the point of settling it now is that none of those arrives with a warning.
+
+**L-145 (Low) — every FK-less id column explains itself.** In this schema the absence of a
+foreign key is a DECISION: a sealed document must outlive the rows it names, so
+`Refund.approvedById` and `DailyClose.sealedById` deliberately take no key that could refuse,
+cascade or null them. Four columns did not say so — **and measured on this tree there were
+twelve**, in four groups: `FiscalEvent`'s eight (stated in the model's block comment and on
+none of the columns), `AuditLog.entityId` (polymorphic, and it holds route paths as well as
+row ids), `FiscalArchive`'s two, and `OrderItem.comboGroupId` — which is not a row id at all
+but a per-order grouping token that points at nothing in any table.
+
+`schema-fk-comments.test.ts` is what found them and is kept, so a thirteenth arrives with a
+comment or arrives red. It understands a block comment covering a run of columns, because a
+per-column check reports seven false positives on `FiscalEvent`.
+
+**L-185 CLOSED, and it cost an edit first — exactly as that row predicted.** « Five tracked
+files sit CRLF in this working tree while the index is LF … any test that reads one of these
+as source text with an LF needle would fail on this machine and pass everywhere else. » A
+multi-line anchor in `receipt.ts` would not match, and the cause took a `git ls-files --eol`
+to find. Four files remained (R8.2 normalised `orders/route.ts`): re-checked out, **zero CRLF
+files remain, and they produce no diff** — which is what the finding said would happen.
+
+**HOW IT WAS VERIFIED.** 1 739 pass · 0 fail · 142 files · **zero `prisma:error` blocks**.
+21 new tests in two new files plus four cases added to `aggregate.test.ts`. Five reverts:
+
+| revert | what it restores | went red |
+|---|---|---|
+| E129a | the aggregation's `?? 10` | 2 |
+| E129b | the receipt's `?? 10` | 3 |
+| E129c | « non enregistré % » on the ticket | 1 |
+| E129d | a rule that accepts null (`|| 10`) | 5 |
+| E145 | a column loses its « NO FK » note | 1 |
+
+**A test that had to move to be honest.** The aggregation's two cases were written in the new
+file with a hand-built order, which produced a `TypeError` on a missing `refunds` array rather
+than the refusal — a green-looking `toThrow` for the wrong reason. They live in
+`aggregate.test.ts` now, which has a valid `AggregatableOrder` fixture. And `requireVatRate`
+takes `=== null || === undefined` rather than `||` deliberately: **zero is a rate**, and a
+guard written the short way would refuse a zero-rated line as unrecorded.
+
+**Left behind.**
+- **`docs/INVARIANTS.md` has no line about this, and that is the operator's call.** The rule
+  is stated in `money.ts` where both readers are, and pointed at from `schema.prisma` beside
+  the column. The exact text for INVARIANTS.md is drafted at the end of this entry and held,
+  the way R8.5's L-134 paragraph is: that file is theirs.
+- **L-175 and L-177 were read and left**, as the plan's row instructs — both are group D,
+  recorded and not scheduled. L-177 is L-129's shape on `ZReport.topProductsJson` and
+  `vatBreakdownJson`: nullable where the other three closes are NOT NULL, papered over with
+  `?? "{}"`. Unreachable today because `generateZReport` always writes both. **If the operator
+  wants the same treatment there it is a schema comment, not a migration.**
+- **The plan is at 37 795 bytes** against the 40 960 ceiling.
+
+**THE `docs/INVARIANTS.md` PARAGRAPH, drafted and held for the operator:**
+
+> **A null `OrderItem.vatRate` means the rate was never recorded, and nothing may supply one.**
+> The aggregation refuses such a line — a VAT breakdown is sealed into the Z report and every
+> close, and a sealed figure may not be guessed. The receipt still prints it, in a
+> « Taux non enregistré » bucket, because printing must never lose a sale. 10 % is the
+> restauration rate and a drink à emporter is 5,5 %, so no default is conservative. Same rule,
+> and same reason, as `lineNetTotal`, `lineHt`, `perpetualSalesTotal` and `referencePrice`.
 ---
 
 ## Retired from the plan's § 6 on 2026-09-11

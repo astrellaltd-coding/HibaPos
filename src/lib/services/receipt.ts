@@ -1,7 +1,12 @@
 // Receipt rendering — pure text snapshot for fiscal immutability.
 import type { OrderDto, SettingsDto } from "@/types/api";
 import { formatDateTime, formatEuro } from "@/lib/format";
-import { addToVatBreakdown, apportion, type VatBreakdown } from "@/lib/money";
+import {
+  addToVatBreakdown,
+  apportion,
+  UNRECORDED_VAT_LABEL,
+  type VatBreakdown,
+} from "@/lib/money";
 import { PAYMENT_LABELS_FULL } from "@/lib/order-labels";
 import { SOFTWARE_IDENTITY } from "@/lib/version";
 // L-21 (Batch 1.3b) / L-63 (Batch 1.3c) — the column layout of a printed
@@ -28,13 +33,36 @@ function vatBreakdownOf(order: OrderDto): VatBreakdown {
   const breakdown: VatBreakdown = {};
   const lineNets = apportion(order.items.map((i) => i.lineTotal), order.total);
   order.items.forEach((item, idx) => {
-    addToVatBreakdown(breakdown, lineNets[idx], item.vatRate ?? 10);
+    // L-129 (R9.8) — THE RECEIPT ANSWERS DIFFERENTLY FROM THE AGGREGATION, and
+    // deliberately.
+    //
+    // `aggregate.ts` refuses a null rate: a VAT breakdown that gets sealed must
+    // not carry a figure nobody measured. **Printing must never lose a sale**,
+    // so this does not refuse — it prints the line and says the rate was not
+    // recorded, instead of folding it into 10 % and claiming one.
+    //
+    // 10 % is the restauration rate and a drink à emporter is 5,5 %, so the old
+    // `?? 10` was not conservative in either direction: it understated the VAT
+    // on one and overstated it on the other, on a document the customer keeps.
+    if (item.vatRate === null || item.vatRate === undefined) {
+      // TTC only. `ht` and `vat` stay at zero because neither can be computed
+      // without a rate, and putting the TTC in the HT column would be the same
+      // invention in a different place.
+      breakdown[UNRECORDED_VAT_LABEL] ??= { ht: 0, vat: 0, ttc: 0 };
+      breakdown[UNRECORDED_VAT_LABEL].ttc += lineNets[idx];
+      return;
+    }
+    addToVatBreakdown(breakdown, lineNets[idx], item.vatRate);
   });
   return breakdown;
 }
 
 /** "5.5" → "5,5 %" — French decimal comma, no invented precision. */
 function rateLabel(key: string): string {
+  // L-129 (R9.8): the unrecorded bucket is not a rate and must not be printed
+  // with a « % » after it — « non enregistré % » would be worse than the
+  // invented 10 this replaced.
+  if (key === UNRECORDED_VAT_LABEL) return `Taux ${UNRECORDED_VAT_LABEL}`;
   return `${key.replace(".", ",")} %`;
 }
 

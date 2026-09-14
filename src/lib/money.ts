@@ -117,6 +117,59 @@ export function addVatMoveToBreakdown(
  * A zero or negative total weight yields all zeros — the caller has nothing to
  * distribute across.
  */
+/**
+ * What a null `OrderItem.vatRate` means — L-129 (R9.8).
+ *
+ * **It means the rate was never recorded, and nothing may invent one.**
+ *
+ * `aggregate.ts` and `receipt.ts` both did `item.vatRate ?? 10` — into the
+ * printed ticket's VAT table, the order's VAT breakdown, and therefore the Z
+ * report and every close. **10 % is the food rate; a drink à emporter is
+ * 5,5 %**, so the default is not conservative in either direction: it
+ * understates the VAT due on one and overstates it on the other.
+ *
+ * It contradicted two rules this schema states about its own nullable columns,
+ * one of them two lines below `vatRate` in the same model:
+ *
+ *   `referencePrice`      « Null is the statement. Never backfill it. »
+ *   `lineNetTotal/lineHt` « rather than writing invented figures into the
+ *                           fiscal record. Same treatment and same reason as
+ *                           L-57's `perpetualSalesTotal`. »
+ *
+ * Nothing writes a null rate today — the checkout always snapshots one. This is
+ * reachable through a restore of an older database, a hand edit, or a future
+ * writer, and the point is to have an answer before one of those arrives.
+ */
+export class UnrecordedVatRateError extends Error {
+  constructor(where: string) {
+    super(
+      `Taux de TVA non enregistré sur ${where}. ` +
+        "Aucun taux ne peut être supposé : 10 % est le taux de la restauration " +
+        "et une boisson à emporter est à 5,5 %. " +
+        "Corrigez la ligne avant de clôturer.",
+    );
+    this.name = "UnrecordedVatRateError";
+  }
+}
+
+export function isUnrecordedVatRate(e: unknown): e is UnrecordedVatRateError {
+  return e instanceof UnrecordedVatRateError;
+}
+
+/**
+ * The rate a fiscal figure may be computed at, or a refusal.
+ *
+ * Used by the aggregation, which produces documents that get sealed. The
+ * receipt renderer deliberately does NOT use it — see `receipt.ts`.
+ */
+export function requireVatRate(rate: number | null | undefined, where: string): number {
+  if (rate === null || rate === undefined) throw new UnrecordedVatRateError(where);
+  return rate;
+}
+
+/** The label a ticket shows for a line whose rate was never recorded. */
+export const UNRECORDED_VAT_LABEL = "non enregistré";
+
 export function apportion(weights: number[], target: number): number[] {
   const totalWeight = weights.reduce((acc, w) => acc + w, 0);
   if (totalWeight <= 0 || weights.length === 0) return weights.map(() => 0);

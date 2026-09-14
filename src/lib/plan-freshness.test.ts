@@ -273,7 +273,15 @@ describe("plan freshness — the plan and the done file may not disagree", () =>
     //   L-123 · L-125 · L-126 · L-154 · L-155 · L-156 · L-157 · L-158 · L-159.
     //   L-153 and L-124 had already left it (R8.6 and R8.0).
     //   FINDINGS STAY AT 8. R9.7 opened none.
-    expect(taskStatuses(src).size).toBe(11);
+    //   2026-09-14, R9.8 DONE: tasks 11 → 10, two batches left in Phase 9.
+    //   L-129 and L-145. L-129 carried a DECISION and the schema settled it
+    //   rather than a preference: `lineNetTotal`, two lines below `vatRate` in
+    //   the same model, is nullable « rather than writing invented figures into
+    //   the fiscal record », and `?? 10` was exactly that. **L-185 closed
+    //   alongside** — the four CRLF working-tree files were re-checked out,
+    //   which produced no diff, as that finding said it would.
+    //   FINDINGS STAY AT 8. R9.8 opened none.
+    expect(taskStatuses(src).size).toBe(10);
     expect(openFindings(src).size).toBe(8);
     expect(done()).toContain("# HibaPOS France — Completed Work");
   });

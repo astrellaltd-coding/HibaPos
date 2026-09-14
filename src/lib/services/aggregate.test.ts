@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { db } from "@/lib/db";
 import { aggregateOrders, AGGREGATE_INCLUDE, type AggregatableOrder } from "@/lib/services/aggregate";
-import { apportion, sum2 } from "@/lib/money";
+import { UnrecordedVatRateError, apportion, sum2 } from "@/lib/money";
 import { computeShiftReport, generateZReport } from "@/lib/services/reports";
 import { closeMonth } from "@/lib/services/fiscal";
 import { ensureFiscalCounter } from "@/lib/services/sequence";
@@ -117,6 +117,50 @@ function order(over: Partial<AggregatableOrder> = {}): AggregatableOrder {
     ...over,
   };
 }
+
+// ── L-129 (R9.8) — a line with no recorded VAT rate is refused, not guessed ──
+//
+// `aggregate.ts` did `item.vatRate ?? 10` into the VAT breakdown, and that
+// breakdown is sealed into the Z report and every close. **10 % is the
+// restauration rate and a drink à emporter is 5,5 %**, so the default was not
+// conservative in either direction.
+//
+// Here rather than in `unrecorded-vat.test.ts` because this file already has a
+// valid `AggregatableOrder`: building one by hand there produced an order with
+// no `refunds` array, and a TypeError instead of the refusal.
+describe("L-129 — an unrecorded VAT rate is refused", () => {
+  it("throws rather than booking an unknown rate at 10 %", () => {
+    expect(() =>
+      aggregateOrders([order({ items: [{ ...order().items[0], vatRate: null }] })]),
+    ).toThrow(UnrecordedVatRateError);
+  });
+
+  it("names the line, so the operator can fix it", () => {
+    let message = "";
+    try {
+      aggregateOrders([
+        order({ items: [{ ...order().items[0], productName: "Coca", vatRate: null }] }),
+      ]);
+    } catch (e) {
+      message = e instanceof Error ? e.message : String(e);
+    }
+    expect(message).toContain("Coca");
+    expect(message).toContain("5,5");
+  });
+
+  it("still aggregates normally when every rate is recorded", () => {
+    // The direction that would stop every close if wrong.
+    expect(() => aggregateOrders([order()])).not.toThrow();
+  });
+
+  it("accepts a ZERO rate, which is a rate", () => {
+    // `||` instead of `??` would treat a zero-rated line as unrecorded and
+    // refuse a sale that is perfectly legal.
+    expect(() =>
+      aggregateOrders([order({ items: [{ ...order().items[0], vatRate: 0 }] })]),
+    ).not.toThrow();
+  });
+});
 
 describe("aggregateOrders — refunds (C-10)", () => {
   it("nets a partial refund off both sales and the payment method", () => {
