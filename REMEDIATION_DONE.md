@@ -3785,7 +3785,7 @@ now and both orders are asserted, so neither can pass alone.
 ---
 
 ### R9.10 — what the operator's fingers and eyes actually meet
-**Done:** 2026-09-14 · **Commit:** `SHA` · **Findings:** L-131 · L-133 · L-148 · L-149 ·
+**Done:** 2026-09-14 · **Commit:** `4a760d2` · **Findings:** L-131 · L-133 · L-148 · L-149 ·
 L-150. **L-132 is NOT done — it is a behaviour change and it is the operator's**, and its row
 stays in § 6 as `OPERATOR`.
 
