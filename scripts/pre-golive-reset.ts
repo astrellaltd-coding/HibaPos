@@ -84,8 +84,18 @@ const DELETION_ORDER = [
   "Refund",
   "Order",
   // L-73 (Batch 8.0, 2026-09-09): the operator asked for « clients » to go
-  // with the sales. AFTER "Order", never before: Customer is the parent of
-  // Order.customerId and deleting it first is an FK violation, not a cascade.
+  // with the sales. AFTER "Order", never before.
+  //
+  // CORRECTED 2026-09-14 (R10.2 / L-146). This said « deleting it first is an
+  // FK violation, not a cascade ». It is NEITHER: `Order.customerId` is
+  // `onDelete: SetNull`, so deleting Customer first would SUCCEED and quietly
+  // null every link. **The ordering is right and the outcome is unchanged** —
+  // but the reason was wrong at exactly the line a future editor reads before
+  // reordering it, in the one script here that cannot be undone.
+  //
+  // The real reason to keep this order: an Order whose customer has been
+  // nulled is no longer traceable to the person who placed it, and this script
+  // runs once, before the first genuine sale, with nothing to recover from.
   "Customer",
   "ZReport",
   "CashMovement",

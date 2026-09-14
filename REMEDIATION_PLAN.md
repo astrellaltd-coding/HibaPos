@@ -64,6 +64,19 @@ every trading table is at zero.
 > `bun run build` runs in the fast CI job, two dead devDependencies are gone, and `db.ts` stops
 > claiming the `DATABASE_URL` query string sets its pragmas.
 >
+> **R10.2 IS FOUR SIXTHS DONE AND IS NOW `ASK FIRST`.** L-146, L-165, L-168 and L-169 are
+> applied and committed, with L-166's code half: `scripts/apply-migration.ts` **fails** a run
+> whose `--expect` fingerprint it cannot read, instead of printing « skipped » under a tick.
+> **Its other two findings are texts in the operator's own files** — `CLAUDE.md` (L-166) and
+> `docs/INVARIANTS.md` (L-167) — and they have been brought, exactly as written, and are
+> waiting. **Nothing is blocked by the wait**: both are corrections to prose that is wrong or
+> incomplete, not to code.
+>
+> **R10.2 opened L-191** (Medium, `prisma/seed.ts:19`), found while writing L-168: the CLI
+> seed path still falls back to `111111`, the PIN `POST /api/seed` has refused since R9.5, and
+> `scripts/README.md` is what points a first boot at it. Recorded in `docs/audit/FINDINGS.md`
+> and **not fixed here** — it is neither documentation nor a script. The README now warns.
+>
 > **Two things are waiting, and neither is a batch.**
 >
 > 1. **One paragraph for `docs/INVARIANTS.md`**, drafted verbatim in R8.5's done entry and
@@ -404,7 +417,7 @@ their own riding along. Order inside the phase is not fixed except where a row s
 
 | ID | Status | Task |
 |---|---|---|
-| **R10.2** | `TODO` | **Documentation and the operator scripts.** L-146 · L-165 · L-166 · L-167 · L-168 · L-169. **`CLAUDE.md` (L-166) and `docs/INVARIANTS.md` (L-167) are the operator's files — bring the exact text and wait.** |
+| **R10.2** | `ASK FIRST` | **Documentation and the operator scripts.** L-146 · L-165 · L-166 · L-167 · L-168 · L-169. **`CLAUDE.md` (L-166) and `docs/INVARIANTS.md` (L-167) are the operator's files — bring the exact text and wait.** |
 | **R10.3** | `OPERATOR` | **The VAT policy's untabulated menus.** L-170. Not a code batch: extend § 5 of `docs/politique-ventilation-tva.md` to the six menus it does not tabulate, and answer § 8.4 for the three `showOnPos = 0` box components. Belongs in the accountant's envelope beside VAT-METHOD (§ 8). |
 
 **Not phased, deliberately.** Group D (L-171 … L-179, record and leave) and group E (L-180 …

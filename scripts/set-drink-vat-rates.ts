@@ -1,3 +1,4 @@
+#!/usr/bin/env bun
 /**
  * Batch 3.1c — set the sealed-container drink categories to 5,5 % VAT (L-16).
  *

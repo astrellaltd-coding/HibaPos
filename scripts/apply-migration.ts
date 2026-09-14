@@ -229,7 +229,23 @@ let ok = newlyApplied.length > 0 && stillPending.length === 0;
 if (EXPECT) {
   console.log("");
   if (!existsSync(EXPECT)) {
-    console.log(`  Expected fingerprint not found at ${EXPECT} — skipped.`);
+    // L-166 (R10.2) — **A MISSING FINGERPRINT FAILS THE RUN.**
+    //
+    // This printed « skipped. » and left `ok` untouched, so the run still ended
+    // **✅ APPLIED AND VERIFIED** with the rehearsal comparison silently lost.
+    // And `CLAUDE.md` spells the hand-over command as `--expect <name>`, which
+    // reads as the migration name — so the most likely wrong value is exactly
+    // the one that produced a green banner and no comparison.
+    //
+    // The primary protection always survived: the migration is applied and the
+    // pending list is checked. What was lost is the half the operator asked
+    // for by passing the flag at all. Asking for a check and being told it did
+    // not happen, in a line above a tick, is the worst of both.
+    console.error(`  ✗ Expected fingerprint not found at ${EXPECT}.`);
+    console.error(`    --expect takes a PATH to a rehearsal fingerprint JSON,`);
+    console.error(`    e.g. ../db-snapshots/r31-acceptance/fp-r31-after.json`);
+    console.error(`    — not a migration name. Nothing was compared.`);
+    ok = false;
   } else {
     const fp = spawnSync("bun", ["run", join(dirname(EXPECT), "fingerprint.ts"), dbPath], { encoding: "utf-8" });
     try {

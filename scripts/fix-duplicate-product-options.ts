@@ -1,3 +1,4 @@
+#!/usr/bin/env bun
 /**
  * Delete product-level option groups that duplicate an inherited category
  * global.
