@@ -3636,7 +3636,7 @@ not by reading.
 ---
 
 ### R9.8 — what a null means, written where the reader is
-**Done:** 2026-09-14 · **Commit:** `SHA` · **Findings:** L-129 · L-145, and **L-185 closed
+**Done:** 2026-09-14 · **Commit:** `9f4db1d` · **Findings:** L-129 · L-145, and **L-185 closed
 with them**
 
 **L-129 (Medium) — a null `OrderItem.vatRate` was silently booked at 10 %.** Three readers,
