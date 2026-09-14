@@ -4416,7 +4416,7 @@ neither silently converge nor drift further apart. It also proves both land in t
 difference a definition rather than a defect and is worth a separate assertion because « two
 counts disagree » reads like a bug until you check that nothing about the money does.
 
-**The `docs/INVARIANTS.md` paragraph is drafted and HELD.** That file is the operator's.
+**The `docs/INVARIANTS.md` paragraph landed the same day**, on the operator's word — that file is theirs. It sits in § Money and fiscal, beside the `apportion` rule it follows from, and the test asserts BOTH that it exists and that it is in that section: a rule a reader of the money path never reaches is not written down. **L-172 is closed.**
 
 ## L-176 — the prune that only ran at a shift close
 

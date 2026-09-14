@@ -218,6 +218,29 @@ describe("L-172 — the two counts disagree, and by exactly the give-aways", () 
     ).toBe(true);
   });
 
+  it("is written down, which was the whole of the finding", async () => {
+    // The fix is the paragraph, not the code: both numbers were already right.
+    // Added to `docs/INVARIANTS.md` on the operator's word, 2026-09-14 — that
+    // file is theirs — and asserted here so the rule and the behaviour above
+    // cannot drift apart. If someone changes which count includes give-aways,
+    // the test above goes red and this one tells them where the prose is.
+    const inv = readFileSync(path.join(process.cwd(), "docs", "INVARIANTS.md"), "utf8");
+    expect(inv, "L-172's paragraph left docs/INVARIANTS.md").toContain("L-172");
+    expect(inv).toMatch(/`GrandTotal\.totalOrders` counts TICKETS/);
+    expect(inv, "the paragraph no longer says where the difference comes from").toMatch(
+      /difference is exactly the give-aways/,
+    );
+    // It has to sit in the section a reader of the money path will actually
+    // reach, not in a list of retained files.
+    const money = inv.indexOf("### Money and fiscal");
+    const next = inv.indexOf("\n### ", money + 1);
+    expect(money, "the Money and fiscal section is gone").toBeGreaterThan(-1);
+    expect(
+      inv.slice(money, next > money ? next : undefined),
+      "L-172's paragraph is outside « Money and fiscal »",
+    ).toContain("L-172");
+  });
+
   it("is not an arithmetic error — the money figures agree", async () => {
     // Worth separating, because « two counts disagree » reads like a bug until
     // you check that nothing about the MONEY does. A give-away contributes zero

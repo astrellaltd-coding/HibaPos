@@ -38,6 +38,16 @@ something going wrong.
 - **An archived `Receipt.content` is never re-rendered.** It is the document that was issued.
 - **`apportion` is the only splitter.** Largest-remainder, so parts always sum to the whole.
   Never round per-line independently — that is how an order's VAT stops matching its total.
+- **`GrandTotal.totalOrders` counts TICKETS; a Z report's `salesCount` counts SALES, and the
+  difference is exactly the give-aways.** Both are sealed into the same `DailyClose` — one as a
+  column, the other inside `perpetualTotalsJson` — so they can be compared side by side and
+  they will not agree. The perpetual total is what BOFiP § 170 calls a « total perpétuel » and
+  counts every ticket issued, including one settled with the OFFERT tender at zero. DD-20 keeps
+  give-aways out of `salesCount` and out of « top products », so that average spend per meal
+  stays truthful and « top products » keeps meaning what SOLD. **The money figures agree to the
+  cent** — a give-away contributes zero to all of them — so the difference is a definition and
+  never an arithmetic error. `sealed-counts.test.ts` pins the gap to `givenAwayCount` exactly,
+  so the two can neither silently converge nor drift further apart. *(L-172.)*
 - **`OrderItem.vatRate` is a snapshot** taken at sale time from `resolveVatRate(product,
   orderType)`. A later catalogue edit must never restate a sale already made.
 - **A null `OrderItem.vatRate` means the rate was never recorded, and nothing may supply
