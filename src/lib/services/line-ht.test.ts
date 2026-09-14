@@ -34,7 +34,13 @@ async function wipe() {
   await db.payment.deleteMany();
   await db.receipt.deleteMany();
   await db.orderItem.deleteMany();
+  // L-154 (R9.7): Refund.orderId is `onDelete: Restrict`.
+  await db.refund.deleteMany();
   await db.order.deleteMany();
+  // L-154 (R9.7): ZReport.shiftId is `onDelete: Restrict`, so a
+  // leftover Z makes this shift delete throw — and the failure
+  // surfaces in whichever file runs next.
+  await db.zReport.deleteMany();
   await db.shift.deleteMany();
   await db.grandTotal.deleteMany();
   await db.user.deleteMany();

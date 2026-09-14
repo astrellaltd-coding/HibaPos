@@ -53,6 +53,53 @@ describe("apportion — the parts sum to the whole (M-13)", () => {
     expect(apportion([], 100)).toEqual([]);
     expect(apportion([0, 0], 100)).toEqual([0, 0]);
   });
+
+  // ── L-158 (R9.7) — PROPORTIONALITY, which is what `apportion` is FOR ───────
+  //
+  // Every test above is satisfied by a DEGENERATE implementation that hands the
+  // whole target to the first weight and zero to the rest: they pin the total,
+  // the length, determinism and the empty cases, and **not one pins the
+  // split.** `apportion(w, 500)` was even compared with itself. It was pinned
+  // only transitively, one module away, by `combo-allocation.test.ts`'s menu
+  // cases — and the discount path was pinned against `apportion` itself, which
+  // is a tautology.
+  //
+  // `apportion` is an invariant: **the only splitter in the product.** Every
+  // VAT line, every combo allocation and every discount distribution goes
+  // through it, so a degenerate one would put a whole menu's price on its first
+  // component and no VAT at all on the rest — arithmetic that still sums to the
+  // right total and is wrong on every line.
+
+  it("splits IN PROPORTION, which nothing above required", () => {
+    // Exact values, chosen so the answer is unambiguous and needs no rounding
+    // rule to interpret: 2000:1000 of 2400 is 1600:800.
+    expect(apportion([2000, 1000], 2400)).toEqual([1600, 800]);
+    expect(apportion([1, 1], 100)).toEqual([50, 50]);
+    expect(apportion([3, 1], 100)).toEqual([75, 25]);
+    expect(apportion([1, 2, 3], 600)).toEqual([100, 200, 300]);
+  });
+
+  it("gives a bigger weight a bigger share, at every size", () => {
+    // The property behind the exact values, so a rounding change cannot make
+    // the assertions above brittle without this one noticing too.
+    for (const target of [1, 7, 99, 100, 1_000, 12_345]) {
+      const [small, large] = apportion([1, 9], target);
+      expect({ target, ok: large >= small }).toEqual({ target, ok: true });
+    }
+    // …and a zero weight gets nothing while its neighbours are paid.
+    expect(apportion([0, 100], 50)).toEqual([0, 50]);
+    expect(apportion([100, 0, 100], 50)).toEqual([25, 0, 25]);
+  });
+
+  it("is largest-remainder, so the cent goes where the remainder is biggest", () => {
+    // The rule the implementation actually follows, stated once. 1:1:1 of 100
+    // is 33.33 each; the two spare cents go to the first two lines because ties
+    // break toward the earlier one — which `:49` already pins for a pair.
+    expect(apportion([1, 1, 1], 100)).toEqual([34, 33, 33]);
+    // A remainder that is NOT a tie goes to the line that earned it: 1:2 of 100
+    // is 33.33 and 66.67, so the cent belongs to the second.
+    expect(apportion([1, 2], 100)).toEqual([33, 67]);
+  });
 });
 
 // ------------------------------------------------------- pure aggregation --

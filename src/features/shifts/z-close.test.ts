@@ -26,10 +26,48 @@ describe("Z-close dialog display (cents in, one division out)", () => {
     expect(shown(formatEuro(expectedCash))).toBe("420,70 €");
   });
 
-  it("would have shown a hundredth of the real figure before the fix", () => {
-    // Regression pin: this is exactly what the removed `/ 100` produced.
-    expect(shown(formatEuro(openingFloat / 100))).toBe("2,00 €");
-    expect(shown(formatEuro(expectedCash / 100))).toBe("4,21 €");
+  it("no screen divides by 100 on its way into formatEuro", async () => {
+    // L-156 (R9.7) — WHAT THIS USED TO BE, and why it was worthless.
+    //
+    // It read `expect(shown(formatEuro(openingFloat / 100))).toBe("2,00 €")`,
+    // captioned « Regression pin: this is exactly what the removed `/ 100`
+    // produced ». That restates `formatEuro`'s own contract — it converts cents
+    // to euros, so dividing first gives a hundredth, always — and **cannot fail
+    // for any change to the product.** It asserted the bug's output as a fact
+    // about arithmetic.
+    //
+    // C-02's defect was a `/ 100` at a CALL SITE (`shifts-view.tsx`), and no
+    // test read any `.tsx` for one. So the shape is scanned for instead, the
+    // way `order-status.test.ts` scans for `CANCELLED`: every value in this
+    // product is integer cents end to end, and `formatEuro` and `<Money>` both
+    // take cents — a division on the way in is the defect itself.
+    const { readdirSync, statSync, readFileSync: read } = await import("fs");
+    const p = await import("path");
+    const root = p.join(process.cwd(), "src");
+
+    const tsx = (dir: string): string[] =>
+      readdirSync(dir).flatMap((entry) => {
+        const full = p.join(dir, entry);
+        if (statSync(full).isDirectory()) return tsx(full);
+        return full.endsWith(".tsx") ? [full] : [];
+      });
+
+    const files = tsx(root).filter((f) => !f.endsWith(".test.tsx"));
+    expect(files.length, "the sweep found no screens — it would pass empty").toBeGreaterThan(50);
+
+    const offenders: string[] = [];
+    for (const file of files) {
+      const src = read(file, "utf8");
+      src.split("\n").forEach((line, i) => {
+        // `formatEuro(x / 100)` or `<Money value={x / 100}` — the division and
+        // the call on one line, which is how C-02 was written.
+        if (/(?:formatEuro|formatVariance)\([^)]*\/\s*100/.test(line) ||
+            /<Money[^>]*value=\{[^}]*\/\s*100/.test(line)) {
+          offenders.push(`${p.relative(process.cwd(), file)}:${i + 1}  ${line.trim()}`);
+        }
+      });
+    }
+    expect(offenders, offenders.join("\n")).toEqual([]);
   });
 
   it("reports a 5,00 € shortage as 5,00 €, not 0,05 €", () => {

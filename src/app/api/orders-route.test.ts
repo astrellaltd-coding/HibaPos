@@ -35,6 +35,8 @@ async function wipe() {
   await db.payment.deleteMany();
   await db.receipt.deleteMany();
   await db.orderItem.deleteMany();
+  // L-154 (R9.7): Refund.orderId is `onDelete: Restrict`.
+  await db.refund.deleteMany();
   await db.order.deleteMany();
   await db.shift.deleteMany();
   await db.grandTotal.deleteMany();
@@ -188,6 +190,106 @@ describe("T-08 — the checkout input rules, against the schema the route runs",
     });
     expect(status).toBe(400);
     expect(body.error).toContain("Au moins un paiement");
+  });
+
+  // ── L-123 (R9.7) — THE TENDER MUST MATCH THE PRICE THE SERVER COMPUTED ─────
+  //
+  // `paidTotal !== totalAfterDiscount → 400 « Paiement incorrect »` is the one
+  // thing stopping a basket booking a 10,00 € sale against a 1,00 € tender, and
+  // **removing it failed nothing.** « Paiement incorrect » appeared in the route
+  // and in comments, and in no test and no e2e spec.
+  //
+  // It went untested because it is invisible to the helpers: `order()` above
+  // computes `amount` FROM the price, and so does every other fixture in the
+  // suite, so none of them can even express a mismatch. The price is passed
+  // through the same arithmetic on both sides and the assertion is a tautology.
+  // These build the body by hand for that reason.
+  //
+  // Both directions matter and they are not symmetrical. **Underpaying is the
+  // fraud** — a till that books the sale and takes a euro. **Overpaying is the
+  // mistake** — change owed, and an order whose payments and total disagree,
+  // which every report downstream reads as money that arrived.
+
+  it("REFUSES an UNDERPAYMENT, which is the fraud", async () => {
+    const { status, body } = await post({
+      orderType: "TAKEAWAY",
+      items: [{ productId: product.id, quantity: 1, optionIds: [], addons: [] }],
+      payments: [{ method: "CASH", amount: 100 }], // the product is 1 000
+    });
+    expect(status).toBe(400);
+    expect(body.error).toContain("Paiement incorrect");
+    expect(await db.order.count(), "a sale was booked against a short tender").toBe(0);
+  });
+
+  it("REFUSES an OVERPAYMENT, because change is not the server's to invent", async () => {
+    const { status, body } = await post({
+      orderType: "TAKEAWAY",
+      items: [{ productId: product.id, quantity: 1, optionIds: [], addons: [] }],
+      payments: [{ method: "CASH", amount: product.price + 500 }],
+    });
+    expect(status).toBe(400);
+    expect(body.error).toContain("Paiement incorrect");
+    expect(await db.order.count()).toBe(0);
+  });
+
+  it("REFUSES a one-cent mismatch, in either direction", async () => {
+    // The interesting boundary. A check written with a tolerance would pass
+    // the two above and let a rounding-shaped skim through.
+    for (const delta of [-1, 1]) {
+      const { status } = await post({
+        orderType: "TAKEAWAY",
+        items: [{ productId: product.id, quantity: 1, optionIds: [], addons: [] }],
+        payments: [{ method: "CASH", amount: product.price + delta }],
+      });
+      expect({ delta, status }).toEqual({ delta, status: 400 });
+    }
+    expect(await db.order.count()).toBe(0);
+  });
+
+  it("REFUSES when SPLIT payments do not add up", async () => {
+    // The realistic shape: two tenders, each plausible, summing to less than
+    // the basket. A per-payment check would pass this.
+    const { status, body } = await post({
+      orderType: "TAKEAWAY",
+      items: [{ productId: product.id, quantity: 1, optionIds: [], addons: [] }],
+      payments: [
+        { method: "CASH", amount: Math.floor(product.price / 2) },
+        { method: "CARD", amount: Math.floor(product.price / 2) - 100 },
+      ],
+    });
+    expect(status).toBe(400);
+    expect(body.error).toContain("Paiement incorrect");
+    expect(await db.order.count()).toBe(0);
+  });
+
+  it("ACCEPTS split payments that DO add up — the control", async () => {
+    // Without this the four above are satisfied by a route that refuses every
+    // split tender, and the till takes cash only.
+    const half = Math.floor(product.price / 2);
+    const { status } = await post({
+      orderType: "TAKEAWAY",
+      items: [{ productId: product.id, quantity: 1, optionIds: [], addons: [] }],
+      payments: [
+        { method: "CASH", amount: half },
+        { method: "CARD", amount: product.price - half },
+      ],
+    });
+    expect(status).toBe(201);
+    expect(await db.order.count()).toBe(1);
+  });
+
+  it("checks against the price the SERVER computed, not the one sent", async () => {
+    // The whole meaning of « server-authoritative ». A client that sends its
+    // own total must not be able to move the figure the tender is compared to.
+    const { status } = await post({
+      orderType: "TAKEAWAY",
+      items: [{ productId: product.id, quantity: 1, optionIds: [], addons: [] }],
+      total: 100,
+      subtotal: 100,
+      payments: [{ method: "CASH", amount: 100 }],
+    });
+    expect(status, "a client-supplied total was believed").toBe(400);
+    expect(await db.order.count()).toBe(0);
   });
 });
 

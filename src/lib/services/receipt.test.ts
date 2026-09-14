@@ -374,8 +374,19 @@ describe("FACTICE simulation stamp (L-18)", () => {
 // text through verbatim on purpose, so that the printed ticket equals the
 // archived `Receipt.content` byte for byte.
 
-/** The live `restaurantAddress`, read from the production `Setting` row. */
-const LIVE_ADDRESS = "23 Grande Rue 45210, 45210 Ferrières-en-Gâtinais, France";
+/**
+ * The live `restaurantAddress`, read from the production `Setting` row.
+ *
+ * CORRECTED 2026-09-14 (R9.7 / L-159). This held a 56-character string with a
+ * DUPLICATED postcode — « 23 Grande Rue 45210, 45210 Ferrières… » — described
+ * as the production value and measured read-only on 2026-09-07. Production
+ * holds 50 characters and one postcode. The assertions below still exercise
+ * wrapping either way, so nothing was ever wrong with the test; what was wrong
+ * is that this file's whole value is that its constants ARE the real ones, and
+ * a reader checking the wrap against production would have compared against a
+ * string that does not exist.
+ */
+const LIVE_ADDRESS = "23 Grande Rue, 45210 Ferrières-en-Gâtinais, France";
 
 describe("renderReceipt wraps over-long settings fields (L-21)", () => {
   const live: Partial<SettingsDto> = {
@@ -384,14 +395,29 @@ describe("renderReceipt wraps over-long settings fields (L-21)", () => {
     receiptWidth: 48,
   };
 
-  it("no longer prints the 56-character address onto 48-column paper", () => {
+  it("no longer prints the over-long address onto 48-column paper", () => {
     const lines = renderReceipt(baseOrder, live).split("\n");
     expect(lines.some((l) => l.includes(LIVE_ADDRESS))).toBe(false);
-    // Still on the ticket, in full and in order — wrapped, not truncated. An
+    // Still on the ticket, IN FULL and in order — wrapped, not truncated. An
     // establishment's address is part of what makes the document fiscal.
-    const addr = lines.filter((l) => /Grande Rue|Gâtinais/.test(l)).map((l) => l.trim());
-    expect(addr.length).toBe(2);
-    expect(addr.join(" ")).toBe(LIVE_ADDRESS);
+    //
+    // AMENDED 2026-09-14 (R9.7 / L-159). This asserted `addr.length === 2`,
+    // which was a fact about the 56-character string this file used to hold and
+    // not about the renderer: the real 50-character address breaks at the last
+    // comma, so « France » lands on a line matching neither keyword and the
+    // count is 1. The property is that the address survives WHOLE across
+    // however many lines it takes, and that no line overflows — which is what
+    // this says now, and what it should always have said.
+    // Keyword filtering is what made the old version brittle, and adding
+    // « France » to it matched the software identity line « HibaPOS France
+    // v0.2.1 » as well. The property does not need a filter: the address is on
+    // the ticket, in order, across however many lines the wrap takes.
+    const joined = lines.map((l) => l.trim()).join(" ");
+    expect(joined, "the address is not on the ticket in full").toContain(LIVE_ADDRESS);
+    // …and it really did wrap, rather than fitting on one line and making the
+    // assertion above true for the wrong reason.
+    expect(lines.some((l) => l.trim() === LIVE_ADDRESS)).toBe(false);
+    for (const l of lines) expect({ l, over: l.length > 48 }).toEqual({ l, over: false });
   });
 
   it("produces a consistent snapshot at the production width and address", () => {

@@ -17,7 +17,7 @@ import { api } from "@/lib/api-client";
 import { parseEuroInput } from "@/lib/money";
 import { Money } from "@/components/shared/money";
 import { StepUpPinDialog, type StepUpConfirmation } from "@/components/pos/step-up-pin-dialog";
-import { CASH_MOVEMENT_LABELS, requiresStepUp } from "@/lib/services/cash-movement";
+import { CASH_MOVEMENT_CATEGORIES, CASH_MOVEMENT_DIRECTION, CASH_MOVEMENT_LABELS, requiresStepUp } from "@/lib/services/cash-movement";
 import type { CashMovementDto } from "@/types/api";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -28,13 +28,15 @@ type Category = CashMovementDto["category"];
  *
  *  The operator types a POSITIVE amount and picks a reason; the sign is the
  *  category's, not something to get right by hand. `ERREUR_DE_CAISSE` is the one
- *  that genuinely goes both ways, so it — and only it — offers the choice. */
-const DIRECTION: Record<Category, 1 | -1 | null> = {
-  APPROVISIONNEMENT: 1,
-  PRELEVEMENT: -1,
-  DEPENSE: -1,
-  ERREUR_DE_CAISSE: null,
-};
+ *  that genuinely goes both ways, so it — and only it — offers the choice.
+ *
+ *  L-155 (R9.7): IMPORTED, not declared. This was a local copy of the service's
+ *  private `REQUIRED_SIGN`, and `CASH_MOVEMENT_CATEGORIES` was a third — pinned
+ *  by a test as « the order the screen offers them » while the screen offered
+ *  its own. A rule the client and the server both enforce cannot be written
+ *  twice; the server refuses a wrong sign, so a screen that disagreed would
+ *  offer a movement the API rejects. */
+const DIRECTION = CASH_MOVEMENT_DIRECTION;
 
 const HINTS: Record<Category, string> = {
   APPROVISIONNEMENT: "Ajout d'espèces dans le tiroir (fond de caisse).",
@@ -117,7 +119,7 @@ export function CashMovementDialog({
             <div className="space-y-2">
               <Label id="lbl-cash-movement-motif">Motif</Label>
               <div role="group" aria-labelledby="lbl-cash-movement-motif" className="grid grid-cols-2 gap-2">
-                {(Object.keys(DIRECTION) as Category[]).map((c) => (
+                {CASH_MOVEMENT_CATEGORIES.map((c) => (
                   <Button
                     key={c}
                     type="button"

@@ -26,6 +26,8 @@ async function wipe(): Promise<void> {
   await db.auditLog.deleteMany();
   await db.session.deleteMany();
   await db.fiscalEvent.deleteMany();
+  // L-154 (R9.7): Refund.orderId is `onDelete: Restrict`.
+  await db.refund.deleteMany();
   await db.order.deleteMany();
   await db.fiscalCounter.deleteMany();
   await db.user.deleteMany();

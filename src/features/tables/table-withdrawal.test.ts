@@ -57,6 +57,10 @@ async function clearAll() {
   await db.orderItem.deleteMany();
   await db.order.deleteMany();
   await db.table.deleteMany();
+  // L-154 (R9.7): ZReport.shiftId is `onDelete: Restrict`, so a
+  // leftover Z makes this shift delete throw — and the failure
+  // surfaces in whichever file runs next.
+  await db.zReport.deleteMany();
   await db.shift.deleteMany();
   await db.auditLog.deleteMany();
   await db.user.deleteMany();

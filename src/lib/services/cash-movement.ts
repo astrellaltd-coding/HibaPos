@@ -64,7 +64,22 @@ export const CASH_MOVEMENT_LABELS: Record<CashMovementType, string> = {
  * every per-category total meaningless — which is the one thing DD-12 chose a
  * fixed list to protect.
  */
-const REQUIRED_SIGN: Record<CashMovementType, 1 | -1 | null> = {
+/**
+ * Which way each category moves the money — L-155 (R9.7). **Exported, and the
+ * only copy.**
+ *
+ * THE FINDING: DD-12's « fixed category list » existed in THREE hand-copied
+ * places. `CASH_MOVEMENT_CATEGORIES` above was pinned by a test as « the order
+ * the screen offers them » and **the screen used none of it** — it built its
+ * list from a local `DIRECTION` map in `cash-movement-dialog.tsx` — while this
+ * service kept a third copy as a private `REQUIRED_SIGN`. So the test pinned a
+ * constant nothing read, and the two that were read could drift from it and
+ * from each other without anything noticing.
+ *
+ * One exported map now, imported by the dialog. `ERREUR_DE_CAISSE` is `null`
+ * because it genuinely goes both ways, and it is the only one that does.
+ */
+export const CASH_MOVEMENT_DIRECTION: Record<CashMovementType, 1 | -1 | null> = {
   APPROVISIONNEMENT: 1,
   PRELEVEMENT: -1,
   DEPENSE: -1,
@@ -118,7 +133,7 @@ export function categorySignRefusal(
   amount: number,
 ): string | null {
   if (!Number.isInteger(amount) || amount === 0) return ZERO_AMOUNT_MESSAGE;
-  const required = REQUIRED_SIGN[category];
+  const required = CASH_MOVEMENT_DIRECTION[category];
   if (required !== null && Math.sign(amount) !== required) {
     return WRONG_SIGN_MESSAGES[category] ?? ZERO_AMOUNT_MESSAGE;
   }

@@ -116,6 +116,41 @@ async function move(category: Category, amount: number, at?: Date) {
   return r;
 }
 
+// L-155 (R9.7) — the list is pinned HERE and used THERE, so the two are tied
+// together explicitly. Without this, `CASH_MOVEMENT_CATEGORIES` goes back to
+// being a constant the screen ignores: the assertion about its order is true
+// and means nothing, which is exactly what the finding describes.
+describe("L-155 — the screen offers the list this file pins", () => {
+  it("imports the categories and the direction map rather than copying them", async () => {
+    const { readFileSync } = await import("fs");
+    const path = await import("path");
+    const src = readFileSync(
+      path.join(process.cwd(), "src/features/shifts/cash-movement-dialog.tsx"),
+      "utf8",
+    );
+    expect(src).toContain("CASH_MOVEMENT_CATEGORIES.map(");
+    expect(src).toContain("CASH_MOVEMENT_DIRECTION");
+    // The local copy this replaced — four categories written out again.
+    expect(src, "the dialog declares its own direction map again").not.toMatch(
+      /const DIRECTION: Record<[^>]*> = \{\s*\n\s*APPROVISIONNEMENT/,
+    );
+  });
+
+  it("and there is no third copy in the service", async () => {
+    const { readFileSync } = await import("fs");
+    const path = await import("path");
+    const src = readFileSync(
+      path.join(process.cwd(), "src/lib/services/cash-movement.ts"),
+      "utf8",
+    );
+    // The DECLARATION, not the name — the fix's own comment explains what
+    // `REQUIRED_SIGN` was, so scanning for the bare word matches the sentence
+    // describing its removal.
+    expect(src, "REQUIRED_SIGN is back").not.toContain("const REQUIRED_SIGN");
+    expect(src).toContain("export const CASH_MOVEMENT_DIRECTION");
+  });
+});
+
 describe("M-05 — which movements are allowed, and in which direction", () => {
   beforeEach(reset);
   afterAll(wipe);

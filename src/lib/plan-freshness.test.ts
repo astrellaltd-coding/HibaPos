@@ -268,7 +268,12 @@ describe("plan freshness — the plan and the done file may not disagree", () =>
     //   shown once (2026-09-13).
     //   FINDINGS STAY AT 8. R9.5 opened **L-189**; it is an audit-sequence id
     //   and lives in `docs/audit/FINDINGS.md`.
-    expect(taskStatuses(src).size).toBe(12);
+    //   2026-09-14, R9.7 DONE: tasks 12 → 11, three batches left in Phase 9.
+    //   **Eleven findings**, the largest batch of the audit — L-121 · L-122 ·
+    //   L-123 · L-125 · L-126 · L-154 · L-155 · L-156 · L-157 · L-158 · L-159.
+    //   L-153 and L-124 had already left it (R8.6 and R8.0).
+    //   FINDINGS STAY AT 8. R9.7 opened none.
+    expect(taskStatuses(src).size).toBe(11);
     expect(openFindings(src).size).toBe(8);
     expect(done()).toContain("# HibaPOS France — Completed Work");
   });

@@ -88,16 +88,33 @@ export type PragmaResult = {
  * no-op on every start after the first. Never throws — a POS must still
  * open if the pragma cannot be applied.
  */
-export async function applyStartupPragmas(): Promise<PragmaResult> {
-  const databasePath = connectedDatabasePath();
-
-  let current = "unknown";
-  try {
-    const rows = await db.$queryRawUnsafe<{ journal_mode: string }[]>("PRAGMA journal_mode");
-    current = rows[0]?.journal_mode ?? "unknown";
-  } catch {
-    return { journalMode: "unknown", applied: false, databasePath };
-  }
+/**
+ * Should WAL be enabled? — L-122 (R9.7). **A decision, with no I/O in it.**
+ *
+ * THE FINDING: the test guarding this — « refuses to enable WAL on a synced
+ * path » — **executed zero assertions.** Every `expect` sat inside
+ * `if (result.skipped)`, and `result.skipped` was always `undefined`:
+ * `applyStartupPragmas` reads `PRAGMA journal_mode` from the cached global
+ * `db`, which the same test file had already put into WAL, so it returned at
+ * the `current === "wal"` early exit **before reaching the cloud-sync branch at
+ * all.** Repointing `process.env.DATABASE_URL` cannot move `db`, because
+ * `db.ts` caches on `globalThis` unconditionally — that is an invariant, not an
+ * oversight.
+ *
+ * So the guard keeping the OneDrive-hosted production database out of WAL — the
+ * reason `docs/BASELINES.md` records `journal_mode = delete` — had no executed
+ * cover of any kind.
+ *
+ * Splitting the decision out is the audit's own suggestion and the smaller of
+ * the two it offered: the caller still does every read and write, and this
+ * answers the one question that was untestable. `null` means « nothing stands
+ * in the way — go and set WAL ».
+ */
+export function pragmaDecision(input: {
+  current: string;
+  databasePath: string | null;
+}): PragmaResult | null {
+  const { current, databasePath } = input;
 
   if (current.toLowerCase() === "wal") {
     return { journalMode: current, applied: false, databasePath };
@@ -118,6 +135,23 @@ export async function applyStartupPragmas(): Promise<PragmaResult> {
       warning,
     };
   }
+
+  return null;
+}
+
+export async function applyStartupPragmas(): Promise<PragmaResult> {
+  const databasePath = connectedDatabasePath();
+
+  let current = "unknown";
+  try {
+    const rows = await db.$queryRawUnsafe<{ journal_mode: string }[]>("PRAGMA journal_mode");
+    current = rows[0]?.journal_mode ?? "unknown";
+  } catch {
+    return { journalMode: "unknown", applied: false, databasePath };
+  }
+
+  const decided = pragmaDecision({ current, databasePath });
+  if (decided) return decided;
 
   try {
     const rows = await db.$queryRawUnsafe<{ journal_mode: string }[]>(

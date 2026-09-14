@@ -87,6 +87,8 @@ async function wipe(): Promise<void> {
   await db.receipt.deleteMany();
   await db.payment.deleteMany();
   await db.orderItem.deleteMany();
+  // L-154 (R9.7): Refund.orderId is `onDelete: Restrict`.
+  await db.refund.deleteMany();
   await db.order.deleteMany();
   await db.zReport.deleteMany();
   await db.shift.deleteMany();

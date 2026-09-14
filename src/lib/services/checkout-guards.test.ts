@@ -39,6 +39,8 @@ async function wipe() {
   await db.zReport.deleteMany();
   await db.payment.deleteMany();
   await db.orderItem.deleteMany();
+  // L-154 (R9.7): Refund.orderId is `onDelete: Restrict`.
+  await db.refund.deleteMany();
   await db.order.deleteMany();
   await db.shift.deleteMany();
   await db.user.deleteMany();

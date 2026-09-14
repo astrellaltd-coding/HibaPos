@@ -36,11 +36,13 @@ export const TX_FISCAL: { maxWait: number; timeout: number } = {
   timeout: 20_000,
 };
 
-/** Catalogue writes: no money involved, but they rewrite whole option trees. */
-export const TX_CATALOG: { maxWait: number; timeout: number } = {
-  maxWait: 5_000,
-  timeout: 15_000,
-};
+// L-155 (R9.7) — `TX_CATALOG` DELETED. « Catalogue writes: no money involved,
+// but they rewrite whole option trees » — and **no transaction ever consumed
+// it.** Its only reader was a test asserting its numbers beat Prisma's default,
+// which is a fact about the constant and not about the product. An exported
+// budget nothing budgets is furniture, and a reader who finds it reasonably
+// assumes catalogue writes are protected by it. If one ever needs its own
+// budget, add it back WITH the caller.
 
 /**
  * True when a transaction never got through — it could not obtain a

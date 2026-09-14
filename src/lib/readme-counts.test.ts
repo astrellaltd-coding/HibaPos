@@ -46,30 +46,50 @@ const DECLARATION =
  * whenever a test is generated from data or a loop — the totals below will not
  * add up until you do.
  */
+// L-157 (R9.7) — `marker` IS WHAT MAKES AN ENTRY CHECKABLE.
+//
+// The check below used to ask whether `e.where` contained ANY `it.each(` or
+// `for (…) { it(`, and **two of these entries name the same file**: delete one
+// of `deployment.test.ts`'s registered loops and it still passed on the
+// strength of the other, while the recomputed README total was wrong by 7 —
+// the exact failure this test says it exists to prevent.
+//
+// Counting constructs per file is not enough either: `deployment.test.ts` has
+// SIX loops and registers two, so « at least two » is trivially true. Measured,
+// and the revert survived it.
+//
+// So each entry carries a fragment of the `it(` title ITS loop generates.
+// Nothing else in the file produces that string, so an entry is verified
+// against the loop it actually names.
 const EXPANSIONS = [
   {
     where: "src/hooks/use-keyboard-shortcuts.test.ts",
     what: 'it.each(["F1" … "F9"]) — seven function keys',
+    marker: "it.each(",
     runs: 7,
   },
   {
     where: "src/lib/deployment.test.ts",
     what: "for (const f of ALL_SCRIPTS) it(…) — eight PowerShell scripts",
+    marker: "pure ASCII, and carries a UTF-8 BOM",
     runs: 8,
   },
   {
     where: "src/lib/deployment.test.ts",
     what: "for (const f of ALL_SCRIPTS) it(…) — the backtick-in-here-string guard, Batch 1.4c",
+    marker: "no backtick inside",
     runs: 8,
   },
   {
     where: "src/lib/services/combo-allocation.test.ts",
     what: "for (const c of CASES) it(…) — the nine cases of the VAT allocation policy, Batch 5.9",
+    marker: "for (const c of CASES)",
     runs: 9,
   },
   {
     where: "src/lib/services/hidden-product.test.ts",
     what: "for (const c of CASES) it(…) — the two L-69 box shapes R3.3 hands over, Phase 3",
+    marker: "for (const c of CASES)",
     runs: 2,
   },
 ];
@@ -153,11 +173,45 @@ describe("README test counts (DOC-04)", () => {
   it("every registered expansion still exists where it says it does", () => {
     // An expansion that was deleted would silently inflate the total by six
     // and the README would be "corrected" to match a number nobody ran.
+    //
+    // L-157 (R9.7): checked PER ENTRY, against a marker only that entry's loop
+    // produces. The old version asked whether the FILE contained any expansion
+    // construct at all, and two entries name `deployment.test.ts` — so one of
+    // its loops could go and the check still passed on the other.
     for (const e of EXPANSIONS) {
       const src = readFileSync(path.join(REPO_ROOT, e.where), "utf8");
-      const hasEach = /\b(?:it|test)\.each\(/.test(src);
-      const hasLoop = /for \(const \w+ of \w+\) \{[\s\S]{0,200}?^\s*(?:it|test)\(/m.test(src);
-      expect(hasEach || hasLoop, `${e.where}: no ${e.what} found — is the EXPANSIONS entry stale?`).toBe(true);
+      const occurrences = src.split(e.marker).length - 1;
+      expect(
+        occurrences,
+        `${e.where}: the marker ${JSON.stringify(e.marker)} for « ${e.what} » was not found — ` +
+          `the loop was deleted, or the EXPANSIONS entry is stale. The README total is now ` +
+          `wrong by ${e.runs - 1}.`,
+      ).toBeGreaterThan(0);
     }
+  });
+
+  it("gives every entry a marker, and no two entries in one file share one", () => {
+    // The guard on the marker scheme: a blank marker matches everything, and
+    // two entries in one file sharing a marker is the bug this replaced.
+    const seen = new Map<string, Set<string>>();
+    for (const e of EXPANSIONS) {
+      expect(e.marker.length, `${e.where}: empty marker`).toBeGreaterThan(5);
+      const forFile = seen.get(e.where) ?? new Set<string>();
+      expect(
+        forFile.has(e.marker),
+        `${e.where}: two entries share the marker ${JSON.stringify(e.marker)}`,
+      ).toBe(false);
+      forFile.add(e.marker);
+      seen.set(e.where, forFile);
+    }
+  });
+
+  it("registers more than one expansion in at least one file", () => {
+    // The guard on the guard: if no file ever carried two entries, the change
+    // above would be indistinguishable from the version that had the bug, and
+    // nobody would notice it regressing.
+    const byFile = new Map<string, number>();
+    for (const e of EXPANSIONS) byFile.set(e.where, (byFile.get(e.where) ?? 0) + 1);
+    expect(Math.max(...byFile.values())).toBeGreaterThan(1);
   });
 });

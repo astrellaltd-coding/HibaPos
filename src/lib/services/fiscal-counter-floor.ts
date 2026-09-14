@@ -96,6 +96,50 @@ export type CounterRegression = {
  * singleton at 0 and needs the same floor"). Guarding three of four would
  * have left it.
  */
+/**
+ * May `FiscalCounter` be CREATED at zero? — L-126 (R9.7).
+ *
+ * THE FINDING: `scripts/init-fiscal-counter.ts` implemented this refusal
+ * inline, and **`fiscal-counter-floor.test.ts` was captioned « This is
+ * `init-fiscal-counter.ts` on the database it is written for » while testing a
+ * different function entirely** — that script never called `counterRegressions`.
+ * Delete the script's block and the whole suite stays green, and it re-creates
+ * the counter at 0/0/0/0 on a database still holding sealed orders: **L-38's
+ * exact outcome**, which is the next genuine sale printing a receipt number
+ * that already exists.
+ *
+ * `bun test src` globs `src/` only, so nothing under `scripts/` is reachable at
+ * all. Moving the rule here is the same move L-38 made for the other half of
+ * this file, and **it is the pattern for testing any operator script** — the
+ * script keeps the I/O and the prose, the rule lives where a test can call it.
+ *
+ * The two halves are deliberately different questions: `counterRegressions`
+ * asks « would this UPDATE move a counter backwards », and this asks « is the
+ * database empty enough for a CREATE at zero to be safe ». Conflating them is
+ * how one of them ended up untested.
+ */
+export type FiscalTableCounts = {
+  orders: number;
+  shifts: number;
+  zReports: number;
+  events: number;
+};
+
+export function mayCreateCounterAtZero(counts: FiscalTableCounts): boolean {
+  return counts.orders + counts.shifts + counts.zReports + counts.events === 0;
+}
+
+/** What the operator is told when it refuses. Kept beside the rule so the test
+ *  asserts the real text rather than a copy of it. */
+export const CREATE_AT_ZERO_REFUSAL =
+  "  REFUS : les tables fiscales ne sont pas vides.\n\n" +
+  "  Créer le compteur à zéro le placerait SOUS des numéros déjà scellés\n" +
+  "  dans le journal fiscal, et le prochain ticket porterait un numéro en\n" +
+  "  double. Ce script n'initialise qu'une base vierge.\n\n" +
+  "  Utilisez la réparation, qui aligne le compteur SUR les tables :\n" +
+  "      bun scripts/fix-fiscal-counter.ts\n" +
+  "      bun scripts/fix-fiscal-counter.ts --apply\n";
+
 export function counterRegressions(
   current: FiscalCounterFields,
   proposed: Partial<FiscalCounterFields>,

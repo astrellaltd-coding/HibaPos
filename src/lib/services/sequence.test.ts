@@ -23,6 +23,8 @@ describe("fiscal counter concurrency", () => {
     await db.fiscalEvent.deleteMany();
     await db.grandTotal.deleteMany();
     await db.zReport.deleteMany();
+    // L-154 (R9.7): Refund.orderId is `onDelete: Restrict`.
+    await db.refund.deleteMany();
     await db.order.deleteMany();
     await db.shift.deleteMany();
     await db.user.deleteMany();

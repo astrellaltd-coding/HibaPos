@@ -27,19 +27,12 @@ export const CODE_PAGE_WPC1252 = 16;
 /** Font A column counts. Font B is narrower but too small for a receipt. */
 const COLUMNS_BY_PAPER_MM: Record<number, number> = { 58: 32, 80: 48 };
 
-/**
- * Printable columns for a paper width in millimetres (L-13).
- *
- * `receiptWidth` is a COLUMN count, not a millimetre value — `renderReceipt`
- * uses it as one. The shipped default (80) and the live setting were a
- * millimetre value, which would render every ticket 80 columns wide on a
- * printer that can only fit 48. This helper is what the settings UI should
- * offer ("80 mm → 48 colonnes"), and `normalizeReceiptColumns` repairs the
- * legacy values without touching the stored row.
- */
-export function columnsForPaperMm(mm: number): number {
-  return COLUMNS_BY_PAPER_MM[mm] ?? 48;
-}
+// L-155 (R9.7) — `columnsForPaperMm` DELETED. It was « what the settings UI
+// should offer ("80 mm → 48 colonnes") » and the settings UI never offered it:
+// **nothing called it.** The repair half of L-13 is `normalizeReceiptColumns`
+// below, which IS called and IS what protects the stored value; this was the
+// presentation half of a screen nobody built. `COLUMNS_BY_PAPER_MM` stays —
+// `normalizeReceiptColumns` reads it.
 
 /**
  * Coerce a stored `receiptWidth` into a usable column count.

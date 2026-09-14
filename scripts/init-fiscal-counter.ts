@@ -34,6 +34,12 @@
  *   bun scripts/init-fiscal-counter.ts --apply    # write
  */
 import { PrismaClient } from "@prisma/client";
+// L-126 (R9.7): the rule and its message live in `src/`, where
+// `bun test src` can reach them. This script keeps the I/O.
+import {
+  mayCreateCounterAtZero,
+  CREATE_AT_ZERO_REFUSAL,
+} from "../src/lib/services/fiscal-counter-floor";
 
 const db = new PrismaClient();
 const APPLY = process.argv.includes("--apply");
@@ -68,25 +74,21 @@ async function main() {
     db.fiscalEvent.count(),
   ]);
 
-  const populated = orders + shifts + zReports + events;
-
   console.log(
     `\n  Aucune ligne FiscalCounter.\n` +
       `  Tables fiscales : ${orders} commandes, ${shifts} services, ${zReports} rapports Z, ${events} événements.\n`,
   );
 
-  if (populated > 0) {
-    // The floor (L-38). Creating at zero here would put every counter below
-    // numbers already sealed into the journal.
-    console.error(
-      "  REFUS : les tables fiscales ne sont pas vides.\n\n" +
-        "  Créer le compteur à zéro le placerait SOUS des numéros déjà scellés\n" +
-        "  dans le journal fiscal, et le prochain ticket porterait un numéro en\n" +
-        "  double. Ce script n'initialise qu'une base vierge.\n\n" +
-        "  Utilisez la réparation, qui aligne le compteur SUR les tables :\n" +
-        "      bun scripts/fix-fiscal-counter.ts\n" +
-        "      bun scripts/fix-fiscal-counter.ts --apply\n",
-    );
+  // The floor (L-38). Creating at zero here would put every counter below
+  // numbers already sealed into the journal.
+  //
+  // L-126 (R9.7): the RULE and the MESSAGE now live in
+  // `src/lib/services/fiscal-counter-floor.ts`, where `bun test src` can reach
+  // them — this script's copy was untested and a test in that file claimed
+  // otherwise. What stays here is the I/O and the exit code, which is all a
+  // script should own.
+  if (!mayCreateCounterAtZero({ orders, shifts, zReports, events })) {
+    console.error(CREATE_AT_ZERO_REFUSAL);
     process.exitCode = 1;
     return;
   }

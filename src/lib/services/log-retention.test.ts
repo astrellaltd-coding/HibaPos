@@ -137,11 +137,25 @@ describe("pruneLogs", () => {
     );
     // Note: the event is NOT backdated. `timestamp` is an input to the event
     // hash, so rewriting it is tampering and breaks the chain — which is the
-    // tamper detection doing its job. pruneLogs is time-based only for the
-    // log tables, so an aged fiscal row is not needed to prove the point.
+    // tamper detection doing its job.
+    //
+    // L-121 (R9.7) — **THE CLOCK IS MOVED INSTEAD, AND THAT IS THE WHOLE FIX.**
+    //
+    // This called `pruneLogs()` with the real clock, so the fresh event was
+    // never older than a one-day cutoff and **a dated prune of the fiscal
+    // journal would have deleted nothing and passed.** Only an *unconditional*
+    // `deleteMany` could fail it. The test guarding the single hardest
+    // invariant in the product could not fail against the bug it names.
+    //
+    // `pruneLogs(now: Date = new Date())` was built to take the clock. Pushing
+    // `now` 400 days forward puts every cutoff far past this event with no
+    // backdating and no tampering — so a `fiscalEvent.deleteMany({ where: {
+    // timestamp: { lt: cutoff(days) } } })` added beside the other two now
+    // deletes it, and this test goes red.
     const before = await db.fiscalEvent.count();
+    expect(before, "no fiscal event to protect — this test would be vacuous").toBeGreaterThan(0);
 
-    await pruneLogs();
+    await pruneLogs(new Date(Date.now() + 400 * DAY));
 
     expect(await db.fiscalEvent.count()).toBe(before);
     const verdict = await verifyFiscalChain();

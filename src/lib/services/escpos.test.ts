@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import {
   CODE_PAGE_WPC1252,
   buildPrintJob,
-  columnsForPaperMm,
   cut,
   drawerKick,
   encodeText,
@@ -115,10 +114,12 @@ describe("text encoding (CP1252)", () => {
 });
 
 describe("receipt column width (L-13)", () => {
-  it("derives Font A columns from the paper width in millimetres", () => {
-    expect(columnsForPaperMm(80)).toBe(48);
-    expect(columnsForPaperMm(58)).toBe(32);
-  });
+  // L-155 (R9.7): « derives Font A columns from the paper width in
+  // millimetres » went with `columnsForPaperMm`, which nothing called. It was
+  // « what the settings UI should offer » and the settings UI never offered
+  // it. The mapping it read is still exercised, through
+  // `normalizeReceiptColumns` below — which IS called, and is the half of L-13
+  // that protects the stored value.
 
   it("repairs a legacy receiptWidth that holds millimetres", () => {
     // The live setting is 80 — a paper width, used by renderReceipt as a

@@ -74,6 +74,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - R9.3 — a failed backup leaves nothing readable behind
 - R9.4 — a misconfigured secret says so, instead of answering an empty 500
 - R9.5 — the front door opens, and refuses a PIN the repository publishes
+- R9.7 — the guards that were not guarding
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -3523,6 +3524,114 @@ positive is as useless as a missed one.
   for a second instance. Two in two batches is a pattern, and the general question — nothing
   checks that a file creates the state it reads — belongs with R9.7's L-154.
 - **The plan is at 38 566 bytes** against the 40 960 ceiling.
+---
+
+### R9.7 — the guards that were not guarding
+**Done:** 2026-09-14 · **Commit:** `SHA` · **Findings:** L-121 · L-122 · L-123 · L-125 ·
+L-126 · L-154 · L-155 · L-156 · L-157 · L-158 · L-159
+
+**Eleven findings, the largest batch of the audit**, and the three High ones are the same
+sentence: **a test that cannot fail against the bug it names.**
+
+**L-121 (High) — the fiscal journal's guard was decorative.** « NEVER prunes the fiscal
+journal, whatever the retention says » wrote a `FiscalEvent` with the real clock, set retention
+to 1 day, and asserted the count was unchanged. **A dated prune deletes nothing from a row
+written this second**, so only an *unconditional* `deleteMany` could have failed it — and the
+invariant it guards is the hardest one in the product. One line: `pruneLogs` already took
+`now`, so the clock moves 400 days forward instead. **Proven** by adding the exact bug —
+`fiscalEvent.deleteMany({ where: { timestamp: { lt: cutoff(days) } } })` — which now goes red.
+
+**L-122 (High) — a guard with zero executed assertions, twice over.** Every `expect` in
+« refuses to enable WAL on a synced path » sat inside `if (result.skipped)`, and
+`result.skipped` was always `undefined`: `applyStartupPragmas` reads the mode from the cached
+global `db`, which the same file had already put into WAL, so it returned at the early exit
+**before reaching the cloud-sync branch at all.** `DATABASE_URL` cannot move `db` — `db.ts`
+caches on `globalThis`, which is an invariant. **And the fixture would not have tripped it
+either**: it built a temp directory named `OneDrive-fake-XXXX`, and the matcher wants a
+segment that IS `onedrive`. Two independent reasons it could never fail. The decision is now
+`pragmaDecision({ current, databasePath })` — no I/O, so the mode is an argument.
+
+**L-123 (High) — the server-authoritative payment check had no test.**
+`paidTotal !== totalAfterDiscount` is the one thing stopping a basket booking a 10,00 € sale
+against a 1,00 € tender, and removing it failed nothing. It went untested because it is
+**invisible to the helpers**: every fixture computes the tender FROM the price, so none can
+express a mismatch. Seven cases now, built by hand — under, over, one cent either way, a split
+that does not add up, a split that does, and a client-supplied total the server must ignore.
+Removing the check now fails five.
+
+**L-125 (Medium) — two tests that re-implemented the routes they were named after.** « What
+POST /api/fiscal/drawer does » and « What POST /api/orders/[id]/reprint does » called
+`appendFiscalEvent` and `receipt.update` by hand, and the reprint route was invoked by nothing
+in either suite. Both routes now driven through `route-harness.ts` with printing off — which
+is the half that was never covered: not « does it journal », but « does it journal when the
+paper does not come out ».
+
+**L-126 (Medium) — a rule in `scripts/` is a rule no test can reach.** `bun test src` globs
+`src/` only. The counter floor on the CREATE path was inline in `init-fiscal-counter.ts` while
+`fiscal-counter-floor.test.ts` carried the caption « This is `init-fiscal-counter.ts` on the
+database it is written for » — about a function that script never called. Deleting the block
+left the suite green and re-created the counter at 0/0/0/0 on a database holding sealed
+orders: **L-38's exact outcome.** `mayCreateCounterAtZero` now lives in `src/`; the script
+keeps the I/O. **This is the pattern for testing any operator script.**
+
+**L-154 (Low) — one wipe order instead of 71 hand-maintained lists.** Measured rather than
+taken on trust: **71 test files call `deleteMany`, 17 deleted `Shift` without `ZReport`**
+(the audit counted 14 — it was growing), and the guard found **43** once `Refund` → `Order`
+was included. New `src/lib/test-wipe.ts` carries the order, and `test-wipe.test.ts` pins it
+three ways: every schema model is in it, nothing in it is absent from the schema, and **every
+`@relation` in the schema has its child before its parent** — derived, so a new table is
+covered without anyone remembering. A second check sweeps every test file for the order bug.
+The 43 files were given the missing delete locally rather than rewritten, because several keep
+things on purpose.
+
+**L-155 (Low-Med) — three exported symbols only tests used.** DD-12's « fixed category list »
+existed in **three** hand-copied places and the one a test pinned was used by none of them.
+`CASH_MOVEMENT_DIRECTION` is now exported and imported by the dialog, so that test is
+load-bearing. `TX_CATALOG` and `columnsForPaperMm` were **deleted with their assertions** —
+an exported budget no transaction budgets, and « what the settings UI should offer » for a
+screen nobody built.
+
+**L-156 (Low) — a regression pin that asserted arithmetic.**
+`expect(formatEuro(openingFloat / 100)).toBe("2,00 €")` restates `formatEuro`'s contract and
+cannot fail for any change to the product. C-02's defect was a `/ 100` at a CALL SITE, and no
+test read any `.tsx`. Replaced by a sweep of every screen for `formatEuro(… / 100)` and
+`<Money value={… / 100}`.
+
+**L-157 (Low) — the expansion check tested the FILE, not the ENTRY.** Two entries name
+`deployment.test.ts`; delete one of its loops and it passed on the strength of the other,
+while the README total was wrong by 7. **Counting constructs per file was not enough either** —
+that file has SIX loops and registers two, so « at least two » is trivially true, and the
+revert survived it. Each entry now carries a `marker` its own loop produces.
+
+**L-158 (Low) — `apportion` was pinned to everything except the split.** All four tests were
+satisfied by a degenerate implementation handing the whole target to the first weight, and one
+compared `apportion(w, 500)` with itself. It is **the only splitter in the product**. Exact
+values now, plus proportionality at every size and the largest-remainder rule. The degenerate
+implementation fails three tests in that file, where it previously failed none.
+
+**L-159 (Cosmetic) — a constant described as production's value that was not.** The address
+held 56 characters with a duplicated postcode; production has 50. Corrected, and the
+assertion that depended on the old string's line count was rewritten to say what it means.
+
+**HOW IT WAS VERIFIED.** 1 722 pass · 0 fail · 140 files · **zero `prisma:error` blocks**.
+Thirteen reverts, each restoring the exact bug its finding names, all red.
+
+**FOUR SURVIVED FIRST, AND THREE WERE THE SAME MISTAKE I WAS FIXING.** Two assertions matched
+an **import** rather than a call — `indexOf("appendFiscalEvent")` finds the import at the top
+of the file, so moving the journal write after the print left the ordering test green, and
+`includes("mayCreateCounterAtZero")` was satisfied by the import line after the script stopped
+calling it. A third matched its own explanatory comment. And L-157's first fix counted loops
+per file, which a six-loop file makes meaningless. Every one was found by running the revert,
+not by reading.
+
+**Left behind.**
+- **`src/lib/test-wipe.ts` is TEST ONLY** and carries the same warning `route-harness.ts` does.
+  The 43 files were patched locally; converting them to `wipeDatabase()` is safe to do
+  file-by-file whenever one is next opened, and the guard stops the hazard returning either way.
+- **L-154's cousin is still open in principle.** R9.5's L-189 is the mirror image — a file
+  free-riding on state it never created — and nothing checks for that. The wipe guard does not
+  address it and is not meant to.
+- **The plan is at 38 570 bytes** against the 40 960 ceiling.
 ---
 
 ## Retired from the plan's § 6 on 2026-09-11

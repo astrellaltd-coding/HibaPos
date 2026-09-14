@@ -58,6 +58,10 @@ describe("processRefund integration", () => {
     await db.payment.deleteMany();
     await db.fiscalEvent.deleteMany();
     await db.grandTotal.deleteMany();
+    // L-154 (R9.7): ZReport.shiftId is `onDelete: Restrict`, so a
+    // leftover Z makes this shift delete throw — and the failure
+    // surfaces in whichever file runs next.
+    await db.zReport.deleteMany();
     await db.shift.deleteMany();
     await db.user.deleteMany();
     await db.fiscalCounter.deleteMany();

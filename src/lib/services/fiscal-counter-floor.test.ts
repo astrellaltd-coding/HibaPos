@@ -1,8 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
+  CREATE_AT_ZERO_REFUSAL,
+  FISCAL_COUNTER_FIELDS,
   counterRegressions,
   describeCounterRegressions,
-  FISCAL_COUNTER_FIELDS,
+  mayCreateCounterAtZero,
   type FiscalCounterFields,
 } from "@/lib/services/fiscal-counter-floor";
 
@@ -124,8 +126,76 @@ describe("counterRegressions — the floor under FiscalCounter", () => {
       lastZReportNumber: 0,
       lastFiscalEventSequence: 0,
     };
-    // This is `init-fiscal-counter.ts` on the database it is written for.
+    // CORRECTED 2026-09-14 (R9.7 / L-126). This line used to read « This is
+    // `init-fiscal-counter.ts` on the database it is written for », and it was
+    // not: **that script never called `counterRegressions`.** It implemented
+    // its own inline `populated > 0` refusal, so deleting that block left the
+    // whole suite green while the script re-created the counter at 0/0/0/0 on
+    // a database still holding sealed orders — L-38's exact outcome, the next
+    // genuine sale printing a receipt number that already exists.
+    //
+    // What this asserts is the UPDATE path on equal values. The CREATE path is
+    // `mayCreateCounterAtZero`, tested in its own describe below.
     expect(counterRegressions(fresh, fresh)).toEqual([]);
+  });
+});
+
+// ── L-126 (R9.7) — MAY THE COUNTER BE CREATED AT ZERO? ───────────────────────
+//
+// `bun test src` globs `src/` only, so nothing under `scripts/` is reachable —
+// the rule was untested because of where it lived, not because anyone decided
+// it did not need testing. It moved here; the script kept the I/O and the exit
+// code. **This is the pattern for testing any operator script.**
+describe("mayCreateCounterAtZero — the create path's floor", () => {
+  const empty = { orders: 0, shifts: 0, zReports: 0, events: 0 };
+
+  it("allows a create on a genuinely empty database", () => {
+    expect(mayCreateCounterAtZero(empty)).toBe(true);
+  });
+
+  it("REFUSES when ANY fiscal table holds a row", () => {
+    // Each on its own, because a check that summed only some of them would
+    // pass a test that moved them all together. `events` in particular: a
+    // journal with entries and no orders is what a drawer-open leaves.
+    for (const field of ["orders", "shifts", "zReports", "events"] as const) {
+      const counts = { ...empty, [field]: 1 };
+      expect({ field, may: mayCreateCounterAtZero(counts) }).toEqual({ field, may: false });
+    }
+  });
+
+  it("REFUSES on the production shape this exists to protect", () => {
+    // L-38's database: sealed orders, a Z, and a journal.
+    expect(mayCreateCounterAtZero({ orders: 20, shifts: 3, zReports: 2, events: 47 })).toBe(false);
+  });
+
+  it("says WHY, and points at the repair script rather than stopping dead", () => {
+    // A refusal that leaves the operator with no next step is how someone ends
+    // up deleting the row by hand.
+    expect(CREATE_AT_ZERO_REFUSAL).toContain("REFUS");
+    expect(CREATE_AT_ZERO_REFUSAL).toContain("numéro en\n  double");
+    expect(CREATE_AT_ZERO_REFUSAL).toContain("fix-fiscal-counter.ts");
+  });
+
+  it("is what the SCRIPT calls — otherwise this describe tests nothing", async () => {
+    // The failure mode this whole finding is: a rule in one place and the
+    // decision in another. Read as source because `bun test src` cannot import
+    // from `scripts/`, which is the constraint that created the problem.
+    const { readFileSync } = await import("fs");
+    const path = await import("path");
+    const script = readFileSync(
+      path.join(process.cwd(), "scripts/init-fiscal-counter.ts"),
+      "utf8",
+    );
+    // THE CALL, not the import. `includes("mayCreateCounterAtZero")` is
+    // satisfied by the `import { … }` line, so deleting the script's USE of the
+    // rule left this green — measured, the revert survived it. That is the same
+    // shape as the finding itself: a rule that exists and is not consulted.
+    expect(script, "the rule is imported and never called").toContain(
+      "mayCreateCounterAtZero({",
+    );
+    expect(script).toContain("console.error(CREATE_AT_ZERO_REFUSAL)");
+    // …and no longer carries its own copy of the rule.
+    expect(script, "the inline refusal is back").not.toContain("populated > 0");
   });
 });
 
