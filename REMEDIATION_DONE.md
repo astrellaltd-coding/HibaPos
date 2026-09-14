@@ -4306,7 +4306,7 @@ gate back to the MANAGER with no guard behind it fails the map check alone.
 ---
 
 ### L-186 — the print that succeeded, finally executed by a test
-**Done:** 2026-09-14 · **Commit:** `SHA` · **Finding:** L-186 (Low). **No plan row** — the last
+**Done:** 2026-09-14 · **Commit:** `22cceff` · **Finding:** L-186 (Low). **No plan row** — the last
 open finding that was a session's to do.
 
 **« No test can drive a SUCCESSFUL print through any of the three print routes. »** Each called
