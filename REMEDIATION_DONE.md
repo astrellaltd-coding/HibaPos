@@ -3417,7 +3417,7 @@ the directory belongs is the failure the guard can actually meet.
 ---
 
 ### R9.5 — the front door opens, and refuses a PIN the repository publishes
-**Done:** 2026-09-14 · **Commit:** `SHA` · **Findings:** L-102 · L-103 · L-118 · L-147, and
+**Done:** 2026-09-14 · **Commit:** `7218ab3` · **Findings:** L-102 · L-103 · L-118 · L-147, and
 **L-187** riding along because the batch owns `auth.ts`
 
 **L-102 (Medium) — a lockout that never ended.** Two unauthenticated login paths with
