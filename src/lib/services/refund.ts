@@ -30,6 +30,32 @@ export class RefundError extends Error {
   }
 }
 
+/**
+ * L-171 — one line the cashier named as the reason for the refund.
+ *
+ * `orderItemId` identifies the line on THIS order; `quantity` is how many of it
+ * came back. Nothing computes money from either — see `itemsJson`'s note in
+ * `schema.prisma`. This is the answer to « which item was returned », which the
+ * software could not give before.
+ */
+export type RefundItemInput = {
+  orderItemId: string;
+  quantity: number;
+};
+
+/** What is sealed into `Refund.itemsJson`: the ids, plus the names and the line
+ *  totals snapshotted so the answer survives a catalogue edit. */
+export type RefundItemAttribution = RefundItemInput & {
+  productName: string;
+  lineTotal: number; // cents, the ORDER line's total — not a refunded amount
+};
+
+/** Refused when the named lines do not belong to the order, or ask for more of
+ *  a line than was sold. The refund is not written: an attribution that is
+ *  wrong is worse than none, because it is an answer. */
+export const REFUND_ITEMS_INVALID_MESSAGE =
+  "Les articles indiqués ne correspondent pas à cette commande.";
+
 export type RefundInput = {
   orderId: string;
   amount: number; // cents
@@ -38,6 +64,9 @@ export type RefundInput = {
   approverId: string | null;
   cashierId: string;
   factice: boolean;
+  /** L-171. Optional: a refund taken by amount alone stores `null`, which means
+   *  NOT ATTRIBUTED — apportioned by value, as every refund before today. */
+  items?: RefundItemInput[] | null;
 };
 
 export type RefundResult = {
@@ -129,11 +158,58 @@ export async function processRefund(input: RefundInput, order: OrderForRefund): 
       throw new RefundError("Montant de remboursement supérieur au solde", 400);
     }
 
+    // ── L-171: WHICH ITEMS, VALIDATED AGAINST THE ORDER'S OWN LINES ─────────
+    //
+    // Inside the transaction, against rows read here rather than anything the
+    // caller sent: the client names ids, and an id it made up must not become a
+    // sealed answer to « which item was returned ». An attribution that is
+    // wrong is worse than none — none says « not attributed », wrong says
+    // something false, and both the journal and the screen will show it.
+    //
+    // **WHAT IS NOT CHECKED, AND WHY IT IS NOT.** Nothing tracks attribution
+    // CUMULATIVELY across several refunds, so two partial refunds could each
+    // name the same line. That is line-level accounting, which is the larger
+    // change the operator did not take (see `itemsJson` in `schema.prisma`):
+    // doing it half-way here would create a second, quieter set of books that
+    // no sealed figure agrees with. The limitation is recorded rather than
+    // papered over.
+    let itemsJson: string | null = null;
+    if (input.items && input.items.length > 0) {
+      const lines = await tx.orderItem.findMany({
+        where: { orderId: order.id },
+        select: { id: true, productName: true, quantity: true, lineTotal: true },
+      });
+      const byId = new Map(lines.map((l) => [l.id, l]));
+      const seen = new Set<string>();
+      const attributed: RefundItemAttribution[] = [];
+      for (const wanted of input.items) {
+        const line = byId.get(wanted.orderItemId);
+        if (!line) throw new RefundError(REFUND_ITEMS_INVALID_MESSAGE, 400);
+        if (seen.has(wanted.orderItemId)) throw new RefundError(REFUND_ITEMS_INVALID_MESSAGE, 400);
+        seen.add(wanted.orderItemId);
+        if (
+          !Number.isInteger(wanted.quantity) ||
+          wanted.quantity < 1 ||
+          wanted.quantity > line.quantity
+        ) {
+          throw new RefundError(REFUND_ITEMS_INVALID_MESSAGE, 400);
+        }
+        attributed.push({
+          orderItemId: line.id,
+          productName: line.productName,
+          quantity: wanted.quantity,
+          lineTotal: line.lineTotal,
+        });
+      }
+      itemsJson = JSON.stringify(attributed);
+    }
+
     const r = await tx.refund.create({
       data: {
         orderId: order.id,
         amount: input.amount,
         reason: input.reason,
+        itemsJson,
         cashierId: input.cashierId,
         approvedById: input.approverId,
         // C-14 / DD-10 (Batch 5.3): the till that PAYS, not the till that sold.
@@ -184,6 +260,8 @@ export async function processRefund(input: RefundInput, order: OrderForRefund): 
           approvedById: input.approverId,
           totalRefunded,
           fullyRefunded,
+          // L-171: what the cashier named, or null for « not attributed ».
+          items: itemsJson ? (JSON.parse(itemsJson) as RefundItemAttribution[]) : null,
         }),
       },
     });
@@ -211,6 +289,14 @@ export async function processRefund(input: RefundInput, order: OrderForRefund): 
         approverId: input.approverId,
         totalRefunded,
         fullyRefunded,
+        // L-171 — the attribution is SEALED, not only stored.
+        //
+        // `Refund.itemsJson` is a column and a column can be edited; a fiscal
+        // event is covered by the chain hash and cannot. « Which item came back »
+        // is exactly the question an inspection asks, so the answer belongs in
+        // the journal as well as on the row. New events only — existing rows
+        // keep the payload they were sealed with, and their hashes cover it.
+        items: itemsJson ? (JSON.parse(itemsJson) as RefundItemAttribution[]) : null,
       },
     });
     await tx.refund.update({ where: { id: r.id }, data: { fiscalEventId: ev.id } });

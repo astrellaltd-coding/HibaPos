@@ -818,6 +818,32 @@ model Refund {
   // Z-versus-close reconciliation instead of silently landing in the wrong till.
   shiftId       String? // the shift that PAID the refund out — plain id, NO FK (intentional: FK omitted so a shift can be hard-deleted without blocking refund history)
   method        PaymentMethod? // refund channel; null on legacy rows; reports treat null as CASH for backward-compat
+  // L-171 (2026-09-14) — WHICH ITEMS THIS REFUND WAS FOR.
+  //
+  // A partial refund is apportioned across the order's lines by TTC weight, not
+  // against the item returned: the audit measured 500 c refunded from a 1 640 c
+  // order moving the 5,5 % bucket from 300 to 209 — 91 c credited at 5,5 %
+  // although the reason read « Pizza renvoyée ». **An inspector could ask which
+  // item came back and the software could not answer.**
+  //
+  // **THE OPERATOR CHOSE TO RECORD THE ATTRIBUTION AND LEAVE THE ARITHMETIC
+  // ALONE** (2026-09-14). The audit says the arithmetic « is not wrong » — it
+  // follows from « `apportion` is the only splitter », which is an invariant.
+  // Computing the refund FROM these lines is a larger change that moves money
+  // between VAT buckets on every partial refund, and it was not taken. **Nothing
+  // reads this column for arithmetic and nothing may start to** without
+  // reopening that decision.
+  //
+  // Shape: `[{ orderItemId, productName, quantity, lineTotal }]`. The NAME is
+  // snapshotted beside the id so the answer survives a catalogue edit or a
+  // deleted product — the same rule as `OrderItem.productName`.
+  //
+  // **NULL = NOT ATTRIBUTED**: taken by amount and apportioned by value. That is
+  // every refund before this column existed and every one where the cashier
+  // names no item. It does NOT mean « the whole order » and NOT « nothing ».
+  // (Stated here rather than left to be guessed — the lesson of L-177 and
+  // L-129, both of which were a null in the fiscal path with no meaning.)
+  itemsJson     String?
   fiscalEventId String? // link to the FiscalEvent (REMBOURSEMENT/ANNULATION) journal entry (plain id, no FK)
   createdAt     DateTime       @default(now())
 

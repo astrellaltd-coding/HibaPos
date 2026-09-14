@@ -1,0 +1,38 @@
+-- L-171 (2026-09-14) — a refund records WHICH ITEMS it was for.
+--
+-- THE FINDING: a partial refund is apportioned across the order's lines by TTC
+-- weight, not against the item returned. Measured by the audit: refunding 500 c
+-- of a 1 640 c order moved the 5,5 % bucket from 300 to 209 — 91 c credited at
+-- 5,5 % although the stated reason was « Pizza renvoyée ». There is no
+-- line-level refund and no column recording the attribution, so **an inspector
+-- could ask which item was returned and the software could not answer.**
+--
+-- ── WHAT THIS MIGRATION DOES, AND DELIBERATELY DOES NOT ──────────────────────
+-- The operator chose, 2026-09-14, to RECORD THE ATTRIBUTION AND LEAVE THE
+-- ARITHMETIC ALONE. The audit says the arithmetic « is not wrong »: it follows
+-- directly from « `apportion` is the only splitter », which is an invariant of
+-- this project. Computing the refund FROM the selected lines is a different and
+-- larger change — it moves money between VAT buckets on every partial refund,
+-- and through the Z report and every close — and it was not taken.
+--
+-- So: one nullable column holding a snapshot of the lines the cashier named.
+-- No sealed figure moves. No existing row is touched.
+--
+-- ── WHY A JSON SNAPSHOT AND NOT A `RefundLine` TABLE ─────────────────────────
+-- It is attribution, not accounting. Nothing computes from it, and a snapshot
+-- is what the rest of the fiscal path already does for exactly this reason —
+-- `ZReport.topProductsJson`, `givenAwayProductsJson`, `DailyClose.dataJson`.
+-- The product NAME is snapshotted with the id, so the answer survives a
+-- catalogue edit or a deleted product, the same rule as `OrderItem.productName`.
+--
+-- ── WHAT NULL MEANS, STATED BEFORE IT CAN BE GUESSED (the lesson of L-177) ───
+-- **NULL = NOT ATTRIBUTED.** The refund was taken by amount and is apportioned
+-- across the lines by value, which is every refund this software took before
+-- today and every one where the cashier names no item. It does NOT mean « the
+-- whole order » and it does NOT mean « nothing ».
+--
+-- `ALTER TABLE ... ADD COLUMN` does not rewrite the table in SQLite: no existing
+-- row is touched and no sealed payload is re-serialised.
+
+-- AlterTable
+ALTER TABLE "Refund" ADD COLUMN "itemsJson" TEXT;

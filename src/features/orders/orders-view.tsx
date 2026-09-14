@@ -73,6 +73,15 @@ import { fromCents, parseEuroInput } from "@/lib/money";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
+/** L-171 — one line named as the reason for a refund, as sealed into
+ *  `Refund.itemsJson`. Nothing computes money from it. */
+type RefundItemAttribution = {
+  orderItemId: string;
+  productName: string;
+  quantity: number;
+  lineTotal: number;
+};
+
 type RefundDto = {
   id: string;
   amount: number;
@@ -80,7 +89,25 @@ type RefundDto = {
   cashierId: string;
   createdAt: string;
   cashier?: { name: string } | null;
+  /** L-171. `null` means NOT ATTRIBUTED — taken by amount and apportioned by
+   *  value, which is every refund before 2026-09-14. Never « the whole order ». */
+  itemsJson?: string | null;
 };
+
+/** Read the sealed attribution back, or null. Never throws: a malformed value
+ *  reads as « not attributed », because a screen that crashes on one bad row
+ *  is worse than one that says less about it. */
+function refundItems(json: string | null | undefined): RefundItemAttribution[] | null {
+  if (!json) return null;
+  try {
+    const parsed: unknown = JSON.parse(json);
+    return Array.isArray(parsed) && parsed.length > 0
+      ? (parsed as RefundItemAttribution[])
+      : null;
+  } catch {
+    return null;
+  }
+}
 
 type DetailedOrderDto = OrderDto & {
   refunds: RefundDto[];
@@ -147,8 +174,12 @@ export function OrdersView() {
   const [refundAmount, setRefundAmount] = useState("");
   const [refundReason, setRefundReason] = useState("");
   const [refundMethod, setRefundMethod] = useState<"CASH" | "CARD" | "VOUCHER">("CASH");
+  // L-171 — which lines the cashier says came back. `orderItemId -> quantity`,
+  // empty meaning « not attributed », which is what every refund before today
+  // was and stays a legitimate answer.
+  const [refundItemQty, setRefundItemQty] = useState<Record<string, number>>({});
   const [stepUpOpen, setStepUpOpen] = useState(false);
-  const [pendingRefund, setPendingRefund] = useState<{ amount: number; reason: string; method: "CASH" | "CARD" | "VOUCHER" } | null>(null);
+  const [pendingRefund, setPendingRefund] = useState<{ amount: number; reason: string; method: "CASH" | "CARD" | "VOUCHER"; items: { orderItemId: string; quantity: number }[] } | null>(null);
   const [searchInput, setSearchInput] = useState("");
   // Debounced search → server-side filtering (Phase 11b — replaces the old
   // fetch-100-then-filter-in-memory pattern that wouldn't scale).
@@ -189,11 +220,15 @@ export function OrdersView() {
   });
 
   const refundMutation = useMutation({
-    mutationFn: (vars: { id: string; amount: number; reason: string; method: "CASH" | "CARD" | "VOUCHER"; stepUpToken: string }) =>
+    mutationFn: (vars: { id: string; amount: number; reason: string; method: "CASH" | "CARD" | "VOUCHER"; stepUpToken: string; items: { orderItemId: string; quantity: number }[] }) =>
       api.post<RefundDto>(`/api/orders/${vars.id}/refund`, {
         amount: vars.amount,
         reason: vars.reason,
         method: vars.method,
+        // L-171: omitted entirely when nothing was named, so the server stores
+        // null — « not attributed » — rather than an empty array, which would
+        // be a third state nobody defined.
+        ...(vars.items.length > 0 ? { items: vars.items } : {}),
         // DD-19, Batch 4.4c: the caller's own step-up confirmation, bound to
         // this exact cent amount. The server refuses every refund without one,
         // at any amount — so this is required, not optional.
@@ -207,6 +242,7 @@ export function OrdersView() {
       setRefundOpen(false);
       setRefundAmount("");
       setRefundReason("");
+      setRefundItemQty({});
     },
     onError: (err: ApiError) => {
       toast.error(err.message || "Échec du remboursement.");
@@ -227,6 +263,9 @@ export function OrdersView() {
     // is in CENTS like every other amount in the DTO. Pre-fill euros.
     setRefundAmount(maxRefund > 0 ? fromCents(maxRefund).toFixed(2) : "");
     setRefundReason("");
+    // L-171: never carried over from a previous refund. An attribution the
+    // cashier did not choose this time is a false answer to « which item ».
+    setRefundItemQty({});
     setRefundOpen(true);
   }
 
@@ -257,7 +296,16 @@ export function OrdersView() {
     // amount is in CENTS from here on: it is both POSTed to the refund route
     // and HMAC-bound into the step-up token, which the server verifies against
     // the same cent value (lib/approvals.ts, lib/services/step-up.ts).
-    setPendingRefund({ amount: amountCents, reason: refundReason.trim(), method: refundMethod });
+    setPendingRefund({
+      amount: amountCents,
+      reason: refundReason.trim(),
+      method: refundMethod,
+      // L-171 — resolved HERE, not at mutate time: the step-up dialog opens in
+      // between, and the selection must be the one the operator confirmed.
+      items: Object.entries(refundItemQty)
+        .filter(([, q]) => q > 0)
+        .map(([orderItemId, quantity]) => ({ orderItemId, quantity })),
+    });
     setStepUpOpen(true);
   }
 
@@ -269,6 +317,7 @@ export function OrdersView() {
       reason: pendingRefund.reason,
       method: pendingRefund.method,
       stepUpToken: confirmation.stepUpToken,
+      items: pendingRefund.items,
     });
     setPendingRefund(null);
   }
@@ -671,6 +720,30 @@ export function OrdersView() {
                       <div className="pl-2 text-[11px] italic text-foreground/70">
                         « {r.reason} »
                       </div>
+                      {/* L-171 — which items came back. Shown because a column
+                          nothing reads is a column nobody maintains: L-143's
+                          `printStatus` had three writers and zero readers, and
+                          this is the answer an inspection asks for, so it
+                          belongs on the screen and not only in the journal. */}
+                      {(() => {
+                        const items = refundItems(r.itemsJson);
+                        if (!items) {
+                          return (
+                            <div className="pl-2 text-[11px] text-foreground/50">
+                              Articles non précisés — réparti au prorata
+                            </div>
+                          );
+                        }
+                        return (
+                          <div className="pl-2 text-[11px] text-foreground/70">
+                            {items.map((it) => (
+                              <div key={it.orderItemId}>
+                                ↩ {it.quantity}× {it.productName}
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
                     </div>
                   ))}
                 </>
@@ -775,6 +848,78 @@ export function OrdersView() {
                 </SelectContent>
               </Select>
             </div>
+            {/* L-171 — WHICH ARTICLES, and it is deliberately optional.
+                A refund taken by amount alone is a legitimate answer and the
+                one every refund gave before today; forcing a selection would
+                make the cashier invent one, which is worse than « non
+                précisés ». The money is unchanged either way — the amount above
+                is what is refunded, apportioned across the order by value. */}
+            {detail && detail.items.length > 0 && (
+              <div className="space-y-1.5">
+                {/* L-10 — a group label, so `htmlFor` would point at nothing:
+                    the control is the row of +/- buttons below. `id` +
+                    `aria-labelledby` on the container is the pattern this
+                    project's own guard requires, and an `id` alone does not
+                    satisfy it — a label nothing points at is not associated. */}
+                <Label id="refund-items-label">Articles concernés (facultatif)</Label>
+                <div
+                  role="group"
+                  aria-labelledby="refund-items-label"
+                  className="max-h-56 space-y-1 overflow-y-auto rounded-md border p-2"
+                >
+                  {detail.items.map((item) => {
+                    const picked = refundItemQty[item.id] ?? 0;
+                    return (
+                      <div key={item.id} className="flex items-center justify-between gap-2 text-sm">
+                        <span className="flex-1 truncate">
+                          {item.quantity}× {item.productName}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            // L-09 — 44 px. This is a till and these are
+                            // fingers: `h-7` is 28 px, which the project's own
+                            // guard caught on the first full run.
+                            className="h-11 w-11 p-0 text-lg"
+                            aria-label={`Retirer ${item.productName}`}
+                            disabled={picked === 0 || refundMutation.isPending}
+                            onClick={() =>
+                              setRefundItemQty((q) => {
+                                const next = { ...q };
+                                if (picked <= 1) delete next[item.id];
+                                else next[item.id] = picked - 1;
+                                return next;
+                              })
+                            }
+                          >
+                            −
+                          </Button>
+                          <span className="w-6 text-center tabular-nums">{picked}</span>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-11 w-11 p-0 text-lg"
+                            aria-label={`Ajouter ${item.productName}`}
+                            disabled={picked >= item.quantity || refundMutation.isPending}
+                            onClick={() =>
+                              setRefundItemQty((q) => ({ ...q, [item.id]: picked + 1 }))
+                            }
+                          >
+                            +
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Sert à répondre « quel article a été rendu ». Ne change pas le montant.
+                </p>
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label htmlFor="refund-reason">Motif</Label>
               <Textarea

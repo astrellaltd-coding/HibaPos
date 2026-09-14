@@ -226,9 +226,27 @@ describe("L-143 — the two routes agree", () => {
     // The comment this replaced asserted a reader that does not exist. Pinned
     // as a measurement rather than as prose: if a screen starts reading
     // `printStatus`, this test fails and the note gets revisited deliberately.
+    //
+    // AMENDED 2026-09-14 (L-171): COMMENTS ARE STRIPPED FIRST. This matched the
+    // raw file, so a comment in `orders-view.tsx` that merely CITES this
+    // finding — « `printStatus` had three writers and zero readers » — was
+    // counted as a reader and turned the guard red. A file that mentions the
+    // column in prose is not a file that reads it, and a guard that cannot tell
+    // the difference punishes the one thing it should encourage: writing down
+    // why a decision was made, next to the decision.
+    //
+    // Same family as every other self-match caught in this project, and fixed
+    // the same way. The guard is unchanged in what it forbids.
     const { globSync } = await import("fs");
     const files = globSync("src/**/*.tsx", { cwd: process.cwd() }) as string[];
-    const readers = files.filter((f) => read(f).includes("printStatus"));
+    const withoutComments = (s: string) =>
+      s
+        .replace(/\/\*[\s\S]*?\*\//g, " ")
+        .replace(/\{\s*\/\*[\s\S]*?\*\/\s*\}/g, " ")
+        .split("\n")
+        .map((l) => (/^\s*(\/\/|\*)/.test(l) ? "" : l))
+        .join("\n");
+    const readers = files.filter((f) => withoutComments(read(f)).includes("printStatus"));
     expect(readers, "printStatus now has a reader — L-143's other half is live").toEqual([]);
   });
 });

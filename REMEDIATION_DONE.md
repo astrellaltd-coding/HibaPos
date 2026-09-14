@@ -87,6 +87,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - L-186 — the print that succeeded, finally executed by a test
 - L-172 · L-176 · L-177 — Group D reopened: three cheap ones
 - L-174 — the PIN hash says what made it
+- L-171 — which item came back, and the answer that did not exist
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -4572,6 +4573,115 @@ yes on garbage. It is now an explicit two-step check, with the reason in place.
   successful login, which is the only moment the software holds the plaintext PIN.
 - **The fallback is still there**, and must stay until `isStampedPinHash` is true of every row.
   That is now a question with an answer rather than a hope.
+---
+
+### L-171 — which item came back, and the answer that did not exist
+**Done:** 2026-09-14 · **Commit:** `SHA` · **Findings:** L-171 (Group D, reopened by the
+operator). **Opened L-195.** **No plan row.** **A MIGRATION IS PREPARED AND IS THE OPERATOR'S TO
+APPLY** — see *Awaiting the operator* in the plan.
+
+**A partial refund is apportioned across the order's lines by TTC weight, not against the item
+returned.** The audit measured it: refunding 500 c of a 1 640 c order moved the 5,5 % bucket
+from 300 to 209 — **91 c credited at 5,5 % although the stated reason was « Pizza renvoyée »**.
+There was no line-level refund and no column recording which item came back, so **an inspector
+could ask and the software could not answer**.
+
+## The scope is the operator's, and it is the narrow one
+
+They chose, 2026-09-14: **record the attribution, leave the arithmetic alone.** The audit itself
+says the arithmetic « is not wrong » — it follows directly from « `apportion` is the only
+splitter », which is an invariant of this project. Computing the refund FROM the named lines
+moves money between VAT buckets on every partial refund, and through the Z report and every
+close. That is a different change and it was not taken.
+
+**So the load-bearing test in this batch is the one proving nothing about the money moved.** A
+refund of 500 c naming a 1 000 c Pizza line refunds **500 c**, not 1 000 — the cashier's amount,
+unchanged. If that ever stops being true the narrow scope has quietly become the wide one, and
+every sealed figure computed since is a different number.
+
+## What was built
+
+- **`Refund.itemsJson`** — `[{orderItemId, productName, quantity, lineTotal}]`. A JSON snapshot
+  rather than a `RefundLine` table because it is ATTRIBUTION, not accounting: nothing computes
+  from it, and a snapshot is what the fiscal path already does for exactly this reason
+  (`topProductsJson`, `givenAwayProductsJson`, `dataJson`). The **name** travels with the id, so
+  the answer survives a catalogue edit or a deleted product — the rule `OrderItem.productName`
+  already follows, and there is a test that renames the line afterwards and checks.
+- **NULL means NOT ATTRIBUTED** — taken by amount, apportioned by value; every refund before
+  today, and every one where the cashier names nothing. **Not** « the whole order » and **not**
+  « nothing ». Stated in the schema rather than left to be guessed, which is the lesson of L-177
+  and L-129, both of which were a null in the fiscal path with no meaning.
+- **Validated inside the transaction, against the order's own rows.** The client names ids; an
+  id it invented must never become a sealed answer. A line from another order, one that does not
+  exist, a quantity above what was sold, a fractional quantity, the same line twice — each
+  **refuses the whole refund and writes nothing**. There is a test for « nothing written »
+  specifically, because a refused attribution that still moved the money would be the worst of
+  the three outcomes.
+- **Sealed, not only stored.** The attribution goes into the `REMBOURSEMENT` fiscal event as
+  well as the column: a column can be edited, an event covered by the chain hash cannot, and
+  « which item came back » is exactly what an inspection asks.
+- **Shown on the order screen** — « ↩ 1× Pizza », or « Articles non précisés — réparti au
+  prorata » when there is none. A column with writers and no readers is L-143's shape, and this
+  is the answer a person needs to read.
+- **The picker is OPTIONAL.** Forcing a selection would make a cashier invent one, which is
+  worse than « non précisés ».
+
+## Three existing guards caught the new UI, and all three were right
+
+- **L-09 — 44 px touch targets.** The +/- buttons were `h-7 w-7`, which is **28 px**, on a
+  screen operated with fingers. Now 44.
+- **L-10 — every Label is associated.** The group label had no `htmlFor` — which would point at
+  nothing, since the control is a row of buttons — and an `id` alone does not satisfy that
+  guard, deliberately. It is now `id` + `role="group"` + `aria-labelledby`.
+- **L-143 — « nothing reads `printStatus` »** went red because a COMMENT in the new code cites
+  that finding by name. The guard matched the raw file, so a file that mentions the column in
+  prose counted as a file that reads it. **Fixed in the guard, not in the comment**: it strips
+  comments first. A check that punishes writing down why a decision was made, next to the
+  decision, is a check pointed the wrong way — and it is the same self-match family this project
+  keeps meeting. Proved still sharp by adding a REAL reader, which turns it red.
+
+## The migration
+
+Rehearsed against a copy of the live database and diffed with the project's own fingerprint
+tool: **`Refund` gains one column at the end, `_prisma_migrations` 17 → 18, `integrity_check`
+ok, zero FK errors, and nothing else moved** — no row count, no column order anywhere else, no
+sealed payload re-serialised. `ALTER TABLE … ADD COLUMN` does not rewrite a table in SQLite.
+
+The plaintext copy was **deleted** after the diff; the two fingerprints are kept as the evidence
+and as the `--expect` target. There are already twenty-one unencrypted copies of real catalogue
+data on this one disk (**L-194**), and this batch did not leave a twenty-second.
+
+## L-195 — found by looking at the database, which is the point
+
+The rehearsal needed the pending list, and it came back with **one** migration: this one.
+**R8.2's `20260913120000_order_idempotency_key` is APPLIED** — `_prisma_migrations` has it,
+finished 2026-09-13 beside `addon_vat_rate`, and `Order.idempotencyKey` is on the live schema.
+The plan's § 1 had said « rehearsed and **not applied** » and named it as the one operator action
+waiting, so a session reading the plan would have handed the operator a command for work already
+done. Corrected in § 1 — the plan is a session's file — and recorded as **L-195**, the same class
+as L-193 in the other governing document. **The general problem is not fixed**: nothing compares
+the plan's claims about the DATABASE against the database, and nothing in the test suite can,
+because it must never open the live file.
+
+## How it was verified
+
+1 858 pass · 0 fail · **150 files** · zero `prisma:error` blocks, typecheck and lint clean,
+`prisma validate` clean.
+
+**Eight reverts**, one property at a time, each restored from a copy with its sha256 compared
+after: the attribution not recorded at all (**10 failures** — the finding itself); the caller
+trusted, so an invented id becomes a sealed answer (10); the name not snapshotted (4); the
+journal not carrying it; **the refund re-priced from the named lines — the scope the operator
+declined**; the route dropping `items`; nothing reading it back; the schema accepting an empty
+id and a zero quantity.
+
+**Left behind.**
+- **The migration**, for the operator.
+- **Cumulative attribution across refunds is NOT tracked** — two partial refunds can each name
+  the same line. That is line-level accounting, the scope that was declined; doing it half-way
+  would create a second, quieter set of books that no sealed figure agrees with. Stated in the
+  code, at the check that would otherwise look incomplete.
+- **L-195**, above.
 ---
 
 ## Retired from the plan's § 6 on 2026-09-11

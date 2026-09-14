@@ -319,6 +319,19 @@ export const refundSchema = z.object({
   // approve the caller's own refund, which is what M-18 described.
   stepUpToken: z.string().optional(), // signed single-use token from /api/auth/step-up
   method: z.enum(["CASH", "CARD", "VOUCHER"]).optional(), // refund channel; null legacy defaults to CASH in reports
+  // L-171 (2026-09-14) — WHICH ITEMS came back. Optional: a refund taken by
+  // amount alone is stored with `itemsJson: null`, meaning NOT ATTRIBUTED.
+  //
+  // The ids are checked HERE only for shape. Whether they belong to this order,
+  // and whether the quantities are possible, is decided inside
+  // `processRefund`'s transaction against the order's own lines — a client can
+  // name any string, and an id it invented must never become a sealed answer to
+  // « which item was returned ». Same division as `amount`: zod for the shape,
+  // the service for the truth, so the refusal is French (L-22).
+  items: z
+    .array(z.object({ orderItemId: z.string().min(1), quantity: z.number().int().min(1) }))
+    .max(200)
+    .optional(),
 });
 
 // M-05 / DD-12 (Batch 5.5) — entrée / sortie de caisse.

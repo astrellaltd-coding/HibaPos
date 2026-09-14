@@ -19,12 +19,10 @@ every trading table is at zero.
 > (`f68dcf6`), R9.6 (`f918578`), R8.1 (`622411c`), R9.2 (`1d010b8`) and R8.2 (`67d0347`) are
 > done.
 >
-> **ONE OPERATOR ACTION IS WAITING.** R8.2's migration is rehearsed and **not applied** —
-> `Order.idempotencyKey`, one nullable column and a unique index. See *Awaiting the operator*
-> below for the exact command. Nothing is blocked by it: the column is absent, so the till
-> simply has no idempotency until it is applied. **Since PREP-4 the application would also
-> apply it itself at next start, behind a verified backup** — that is a real second route and
-> it is the operator's to choose between, not a session's.
+> **R8.2's MIGRATION IS APPLIED** — `Order.idempotencyKey`. This block said « rehearsed and not
+> applied » until 2026-09-14, when it was measured read-only against a copy of the live
+> database: `_prisma_migrations` holds it, finished **2026-09-13**. Recorded as **L-195**,
+> because § 1 had been telling every session otherwise.
 >
 > **PHASE 8 IS COMPLETE** (2026-09-13) — seven batches, R8.0 through R8.6, and every
 > group-A finding the audit raised. **PHASE 9 IS OPEN** on the operator's word. **R9.1 is
@@ -152,14 +150,14 @@ audit exercised produced screen figures matching the database to the cent.
 ### Awaiting the operator
 
 
-- **R8.2's migration, rehearsed 2026-09-11 and NOT applied** — `Order.idempotencyKey`, one
-  nullable column and a unique index. With the app stopped:
-  `bun scripts/apply-migration.ts --apply --expect ../db-snapshots/r82-acceptance/fp-r82-after.json`.
+- **L-171's migration, rehearsed 2026-09-14 and NOT applied** — `Refund.itemsJson`, one
+  nullable column recording WHICH ITEMS a refund was for. With the app stopped:
+  `bun scripts/apply-migration.ts --apply --expect ../db-snapshots/r171-acceptance/fp-r171-after.json`.
   Dry run without `--apply`. **`--expect` takes that PATH, not a migration name**, and since
   R10.2 a path it cannot read **fails** the run instead of printing « skipped » under a tick.
-  Nothing is blocked by the wait: the column is absent, so the till has no idempotency until
-  it is applied — and **since PREP-4 the application would apply it itself at next start**,
-  behind a backup it verifies. Which of the two routes to take is the operator's choice.
+  **Rehearsed on a copy and diffed**: `Refund` gains one column at the end, `_prisma_migrations`
+  17 → 18, `integrity_check` ok, **zero FK errors and nothing else moved**. Nothing is blocked
+  by the wait. *(R8.2's was the previous entry here and is **applied** — § 1 and L-195.)*
 - **Delete `5 nuggets test` (L-81), prepared and rehearsed.** With the app stopped:
   `bun scripts/delete-product.ts --id cmtvwzr050004n368crvp0mw3 --apply`. Dry run without
   `--apply`. Rehearsed on a copy 2026-09-11: 84 → 83 products, 0 FK errors, `integrity_check`

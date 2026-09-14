@@ -109,6 +109,12 @@ export const POST = withAuthParams(async (req, { user, params }) => {
         approverId: refundApproverId,
         cashierId: user.id,
         factice: settings.factice ?? false,
+        // L-171: passed straight through. The service validates them against
+        // the order's own lines inside its transaction and refuses the whole
+        // refund if they do not fit — an attribution that is wrong is worse
+        // than none, because none says « not attributed » and wrong says
+        // something false, in the journal and on the screen.
+        items: parsed.data.items ?? null,
       },
       order as unknown as {
         id: string;
