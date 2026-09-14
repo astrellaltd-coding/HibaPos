@@ -81,6 +81,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - R10.1 — no database in the browser, and the build runs where it is read
 - R10.2 — the index names every script, and a check that cannot run is a failure
 - L-191 — the other seed path, and the PIN it was still installing
+- L-193 — the governing file held back two rows that were ready
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -4129,6 +4130,39 @@ without refusing the sanctioned value.
 - **L-192**, above.
 - **The plan is 437 bytes from its ceiling.** § 7 stays closed; the operator's call of
   2026-09-14.
+---
+
+### L-193 — the governing file held back two rows that were ready
+**Done:** 2026-09-14 · **Commit:** `SHA` · **Finding:** L-193 (Medium). **No plan row** — found
+while answering « what remains and what is next », and fixed the same day on the operator's
+word, `CLAUDE.md` being their file.
+
+**« Fix that before either row is attempted » — about something already fixed.** `CLAUDE.md`
+said R6.3 and R6.4 were blocked by software, naming **L-101**: `PUT /api/settings` refusing the
+MANAGER a 403 behind an enabled save button. **R8.1 closed L-101 on 2026-09-13** and **R9.1
+cleared R6.4's other half the same week.** Both rows had been attemptable for a day.
+
+**The plan did not agree with it, and that is the part worth keeping.** R6.3's own row read
+« Reachable from the till since R8.1 ». Two documents, one true and one stale — and the stale
+one is the one § 1 tells every session to read FIRST, so it is the one that wins. R6.3 is
+turning FACTICE off and R6.4 is the printer: the two rows this held are on the path to the
+restaurant's first real sale.
+
+**It was found by checking, not by reading.** The operator asked what remained. Answering it
+properly meant taking each `OPERATOR` row and testing its stated blocker against the code
+instead of repeating the file's own summary — which is the same discipline the plan states for
+findings and had never been pointed at the governing file itself.
+
+**THE GUARD IS GENERAL.** `plan-freshness.test.ts` splits `CLAUDE.md` into sentences, keeps
+those that present a finding as still blocking (« blocked by », « is blocked », « blocker »,
+« Fix that before ») while discarding those that say it is fixed, cleared or closed, and fails
+if any id it finds is recorded done. **The parser is exercised on a known input in the same
+test**: today's correct answer is the empty set, which is exactly what a broken parser returns.
+Proved red by restoring the old paragraph — one failure, naming L-101.
+
+**Left behind.** Nothing of this one. The same class elsewhere — a document that describes a
+state the code has left — is what `plan-freshness.test.ts` exists for, and it now covers three
+files instead of two.
 ---
 
 ## Retired from the plan's § 6 on 2026-09-11

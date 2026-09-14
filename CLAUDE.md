@@ -76,10 +76,11 @@ delete them to make this prose true.
 
 What still has to happen before the restaurant's first real sale is **fiscal first** —
 R6.1, R6.2 and R6.3, in that order — but **R6.4 (the printer) and R6.5 (a backup volume) are
-technical**, not fiscal. It is in the plan under *Before the first real sale*. **Since the
-audit, R6.3 and R6.4 are blocked by software, not hardware**: both are `PUT /api/settings`,
-which refuses the MANAGER — the only account that will be at the till — a 403 while the screen
-offers an enabled save button (**L-101**). Fix that before either row is attempted.
+technical**, not fiscal. It is in the plan under *Before the first real sale*. **The software
+that blocked them is fixed**: R8.1 closed **L-101** on 2026-09-13 — `PUT /api/settings` splits
+by field, so the MANAGER, the only account that will be at the till, can write `factice` and
+the printer queue without touching the SIRET — and R9.1 cleared R6.4's other half the same
+week. **Both rows are attemptable.**
 
 `scripts/pre-golive-reset.ts` empties the fiscal journal; it runs **once**, after testing and
 before the first genuine sale, and the operator runs it. **It already ran on 2026-09-10**, so

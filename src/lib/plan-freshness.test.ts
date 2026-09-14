@@ -430,6 +430,55 @@ describe("plan freshness — the plan and the done file may not disagree", () =>
     expect(invented, `index names entries that do not exist: ${invented.join(" · ")}`).toEqual([]);
   });
 
+  it("CLAUDE.md does not call a closed finding a live blocker", () => {
+    // 2026-09-14. `CLAUDE.md` said « Since the audit, R6.3 and R6.4 are blocked
+    // by software, not hardware … Fix that before either row is attempted »,
+    // naming L-101. **R8.1 closed L-101 on 2026-09-13.** So the governing file
+    // — the one every session is told to read FIRST — was telling the operator
+    // not to attempt two rows that were ready, on the path to the first real
+    // sale. The plan's own R6.3 row already said « Reachable from the till
+    // since R8.1 »; the two documents disagreed and the stale one wins, because
+    // it is the one read first.
+    //
+    // This is § 6's rot in a third file. The existing checks guard the plan
+    // against the done file; nothing guarded the file that governs both.
+    const claude = read(path.join(ROOT, "CLAUDE.md"));
+
+    /** Ids named inside a sentence that presents them as still blocking. */
+    function liveBlockers(src: string): string[] {
+      const out: string[] = [];
+      for (const sentence of src.split(/(?<=[.!?])\s+/)) {
+        if (!/\bblocked by\b|\b(?:is|are|remains?) blocked\b|\bblocker\b|Fix that before/i.test(sentence)) {
+          continue;
+        }
+        // « the software that blocked them is FIXED » is the opposite claim.
+        if (/\bfixed\b|\bcleared\b|\bclosed\b|\bunblocked\b/i.test(sentence)) continue;
+        out.push(...[...sentence.matchAll(/\b(L-\d+)\b/g)].map((m) => m[1]));
+      }
+      return [...new Set(out)];
+    }
+
+    // The parser is exercised on a known input, because today's answer is the
+    // empty set and an empty set is what a broken parser also returns.
+    expect(
+      liveBlockers("R6.3 and R6.4 are blocked by software: a 403 (L-101). Fix that before."),
+      "the blocker parser stopped finding anything",
+    ).toEqual(["L-101"]);
+    expect(
+      liveBlockers("The software that blocked them is fixed: R8.1 closed L-101."),
+      "the parser cannot tell a fixed blocker from a live one",
+    ).toEqual([]);
+
+    const stale = liveBlockers(claude).filter((id) => done().includes(id));
+    expect(
+      stale,
+      `CLAUDE.md presents these as live blockers and REMEDIATION_DONE.md records them as ` +
+        `done: ${stale.join(" · ")}\n` +
+        "That file is read before everything else, so a stale blocker there stops work " +
+        "that is ready. It is the operator's file — bring the exact text and wait.",
+    ).toEqual([]);
+  });
+
   it("the plan still fits in one read", () => {
     // § 1 tells a session to read this file top to bottom before touching
     // anything. The retired plan reached 2 173 lines and its record 5 595,
