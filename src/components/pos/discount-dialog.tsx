@@ -78,7 +78,8 @@ export function DiscountDialog({
               step={0.5}
               value={value || ""}
               onChange={(e) => handleChange(Number(e.target.value) || 0)}
-              className="h-10 w-full rounded-lg border border-border bg-background px-3 text-right text-lg font-semibold tabular-nums outline-none focus:border-primary"
+              aria-label="Montant de la remise en euros"
+              className="h-11 w-full rounded-lg border border-border bg-background px-3 text-right text-lg font-semibold tabular-nums outline-none focus:border-primary"
               autoFocus
             />
             <p className="text-right text-xs text-muted-foreground">{percent}% du sous-total</p>

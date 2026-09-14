@@ -86,7 +86,21 @@ describe("L-22 — zod answers a French UI in French", () => {
     // application to English, which no other assertion here would notice.
     expect(read("src/lib/validation.ts")).toContain('import "@/lib/zod-locale"');
     expect(read("src/instrumentation.ts")).toContain('import "@/lib/zod-locale"');
-    expect(read("src/lib/zod-locale.ts")).toContain("z.config(z.locales.fr())");
+    // AMENDED 2026-09-14 (R9.10 / L-150). This pinned the literal
+    // `z.config(z.locales.fr())`, and L-150 WRAPS that locale — the French
+    // translation still supplies every message, and four substitutions run
+    // over the result so the type names and comparison operators zod leaves
+    // in it do not reach a cashier. The property is « the French locale is
+    // installed », not one spelling of the call, and it is asserted as two
+    // halves so neither can go missing.
+    const locale = read("src/lib/zod-locale.ts");
+    expect(locale, "the French locale is gone").toContain("z.locales.fr()");
+    expect(locale, "nothing is configured").toContain("z.config(");
+    // …and the behaviour itself, which no source match can stand in for.
+    // (`m` belongs to the test above; this one parses its own.)
+    const live = z.string().max(1).safeParse("xx").error?.issues[0]?.message ?? "";
+    expect(live, "the locale is wired but not answering").toContain("Trop grand");
+    expect(live, "zod's type names still reach the operator").not.toContain("string");
   });
 });
 

@@ -287,6 +287,12 @@ describe("plan freshness — the plan and the done file may not disagree", () =>
     //   audit could only mark it SUSPECTED — « no export file older than a
     //   migration exists to test against » — so this batch built one.
     //   FINDINGS STAY AT 8. R9.9 opened none.
+    //   2026-09-14, R9.10 FIVE-SIXTHS DONE: the row stays, as `OPERATOR`, so
+    //   the count does NOT move. L-131 · L-133 · L-148 · L-149 · L-150 are
+    //   closed; **L-132 is a behaviour change on the Z-close screen and is the
+    //   operator's**, exactly as `R6.x` rows are. A row that is waiting on them
+    //   has never been struck off here.
+    //   FINDINGS STAY AT 8. R9.10 opened none.
     expect(taskStatuses(src).size).toBe(9);
     expect(openFindings(src).size).toBe(8);
     expect(done()).toContain("# HibaPOS France — Completed Work");

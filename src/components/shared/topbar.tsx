@@ -49,14 +49,34 @@ function BurgerMark() {
   );
 }
 
-/** Elapsed session time, "00:46:25" style. */
-function useSessionTimer() {
-  const [elapsed, setElapsed] = useState(0);
+/**
+ * How long the CAISSE has been open — L-148 (R9.10).
+ *
+ * THE FINDING: this counted from COMPONENT MOUNT. It reset on every reload and
+ * ran identically whether the caisse was open or closed, and it is rendered
+ * beside « Caisse #2 » / « Caisse fermée », so it read as « how long this till
+ * has been open ». Observed: **« Caisse fermée · 00:00:08 » with no shift
+ * open** — an unlabelled stopwatch measuring nothing, next to the one badge
+ * that makes it look like it measures something.
+ *
+ * Derived from `openedAt` now, so a reload does not reset it and the figure is
+ * the one the operator would check. `null` when no shift is open: the caller
+ * renders nothing, which is more honest than a zero.
+ */
+function useShiftTimer(openedAt: string | Date | null | undefined): string | null {
+  const [, tick] = useState(0);
   useEffect(() => {
-    const start = Date.now();
-    const t = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 1000);
+    if (!openedAt) return;
+    const t = setInterval(() => tick((n) => n + 1), 1000);
     return () => clearInterval(t);
-  }, []);
+  }, [openedAt]);
+
+  if (!openedAt) return null;
+  const started = new Date(openedAt).getTime();
+  if (!Number.isFinite(started)) return null;
+  // A clock that went backwards, or a row from the future. Zero is the honest
+  // answer; a negative duration is not.
+  const elapsed = Math.max(0, Math.floor((Date.now() - started) / 1000));
   const hh = String(Math.floor(elapsed / 3600)).padStart(2, "0");
   const mm = String(Math.floor((elapsed % 3600) / 60)).padStart(2, "0");
   const ss = String(elapsed % 60).padStart(2, "0");
@@ -65,7 +85,6 @@ function useSessionTimer() {
 
 export function Topbar() {
   const { view, setView, user, logout, posSearch, setPosSearch } = useAppStore();
-  const sessionTime = useSessionTimer();
   const searchInputRef = useRef<HTMLInputElement>(null);
   const isPOS = view === "pos";
 
@@ -76,6 +95,8 @@ export function Topbar() {
   });
 
   const shiftOpen = !!shift;
+  // L-148 (R9.10): after `shift` exists, because it reads from it.
+  const shiftTime = useShiftTimer(shiftOpen ? shift?.openedAt : null);
 
   /* Resolve current module meta (null when on home) */
   const currentNav = view === "home" ? null : NAV_ITEMS.find((n) => n.view === view) ?? null;
@@ -143,7 +164,7 @@ export function Topbar() {
             value={posSearch}
             onChange={(e) => setPosSearch(e.target.value)}
             placeholder="Rechercher un produit…"
-            className="h-9 w-full rounded-full border border-white/15 bg-white/10 pl-9 pr-8 text-sm text-white outline-none placeholder:text-white/40 transition-colors focus:border-white/30 focus:bg-white/15"
+            className="h-11 w-full rounded-full border border-white/15 bg-white/10 pl-9 pr-8 text-sm text-white outline-none placeholder:text-white/40 transition-colors focus:border-white/30 focus:bg-white/15"
           />
           {posSearch && (
             <button
@@ -172,10 +193,17 @@ export function Topbar() {
           {shiftOpen ? `Caisse #${shift?.number}` : "Caisse fermée"}
         </Button>
 
-        {/* Session timer */}
-        <span className="text-sm font-semibold tabular-nums tracking-wide text-white/90">
-          {sessionTime}
-        </span>
+        {/* L-148 (R9.10): how long the CAISSE has been open, and only while one
+          * is. It used to count from component mount and showed « 00:00:08 »
+          * beside « Caisse fermée ». */}
+        {shiftTime && (
+          <span
+            className="text-sm font-semibold tabular-nums tracking-wide text-white/90"
+            title="Durée d'ouverture de la caisse"
+          >
+            {shiftTime}
+          </span>
+        )}
 
         {/* Lock / Logout */}
         <Button

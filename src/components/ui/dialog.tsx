@@ -46,6 +46,16 @@ function DialogOverlay({
   )
 }
 
+// L-131 (R9.10) — THE CLOSE « × » IS A 44 px TARGET.
+//
+// Measured with `getBoundingClientRect()` on the running build, it was
+// **16 × 16** — the icon's own size, with no box around it — on EVERY dialog in
+// the product. 44 px is an invariant here, and `touch-and-labels.test.ts` could
+// not see it: that file reads `<Button>` call sites and the `Button` primitive's
+// variants, and this is a `DialogPrimitive.Close`.
+//
+// The ICON stays 16 px; the TARGET is 44. `grid place-items-center` rather than
+// padding, so the cross stays optically where it was.
 function DialogContent({
   className,
   children,
@@ -69,7 +79,7 @@ function DialogContent({
         {showCloseButton && (
           <DialogPrimitive.Close
             data-slot="dialog-close"
-            className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground absolute top-4 right-4 rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
+            className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground absolute top-2 right-2 grid h-11 w-11 place-items-center rounded-md opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
           >
             <XIcon />
             <span className="sr-only">Fermer</span>

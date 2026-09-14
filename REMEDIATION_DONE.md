@@ -77,6 +77,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - R9.7 — the guards that were not guarding
 - R9.8 — what a null means, written where the reader is
 - R9.9 — the catalogue transfer checks its own stamp
+- R9.10 — what the operator's fingers and eyes actually meet
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -3781,6 +3782,85 @@ now and both orders are asserted, so neither can pass alone.
   stated in the code and asserted in the test rather than assumed away — the column check is
   what protects those installs, and it is the one that catches the case this finding names.
 - **The plan is at 37 934 bytes** against the 40 960 ceiling.
+---
+
+### R9.10 — what the operator's fingers and eyes actually meet
+**Done:** 2026-09-14 · **Commit:** `SHA` · **Findings:** L-131 · L-133 · L-148 · L-149 ·
+L-150. **L-132 is NOT done — it is a behaviour change and it is the operator's**, and its row
+stays in § 6 as `OPERATOR`.
+
+**L-131 (Medium) — three touch targets under 44 px, and a guard that could see none of them.**
+Measured with `getBoundingClientRect()` on the running build:
+
+  * the dialog close « × » — **16 × 16 px**, on every dialog in the product;
+  * the shared `Input` primitive — **36 px**, which is what the **step-up PIN field** renders
+    at, the control gating every refund and every discount above 20 %;
+  * the discount amount field — **40 px** and **no accessible name**, so the L-10 half of the
+    same test could not see it either.
+
+`touch-and-labels.test.ts` reads `<Button>` call sites and the `Button` primitive's variants,
+so a `DialogPrimitive.Close`, an `<Input>` and a raw `<input>` were all outside it. **The
+durable half is widening that guard**, the way L-64 widened it when 103 of 144 Buttons turned
+out to declare no height at all. It now checks the `Input` primitive, the dialog close, and
+raw `<input>`/`<button>`/`<textarea>`/`<select>` elements.
+
+That wider sweep found **eleven** undersized declarations. One was on the **till, during
+service** — the POS search field at 36 px — and is fixed. The other ten are the catalogue and
+settings screens, and are **enumerated in `KNOWN_UNDERSIZED` rather than excluded by a rule**,
+so each is a decision somebody can disagree with. Six are native checkboxes at the browser's
+own `h-4`: making the box 44 px changes how the settings screen looks rather than how it is
+hit, and the durable answer is a 44 px hit area per site. Two further tests keep that list
+honest — it may only shrink, and **nothing on a till screen may ever appear on it**.
+
+**L-133 (Medium) — the step-up PIN may be untypable on a touch-only till.** The login screen
+has a full on-screen keypad; this dialog — every refund, every discount above 20 % — was a
+bare password field relying on the OS touch keyboard appearing. The asymmetry is certain; the
+consequence depends on hardware nobody here can see, which is why the audit could only mark it
+SUSPECTED. **Reproducing the keypad is right either way**, so the field is untouched and the
+keypad sits beside it.
+
+**L-148 (Low) — an unlabelled stopwatch measuring nothing.** It counted from component mount,
+reset on every reload, and ran whether the caisse was open or closed — rendered next to
+« Caisse #2 » / « Caisse fermée », so it read as how long the till had been open. Observed:
+**« Caisse fermée · 00:00:08 »**. Derived from `shift.openedAt` now, hidden when no shift is
+open, and labelled.
+
+**L-149 (Low) — « 1 caisses ».** The rest of the product uses `N vente(s)`.
+
+**L-150 (Low) — the French was TypeScript with accents.** `z.locales.fr()` translates the
+sentence and leaves the type name and the comparison operator inside it: « Trop grand :
+**string** doit avoir **<=500** caractères », « Entrée invalide : **int** attendu ». These
+reach a restaurant operator — 24 API routes hand `parsed.error.issues[0]?.message` straight to
+the client, which is why L-22 installed the locale at all. The locale is **wrapped, not
+replaced**: zod still supplies every message, and substitutions run over the result. A
+per-field message — zod prefers those, and `validation.ts` declares 19 — is untouched.
+
+**HOW IT WAS VERIFIED.** 1 767 pass · 0 fail · 143 files · **zero `prisma:error` blocks**.
+Eight reverts, all red: the three targets, the POS search, the keypad, the timer, the plural,
+and the locale both unwrapped and with ASCII boundaries.
+
+**A BUG IN MY OWN FIX, FOUND BY MY OWN TEST, AND ONLY VISIBLE IN FRENCH.** `\b` is ASCII-only
+in JavaScript, so `/\bint\b/` matched the `int` in « intérieur » — `é` is not an ASCII word
+character and therefore counts as a boundary. The substitution produced **« nombre
+entierérieur »**, in the one language this code exists to get right. Unicode-aware lookarounds
+now.
+
+**AND THE SELF-MATCHING SHAPE AGAIN, twice.** `elements(src, "Input")` matched `<Input>`
+written inside a comment explaining why the primitive is 44 px, and the dialog check's
+`indexOf("DialogPrimitive.Close")` found the name in a comment above the component rather than
+the element below it. Fixed in the TESTS — `elements()` blanks `//` lines before matching, and
+the dialog check scopes to `DialogContent` — because a rule forbidding a component's name in a
+comment is not a rule anybody will keep. That is the fourth time this session.
+
+**Left behind.**
+- **L-132 is open and is the only thing between here and Phase 9 being complete.** The Z-close
+  cash-count field is pre-filled with the expected amount, so the default action seals « Écart
+  nul » and records a count that may never have been made — on the screen `z-close.ts`'s own
+  header says exists for « catching missing cash ». Starting it empty and disabling the seal
+  until something is entered is trivial; **whether the operator wants that is theirs.**
+- **Ten undersized controls remain, listed and guarded.** Not hidden behind a rule, and the
+  list can only shrink.
+- **The plan is at 38 555 bytes** against the 40 960 ceiling.
 ---
 
 ## Retired from the plan's § 6 on 2026-09-11

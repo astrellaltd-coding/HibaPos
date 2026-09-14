@@ -225,7 +225,9 @@ export function ShiftsView() {
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-foreground">Historique des caisses</h2>
           <span className="text-xs text-muted-foreground">
-            {shifts?.length ?? 0} caisses
+            {/* L-149 (R9.10): « 1 caisses ». The rest of the product uses the
+              * `N vente(s)` / `N mouvement(s)` convention. */}
+            {shifts?.length ?? 0} caisse{(shifts?.length ?? 0) > 1 ? "s" : ""}
           </span>
         </div>
         <div className="max-h-[40vh] overflow-y-auto scroll-thin rounded-xl border border-border bg-card">

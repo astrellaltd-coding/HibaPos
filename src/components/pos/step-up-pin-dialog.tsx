@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api, ApiError } from "@/lib/api-client";
-import { Loader2, KeyRound } from "lucide-react";
+import { Delete, KeyRound, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 export type StepUpConfirmation = {
@@ -105,6 +105,65 @@ export function StepUpPinDialog({
             }}
             autoFocus
           />
+        </div>
+
+        {/* L-133 (R9.10) — A KEYPAD, because this may be a touch-only till.
+          *
+          * The login screen has a full on-screen keypad; this dialog — which
+          * gates EVERY refund and EVERY discount above 20 % — was a bare
+          * password field relying on the OS touch keyboard appearing. The
+          * asymmetry is certain; whether the keyboard appears depends on
+          * hardware nobody here can see, which is why the audit could only
+          * mark it SUSPECTED.
+          *
+          * The field is untouched, so a keyboard still works. This is added
+          * beside it, so a finger does too — the cheap answer that is right
+          * whichever way the hardware question falls.
+          *
+          * 44 px targets (L-131), and the digits are `type="button"` so none
+          * of them submits the dialog by being inside a form. */}
+        <div className="grid grid-cols-3 gap-2" role="group" aria-label="Pavé numérique">
+          {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((d) => (
+            <Button
+              key={d}
+              type="button"
+              variant="outline"
+              className="h-12 text-lg font-semibold tabular-nums"
+              onClick={() => setPin((p) => (p.length >= 12 ? p : p + d))}
+              disabled={loading}
+            >
+              {d}
+            </Button>
+          ))}
+          <Button
+            type="button"
+            variant="outline"
+            className="h-12"
+            onClick={() => setPin("")}
+            disabled={loading}
+            aria-label="Effacer le code"
+          >
+            Effacer
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-12 text-lg font-semibold tabular-nums"
+            onClick={() => setPin((p) => (p.length >= 12 ? p : p + "0"))}
+            disabled={loading}
+          >
+            0
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-12"
+            onClick={() => setPin((p) => p.slice(0, -1))}
+            disabled={loading}
+            aria-label="Effacer le dernier chiffre"
+          >
+            <Delete className="h-5 w-5" />
+          </Button>
         </div>
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
