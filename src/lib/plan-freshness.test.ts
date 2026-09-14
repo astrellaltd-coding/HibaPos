@@ -306,7 +306,15 @@ describe("plan freshness — the plan and the done file may not disagree", () =>
     //   **L-178 is read and left**, as its own row says — « a measurement, not
     //   a defect », and the reason L-05 cannot be closed by flipping a key.
     //   FINDINGS STAY AT 8. R10.1 opened none.
-    expect(taskStatuses(src).size).toBe(7);
+    //   2026-09-14, R10.2 DONE: tasks 7 → 6, and **every row that remains is
+    //   `OPERATOR`** — R6.1 … R6.5 and R10.3. L-146 · L-165 · L-166 · L-167 ·
+    //   L-168 · L-169, the last two on the operator's word the same day because
+    //   `CLAUDE.md` and `docs/INVARIANTS.md` are their files.
+    //   FINDINGS STAY AT 8. R10.2 opened **L-191**, which lives in
+    //   `docs/audit/FINDINGS.md` like every audit-sequence id — § 7 is closed to
+    //   new rows until the operator reopens it, and 6 tasks left is not the same
+    //   as no work left.
+    expect(taskStatuses(src).size).toBe(6);
     expect(openFindings(src).size).toBe(8);
     expect(done()).toContain("# HibaPOS France — Completed Work");
   });

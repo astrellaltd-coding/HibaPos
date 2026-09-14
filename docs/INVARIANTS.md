@@ -120,6 +120,13 @@ something going wrong.
 
 - **`src/features/tables/tables-view.tsx`** is unreachable by design (DD-09 withdrew table
   service). `table-withdrawal.test.ts` asserts the file exists *and* is not wired.
+- **The three `/api/tables` routes stay too** — `src/app/api/tables/route.ts`,
+  `src/app/api/tables/[id]/route.ts` and `src/app/api/tables/seed/route.ts`. DD-09 withdrew
+  table service, so they have no screen and look like dead weight.
+  `table-withdrawal.test.ts:202-213` asserts all three exist, because
+  `api-authorization.test.ts` walks the filesystem: retaining the routes retains their
+  authorization coverage. *(L-167. The finding cites `:203-205`, the audit's line numbers;
+  the test has moved since and the assertion is the same.)*
 - **The table auto-link/auto-free branches** in `src/lib/services/checkout.ts:281-285` and
   `src/lib/services/refund.ts:167-168` are unreachable
   today and stay. Do not delete them without reopening DD-09.

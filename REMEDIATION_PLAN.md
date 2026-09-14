@@ -11,7 +11,7 @@ Completed work lives in **`REMEDIATION_DONE.md`**. This file only ever shows out
 **Overall:** NOT READY FOR PRODUCTION, and **not trading** — the fiscal journal is empty and
 every trading table is at zero.
 
-> ### ▶ CURRENT TASK — **R10.2**, the last batch that is mine
+> ### ▶ CURRENT TASK — **none of § 6 is mine any more**
 >
 > **§ 6 opens with the execution order. Follow that, not the order the tables print in.**
 >
@@ -64,18 +64,22 @@ every trading table is at zero.
 > `bun run build` runs in the fast CI job, two dead devDependencies are gone, and `db.ts` stops
 > claiming the `DATABASE_URL` query string sets its pragmas.
 >
-> **R10.2 IS FOUR SIXTHS DONE AND IS NOW `ASK FIRST`.** L-146, L-165, L-168 and L-169 are
-> applied and committed, with L-166's code half: `scripts/apply-migration.ts` **fails** a run
-> whose `--expect` fingerprint it cannot read, instead of printing « skipped » under a tick.
-> **Its other two findings are texts in the operator's own files** — `CLAUDE.md` (L-166) and
-> `docs/INVARIANTS.md` (L-167) — and they have been brought, exactly as written, and are
-> waiting. **Nothing is blocked by the wait**: both are corrections to prose that is wrong or
-> incomplete, not to code.
+> **R10.2 is done** (2026-09-14), and with it **every row in § 6 that was a session's to do**.
+> The index names all fifteen scripts, `apply-migration.ts` **fails** a run whose `--expect`
+> fingerprint it cannot read instead of printing « skipped » under a tick, the README's
+> first-boot note no longer collides with § 5's safety register, and `pre-golive-reset.ts`
+> states a true reason for the one ordering it can never take back. **Both operator files were
+> brought and approved the same day** — `CLAUDE.md`'s hand-over command now reads `--expect
+> <path to the rehearsal's fingerprint JSON>`, and `docs/INVARIANTS.md` names the three
+> `/api/tables` routes a cleanup would otherwise have deleted out from under a test.
 >
-> **R10.2 opened L-191** (Medium, `prisma/seed.ts:19`), found while writing L-168: the CLI
-> seed path still falls back to `111111`, the PIN `POST /api/seed` has refused since R9.5, and
-> `scripts/README.md` is what points a first boot at it. Recorded in `docs/audit/FINDINGS.md`
-> and **not fixed here** — it is neither documentation nor a script. The README now warns.
+> **WHAT IS LEFT IN § 6 IS ALL `OPERATOR`** — R6.1 … R6.5 before the first real sale, and
+> R10.3, which belongs in the accountant's envelope. **That is not the same as finished.**
+> R10.2 opened **L-191** (Medium, `prisma/seed.ts:19`): the CLI seed path still falls back to
+> `111111`, the PIN `POST /api/seed` has refused since R9.5, and `scripts/README.md` is what
+> points a first boot at it. It is recorded in `docs/audit/FINDINGS.md` with the rest of the
+> group-C and group-D work, and **§ 7 is still closed to new rows** until the operator reopens
+> it. The README warns in the meantime.
 >
 > **Two things are waiting, and neither is a batch.**
 >
@@ -417,7 +421,6 @@ their own riding along. Order inside the phase is not fixed except where a row s
 
 | ID | Status | Task |
 |---|---|---|
-| **R10.2** | `ASK FIRST` | **Documentation and the operator scripts.** L-146 · L-165 · L-166 · L-167 · L-168 · L-169. **`CLAUDE.md` (L-166) and `docs/INVARIANTS.md` (L-167) are the operator's files — bring the exact text and wait.** |
 | **R10.3** | `OPERATOR` | **The VAT policy's untabulated menus.** L-170. Not a code batch: extend § 5 of `docs/politique-ventilation-tva.md` to the six menus it does not tabulate, and answer § 8.4 for the three `showOnPos = 0` box components. Belongs in the accountant's envelope beside VAT-METHOD (§ 8). |
 
 **Not phased, deliberately.** Group D (L-171 … L-179, record and leave) and group E (L-180 …

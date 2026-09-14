@@ -79,6 +79,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - R9.9 — the catalogue transfer checks its own stamp
 - R9.10 — what the operator's fingers and eyes actually meet
 - R10.1 — no database in the browser, and the build runs where it is read
+- R10.2 — the index names every script, and a check that cannot run is a failure
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -3928,6 +3929,99 @@ saying what to do.
 - **The `DATABASE_URL` query string still ships**, in `.env` and `.env.example`. Removing it
   changes nothing (measured) and is a separate decision from correcting the comment.
 - **The plan is at 38 631 bytes** against the 40 960 ceiling.
+---
+
+### R10.2 — the index names every script, and a check that cannot run is a failure
+**Done:** 2026-09-14 · **Commits:** `00da78d` (four findings) · `SHA` (the two operator files)
+· **Findings:** L-146 · L-165 · L-166 · L-167 · L-168 · L-169. **Opened L-191.**
+
+**This was the last row in § 6 that was a session's to do.** What remains there is R6.1 … R6.5
+and R10.3, all `OPERATOR`. That is not the same as finished: the audit's group-C and group-D
+work lives in `docs/audit/FINDINGS.md`, and § 7 is closed to new rows until the operator
+reopens it.
+
+**L-165 — three scripts in the folder, none of them in the index.** `apply-migration.ts`,
+`build-box-menus.ts` and `trim-catalogue-names.ts`. The first is the one that matters:
+`CLAUDE.md` names it as **the only way a migration is applied here**, and it was the script the
+index did not mention. Each row was written from the source rather than from the surrounding
+prose, which is how the **`Deletes?`** column came out right — that table's header promises
+every deletion is named in it, and `build-box-menus.ts` turns out to contain no `delete` at
+all. `scripts-docs.test.ts` now compares the folder against the table in **both** directions:
+a script with no row, and a row naming a file that is gone.
+
+**L-166 — « skipped. » under a tick.** `apply-migration.ts` answered an `--expect` fingerprint
+it could not read by printing « Expected fingerprint not found … — skipped. » and leaving `ok`
+untouched, so the run still ended **✅ APPLIED AND VERIFIED** with the rehearsal comparison
+silently lost. **The primary protection always survived** — the migration is applied and the
+pending list is re-checked — so what went missing was the half the operator asked for by
+passing the flag at all. Asking for a check and being told it did not happen, on a line above
+a tick, is the worst of both. It now prints ✗, corrects the misreading in the same breath, and
+sets `ok = false`.
+
+**The misreading was in `CLAUDE.md`, which is the operator's file.** The hand-over command was
+spelled `--expect <name>`, which reads as the migration name — so the likeliest wrong value was
+exactly the one that produced a green banner and no comparison. The replacement was brought
+verbatim and **approved on 2026-09-14**; it now reads `--expect <path to the rehearsal's
+fingerprint JSON>` with an example, and says what R10.2 changed about a path it cannot read.
+
+**L-167 — three live routes a cleanup would have deleted.** `docs/INVARIANTS.md`'s
+*Deliberately retained* listed `tables-view.tsx` and two unreachable branches, and not
+`api/tables/route.ts`, `api/tables/[id]/route.ts` or `api/tables/seed/route.ts`. DD-09 withdrew
+table service, so those three have no screen and read as dead weight — and that list is
+precisely the document a cleanup consults before deleting dead weight. The bullet was brought
+verbatim and approved the same day. **The test reads the three paths out of
+`table-withdrawal.test.ts` rather than copying them**, so a fourth pinned route would have to be
+documented too.
+
+**L-168 — the README sent a reader at the live catalogue.** Its Notes said « For **first boot**
+use `bun run db:seed` », while the plan's § 5 lists that command as « ❌ **Never, from this
+directory** » — where `.env` points `DATABASE_URL` at `db/custom.db`. **Both statements were
+true in their own frame**, which is what made the collision invisible and easy to act on. The
+note now carries the frame, and the test is general: every command § 5 marks ❌ is parsed out of
+the plan, and any mention of one in `scripts/README.md` must have the warning beside it.
+
+**L-169 — two scripts without a shebang.** `set-drink-vat-rates.ts` and
+`fix-duplicate-product-options.ts`, against thirteen that had one, while every header in the
+folder documents `bun scripts/<name>.ts`. **The exec bit is not part of this**: `core.filemode`
+is `false` in this checkout and all fifteen scripts are `100644`, so the shebang is the whole
+of the fix as far as the repository is concerned.
+
+**L-146 — a reason that was never true, in the one script that cannot be undone.**
+`pre-golive-reset.ts` said deleting `Customer` before `Order` would be « an FK violation, not a
+cascade ». It is **neither**: `Order.customerId` is `onDelete: SetNull`, so the wrong order
+would **succeed** and quietly null every link — worse than the throw the comment promised, and
+written at exactly the line a future editor reads before reordering the deletions. The order is
+unchanged and the outcome is unchanged; only the reason was wrong. The real reason is now
+stated: an order whose customer has been nulled is no longer traceable to the person who placed
+it, and this script runs once, before the first genuine sale, with nothing to recover from.
+
+**OPENED — L-191 (Medium), and it was L-168 that found it.** Writing « use `bun run db:seed`
+for a fresh install » meant checking what that command does, and `prisma/seed.ts:19` still
+reads `process.env.SEED_MANAGER_PIN ?? "111111"` — the PIN `POST /api/seed` has refused since
+R9.5, validated here against `/^\d{6}$/` and nothing else. `PUBLISHED_DEFAULT_PINS` sits in
+`auth.ts:131`, one named import away from a file that already imports `hashPin` from it. Its
+own comment — « the operator already knows them » — is exactly false in the case that matters.
+**Recorded, not fixed**: it is neither documentation nor a script, and R10.2 is both.
+`deployment.test.ts:107` pins that fallback deliberately, for L-59's own reasons, so whoever
+fixes L-191 has a test to **update**, not delete. The README warns until then.
+
+**HOW IT WAS VERIFIED.** 1 794 pass · 0 fail · 145 files · zero `prisma:error` blocks,
+typecheck and lint clean. `scripts-docs.test.ts` was proved against **sixteen reverts**, one
+property at a time, each restored from a copy taken immediately before it — the four touching
+`CLAUDE.md`, `docs/INVARIANTS.md` and `table-withdrawal.test.ts` also compare a sha256 before
+and after, because those files are not mine to leave edited.
+
+**TWO OF THOSE REVERTS MISSED FIRST TIME, AND BOTH WERE THE TEST'S FAULT.** The FK assertion
+walked straight past the same false sentence re-wrapped across two `//` lines — comment
+continuations are now joined before matching. And once joined, the correction's own quotation
+of the wrong sentence matched it, which would have been red on the fixed code: **« » spans are
+dropped before the match.** That is this project's most repeated test bug — an assertion
+satisfied by the comment explaining it — and this is the sixth time it has been caught by
+running the revert rather than by reading the test.
+
+**Left behind.**
+- **L-191**, above. The README warns; the code does not.
+- **The plan has ~1 KB of headroom** against its 40 960-byte ceiling.
 ---
 
 ## Retired from the plan's § 6 on 2026-09-11

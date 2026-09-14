@@ -37,9 +37,13 @@ Next.js 16 + React 19 + Prisma/SQLite. **It has never traded. Nothing has shippe
 
 Applying a migration to production, and edits to the live catalogue. Prepare the change,
 rehearse it on a copy, verify it, then hand over the exact command — which is **`bun
-scripts/apply-migration.ts --apply --expect <name>`**, **not** `bunx prisma migrate deploy`.
-The bare command prints the same green banner whichever migration it ran, and was misread as
-applied twice when it was not.
+scripts/apply-migration.ts --apply --expect <path to the rehearsal's fingerprint JSON>`**,
+**not** `bunx prisma migrate deploy`. The bare command prints the same green banner whichever
+migration it ran, and was misread as applied twice when it was not.
+
+**`--expect` takes a PATH**, e.g. `../db-snapshots/r31-acceptance/fp-r31-after.json` — never a
+migration name. Since R10.2 a path the script cannot read **fails** the run, instead of
+printing « skipped » under a tick (L-166).
 
 Since 2026-09-11 the **application** also applies pending migrations itself at startup,
 behind a backup it creates and then re-opens to verify (PREP-4). That is the app on its own

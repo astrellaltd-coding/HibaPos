@@ -167,6 +167,62 @@ describe("L-166 — a verification that cannot happen is a failure, not a footno
       /never `bunx prisma migrate deploy`/,
     );
   });
+
+  it("and so does the hand-over command in CLAUDE.md", () => {
+    // The prose half, added on the operator's word 2026-09-14 — that file is
+    // theirs. It spelled the command `--expect <name>`, which reads as the
+    // MIGRATION name, so the likeliest wrong value was exactly the one that
+    // used to end ✅ APPLIED AND VERIFIED without comparing anything.
+    const claude = readFileSync(path.join(REPO, "CLAUDE.md"), "utf8");
+    expect(claude, "CLAUDE.md spells `--expect <name>` again").not.toMatch(
+      /--expect <name>/,
+    );
+    expect(claude).toMatch(/`--expect` takes a PATH/);
+    expect(claude, "the hand-over command left CLAUDE.md").toMatch(
+      /scripts\/apply-migration\.ts --apply --expect/,
+    );
+  });
+});
+
+describe("L-167 — the invariants name every file a test refuses to lose", () => {
+  // THE FINDING: `docs/INVARIANTS.md`'s « Deliberately retained — do not clean
+  // up » listed `tables-view.tsx` and two unreachable branches, and not the
+  // three `/api/tables` routes that `table-withdrawal.test.ts` pins. DD-09
+  // withdrew table service, so those routes have no screen and read as dead
+  // weight — and the invariants are exactly the document a cleanup consults
+  // before deleting dead weight. It would have deleted three files a test
+  // requires, and learnt so from a red suite rather than from the list whose
+  // whole job is to say it first.
+  const invariants = readFileSync(path.join(REPO, "docs", "INVARIANTS.md"), "utf8");
+  const withdrawal = readFileSync(
+    path.join(REPO, "src", "features", "tables", "table-withdrawal.test.ts"),
+    "utf8",
+  );
+
+  /** The routes that test insists on, read from the test rather than copied. */
+  const PINNED = [...withdrawal.matchAll(/"(src\/app\/api\/tables\/[^"]+\.ts)"/g)].map(
+    (m) => m[1],
+  );
+
+  it("reads the pinned list out of the test", () => {
+    // Copying the three paths into this file would make it agree with itself.
+    // Parsed from the source, a FOURTH pinned route also has to be documented.
+    expect(PINNED.length, "no pinned table routes parsed out of table-withdrawal.test.ts").toBe(3);
+  });
+
+  it("names each of them in « Deliberately retained »", () => {
+    const start = invariants.indexOf('### Deliberately retained — do not "clean up"');
+    expect(start, "the retained section is gone or renamed").toBeGreaterThan(-1);
+    const end = invariants.indexOf("\n---", start);
+    const section = invariants.slice(start, end > start ? end : undefined);
+    const unlisted = PINNED.filter((p) => !section.includes(p.replace("src/app/api", "api")) && !section.includes(p));
+    expect(
+      unlisted,
+      `pinned by table-withdrawal.test.ts and not in the retained list: ${unlisted.join(", ")}\n` +
+        "Add them. That list is what a cleanup reads before deleting something that " +
+        "looks unreachable, and these three are unreachable by design (DD-09).",
+    ).toEqual([]);
+  });
 });
 
 describe("L-146 — the irreversible script states a true reason for its order", () => {
