@@ -150,14 +150,11 @@ audit exercised produced screen figures matching the database to the cent.
 ### Awaiting the operator
 
 
-- **L-171's migration, rehearsed 2026-09-14 and NOT applied** — `Refund.itemsJson`, one
-  nullable column recording WHICH ITEMS a refund was for. With the app stopped:
-  `bun scripts/apply-migration.ts --apply --expect ../db-snapshots/r171-acceptance/fp-r171-after.json`.
-  Dry run without `--apply`. **`--expect` takes that PATH, not a migration name**, and since
-  R10.2 a path it cannot read **fails** the run instead of printing « skipped » under a tick.
-  **Rehearsed on a copy and diffed**: `Refund` gains one column at the end, `_prisma_migrations`
-  17 → 18, `integrity_check` ok, **zero FK errors and nothing else moved**. Nothing is blocked
-  by the wait. *(R8.2's was the previous entry here and is **applied** — § 1 and L-195.)*
+*(**No migration is waiting.** L-171's was applied by the operator on 2026-09-14 and
+  **verified**: the live fingerprint is identical to the rehearsal's on every key, checksums
+  included, `integrity_check` ok, zero FK errors, `migrate status` up to date, and a refund with
+  an attribution round-tripped through the real service on a copy. R8.2's is applied too —
+  § 1 and L-195. This bullet is kept as the place the next one goes.)*
 - **Delete `5 nuggets test` (L-81), prepared and rehearsed.** With the app stopped:
   `bun scripts/delete-product.ts --id cmtvwzr050004n368crvp0mw3 --apply`. Dry run without
   `--apply`. Rehearsed on a copy 2026-09-11: 84 → 83 products, 0 FK errors, `integrity_check`

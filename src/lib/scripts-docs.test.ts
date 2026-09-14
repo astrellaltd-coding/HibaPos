@@ -203,20 +203,42 @@ describe("L-166 — a verification that cannot happen is a failure, not a footno
   });
 
   it("points the operator at a command that is actually there", () => {
-    // Two places in the plan say « see *Awaiting the operator* below for the
+    // Two places in the plan said « see *Awaiting the operator* below for the
     // exact command » for R8.2's pending migration, and that section carried
     // three bullets, none of them the migration. A pointer to the exact command
-    // has to land on the exact command — the more so now that its spelling has
-    // just changed in both governing documents.
+    // has to land on the exact command.
+    //
+    // NARROWED 2026-09-14, and the narrowing is the point. This REQUIRED the
+    // apply command unconditionally — true while a migration was pending, false
+    // the moment the operator applied L-171's and none was. **The property was
+    // never « a migration is always waiting »; it is « a pointer lands on what
+    // it promises ».** Left as it was, it would be pressure to keep a stale
+    // bullet alive so a test stays green, which is the exact opposite of what
+    // it was written for.
     const plan = readFileSync(path.join(REPO, "REMEDIATION_PLAN.md"), "utf8");
     const start = plan.indexOf("### Awaiting the operator");
     expect(start, "the « Awaiting the operator » section is gone or renamed").toBeGreaterThan(-1);
     const end = plan.indexOf("\n### ", start + 1);
     const section = plan.slice(start, end > start ? end : undefined);
+    const APPLY_COMMAND = /bun scripts\/apply-migration\.ts --apply --expect \S+\.json/;
+
+    if (/for the exact command/.test(plan)) {
+      expect(
+        section,
+        "the plan points here « for the exact command » and the command is not here",
+      ).toMatch(APPLY_COMMAND);
+      return;
+    }
+    // Nothing promises a command, so none is required — but the section must
+    // still SAY so, rather than leave a reader to infer it from an absence.
+    // « Nothing is waiting » and « somebody deleted the bullet » look identical
+    // otherwise, and that ambiguity in the other direction is how L-195 stood
+    // for a day: § 1 claimed a migration was pending and the database disagreed.
     expect(
       section,
-      "the plan points here « for the exact command » and the command is not here",
-    ).toMatch(/bun scripts\/apply-migration\.ts --apply --expect \S+\.json/);
+      "no migration command and nothing saying there is none — a reader cannot tell " +
+        "« nothing is waiting » from « the bullet was lost »",
+    ).toMatch(new RegExp(`No migration is waiting|${APPLY_COMMAND.source}`));
   });
 });
 

@@ -4577,8 +4577,8 @@ yes on garbage. It is now an explicit two-step check, with the reason in place.
 
 ### L-171 — which item came back, and the answer that did not exist
 **Done:** 2026-09-14 · **Commit:** `8e42dd2` · **Findings:** L-171 (Group D, reopened by the
-operator). **Opened L-195.** **No plan row.** **A MIGRATION IS PREPARED AND IS THE OPERATOR'S TO
-APPLY** — see *Awaiting the operator* in the plan.
+operator). **Opened L-195.** **No plan row.** **THE MIGRATION WAS APPLIED BY THE OPERATOR THE
+SAME DAY AND VERIFIED** — see *The migration* below.
 
 **A partial refund is apportioned across the order's lines by TTC weight, not against the item
 returned.** The audit measured it: refunding 500 c of a 1 640 c order moved the 5,5 % bucket
@@ -4650,6 +4650,29 @@ sealed payload re-serialised. `ALTER TABLE … ADD COLUMN` does not rewrite a ta
 The plaintext copy was **deleted** after the diff; the two fingerprints are kept as the evidence
 and as the `--expect` target. There are already twenty-one unencrypted copies of real catalogue
 data on this one disk (**L-194**), and this batch did not leave a twenty-second.
+
+**APPLIED BY THE OPERATOR ON 2026-09-14, AND VERIFIED RATHER THAN ASSUMED.** Four checks, all
+read-only against a copy taken with no `-wal`/`-shm` beside the database and with the copy's
+sha256 confirmed equal to the original's:
+
+1. **The column is there** — `Refund` has eleven columns, the eleventh
+   `itemsJson TEXT notnull=0 default=null`, appended rather than rewritten.
+2. **The migration is recorded** — 18 applied, `20260914180000_refund_item_attribution` among
+   them.
+3. **The live fingerprint is IDENTICAL to the rehearsal's on every key.** Not « close »: the
+   diff is empty, and the fingerprint records each migration's **checksum**, so this says the
+   same `migration.sql` was applied and not merely something with the same name. `integrity_check`
+   ok, **zero FK errors**, `FiscalCounter` still `0/0/0/0`, every trading table still empty.
+   `prisma migrate status` answers « Database schema is up to date ».
+4. **A refund round-tripped through the REAL service on the copy** — because a schema that
+   looks right and a schema the software can use are different claims. 500 c refunded against a
+   named 1 000 c line stayed **500 c** (the operator's scope, confirmed on the migrated schema),
+   the attribution was stored AND sealed into the `REMBOURSEMENT` event, and an invented id was
+   refused in French with nothing written.
+
+The live database's sha256 moved from `14ebf310…` to `af995bc7…`, which is the migration writing
+to the file; `docs/BASELINES.md` is re-measured. The copy was deleted afterwards — still
+twenty-one, not twenty-two.
 
 ## L-195 — found by looking at the database, which is the point
 
