@@ -73,6 +73,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - R9.1 — the printer tells the truth, and the day's slip reaches paper
 - R9.3 — a failed backup leaves nothing readable behind
 - R9.4 — a misconfigured secret says so, instead of answering an empty 500
+- R9.5 — the front door opens, and refuses a PIN the repository publishes
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -3413,6 +3414,115 @@ the directory belongs is the failure the guard can actually meet.
   `delete process.env.BACKUP_LOCATION` **did not hold** — the value returned through Bun's
   dotenv layer and had to be assigned into the throwaway tree instead.
 - **The plan is at 38 563 bytes** against the 40 960 ceiling.
+---
+
+### R9.5 — the front door opens, and refuses a PIN the repository publishes
+**Done:** 2026-09-14 · **Commit:** `SHA` · **Findings:** L-102 · L-103 · L-118 · L-147, and
+**L-187** riding along because the batch owns `auth.ts`
+
+**L-102 (Medium) — a lockout that never ended.** Two unauthenticated login paths with
+different arithmetic: `auth/unlock` clears `failedAttempts: 0, lockedUntil: null` once a lock
+expires, and `login` never did. So after five failures `newFailed` went 6, 7, 8… and **every
+subsequent wrong PIN re-locked for a further 15 minutes, indefinitely.** An operator who
+fat-fingered five times could not recover through the login screen AT ALL, while the lock
+screen would have cleared it — two accounts and a restaurant in service. **The counter was
+what made it permanent**, not the timestamp, so both are cleared; and a sub-threshold failure
+now writes `null` rather than copying the old timestamp forward, which was the other half.
+
+**L-118 (Medium) — a rule the application never called, and an operator decision.**
+`isPublishedDefaultPin` had exactly ONE call site in the repository: `scripts/seed-users.ts`,
+an operator CLI that `bun test src` cannot even reach. `docs/INVARIANTS.md` states the guard
+as a property of the SYSTEM; it was a property of one script. `POST /api/users` and
+`PUT /api/users/[id]` hashed a bare `/^\d{6}$/`, and `POST /api/seed` — unauthenticated on a
+fresh install, wired to a button on the login screen — **installed `123456` and `111111` as
+live credentials.** `auth.ts` records why it matters: on 2026-09-04 the operator's first
+attempt at rotating both PINs set the super-administrator to one of these two values, « caught
+by reading the repository, not by the application ». **This is the path the France fresh
+install takes.**
+
+Both user routes now refuse, before hashing — `hashPin` is bounded at 128 MiB per call
+(C-09), so a denylist checked after it would let a caller burn the queue on values that were
+never going to be accepted.
+
+**THE SEED PATH WAS PUT TO THE OPERATOR**, because `seed/route.ts` documented « PINs are
+intentionally NOT returned in the response » and every way of fixing it changes that or
+changes how a fresh install bootstraps. **Their answer, 2026-09-13: « Admin always 123456,
+manager chose his own or generate a random one and show it. »** So:
+
+  * **admin — `123456`, deliberately**, `SEED_ADMIN_PIN` still overriding. Recorded as their
+    decision and not as an oversight. **They were told before choosing** that the value is
+    published in this repository and in a commit message, so anyone holding a copy knows the
+    super-administrator's PIN on a freshly seeded install.
+  * **manager — `SEED_MANAGER_PIN` if set, otherwise generated** with `randomInt` and returned
+    ONCE, shown on screen in a panel that does not disappear on a timer. A published default
+    in that variable is refused.
+
+**L-103 (Medium) — the till will not open and says nothing.** The login screen's only data
+source is `GET /api/auth/profiles`, rate-limited 30/min on key `profiles:${ip}` where
+`clientIp()` returns the **constant `"local"`** — DD-06 means there is no proxy to believe, so
+it is one global bucket for the whole machine. Its refusal was swallowed by a bare `catch {}`
+commented « The empty state remains visible if the profile request fails »: no message, no
+retry, `[]` deps. A 429 showed an empty picker and a reload re-entered the same exhausted
+bucket. Now: the failure is described, rendered, and retried once after the delay — which
+**had to be moved into the response body**, because the route's `Retry-After` header is
+unreachable through `ApiError`. The two requests are `allSettled` rather than `Promise.all`,
+so a seed hiccup can no longer blank the profile list.
+
+**L-147 (Low) — two identical « Gérant » cards.** The picker rendered
+`ROLE_STYLE[profile.role].label` and never the name, and DD-07 leaves MANAGER as the only
+operational role. `GET /api/auth/profiles` has always returned `name`. The role becomes the
+subtitle, so nothing is lost.
+
+**L-187 (Low) — `maxmem: 1 << 30` for a 128 MiB scrypt.** L-142's shape, in the path that runs
+on **every login and every step-up** rather than once per Z close. Derived from the parameters
+now, as `backup.ts`'s is.
+
+**HOW IT WAS VERIFIED.** 1 684 pass · 0 fail · 138 files · **zero `prisma:error` blocks**.
+36 new tests in two new files. Eleven reverts, restoring from a snapshot before each:
+
+| revert | what it restores | went red |
+|---|---|---|
+| C102a | login never clears an expired lock | 2 |
+| C102b | the stale timestamp carried forward | 1 |
+| C118a | `POST /api/users` skips the denylist | 1 |
+| C118b | `PUT /api/users/[id]` skips it | 2 |
+| C118c | the seed installs `111111` again | 3 |
+| C118d | the generated PIN is never returned | 3 |
+| C118e | the catalogue branches drop the PIN | 1 |
+| C103a | a 429 gets no retry | 4 |
+| C103b | a failure produces no message | 1 |
+| C147 | the card shows the role label only | 4 |
+| C187 | the 1 GiB literal | 1 |
+
+**A BUG THIS BATCH SHIPPED, AND THE TEST THAT CAUGHT IT.** Both users are created BEFORE the
+catalogue is touched, so the two catalogue-failure branches return with the manager's
+generated PIN already installed. My first version added it to the success response only — **a
+manager account nobody could ever log into, which is worse than the published default it
+replaced.** Found by a test reaching that branch by accident.
+
+**AND THE TEST WAS THEN REDESIGNED, because driving that branch costs a `prisma:error`
+block.** Reaching it means a real P2002 on the duplicate category names, and Prisma logs it —
+one block against `docs/BASELINES.md`'s pinned zero, measured. R8.2 set the precedent of
+measuring what a test costs and redesigning rather than spending it. So the PIN is built once
+as `pinPayload` and the test **counts the spreads against the returns** inside `seed()`: the
+invariant is « every response past the point the users exist carries it », which is both
+checkable and exactly what was wrong. Its first version swept in the `GET` handler's own
+return and reported a fourth branch that does not exist — bounded now, because a false
+positive is as useless as a missed one.
+
+**Left behind.**
+- **The super-administrator's PIN is `123456` on a freshly seeded install**, by the operator's
+  decision of 2026-09-13, and it is published in this repository. Written here rather than
+  softened: a later session finding it should read this entry, not treat it as a bug. The
+  denylist means it cannot be re-set through the UI once changed.
+- **L-189 recorded, and fixed here.** `report-attribution.test.ts` was free-riding on a
+  `Setting` row it never created and had been **failing in isolation on the committed tree**
+  — 2 pass / 4 fail, the sales report answering 0 where the dashboard said 3 000. So DD-21,
+  the dashboard-vs-report agreement test, was green for a reason unrelated to what it
+  asserts. **This is L-153 exactly**, which R8.6 closed for `reports.test.ts`; nobody looked
+  for a second instance. Two in two batches is a pattern, and the general question — nothing
+  checks that a file creates the state it reads — belongs with R9.7's L-154.
+- **The plan is at 38 566 bytes** against the 40 960 ceiling.
 ---
 
 ## Retired from the plan's § 6 on 2026-09-11

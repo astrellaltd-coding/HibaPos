@@ -260,7 +260,15 @@ describe("plan freshness — the plan and the done file may not disagree", () =>
     //   an `OPERATOR` row and it is not done, only reachable.
     //   FINDINGS STAY AT 8. R9.4 opened **L-187** and **L-188** — both
     //   audit-sequence ids, both in `docs/audit/FINDINGS.md`.
-    expect(taskStatuses(src).size).toBe(13);
+    //   2026-09-14, R9.5 DONE: tasks 13 → 12, four batches left in Phase 9.
+    //   L-102 · L-103 · L-118 · L-147, with **L-187 riding along** because the
+    //   batch owns `auth.ts`. L-118 carried a DECISION and it was put to the
+    //   operator with the consequence spelled out rather than chosen here:
+    //   admin stays `123456`, the manager's PIN is chosen or generated and
+    //   shown once (2026-09-13).
+    //   FINDINGS STAY AT 8. R9.5 opened **L-189**; it is an audit-sequence id
+    //   and lives in `docs/audit/FINDINGS.md`.
+    expect(taskStatuses(src).size).toBe(12);
     expect(openFindings(src).size).toBe(8);
     expect(done()).toContain("# HibaPOS France — Completed Work");
   });

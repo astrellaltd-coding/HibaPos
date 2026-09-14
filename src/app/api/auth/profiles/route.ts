@@ -21,11 +21,17 @@ export async function GET(req: NextRequest) {
   const rlKey = `profiles:${ip}`;
   const rl = rateLimit(rlKey, 30, 60_000); // 30/min
   if (!rl.ok) {
+    // L-103 (R9.5): the delay goes in the BODY as well as the header. The
+    // header is correct and unreachable — `ApiError` carries `status` and
+    // `body`, not headers — so the login screen could not schedule a retry
+    // against it, and the screen this route feeds is the only way into the
+    // till. Same shape `scryptBusyResponse` uses for `busy: true`.
+    const retryAfterSec = Math.max(1, rl.retryAfterSec);
     return NextResponse.json(
-      { error: "Trop de requêtes. Réessayez plus tard." },
+      { error: "Trop de requêtes. Réessayez plus tard.", retryAfterSec },
       {
         status: 429,
-        headers: { "Retry-After": String(Math.max(1, rl.retryAfterSec)) },
+        headers: { "Retry-After": String(retryAfterSec) },
       },
     );
   }

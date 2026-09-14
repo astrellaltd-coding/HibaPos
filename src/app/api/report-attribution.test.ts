@@ -53,6 +53,24 @@ async function wipe() {
 beforeEach(async () => {
   clearCookies();
   await wipe();
+  // THE CUT-OFF, created here rather than inherited.
+  //
+  // R8.4 made the trading-day cut-off a required input to `parseReportRange`,
+  // and `getSettings()` reads it from `Setting`. This file never created that
+  // row — it passed only because an earlier file in the run happened to leave
+  // one behind, and **failed in isolation on the committed tree**: 2 pass, 4
+  // fail, the sales report answering 0 for a day the dashboard reported 3 000.
+  // Found in R9.5 when a new file's cleanup removed the row it was borrowing.
+  //
+  // This is L-153's shape exactly — R8.6 closed that one for `reports.test.ts`
+  // and the same free-ride was live here. Fixed at the source, as that was.
+  // `upsert`, because this file's `wipe()` deliberately leaves `Setting` alone
+  // — a bare create is P2002 on the second test.
+  await db.setting.upsert({
+    where: { key: "businessDayCutoffHour" },
+    update: { value: JSON.stringify(0) },
+    create: { key: "businessDayCutoffHour", value: JSON.stringify(0) },
+  });
   alice = await db.user.create({
     data: { username: "alice-l44", name: "Alice", role: "MANAGER", pinHash: await hashPin(PIN) },
   });

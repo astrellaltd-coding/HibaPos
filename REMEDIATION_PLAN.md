@@ -11,7 +11,7 @@ Completed work lives in **`REMEDIATION_DONE.md`**. This file only ever shows out
 **Overall:** NOT READY FOR PRODUCTION, and **not trading** — the fiscal journal is empty and
 every trading table is at zero.
 
-> ### ▶ CURRENT TASK — **R9.5**, and Phase 9 is running
+> ### ▶ CURRENT TASK — **R9.7**, and Phase 9 is running
 >
 > **§ 6 opens with the execution order. Follow that, not the order the tables print in.**
 >
@@ -37,6 +37,10 @@ every trading table is at zero.
 > (2026-09-13): a malformed secret says so in French instead of answering an empty 500,
 > `approvals.ts` no longer throws at import on an install with no `.env`, and a deleted
 > secret store cannot silently orphan the backups. **L-115 is closed, so R6.2 is unblocked.**
+> **R9.5 is done** (2026-09-14): a locked-out operator can get back in, the published PINs are
+> refused where a PIN is set, and the login screen says why it will not open. **The operator
+> settled the bootstrap on 2026-09-13** — admin stays `123456`, the manager's is chosen or
+> generated and shown once.
 >
 > **Two things are waiting, and neither is a batch.**
 >
@@ -65,7 +69,7 @@ applied. What each did, how it was verified and what it cost is in `REMEDIATION_
 - **Phase 6** — the fiscal go-live, five `OPERATOR` rows. **R8.1 unblocked R6.3** (2026-09-13,
   `622411c`) and **R9.1 unblocked R6.4** (2026-09-13). Row-by-row status below.
 - **Phase 8** — money and the fiscal record. **COMPLETE 2026-09-13**, all seven batches.
-- **Phase 9** — fix before the app is called complete. **R9.1 · R9.3 · R9.4 done**; five left.
+- **Phase 9** — fix before the app is called complete. **R9.1 · R9.3 · R9.4 · R9.5 done**; four left.
 - **Phase 10** — the leftovers no other batch owns. Three rows (group C).
 
 **Phases 8-10 come from the audit.** Six read-only passes and a seventh that consolidated
@@ -371,7 +375,6 @@ their own riding along. Order inside the phase is not fixed except where a row s
 
 | ID | Status | Task |
 |---|---|---|
-| **R9.5** | `TODO` | **The front door.** L-102 · L-103 · L-118 · L-147. `auth.ts` · `login/route.ts` · `login-screen.tsx`. L-118 is the one that reaches the France install — the published-PIN denylist is enforced in a script and nowhere in the app. L-102 and L-103 are both « the till will not open ». |
 | **R9.7** | `TODO` | **The guards that are not guarding.** L-121 · L-122 · L-123 · L-125 · L-126 · L-154 · L-155 · L-156 · L-157 · L-158 · L-159. *(**L-153 was closed early by R8.6** — that batch's new files stopped leaving behind the `Setting` row `reports.test.ts` was free-riding on, so it failed and was fixed at the source.)* *(L-124 left this batch for **R8.0** — it is one line and it gates every clone.)* Start with L-121 and L-158, one to three lines each, both guarding an invariant. L-154's shared wipe helper is the largest piece, and **L-154 has now bitten twice** (R8.2 and R8.6) rather than staying latent. |
 | **R9.8** | `TODO` | **The data model says what null means.** L-129 · L-145. Settle what a null `OrderItem.vatRate` means — and write it into `docs/INVARIANTS.md` — before anything reads it differently. **Read D's L-175 and L-177 while you are in this file**; they are recorded, not scheduled, and L-177 is the same question about `ZReport`'s two nullable JSON columns. |
 | **R9.9** | `TODO` | **The catalogue transfer checks its own stamp.** L-109. It is the mechanism that carries this catalogue to France; an older export into a newer install currently succeeds with new columns silently at their defaults. |

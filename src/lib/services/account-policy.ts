@@ -47,6 +47,25 @@ export const SELF_DEACTIVATE_REFUSAL =
  * drop the last active super administrator; this is the same lockout through
  * another door.
  */
+/**
+ * L-118 (R9.5) — the published defaults, refused where a PIN is SET.
+ *
+ * `isPublishedDefaultPin` had exactly ONE call site in the repository:
+ * `scripts/seed-users.ts`, an operator CLI. `docs/INVARIANTS.md` states the
+ * guard as a property of the SYSTEM; it was a property of one script, and
+ * `bun test src` cannot even reach it.
+ *
+ * `auth.ts` records why it matters: on 2026-09-04 the operator's first attempt
+ * set the super-administrator to one of these two values, and it was « caught
+ * by reading the repository, not by the application ». Both numbers are in this
+ * repository's history and in a commit message — anyone holding a copy knows
+ * them.
+ */
+export const PUBLISHED_PIN_REFUSAL =
+  "Ce code est l'un des codes par défaut publiés dans le dépôt : il est connu de " +
+  "toute personne qui en détient une copie et ne peut pas servir d'identifiant. " +
+  "Choisissez-en un autre.";
+
 export function refuseUserSelfEdit(input: {
   callerId: string;
   callerRole: string;

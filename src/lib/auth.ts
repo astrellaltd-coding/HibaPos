@@ -45,7 +45,26 @@ const sessionSecret = lazySecret("SESSION_SECRET");
 // (N=2^14) is too weak for a 6-digit PIN keyspace (10^6); with N=2^17 an
 // offline brute-force of the full PIN space from a stolen DB takes hours
 // instead of seconds. maxmem must be raised to accommodate the larger N.
-const SCRYPT_OPTS = { N: 1 << 17, r: 8, p: 1, maxmem: 1 << 30 } as const;
+//
+// L-187 (R9.5) — `maxmem` DERIVED, not a literal. It was `1 << 30`: **1 GiB for
+// a working set of 128 MiB.** scrypt needs `128 · N · r · p`, which at these
+// parameters is 134 217 728 bytes exactly; R9.3 instrumented the identical
+// parameters in `backup.ts` and measured an RSS delta of **128.8 MiB**, with
+// the smallest workable `maxmem` between 128 and 129.
+//
+// Same shape as L-142 and fixed the same way, but this is the PIN path — it
+// runs on **every login and every step-up**, not once per Z close. A literal
+// eight times the requirement does not fail when the requirement changes; it
+// silently allocates whatever the new one is. Twice the working set leaves room
+// for scrypt's own bookkeeping and makes raising `N` without thinking about
+// memory fail at the first login instead of on the till.
+const SCRYPT_WORKING_SET = 128 * (1 << 17) * 8 * 1;
+const SCRYPT_OPTS = {
+  N: 1 << 17,
+  r: 8,
+  p: 1,
+  maxmem: SCRYPT_WORKING_SET * 2,
+} as const;
 
 // The pre-Phase-2A parameters, written out rather than left to Node's
 // defaults. `scryptSync(pin, salt, 64)` used N=16384, r=8, p=1 — these exact

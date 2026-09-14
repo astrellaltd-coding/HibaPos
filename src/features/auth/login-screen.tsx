@@ -10,11 +10,87 @@ import { api, ApiError } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store/app-store";
 
+/**
+ * How long the server asked us to wait — L-103 (R9.5).
+ *
+ * From the BODY, because `ApiError` does not carry headers and the route's
+ * `Retry-After` is therefore unreachable from here. Clamped: a server that
+ * answered a very large number would otherwise park this screen indefinitely,
+ * and the operator can always reload.
+ */
+function retryAfterSeconds(err: ApiError): number {
+  const body = err.body as { retryAfterSec?: unknown } | null;
+  const raw = typeof body?.retryAfterSec === "number" ? body.retryAfterSec : 30;
+  return Math.min(120, Math.max(1, Math.ceil(raw)));
+}
+
+/**
+ * What a profile card says — L-147 (R9.5).
+ *
+ * It rendered `ROLE_STYLE[profile.role].label` and nothing else, so DD-07 (two
+ * roles only) meant a second member of staff produced **two identical
+ * « Gérant » cards with no way to tell them apart** — seen with two active
+ * MANAGERs. `GET /api/auth/profiles` has always returned `name`.
+ *
+ * The role moves to the subtitle rather than disappearing: the card still says
+ * what the account can do, and now also whose it is. An account with no name
+ * recorded falls back to exactly what it showed before.
+ *
+ * Its own function because this screen cannot be rendered in the test suite —
+ * `useAnimation` and `framer-motion` need a DOM — and « nothing rendered it »
+ * is how this survived.
+ */
+export function profileCardText(
+  profile: { name?: string | null; role: LoginProfileRole },
+  style: { label: string; description: string },
+): { title: string; subtitle: string } {
+  const name = profile.name?.trim();
+  return name
+    ? { title: name, subtitle: style.label }
+    : { title: style.label, subtitle: style.description };
+}
+
+/**
+ * What the operator is told when the profile list cannot be fetched —
+ * L-103 (R9.5).
+ *
+ * THE FINDING: this screen's only data source is `GET /api/auth/profiles`,
+ * rate-limited 30/min on a key that is the CONSTANT `"local"` (DD-06, no proxy
+ * to believe) — **one global bucket for the whole machine**. Its refusal was
+ * swallowed by a bare `catch {}` commented « The empty state remains visible if
+ * the profile request fails »: no message, no retry, and `[]` deps so it ran
+ * once per mount. A 429 showed an empty picker with no explanation, and a
+ * reload re-entered the same exhausted bucket.
+ *
+ * `retryAfterSec` non-null means « wait this long and it will probably work ».
+ */
+export function describeProfilesFailure(err: unknown): {
+  message: string;
+  retryAfterSec: number | null;
+} {
+  if (err instanceof ApiError && err.status === 429) {
+    const after = retryAfterSeconds(err);
+    return {
+      message: `Trop de tentatives sur cette caisse. Nouvel essai automatique dans ${after} s.`,
+      retryAfterSec: after,
+    };
+  }
+  return {
+    message:
+      err instanceof Error && err.message
+        ? `Impossible de charger les profils : ${err.message}`
+        : "Impossible de charger les profils.",
+    retryAfterSec: null,
+  };
+}
+
+type LoginProfileRole = "SUPER_ADMIN" | "MANAGER";
+
 type LoginProfile = {
   id: string;
   username: string;
   name: string;
-  role: "SUPER_ADMIN" | "MANAGER";
+  role: LoginProfileRole;
 };
 
 const ROLE_STYLE: Record<LoginProfile["role"], { label: string; description: string }> = {
@@ -66,6 +142,9 @@ export function LoginScreen() {
   const [lockedUntil, setLockedUntil] = useState<Date | null>(null);
   const [now, setNow] = useState(Date.now());
   const [needsSeed, setNeedsSeed] = useState(false);
+  // L-118: the manager PIN this install just generated, shown once. Never
+  // fetched — it exists only in the response that created it.
+  const [seededManagerPin, setSeededManagerPin] = useState<string | null>(null);
   const [seeding, setSeeding] = useState(false);
 
   const shakeControls = useAnimation();
@@ -79,30 +158,74 @@ export function LoginScreen() {
 
   useEffect(() => clearTimers, [clearTimers]);
 
+  // L-103 (R9.5) — THE TILL WILL NOT OPEN, AND IT SAYS SO.
+  //
+  // THE FINDING: this screen's only data source is `GET /api/auth/profiles`,
+  // rate-limited 30/min on key `profiles:${ip}` — and `clientIp()` returns the
+  // constant `"local"` because DD-06 means there is no proxy to believe. **One
+  // global bucket for the whole machine.** Its refusal was swallowed by a bare
+  // `catch {}` whose comment read « The empty state remains visible if the
+  // profile request fails »: no message, no retry, and the effect has `[]` deps
+  // so it runs once per mount. A 429 showed an EMPTY PROFILE PICKER with no
+  // explanation, and a reload re-entered the same exhausted bucket.
+  //
+  // Fetched in a `Promise.all` with `GET /api/seed`, so either failure took
+  // both — which is why an unrelated seed hiccup could also empty the screen.
+  //
+  // Three changes: the error is kept and shown, a 429 schedules ONE retry after
+  // `Retry-After`, and the two requests are settled independently so one cannot
+  // blank the other.
+  const [loadError, setLoadError] = useState<string | null>(null);
+  // Bumped by the « Réessayer » button, and the ONLY dependency of the effect
+  // below — which must not re-run on every render. Re-running it also clears
+  // any pending scheduled retry, because the cleanup owns that timer, so the
+  // manual and automatic paths cannot both be in flight.
+  const [reloadKey, setReloadKey] = useState(0);
+
   useEffect(() => {
     let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
 
-    (async () => {
-      try {
-        const [profilesResponse, seedResponse] = await Promise.all([
-          api.get<LoginProfile[]>("/api/auth/profiles"),
-          api.get<{ initialized: boolean }>("/api/seed"),
-        ]);
-        if (cancelled) return;
-        setProfiles(profilesResponse);
-        setSelected(profilesResponse.find((profile) => profile.role === "MANAGER") ?? profilesResponse[0] ?? null);
-        setNeedsSeed(!seedResponse.initialized);
-      } catch {
-        // The empty state remains visible if the profile request fails.
-      } finally {
-        if (!cancelled) setLoadingProfiles(false);
+    const load = async () => {
+      const [profilesResult, seedResult] = await Promise.allSettled([
+        api.get<LoginProfile[]>("/api/auth/profiles"),
+        api.get<{ initialized: boolean }>("/api/seed"),
+      ]);
+      if (cancelled) return;
+
+      if (seedResult.status === "fulfilled") {
+        setNeedsSeed(!seedResult.value.initialized);
       }
-    })();
+
+      if (profilesResult.status === "fulfilled") {
+        const list = profilesResult.value;
+        setProfiles(list);
+        setSelected(list.find((profile) => profile.role === "MANAGER") ?? list[0] ?? null);
+        setLoadError(null);
+        setLoadingProfiles(false);
+        return;
+      }
+
+      // A refusal the operator can act on, instead of an empty picker.
+      const { message, retryAfterSec } = describeProfilesFailure(profilesResult.reason);
+      setLoadError(message);
+      if (retryAfterSec !== null) {
+        // ONE scheduled retry, not a loop: the bucket is global to the machine,
+        // so hammering it is what keeps it exhausted.
+        timer = setTimeout(() => {
+          if (!cancelled) void load();
+        }, retryAfterSec * 1000);
+      }
+      setLoadingProfiles(false);
+    };
+
+    void load();
 
     return () => {
       cancelled = true;
+      if (timer) clearTimeout(timer);
     };
-  }, []);
+  }, [reloadKey]);
 
   useEffect(() => {
     if (!lockedUntil) return;
@@ -235,12 +358,24 @@ export function LoginScreen() {
   const initializeDatabase = useCallback(async () => {
     setSeeding(true);
     try {
-      await api.post("/api/seed");
+      // L-118 (R9.5) — THE GENERATED MANAGER PIN REACHES A PERSON.
+      //
+      // This discarded the response and showed a toast. The seed route now
+      // makes the manager's PIN when `SEED_MANAGER_PIN` is unset and returns it
+      // ONCE (the operator's decision, 2026-09-13: « manager chose his own or
+      // generate a random one and show it »). Thrown away here, that is worse
+      // than the published default it replaced — nobody could log in as the
+      // manager at all.
+      //
+      // Held in state rather than toasted: a toast disappears on a timer, and
+      // this is the only moment the value exists outside the hash.
+      const result = await api.post<{ managerPin?: string }>("/api/seed", {});
       const profilesResponse = await api.get<LoginProfile[]>("/api/auth/profiles");
       setProfiles(profilesResponse);
-       setSelected(profilesResponse.find((profile) => profile.role === "MANAGER") ?? profilesResponse[0] ?? null);
+      setSelected(profilesResponse.find((profile) => profile.role === "MANAGER") ?? profilesResponse[0] ?? null);
       setNeedsSeed(false);
-      toast.success("Base initialisée");
+      if (result?.managerPin) setSeededManagerPin(result.managerPin);
+      else toast.success("Base initialisée");
     } catch {
       toast.error("Échec de l'initialisation");
     } finally {
@@ -281,7 +416,27 @@ export function LoginScreen() {
           </div>
 
           <div className="relative min-h-0 flex-1 overflow-hidden">
-            {needsSeed ? (
+            {seededManagerPin ? (
+            /* L-118 (R9.5) — shown once, and it does not disappear on a timer.
+             * Dismissed only by the operator, because this is the sole moment
+             * the value exists anywhere but a scrypt hash. */
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-start pt-2">
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-center">
+                <p className="text-sm font-semibold text-emerald-900">Base initialisée.</p>
+                <p className="mt-3 text-xs text-emerald-800">Code du gérant — notez-le maintenant :</p>
+                <p className="mt-2 font-mono text-3xl font-bold tracking-[0.3em] text-emerald-900">
+                  {seededManagerPin}
+                </p>
+                <p className="mt-3 text-xs text-emerald-800">
+                  Il ne sera plus affiché. Le code administrateur est celui de votre
+                  documentation d&apos;installation.
+                </p>
+                <Button onClick={() => setSeededManagerPin(null)} className="mt-4">
+                  J&apos;ai noté le code
+                </Button>
+              </div>
+            </div>
+          ) : needsSeed ? (
             <div className="absolute inset-0 z-10 flex flex-col items-center justify-start pt-2">
               <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-center">
                 <p className="text-sm text-amber-800">Base de données vide. Initialisez les données de démonstration.</p>
@@ -295,6 +450,35 @@ export function LoginScreen() {
             <div className="absolute inset-0 z-10 flex flex-col items-center justify-start pt-2">
               <div className="flex justify-center py-12">
                 <Loader2 className="h-7 w-7 animate-spin text-primary" />
+              </div>
+            </div>
+          ) : loadError ? (
+            /* L-103 (R9.5) — the refusal, on the screen.
+             *
+             * « Aucun utilisateur actif » is the wrong sentence when the truth
+             * is « the server refused to tell us », and it was the one the
+             * operator got: the `catch {}` swallowed the 429 and the empty
+             * picker below rendered instead. Two different problems that looked
+             * identical, one of which clears itself in a minute.
+             *
+             * The manual retry is here as well as the scheduled one, because a
+             * cashier standing at a till that will not open should not have to
+             * wait for a timer they cannot see. */
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-start pt-2">
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-center">
+                <p className="text-sm text-amber-800">{loadError}</p>
+                <Button
+                  onClick={() => {
+                    setLoadError(null);
+                    setLoadingProfiles(true);
+                    setReloadKey((k) => k + 1);
+                  }}
+                  variant="outline"
+                  className="mt-4 gap-2"
+                >
+                  <Loader2 className="h-4 w-4" />
+                  Réessayer
+                </Button>
               </div>
             </div>
           ) : managerProfiles.length === 0 ? (
@@ -357,10 +541,25 @@ export function LoginScreen() {
                               return <ProfileIcon className="h-9 w-9" strokeWidth={2.2} />;
                             })()}
                           </span>
+                          {/* L-147 (R9.5) — THE NAME, not just the role.
+                            *
+                            * This rendered `ROLE_STYLE[profile.role].label`, so
+                            * DD-07 (two roles only) meant a second member of
+                            * staff produced **two identical « Gérant » cards
+                            * with no way to tell them apart** — seen with two
+                            * active MANAGERs. `GET /api/auth/profiles` has
+                            * always returned `name`.
+                            *
+                            * The role becomes the subtitle, so nothing is lost:
+                            * the card still says what the account can do, and
+                            * now also says whose it is. Falls back to the role
+                            * label for an account with no name recorded. */}
                           <span className="relative mt-3 min-w-0">
-                            <span className="block truncate text-lg font-bold text-[var(--heading-login)]">{style.label}</span>
+                            <span className="block truncate text-lg font-bold text-[var(--heading-login)]">
+                              {profileCardText(profile, style).title}
+                            </span>
                             <span className="mt-1 block truncate text-xs text-[var(--text-login-muted)]">
-                              {style.description}
+                              {profileCardText(profile, style).subtitle}
                             </span>
                           </span>
                           <span className="relative mt-auto flex h-11 w-full items-center justify-center gap-4 rounded-full bg-[#ff8316] text-sm font-bold text-white shadow-[0_8px_18px_rgba(242,125,11,0.2)]">

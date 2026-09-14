@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { withAuthParams, parseJson } from "@/lib/api-handler";
-import { hashPin, revokeAllUserSessions } from "@/lib/auth";
+import { hashPin, isPublishedDefaultPin, revokeAllUserSessions } from "@/lib/auth";
 import { z } from "zod";
 import { audit } from "@/lib/services/audit";
-import { refuseUserSelfEdit } from "@/lib/services/account-policy";
+import { PUBLISHED_PIN_REFUSAL, refuseUserSelfEdit } from "@/lib/services/account-policy";
 
 const updateSchema = z.object({
   name: z.string().min(1).max(80).optional(),
@@ -22,6 +22,14 @@ export const PUT = withAuthParams(async (req, { user, params }) => {
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalide" }, { status: 400 });
   }
+  // L-118 (R9.5) — refused BEFORE the self-edit rule, because « that code is
+  // published » is true whoever is asking and whoever the target is. Checked
+  // here as well as on create: a rotation is exactly when 2026-09-04's mistake
+  // was made.
+  if (parsed.data.pin && isPublishedDefaultPin(parsed.data.pin)) {
+    return NextResponse.json({ error: PUBLISHED_PIN_REFUSAL }, { status: 400 });
+  }
+
   // M-23 (Batch 4.3) — a caller may not rewrite their own credentials.
   // Rule and rationale in `account-policy.ts`; kept out of the handler so it
   // can be tested without standing up a request.

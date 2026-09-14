@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { withAuth, parseJson } from "@/lib/api-handler";
 import { userSchema } from "@/lib/validation";
-import { hashPin } from "@/lib/auth";
+import { hashPin, isPublishedDefaultPin } from "@/lib/auth";
+import { PUBLISHED_PIN_REFUSAL } from "@/lib/services/account-policy";
 import { audit } from "@/lib/services/audit";
 
 export const GET = withAuth(
@@ -34,6 +35,9 @@ export const POST = withAuth(async (req, { user }) => {
   const parsed = userSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalide" }, { status: 400 });
+  }
+  if (isPublishedDefaultPin(parsed.data.pin)) {
+    return NextResponse.json({ error: PUBLISHED_PIN_REFUSAL }, { status: 400 });
   }
   const existing = await db.user.findUnique({ where: { username: parsed.data.username.toLowerCase() } });
   if (existing) {

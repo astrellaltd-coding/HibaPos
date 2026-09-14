@@ -120,8 +120,33 @@ async function login(req: NextRequest) {
     );
   }
 
+  // L-102 (R9.5) — AN EXPIRED LOCK IS CLEARED HERE, AS IT IS ON `unlock`.
+  //
+  // THE FINDING: two unauthenticated login paths with different lockout
+  // arithmetic. `auth/unlock` resets `failedAttempts: 0, lockedUntil: null`
+  // once the lock has expired; this route never did. So after five failures
+  // `newFailed` went 6, 7, 8… and **every subsequent wrong PIN re-locked for a
+  // further 15 minutes, indefinitely.** An operator who fat-fingered five times
+  // could not recover through the login screen AT ALL, while the lock screen
+  // would have cleared it — and there are two accounts and a restaurant in
+  // service.
+  //
+  // The counter is what makes it permanent, not the timestamp: it is never
+  // reset on this path, so the `>= MAX_FAILED_ATTEMPTS` test is true for ever
+  // after. Clearing both is what `unlock` does and what makes the two paths
+  // one rule.
+  const now = new Date();
+  if (user.lockedUntil && user.lockedUntil <= now && user.failedAttempts > 0) {
+    await db.user.update({
+      where: { id: user.id },
+      data: { failedAttempts: 0, lockedUntil: null },
+    });
+    user.failedAttempts = 0;
+    user.lockedUntil = null;
+  }
+
   // Check if account is locked
-  if (user.lockedUntil && user.lockedUntil > new Date()) {
+  if (user.lockedUntil && user.lockedUntil > now) {
     return NextResponse.json(
       { error: "Compte verrouillé. Réessayez plus tard.", lockedUntil: user.lockedUntil.toISOString() },
       { status: 423 }
@@ -138,9 +163,15 @@ async function login(req: NextRequest) {
   const pinResult = await verifyPinDetail(pin, user.pinHash);
   if (!pinResult.valid) {
     const newFailed = user.failedAttempts + 1;
+    // L-102: `: null`, not `: user.lockedUntil`. Carrying the old timestamp
+    // forward is the other half of the permanent re-lock — an expired lock that
+    // is copied onto every subsequent failure never goes away on its own. The
+    // reset above means `user.lockedUntil` is null here in the recoverable
+    // case, so this is belt and braces rather than a change of rule; `unlock`
+    // has always written `null`.
     const lockedUntil = newFailed >= MAX_FAILED_ATTEMPTS
       ? new Date(Date.now() + LOCKOUT_MINUTES * 60 * 1000)
-      : user.lockedUntil;
+      : null;
 
     await db.user.update({
       where: { id: user.id },
