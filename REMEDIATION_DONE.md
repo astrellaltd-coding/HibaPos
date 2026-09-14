@@ -4257,7 +4257,7 @@ which is the design the file's own comment describes and which I had misread.
 ---
 
 ### L-184 — a route that declared one rule and enforced another
-**Done:** 2026-09-14 · **Commit:** `SHA` · **Finding:** L-184 (Low). **No plan row**; the
+**Done:** 2026-09-14 · **Commit:** `6ec2ae5` · **Finding:** L-184 (Low). **No plan row**; the
 operator decided it the same day.
 
 **`POST /api/tables/seed` said two different things about who may call it.** The wrapper
