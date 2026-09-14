@@ -3932,7 +3932,7 @@ saying what to do.
 ---
 
 ### R10.2 — the index names every script, and a check that cannot run is a failure
-**Done:** 2026-09-14 · **Commits:** `00da78d` (four findings) · `SHA` (the two operator files)
+**Done:** 2026-09-14 · **Commits:** `00da78d` (four findings) · `6c5a81a` (the two operator files)
 · **Findings:** L-146 · L-165 · L-166 · L-167 · L-168 · L-169. **Opened L-191.**
 
 **This was the last row in § 6 that was a session's to do.** What remains there is R6.1 … R6.5
