@@ -3527,7 +3527,7 @@ positive is as useless as a missed one.
 ---
 
 ### R9.7 — the guards that were not guarding
-**Done:** 2026-09-14 · **Commit:** `SHA` · **Findings:** L-121 · L-122 · L-123 · L-125 ·
+**Done:** 2026-09-14 · **Commit:** `38b1ffe` · **Findings:** L-121 · L-122 · L-123 · L-125 ·
 L-126 · L-154 · L-155 · L-156 · L-157 · L-158 · L-159
 
 **Eleven findings, the largest batch of the audit**, and the three High ones are the same
