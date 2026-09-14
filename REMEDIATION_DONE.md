@@ -4045,7 +4045,7 @@ running the revert rather than by reading the test.
 ---
 
 ### L-191 — the other seed path, and the PIN it was still installing
-**Done:** 2026-09-14 · **Commit:** `SHA` · **Finding:** L-191 (Medium). **Opened L-192.**
+**Done:** 2026-09-14 · **Commit:** `7146981` · **Finding:** L-191 (Medium). **Opened L-192.**
 **No plan row** — § 6 has nothing left that is a session's, and § 7 is closed to new rows, so
 this was done as its own item on the operator's word.
 
