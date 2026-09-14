@@ -4498,7 +4498,7 @@ which the operator also reopened, follow as their own items.
 ---
 
 ### L-174 — the PIN hash says what made it
-**Done:** 2026-09-14 · **Commit:** `SHA` · **Finding:** L-174 (Group D, reopened by the operator
+**Done:** 2026-09-14 · **Commit:** `6c9b2e3` · **Finding:** L-174 (Group D, reopened by the operator
 the same day). **No plan row.**
 
 **A stored hash was `salt:hash` and nothing else, so nothing could tell a legacy `N=2^14` hash
