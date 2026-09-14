@@ -3725,7 +3725,7 @@ guard written the short way would refuse a zero-rated line as unrecorded.
 ---
 
 ### R9.9 — the catalogue transfer checks its own stamp
-**Done:** 2026-09-14 · **Commit:** `SHA` · **Finding:** L-109
+**Done:** 2026-09-14 · **Commit:** `44b8d10` · **Finding:** L-109
 
 **The export has always stamped the migration it was taken under, and the import never
 compared it.** An OLDER export into a NEWER install succeeded and left the new columns at
