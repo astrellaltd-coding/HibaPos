@@ -18,6 +18,27 @@ import { z } from "zod";
 // and **24 API routes hand `parsed.error.issues[0]?.message` straight to the
 // client**, which is why L-22 existed at all.
 
+
+/**
+ * Source with its comment bodies blanked — line comments and block comments.
+ *
+ * A fix whose comment explains what it replaced is indistinguishable, to a
+ * substring search, from the code it replaced: an assertion that the old shape
+ * is gone matches the sentence saying it is gone. Five separate assertions in
+ * this session have had that bug.
+ *
+ * Blanked rather than removed, so offsets — and therefore any line number in a
+ * failure message — still line up with the real file.
+ */
+function withoutComments(src: string): string {
+  const BLOCK = new RegExp("/\\*[\\s\\S]*?\\*/", "g");
+  return src
+    .replace(BLOCK, (m) => " ".repeat(m.length))
+    .split("\n")
+    .map((l) => (/^\s*(\/\/|\*)/.test(l) ? " ".repeat(l.length) : l))
+    .join("\n");
+}
+
 describe("L-150 — the French is French, not TypeScript with accents", () => {
   it("replaces the type names zod uses", () => {
     // The four the audit measured on four deliberately malformed checkouts.
@@ -178,5 +199,50 @@ describe("L-133 — the step-up PIN can be entered on a touch-only till", () => 
     const typed = (keypad.match(/type="button"/g) ?? []).length;
     expect(buttons, "no keypad buttons found").toBeGreaterThan(3);
     expect(typed, "a keypad key could submit the dialog").toBe(buttons);
+  });
+});
+
+describe("L-132 — a Z is not sealed over a count nobody made", () => {
+  const src = readFileSync(
+    path.join(process.cwd(), "src/features/shifts/shifts-view.tsx"),
+    "utf8",
+  );
+
+  it("opens the cash field EMPTY", () => {
+    // It was seeded with `(expectedCash / 100).toFixed(2)` — what the software
+    // already believes is in the drawer — so the default action sealed « Écart
+    // nul » and recorded a count that may never have been made. On the screen
+    // `z-close.ts`'s own header says exists for « catching missing cash ».
+    //
+    // THE OPERATOR SETTLED IT on 2026-09-14: start empty, seal disabled until
+    // something is entered. They chose the version that costs them an action at
+    // every close.
+    // COMMENTS STRIPPED. The fix's own comment says « this was
+    // `useState((expectedCash / 100).toFixed(2))` », so scanning the raw text
+    // matches the sentence describing the thing whose absence is asserted —
+    // the fifth time this session that an assertion has read the prose about
+    // the code instead of the code.
+    const code = withoutComments(src);
+    expect(code.length, "everything was stripped").toBeGreaterThan(1000);
+    expect(code, "the field is pre-filled again").not.toContain(
+      "useState((expectedCash / 100).toFixed(2))",
+    );
+    expect(code).toContain('const [countedStr, setCountedStr] = useState("")');
+  });
+
+  it("keeps the seal disabled until a figure is entered", () => {
+    expect(src).toContain("disabled={loading || !hasCount}");
+  });
+
+  it("distinguishes « not counted » from « counted zero »", () => {
+    // 0 is a legitimate count — an empty drawer — so « nothing typed » cannot
+    // be inferred from the number, and `counted` falls back to 0 for an
+    // unparseable value. `hasCount` reads the STRING.
+    expect(src).toContain("countedStr.trim().length > 0");
+  });
+
+  it("shows no écart before anything is counted", () => {
+    // « 0,00 € — Écart nul » on an empty field is the claim this is about.
+    expect(src).toContain("{hasCount ? (");
   });
 });

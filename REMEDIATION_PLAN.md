@@ -11,7 +11,7 @@ Completed work lives in **`REMEDIATION_DONE.md`**. This file only ever shows out
 **Overall:** NOT READY FOR PRODUCTION, and **not trading** — the fiscal journal is empty and
 every trading table is at zero.
 
-> ### ▶ CURRENT TASK — **R10.1**, and Phase 9 is down to one operator question
+> ### ▶ CURRENT TASK — **R10.1**, and **PHASE 9 IS COMPLETE**
 >
 > **§ 6 opens with the execution order. Follow that, not the order the tables print in.**
 >
@@ -48,10 +48,16 @@ every trading table is at zero.
 > itself. **L-185 closed with it**: the four CRLF files were re-checked out. **R9.9 is done**
 > (2026-09-14): the catalogue import refuses a file exported under an older schema instead of
 > filling the new columns with defaults — the mechanism that carries this catalogue to France.
-> **R9.10 is five-sixths done** (2026-09-14): the three touch targets under 44 px are fixed and
-> the guard that could not see them is widened, the step-up PIN has a keypad, the topbar's
-> stopwatch measures the caisse instead of nothing, and zod stops printing TypeScript at the
-> operator. **L-132 is the one question left** — see its row in § 6.
+> **R9.10 is done** (2026-09-14) and **PHASE 9 IS COMPLETE** — all eight batches, and every
+> group-B finding the audit raised. The three touch targets under 44 px are fixed and the guard
+> that could not see them is widened, the step-up PIN has a keypad, the topbar's stopwatch
+> measures the caisse instead of nothing, and zod stops printing TypeScript at the operator.
+> **L-132 was settled by the operator on 2026-09-14**: the Z-close cash field starts empty and
+> the seal waits for a figure.
+>
+> **`docs/INVARIANTS.md` gained two paragraphs** on the operator's instruction the same day —
+> L-134's pricing rule and L-129's null-`vatRate` rule. Both had been drafted and held since
+> R8.5 and R9.8, because that file is theirs.
 >
 > **Two things are waiting, and neither is a batch.**
 >
@@ -80,7 +86,7 @@ applied. What each did, how it was verified and what it cost is in `REMEDIATION_
 - **Phase 6** — the fiscal go-live, five `OPERATOR` rows. **R8.1 unblocked R6.3** (2026-09-13,
   `622411c`) and **R9.1 unblocked R6.4** (2026-09-13). Row-by-row status below.
 - **Phase 8** — money and the fiscal record. **COMPLETE 2026-09-13**, all seven batches.
-- **Phase 9** — fix before the app is called complete. **seven done**; R9.10 waits on one answer.
+- **Phase 9** — fix before the app is called complete. **COMPLETE 2026-09-14**, all eight batches.
 - **Phase 10** — the leftovers no other batch owns. Three rows (group C).
 
 **Phases 8-10 come from the audit.** Six read-only passes and a seventh that consolidated
@@ -386,7 +392,6 @@ their own riding along. Order inside the phase is not fixed except where a row s
 
 | ID | Status | Task |
 |---|---|---|
-| **R9.10** | `OPERATOR` | **One question left, and it is a behaviour change.** L-131 · L-133 · L-148 · L-149 · L-150 are done (2026-09-14). **L-132** — the Z-close cash-count field is pre-filled with the expected amount, so the default action seals « Écart nul » and records a count that may never have been made. Starting it empty is trivial; whether the operator wants that is theirs. |
 
 ### Phase 10 — The batches that own the leftovers
 

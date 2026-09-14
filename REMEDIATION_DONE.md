@@ -3853,11 +3853,15 @@ the dialog check scopes to `DialogContent` — because a rule forbidding a compo
 comment is not a rule anybody will keep. That is the fourth time this session.
 
 **Left behind.**
-- **L-132 is open and is the only thing between here and Phase 9 being complete.** The Z-close
-  cash-count field is pre-filled with the expected amount, so the default action seals « Écart
-  nul » and records a count that may never have been made — on the screen `z-close.ts`'s own
-  header says exists for « catching missing cash ». Starting it empty and disabling the seal
-  until something is entered is trivial; **whether the operator wants that is theirs.**
+- **L-132 was answered the same day, and PHASE 9 IS COMPLETE.** The operator chose « start
+  empty, seal disabled until typed » — the version that costs them one action at every close,
+  including the ones where nothing is wrong. The field opens blank, the écart reads « — »
+  until a figure is entered, and « Générer le rapport Z » stays disabled until then. `hasCount`
+  reads the STRING rather than the number, because **0 is a legitimate count** — an empty
+  drawer — and « nothing typed » cannot be inferred from a zero.
+- **`docs/INVARIANTS.md` gained two paragraphs**, on the operator's instruction: L-134's
+  pricing rule (held since R8.5) and L-129's null-`vatRate` rule (held since R9.8). That file
+  is theirs; both texts were drafted in their done entries and waited.
 - **Ten undersized controls remain, listed and guarded.** Not hidden behind a rule, and the
   list can only shrink.
 - **The plan is at 38 555 bytes** against the 40 960 ceiling.

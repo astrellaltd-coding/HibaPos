@@ -623,8 +623,26 @@ function CloseShiftForm({
   onSubmit: (v: { closingFloat: number; notes?: string }) => void;
   onCancel: () => void;
 }) {
-  const [countedStr, setCountedStr] = useState((expectedCash / 100).toFixed(2));
+  // L-132 (R9.10) — EMPTY, not pre-filled with what we already believe.
+  //
+  // This was `useState((expectedCash / 100).toFixed(2))`, so the default action
+  // sealed « Écart nul » and recorded a count that may never have been made —
+  // on the screen `z-close.ts`'s own header says exists for « catching missing
+  // cash ». Pressing straight through produced a perfect Z.
+  //
+  // **The operator settled it on 2026-09-14**: start empty, and keep the seal
+  // disabled until something is entered. They chose the version that costs them
+  // one action at every close, including the ones where nothing is wrong.
+  const [countedStr, setCountedStr] = useState("");
   const [notes, setNotes] = useState("");
+
+  // Has a figure been entered at all? `counted` falls back to 0 for an
+  // unparseable value, and 0 is a legitimate count — an empty drawer — so
+  // « nothing typed » cannot be inferred from the number.
+  const hasCount = useMemo(() => {
+    const n = parseFloat(countedStr.replace(",", "."));
+    return countedStr.trim().length > 0 && Number.isFinite(n) && n >= 0;
+  }, [countedStr]);
 
   const counted = useMemo(() => {
     const n = parseFloat(countedStr.replace(",", "."));
@@ -659,8 +677,10 @@ function CloseShiftForm({
             min={0}
             step="0.01"
             inputMode="decimal"
+            placeholder="Comptez, puis saisissez le total"
             value={countedStr}
             onChange={(e) => setCountedStr(e.target.value)}
+            autoFocus
           />
         </div>
 
@@ -675,10 +695,17 @@ function CloseShiftForm({
           </div>
           <div className="mt-1 flex items-center justify-between">
             <span className="text-muted-foreground">Écart calculé</span>
-            <span className={cn("font-semibold tnum tabular-nums", v.cls)}>
-              {formatVariance(varianceCents)}{" "}
-              <span className="ml-1 text-xs font-normal">({v.label})</span>
-            </span>
+            {/* L-132: an écart of « 0,00 € » before anything is counted is the
+              * claim this finding is about. Until a figure is entered there is
+              * no écart to state. */}
+            {hasCount ? (
+              <span className={cn("font-semibold tnum tabular-nums", v.cls)}>
+                {formatVariance(varianceCents)}{" "}
+                <span className="ml-1 text-xs font-normal">({v.label})</span>
+              </span>
+            ) : (
+              <span className="text-muted-foreground">—</span>
+            )}
           </div>
         </div>
 
@@ -701,7 +728,9 @@ function CloseShiftForm({
         <Button
           variant="destructive"
           onClick={() => onSubmit({ closingFloat: countedCents, notes: notes.trim() || undefined })}
-          disabled={loading}
+          // L-132 (R9.10): a Z cannot be sealed over a count nobody made.
+          disabled={loading || !hasCount}
+          title={hasCount ? undefined : "Saisissez les espèces comptées pour clôturer."}
         >
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <LockKeyhole className="h-4 w-4" />}
           Générer le rapport Z et clôturer

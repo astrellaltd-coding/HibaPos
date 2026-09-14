@@ -40,6 +40,13 @@ something going wrong.
   Never round per-line independently — that is how an order's VAT stops matching its total.
 - **`OrderItem.vatRate` is a snapshot** taken at sale time from `resolveVatRate(product,
   orderType)`. A later catalogue edit must never restate a sale already made.
+- **A null `OrderItem.vatRate` means the rate was never recorded, and nothing may supply
+  one.** The aggregation refuses such a line — a VAT breakdown is sealed into the Z report and
+  every close, and a sealed figure may not be guessed. The receipt still prints it, under
+  « Taux non enregistré », because printing must never lose a sale. 10 % is the restauration
+  rate and a drink à emporter is 5,5 %, so no default is conservative in either direction.
+  Same rule, and same reason, as `lineNetTotal`, `lineHt`, `perpetualSalesTotal` and
+  `referencePrice`. *(R9.8 / L-129, operator 2026-09-14.)*
 - **A thing is counted under its IDENTITY, never under its label** (R2.1/R2.2). Products by
   `productId`, menus by `comboProductId`; the name is the fallback only when the identity is
   gone. Names are not unique — three live pairs share one.
@@ -49,6 +56,12 @@ something going wrong.
   backfill it, never default it to 0.
 - **`topMenus` is in the sealed close payload and NOT in `CLOTURE_Z`** — both halves are
   operator decisions, both pinned, both freeze at the first real close.
+- **A size supplies the price sur place and à emporter alike.** The two order types differ in
+  VAT, not in price: a size's `pickupPrice` and `deliveryPrice` are the same figure as its
+  `price` unless the operator has deliberately set one, and a supplement is not re-priced by
+  where the customer eats. Measured across all 84 products on 2026-09-13: sur place and à
+  emporter agree on every one; only livraison differs, on 43. *(R8.5 / L-134, operator
+  2026-09-13.)*
 - **The client's `vatRate` is ignored.** `orders/route.ts` is the only place that decides what
   is booked. A tampered basket cannot choose its own tax.
 - **Nothing may claim fiscal compliance.** Not this file, not `REMEDIATION_PLAN.md`, not a

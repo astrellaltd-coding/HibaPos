@@ -293,7 +293,15 @@ describe("plan freshness — the plan and the done file may not disagree", () =>
     //   operator's**, exactly as `R6.x` rows are. A row that is waiting on them
     //   has never been struck off here.
     //   FINDINGS STAY AT 8. R9.10 opened none.
-    expect(taskStatuses(src).size).toBe(9);
+    //   2026-09-14, R9.10 DONE and **PHASE 9 COMPLETE**: tasks 9 → 8. The whole
+    //   Phase 9 section left § 6, the way Phases 7 and 8 did, so this is one
+    //   row AND one section heading rather than a row alone. **L-132 was the
+    //   operator's and they answered it** — the Z-close cash field starts empty
+    //   and the seal waits for a figure.
+    //   What remains is Phase 6's five OPERATOR rows, Phase 10's three, and
+    //   nothing else.
+    //   FINDINGS STAY AT 8 for the last time in Phase 9.
+    expect(taskStatuses(src).size).toBe(8);
     expect(openFindings(src).size).toBe(8);
     expect(done()).toContain("# HibaPOS France — Completed Work");
   });
