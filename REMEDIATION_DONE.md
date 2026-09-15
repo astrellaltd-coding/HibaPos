@@ -4912,7 +4912,7 @@ harness that can hang is worse than none: it leaves the tree in a state nobody i
 ---
 
 ### L-84 · L-11 — a display rule becomes a guard, and one rule stops having two spellings
-**Done:** 2026-09-15 · **Commit:** `SHA` · **Findings:** L-84 · L-11, both from the plan's § 7
+**Done:** 2026-09-15 · **Commit:** `ea159ad` · **Findings:** L-84 · L-11, both from the plan's § 7
 and both **decisions the operator took on 2026-09-15** rather than defects anybody could fix
 unasked. § 7 goes from 8 open findings to 6.
 
