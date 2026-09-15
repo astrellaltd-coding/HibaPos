@@ -314,8 +314,13 @@ describe("plan freshness — the plan and the done file may not disagree", () =>
     //   `docs/audit/FINDINGS.md` like every audit-sequence id — § 7 is closed to
     //   new rows until the operator reopens it, and 6 tasks left is not the same
     //   as no work left.
+    //   2026-09-15: FINDINGS 8 → 6. **L-84 and L-11 were CLOSED, not moved** —
+    //   the operator reopened both on 2026-09-15 and each was a decision rather
+    //   than a defect: `showOnPos` becomes a guard at the API, and the payment
+    //   dialog states its rule once instead of twice. Tasks stay at 6, all
+    //   `OPERATOR`; no batch was added and none was finished.
     expect(taskStatuses(src).size).toBe(6);
-    expect(openFindings(src).size).toBe(8);
+    expect(openFindings(src).size).toBe(6);
     expect(done()).toContain("# HibaPOS France — Completed Work");
   });
 

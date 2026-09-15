@@ -143,6 +143,48 @@ describe("a menu sends its composition — the defect this file was written for"
 });
 
 describe("the dialog uses this and does not keep its own copy", () => {
+  it("L-11 — states the payment rule ONCE, and exactly", () => {
+    // THE FINDING: `finalize` read `paid < total - 1` (« within 1 cent ») while
+    // the Valider button read `paid < total - 0.01`. Both operate on INTEGER
+    // cents, so the second is exactly `paid < total` and the first allowed a
+    // one-cent shortfall. **One rule, two spellings, in one file** — the shape
+    // L-143 was, where two routes wrote one column two ways and the wrong
+    // meaning was the one production would hit.
+    //
+    // Nothing reachable ever differed: the button is the only way into
+    // `finalize`, and it was the stricter of the two. That is what made this
+    // survivable and also what made it invisible.
+    //
+    // The operator chose exact, 2026-09-15. Asserted as SOURCE because the
+    // property is « the two agree », which no single run can observe — a test
+    // that pays exactly cannot tell you what the other spelling would have
+    // allowed.
+    // COMMENTS STRIPPED FIRST. The note above quotes BOTH old spellings, and
+    // so does the one in `payment-dialog.tsx` explaining what changed — so the
+    // raw file matched seven times instead of two, and the assertion was
+    // measuring its own prose. Fifth instance of that in this project; it is
+    // caught every time by the count being absurd rather than by reading.
+    const raw = readFileSync(
+      path.join(process.cwd(), "src/components/pos/payment-dialog.tsx"),
+      "utf8",
+    );
+    const src = raw
+      .replace(/\/\*[\s\S]*?\*\//g, " ")
+      .split("\n")
+      .filter((l) => !/^\s*(\/\/|\*)/.test(l))
+      .join("\n");
+    const tolerances = [...src.matchAll(/paid\s*<\s*total([^)\s|]*)/g)].map((m) => m[1].trim());
+    expect(tolerances.length, "the payment comparison vanished — find where it went").toBe(2);
+    expect(
+      tolerances,
+      `the guard and the button disagree about what « paid » means: ${JSON.stringify(tolerances)}`,
+    ).toEqual(["", ""]);
+    // …and neither is a subtraction, which is how the two drifted apart.
+    expect(src, "a tolerance is back in the payment comparison").not.toMatch(
+      /paid\s*<\s*total\s*-/,
+    );
+  });
+
   it("payment-dialog.tsx calls buildCheckoutItems and maps no items array itself", () => {
     // The guard that makes the extraction stick. Re-inlining the mapping would
     // reopen exactly the gap this file was written for: a client that a test

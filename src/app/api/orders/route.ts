@@ -296,7 +296,35 @@ export const POST = withAuth(async (req, { user }) => {
         ...COMBO_MENU_INCLUDE,
       },
     });
-    if (!product || !product.active || !product.available) {
+    // L-84 — `showOnPos` IS A GUARD HERE, not only a display rule.
+    //
+    // THE FINDING: this checked `active` and `available` only, so a request
+    // naming a hidden product DIRECTLY was still booked. « Cannot be sold
+    // alone » was true of the interface and not of the API.
+    //
+    // Not a fraud vector — the till is the only client and it prices from the
+    // real catalogue — but the three hidden components R3.3 created exist
+    // precisely so a menu's food half is never sold on its own, and that
+    // promise was one HTTP request from being false.
+    //
+    // **MENUS ARE UNAFFECTED, and that is the thing to get right.** This guards
+    // the TOP-LEVEL product the cart names. A menu composé is looked up here as
+    // the MENU — which is `showOnPos = true` — and explodes into its components
+    // below from `product.comboSlots`, not through a second pass of this check.
+    // `orders-route.test.ts` rings a box menu end to end to keep that true.
+    //
+    // The message is deliberately IDENTICAL to the not-found one: a distinct
+    // refusal would confirm to a caller that a hidden product exists.
+    //
+    // `=== false`, NOT `!product.showOnPos`, and the two differ the day the
+    // column becomes nullable: `!x` would then read a null as HIDDEN and refuse
+    // every product, while `=== false` reads it as visible. `pos-grid.ts:37`
+    // spells the same rule `showOnPos !== false` for the same reason, and two
+    // readers of one column disagreeing about null is exactly L-129 and L-177.
+    // Today the column is `Boolean @default(true)` and NOT NULL — measured on
+    // the live catalogue: 3 hidden, 81 visible, no nulls — so this is about the
+    // edit that comes later, not about today.
+    if (!product || !product.active || !product.available || product.showOnPos === false) {
       return NextResponse.json(
         { error: `Produit introuvable ou indisponible : ${itemIntent.productId}` },
         { status: 400 }

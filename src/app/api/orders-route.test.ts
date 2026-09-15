@@ -115,6 +115,133 @@ async function post(body: unknown) {
 // real coverage, which this batch's criterion forbids and safety rule 2
 // prohibits. Re-pointed, they assert the same intentions about the object that
 // actually runs.
+describe("L-84 — a product hidden from the till cannot be ordered by naming it", () => {
+  // THE FINDING: the route checked `active` and `available` and NOT
+  // `showOnPos`, so a request naming a hidden product directly was booked.
+  // « Cannot be sold alone » was true of the INTERFACE and not of the API.
+  //
+  // Not a fraud vector — the till is the only client and it prices from the
+  // real catalogue — but R3.3 created three hidden components precisely so a
+  // menu's food half is never sold on its own, and that promise was one HTTP
+  // request from being false.
+
+  /** A product the grid does not show — R3.3's shape. */
+  async function hiddenProduct() {
+    const cat = await db.category.findFirstOrThrow();
+    return db.product.create({
+      data: {
+        name: "Box 15 (sans boisson)",
+        price: 900,
+        vatRate: 10,
+        categoryId: cat.id,
+        active: true,
+        available: true,
+        showOnPos: false,
+      },
+    });
+  }
+
+  it("REFUSES it, where it used to book it", async () => {
+    const hidden = await hiddenProduct();
+    const res = await post({
+      orderType: "TAKEAWAY",
+      items: [{ productId: hidden.id, quantity: 1, optionIds: [], addons: [] }],
+      payments: [{ method: "CASH", amount: 900 }],
+    });
+    expect(res.status).toBe(400);
+    expect(await db.order.count(), "a hidden product was booked").toBe(0);
+  });
+
+  it("says nothing that confirms the product exists", async () => {
+    // A distinct refusal — « ce produit est masqué » — would tell a caller that
+    // the id they guessed is real. The message is the same one an unknown id
+    // gets, deliberately.
+    const hidden = await hiddenProduct();
+    const refusedHidden = await post({
+      orderType: "TAKEAWAY",
+      items: [{ productId: hidden.id, quantity: 1, optionIds: [], addons: [] }],
+      payments: [{ method: "CASH", amount: 900 }],
+    });
+    const refusedUnknown = await post({
+      orderType: "TAKEAWAY",
+      items: [{ productId: "does-not-exist", quantity: 1, optionIds: [], addons: [] }],
+      payments: [{ method: "CASH", amount: 900 }],
+    });
+    expect(refusedHidden.status).toBe(refusedUnknown.status);
+    // Same wording; only the echoed id differs, and the caller supplied that.
+    const strip = (m?: string) => (m ?? "").replace(/ : .*$/, "");
+    expect(strip(refusedHidden.body.error)).toBe(strip(refusedUnknown.body.error));
+  });
+
+  it("still sells an ORDINARY product — the control", async () => {
+    // Without this the refusal above is satisfied by a route that refuses
+    // everything, which is the vacuous shape this project has been bitten by.
+    const res = await post(order(0));
+    expect(res.status).toBe(201);
+    expect(await db.order.count()).toBe(1);
+  });
+
+  it("spells the rule the way the OTHER reader of showOnPos spells it", async () => {
+    // `pos-grid.ts:37` reads `showOnPos !== false`; this route reads
+    // `showOnPos === false`. Both treat a null as VISIBLE. The bare `!showOnPos`
+    // form treats it as HIDDEN — so the day the column becomes nullable, those
+    // two readers would disagree about every null row. That is L-129 and L-177
+    // exactly: one column, two readers, no stated meaning for null.
+    //
+    // The column is `Boolean @default(true)` and NOT NULL today (measured on
+    // the live catalogue: 3 hidden, 81 visible, no nulls), so **no runtime test
+    // can distinguish the two spellings** — a revert swapping them produces no
+    // failure, correctly, and that is a fact about the change rather than a gap.
+    // What IS checkable is that the two readers agree, and that is the property
+    // worth keeping.
+    const { readFileSync } = await import("fs");
+    const path = (await import("path")).default;
+    const code = (rel: string) =>
+      readFileSync(path.join(process.cwd(), rel), "utf8")
+        .replace(/\/\*[\s\S]*?\*\//g, " ")
+        .split("\n")
+        .filter((l) => !/^\s*(\/\/|\*)/.test(l))
+        .join("\n");
+
+    for (const rel of ["src/app/api/orders/route.ts", "src/lib/pos-grid.ts"]) {
+      const src = code(rel);
+      expect(src, `${rel} stopped consulting showOnPos`).toMatch(/showOnPos/);
+      expect(
+        src,
+        `${rel} uses the bare "!showOnPos", which reads a null as HIDDEN while ` +
+          "the other reader reads it as visible",
+      ).not.toMatch(/!\s*\w+\.showOnPos\b/);
+    }
+  });
+
+  it("leaves MENUS alone — and names the test that proves it", async () => {
+    // **THE THING THIS CHANGE COULD HAVE BROKEN.** The guard is on the
+    // TOP-LEVEL product the cart names. A menu composé is looked up here as the
+    // MENU — `showOnPos = true` — and explodes into its components from
+    // `product.comboSlots`, not through a second pass of the check. So a menu
+    // whose components are hidden must still sell.
+    //
+    // **That is already proved, properly, somewhere else**:
+    // `hidden-product.test.ts` rings a box menu through this very route with a
+    // hidden component and checks its VAT rate, on the real R3.3 fixture. My
+    // first attempt here rebuilt that fixture by hand, got `ComboSlot`'s shape
+    // wrong, and would have been a worse copy of a better test.
+    //
+    // So this asserts the COVERAGE still exists rather than duplicating it: if
+    // someone deletes that test, this says where the safety net went.
+    const { readFileSync } = await import("fs");
+    const path = (await import("path")).default;
+    const src = readFileSync(
+      path.join(process.cwd(), "src/lib/services/hidden-product.test.ts"),
+      "utf8",
+    );
+    expect(src, "the menu-through-the-real-route test is gone").toContain(
+      "sells inside a menu, through the real checkout",
+    );
+    expect(src, "it no longer drives THIS route").toContain('import("@/app/api/orders/route")');
+  });
+});
+
 describe("T-08 — the checkout input rules, against the schema the route runs", () => {
   it("accepts a valid DINE_IN order", async () => {
     const { status } = await post({

@@ -253,21 +253,27 @@ describe("R3.2 — a hidden product is still a menu component", () => {
     expect(food.referencePrice).toBe(1200);
   });
 
-  it("is still ACCEPTED by the server as an ordinary line — a display rule, not a guard", async () => {
-    // MEASURED, and pinned as the deliberate limit of R3.1 rather than left
-    // unstated. `showOnPos` filters ONE grid; `orders/route.ts` still checks
-    // only `active` and `available`, so a request that names the hidden product
-    // directly is booked.
+  it("is REFUSED by the server too, since L-84 was closed", async () => {
+    // ── THIS TEST PINNED THE OPPOSITE UNTIL 2026-09-15 ──────────────────────
+    // It read « is still ACCEPTED by the server as an ordinary line — a display
+    // rule, not a guard », and it was right: `showOnPos` filtered ONE grid
+    // while `orders/route.ts` checked only `active` and `available`, so a
+    // request naming the hidden product directly was booked. R3.1 deliberately
+    // stopped short of a server refusal — a business-behaviour change beyond
+    // that item — and recorded it as **L-84** for the operator to decide.
     //
-    // NOT changed here. The plan's R3.1 is « filter the POS grid, extend the
-    // DTO, add the switch » — a server refusal is a business-behaviour change
-    // beyond the item, and safety rule 6 says ask rather than guess. It is also
-    // not a fraud vector: the till is the only client, the grid is the only way
-    // in, and the price booked would be the component's real catalogue price.
-    // Recorded as **L-84** so the operator decides whether to close it.
+    // It also said: « The day someone does close it, this test is the one that
+    // has to change, and changing it will be a decision rather than an
+    // accident. » **The operator closed it on 2026-09-15.** So the expectation
+    // moves and the subject does not — the test still asks what the server does
+    // with a direct order for a hidden product, which is the only question it
+    // was ever about.
     //
-    // The day someone does close it, this test is the one that has to change,
-    // and changing it will be a decision rather than an accident.
+    // Never a fraud vector: the till is the only client, the grid the only way
+    // in, and the price booked was the component's real catalogue price. What
+    // was wrong is that « cannot be sold alone » was true of the interface and
+    // not of the API, while R3.3's three hidden components exist precisely to
+    // make that promise.
     const mod = await import("@/app/api/orders/route");
     const res = await callJson<{ error?: string }>(mod.POST, {
       method: "POST",
@@ -278,12 +284,13 @@ describe("R3.2 — a hidden product is still a menu component", () => {
         payments: [{ method: "CASH", amount: 1200 }],
       },
     });
-    expect(res.status, res.body.error).toBe(201);
-    // And what it booked is an ordinary, correct sale — not a broken one.
-    const line = await db.orderItem.findFirstOrThrow();
-    expect(line.productId).toBe(ids.boxFood);
-    expect(line.lineTotal).toBe(1200);
-    expect(line.comboGroupId).toBeNull();
+    expect(res.status, "a hidden product was still booked by naming it").toBe(400);
+    // Nothing written — the refusal is before the transaction, not a rollback.
+    expect(await db.orderItem.count(), "a refused order left a line behind").toBe(0);
+    expect(await db.order.count()).toBe(0);
+    // The message must not confirm the product exists: an unknown id gets the
+    // same one, which `orders-route.test.ts` asserts as a pair.
+    expect(res.body.error).toMatch(/introuvable ou indisponible/);
   });
 });
 

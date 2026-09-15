@@ -90,6 +90,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - L-171 — which item came back, and the answer that did not exist
 - L-196 — the recovery tool could not see the backups
 - L-190 · L-194 — the backup screen stops believing only the table
+- L-84 · L-11 — a display rule becomes a guard, and one rule stops having two spellings
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -4908,6 +4909,85 @@ harness that can hang is worse than none: it leaves the tree in a state nobody i
 - **L-194: the machine still has one volume and no sync client.** R6.5 needs hardware.
 - **L-190: the five orphaned files are still there.** The app can now show them; deleting them
   is the operator's.
+---
+
+### L-84 · L-11 — a display rule becomes a guard, and one rule stops having two spellings
+**Done:** 2026-09-15 · **Commit:** `SHA` · **Findings:** L-84 · L-11, both from the plan's § 7
+and both **decisions the operator took on 2026-09-15** rather than defects anybody could fix
+unasked. § 7 goes from 8 open findings to 6.
+
+## L-84 — « cannot be sold alone » was true of the screen and not of the API
+
+`orders/route.ts` checked `active` and `available` and **not `showOnPos`**, so a request naming
+a hidden product directly was booked. R3.1 stopped deliberately short of a server refusal — a
+business-behaviour change beyond that item — and recorded it for the operator.
+
+**Never a fraud vector**: the till is the only client, the grid the only way in, and the price
+booked was the component's real catalogue price. What was wrong is that R3.3 created three hidden
+components *precisely* so a menu's food half is never sold on its own, and that promise was one
+HTTP request from being false.
+
+**The refusal is word-for-word the not-found one.** A distinct message — « produit masqué » —
+would confirm to a caller that the id they guessed is real. `orders-route.test.ts` asserts the
+two refusals are identical as a pair, and a revert that distinguishes them turns it red.
+
+**MENUS WERE THE RISK AND THEY ARE UNTOUCHED.** The guard is on the TOP-LEVEL product the cart
+names; a menu composé is looked up as the MENU — `showOnPos = true` — and explodes into its
+components from `product.comboSlots`, never through a second pass of the check. `combo-builder.ts`
+says in its own comment that `showOnPos` is deliberately not consulted there.
+
+**A TEST THAT PINNED THE OPPOSITE WAS UPDATED, NOT DELETED.**
+`hidden-product.test.ts` carried « is still ACCEPTED by the server as an ordinary line — a
+display rule, not a guard », and it was correct when written. It also said: « The day someone
+does close it, this test is the one that has to change, and changing it will be a decision
+rather than an accident. » That day was today. The subject is unchanged — what does the server do
+with a direct order for a hidden product — and only the expectation moved, with the history kept
+in place.
+
+**I nearly duplicated a better test.** My first attempt hand-built a menu fixture to prove menus
+still work, got `ComboSlot`'s shape wrong, and would have been a worse copy of
+`hidden-product.test.ts`'s « sells inside a menu, through the real checkout », which rings a box
+menu through this very route on the real R3.3 fixture. The hand-built one is gone; what replaced
+it asserts that coverage still EXISTS, so deleting it says where the safety net went.
+
+**`=== false`, not `!showOnPos`** — and a revert swapping them proves nothing, correctly. The
+column is `Boolean @default(true)` and NOT NULL (measured live: 3 hidden, 81 visible, no nulls),
+so the two are indistinguishable at runtime. They differ the day it becomes nullable: `!x` reads
+a null as HIDDEN and would refuse every product, while `=== false` reads it as visible —
+matching `pos-grid.ts:37`'s `showOnPos !== false`, the only other reader. **One column, two
+readers, no stated meaning for null is L-129 and L-177 exactly**, so what is asserted is that the
+two readers AGREE; that assertion is falsifiable and the behavioural one is not.
+
+## L-11 — one rule, two spellings, in one file
+
+`finalize` read `paid < total - 1` (« within 1 cent ») while the Valider button read
+`paid < total - 0.01`. **Both operate on integer cents**, so the second is exactly `paid < total`
+and the first allowed a one-cent shortfall. The shape L-143 was: two writers of one rule
+disagreeing, with the wrong meaning the one production would meet.
+
+**Nothing reachable ever differed** — the button is the only way into `finalize` and it was the
+stricter of the two. That is what made it survivable, and what made it invisible.
+
+Both now read `paid < total`. **No behaviour changes**; the guard agrees with the gate. Asserted
+as SOURCE, because « the two agree » is not something a single run can observe: a test that pays
+exactly cannot tell you what the other spelling would have allowed.
+
+## How it was verified
+
+1 881 pass · 0 fail · 151 files · zero `prisma:error` blocks, typecheck and lint clean.
+
+**Five reverts**, one property at a time, each restored from a copy with its sha256 compared
+after — and the driver now asserts the mutation actually changed the file, after a v1 mutation
+silently missed its anchor and reported a spurious miss.
+
+**THE SELF-MATCH BIT FOR THE FIFTH TIME IN THIS PROJECT.** L-11's assertion counts the payment
+comparisons in `payment-dialog.tsx` and expects two. It found **seven**: the new comments — in
+the test AND in the dialog — quote both old spellings, and the raw file was being measured
+against its own prose. Comments are stripped now. It was caught by the count being absurd rather
+than by reading, which is how every one of the five was caught.
+
+**Left behind.** Nothing from either. § 7 holds six findings, of which five are deferred or
+external by decision (L-81, L-75, L-05, L-47, L-51) and one is L-52's legal question.
 ---
 
 ## Retired from the plan's § 6 on 2026-09-11

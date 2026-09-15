@@ -175,7 +175,22 @@ export function PaymentDialog({
   // enters their PIN. State (`stepUpToken`) is intentionally NOT read here for
   // the gate: when this closure was created, state was still null.
   const finalize = async (tokenArg?: string) => {
-    if (paid < total - 1) { // within 1 cent
+    // L-11 — ONE RULE, ONE SPELLING.
+    //
+    // This read `paid < total - 1` (« within 1 cent ») while the Valider button
+    // below reads `paid < total - 0.01`. Both operate on INTEGER cents, so the
+    // second is exactly `paid < total` and the first allowed a one-cent
+    // shortfall. Two spellings of one rule, in one file, disagreeing — the
+    // shape L-143 was, where two routes wrote one column two ways.
+    //
+    // **Nothing reachable changes.** The button already refuses any shortfall,
+    // and it is the only way into `finalize` — the step-up re-entry calls it
+    // again with the same figures, which have already passed. So this makes the
+    // guard agree with the gate rather than relaxing or tightening the till.
+    //
+    // The operator chose exact, 2026-09-15: money should not carry a tolerance
+    // nobody decided on, and a cent that does not arrive is a cent short.
+    if (paid < total) {
       toast.error("Paiement insuffisant");
       return;
     }
@@ -477,7 +492,10 @@ export function PaymentDialog({
             // 0 the amount test alone leaves this enabled with no payment at
             // all, which the server then refuses with « Au moins un paiement »
             // — a refusal the operator can do nothing about from here.
-            disabled={loading || paid < total - 0.01 || lines.length === 0}
+            // L-11 — `paid < total`, not `paid < total - 0.01`. Identical on
+            // integer cents; the point is that the guard in `finalize` now
+            // reads the same way, so the rule has one spelling.
+            disabled={loading || paid < total || lines.length === 0}
           >
             {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <CheckCircle2 className="h-5 w-5" />}
             Valider · {formatEuro(total)}
