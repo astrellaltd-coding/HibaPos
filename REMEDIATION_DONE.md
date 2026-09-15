@@ -4794,7 +4794,7 @@ counted by neither `docs/BASELINES.md` nor L-194.
 ---
 
 ### L-190 · L-194 — the backup screen stops believing only the table
-**Done:** 2026-09-15 · **Commit:** `SHA` · **Findings:** L-190 (software half) · L-194 (software
+**Done:** 2026-09-15 · **Commit:** `d588c29` · **Findings:** L-190 (software half) · L-194 (software
 half). **No plan row.** **Neither finding is closed by this** — the five orphaned files and the
 single-volume machine are the operator's, and no code changes either.
 
