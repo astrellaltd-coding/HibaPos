@@ -88,6 +88,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - L-172 · L-176 · L-177 — Group D reopened: three cheap ones
 - L-174 — the PIN hash says what made it
 - L-171 — which item came back, and the answer that did not exist
+- L-196 — the recovery tool could not see the backups
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -4705,6 +4706,90 @@ id and a zero quantity.
   would create a second, quieter set of books that no sealed figure agrees with. Stated in the
   code, at the check that would otherwise look incomplete.
 - **L-195**, above.
+---
+
+### L-196 — the recovery tool could not see the backups
+**Done:** 2026-09-15 · **Commit:** `SHA` · **Finding:** L-196 (High). **No plan row** — found and
+fixed the same day, on the operator's approval.
+
+**`scripts/decrypt-backup.ts --list` read `path.join(process.cwd(), "db", "backups")` and ignored
+`BACKUP_LOCATION`.** The application honours that variable — `backupsDir()` in `paths.ts`, where
+it overrides the default outright, because C-06 says a backup on the same disk as the database is
+not a backup. So the two disagreed about where backups live, and only one of them was right.
+
+Measured 2026-09-15: **nine files in the configured folder, and `--list` showed two, from five
+days earlier.**
+
+## Which script it is, is the whole severity
+
+`scripts/README.md` calls this one **« the only way to open a backup when the app will not
+start »**. That is its entire reason to exist. In the situation it is for — application dead,
+operator reaching for the recovery tool — it could not see a single backup taken since
+`BACKUP_LOCATION` was set, and the honest reading of its output is **« I have no recent backup »**
+while six sat on the disk.
+
+**It is also the exact defect that got a script deleted from that folder.** Rule 3 exists because
+`port-real-data.ts` opened `db/custom.db` by a hardcoded literal and ignored `DATABASE_URL`; it
+was removed in Batch 4.5 (L-37). The rule ended: « Nothing in this folder does that any more, and
+nothing new may. » **That sentence was false when it was written** — the same file it appears in
+was doing it to `BACKUP_LOCATION`.
+
+## How it was found, which is the part worth keeping
+
+**The operator found it.** They ran the verification command from the backup runbook, saw a list
+with nothing from today, and asked why. Not a test, not a review: the suite cannot execute these
+scripts, and nothing compared the two resolvers against each other.
+
+**The near-miss is worth naming.** I had measured that folder four times in two days — for L-188,
+L-190 and L-194 — always through `paths.ts` or by listing the directory myself. Every measurement
+was right, and none of them was the tool the operator would actually reach for in an emergency. A
+recovery path is only tested by being used.
+
+## What changed
+
+- **The script imports `backupsDir` from `src/lib/paths.ts`** rather than re-implementing the
+  rule. `paths.ts` imports only `fs` and `path`, so it costs a CLI nothing — there was never a
+  reason for a second copy.
+- **`.env` is read for `BACKUP_LOCATION` too.** The secret already had that fallback, with the
+  comment « so the tool works on a machine where the app has never been started » — which is
+  precisely when the location needs it as well. **Reading one variable that way and not the other
+  is how the tool ended up holding the right key and looking in the wrong folder.** Factored into
+  one `readEnvFile()` so the asymmetry cannot come back.
+- **`--list` names the old folder** when files are still sitting in it. Someone who ran the tool
+  before `BACKUP_LOCATION` existed and runs it now would otherwise see a completely different
+  list with no explanation — its own kind of alarming during a recovery.
+- **Rule 3 records that it was false**, rather than re-asserting itself. A rule that has been
+  wrong once and says nothing about it invites exactly the trust it did not deserve.
+
+## The guard
+
+`scripts-docs.test.ts` now **sweeps every script in the folder** for a path the environment is
+supposed to decide — `process.cwd() + "db"`, `db/custom.db`, `db/backups`. Comments are stripped
+first, because a rule that fires on the comment explaining the rule is this project's most
+repeated test bug. The **one** legitimate literal is pinned by file AND by the function it sits
+in (`legacyBackupsDir`, which names the old folder so `--list` can warn about it), so a second
+occurrence anywhere is a failure rather than a judgement call.
+
+## How it was verified
+
+1 862 pass · 0 fail · 150 files · zero `prisma:error` blocks, typecheck and lint clean. **And the
+tool was run**: `--list` now shows all nine files including the one taken that afternoon.
+
+**Six reverts**, one property at a time, each restored from a copy with its sha256 compared
+after: the literal back in `--list` (the finding itself); the `.env` fallback covering the key
+but not the location; the rule re-implemented instead of imported; the old folder ignored
+silently; **a NEW script picking up the pattern**, which is what the sweep exists for; and Rule 3
+re-asserting a claim that had been false.
+
+**Three of the six first reported as misses, and it was my revert driver, not the tests.** It
+matched on « resolves the directory… » where the test is named « resolves the **backups**
+directory… ». Re-run with the right name, all six are red. A miss is a question before it is a
+verdict, and the first question is whether the instrument was pointed at the right thing.
+
+**Left behind.** Nothing from this finding. The stale `db/backups` folder the operator emptied
+the same day held ~50 MB — two backups byte-identical to copies already in the configured folder,
+plus a second copy of the 49 MB media archive — all of it on the same disk as the database, and
+counted by neither `docs/BASELINES.md` nor L-194.
 ---
 
 ## Retired from the plan's § 6 on 2026-09-11

@@ -19,7 +19,18 @@ wrong in three ways that mattered, and the corrections are the rules below.
    scripts obey, so setting it at a scratch copy is how you test them — but
    verify the script actually reads it. `port-real-data.ts` opened
    `db/custom.db` by a hardcoded literal and ignored the variable entirely.
-   Nothing in this folder does that any more, and nothing new may.
+   **The same applies to `BACKUP_LOCATION`**, which decides where backups live
+   and overrides everything else (C-06).
+
+   > ⚠ **This rule used to end « Nothing in this folder does that any more, and
+   > nothing new may », and that sentence was FALSE for four days.**
+   > `decrypt-backup.ts` — the recovery tool — resolved its directory from the
+   > literal `db/backups` and ignored `BACKUP_LOCATION`, so on 2026-09-15, with
+   > six backups in the configured folder, `--list` showed two files from five
+   > days earlier and nothing newer. **The operator found it by running the
+   > verification command and asking why today's backup was missing.** Fixed the
+   > same day (**L-196**), and `scripts-docs.test.ts` now sweeps this folder for
+   > the pattern, so the claim is checked rather than asserted.
 
 > **The old header said "Safe to delete after running." It was not true and it
 > is gone.** `seed-users.ts` is the only way back into a till whose PIN has
@@ -45,7 +56,7 @@ writes", the script cannot change data at all.
 | `trim-catalogue-names.ts` | **L-39 / R4.4** — strips the stray leading and trailing whitespace out of catalogue names, which otherwise render indented on the till. Touches `name` and nothing else, addresses rows **by id** — never by the name it is changing — and **refuses the whole run** if a trim would collide two siblings into one name. `docs/BASELINES.md` pins the outcome: **0 names carry stray whitespace** since R4.4, so a non-empty dry run today means the catalogue has been edited by hand since. | **No.** `name` updates only. | `bun scripts/trim-catalogue-names.ts`<br>`bun scripts/trim-catalogue-names.ts --apply` |
 | `fix-duplicate-product-options.ts` | Finds product-level option groups that duplicate an inherited category global. | **YES — deletes `OptionGroup` rows** (and their choices, by cascade) with `--apply`. Catalogue data: see the warning below. | `bun scripts/fix-duplicate-product-options.ts`<br>`bun scripts/fix-duplicate-product-options.ts --apply` |
 | `delete-product.ts` | Supprime **definitivement** une ligne `Product`. Le logiciel n a **pas** de suppression definitive : sa route `DELETE` desactive (`active: false`) pour preserver le lien avec les ventes passees, et c est le bon defaut. Ce script est pour le cas etroit d un produit cree par erreur, **jamais vendu** et **deja desactive**, qui survivrait sinon au reset du § 6. **Six refus** (2026-09-11 : trois auparavant) : produit non identifie de facon unique, produit encore actif, produit reference par une ligne de commande **ou par un menu compose** (`ComboSlot`, `ComboSlotChoice`), produit nomme par un **document fiscal scelle** (`topProductsJson`, `givenAwayProductsJson`, `dataJson` — du JSON sans cle etrangere, que rien d autre ne protege), point de restauration non conforme. Prend son propre point de restauration dans `../db-snapshots/` et se verifie ensuite. Ecrit un `AuditLog` `PRODUCT_HARD_DELETED` avec `userId: null` — c etait un script, pas une personne. | ⚠ **OUI — supprime la ligne `Product`**, et par cascade du schema ses `OptionGroup` et leurs `OptionChoice`. Rien d autre ; les groupes de la categorie ne sont pas touches. Donnees catalogue : voir l avertissement ci-dessous. | `bun scripts/delete-product.ts --id <cuid>`<br>`bun scripts/delete-product.ts --id <cuid> --apply`<br>*(la forme par nom marche toujours)* |
-| `decrypt-backup.ts` | Decrypts an encrypted backup to a plain SQLite file, for when the app will not start. Refuses to write over `custom.db` or over an existing file. Needs `BACKUP_ENCRYPTION_KEY`. | No — writes only the output file you name. | `bun scripts/decrypt-backup.ts --list`<br>`bun scripts/decrypt-backup.ts <fichier.dbenc> <sortie.db>` |
+| `decrypt-backup.ts` | Decrypts an encrypted backup to a plain SQLite file, **for when the app will not start** — which is the one situation where it is the only way in. Refuses to write over `custom.db` or over an existing file; that second refusal is why running it twice reports « le fichier de sortie existe déjà » rather than silently redoing the work. Needs `BACKUP_ENCRYPTION_KEY`, and reads it from `.env` when the environment has none — the app may never have started. **`--list` reads `BACKUP_LOCATION` since L-196** (2026-09-15); before that it looked only in `db/backups` and could not see a single backup the app had taken. It also names the old folder when files are still sitting in it. | No — writes only the output file you name. | `bun scripts/decrypt-backup.ts --list`<br>`bun scripts/decrypt-backup.ts <chemin/complet/fichier.dbenc> <sortie.db>` |
 | `inspect-db.ts` | Prints category and product counts and names. | No writes. | `bun scripts/inspect-db.ts` |
 | `inspect-options.ts` | Prints each category's option groups, choices and add-ons. | No writes. | `bun scripts/inspect-options.ts` |
 | `inspect-product.ts` | Prints one product's full graph. Takes the product name as an argument. | No writes. | `bun scripts/inspect-product.ts "Chicken Club"` |

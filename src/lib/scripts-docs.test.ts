@@ -242,6 +242,120 @@ describe("L-166 — a verification that cannot happen is a failure, not a footno
   });
 });
 
+describe("L-196 — a script obeys the environment, or the rule is a wish", () => {
+  // THE FINDING: `decrypt-backup.ts`'s `--list` read the literal
+  // `path.join(process.cwd(), "db", "backups")` and **ignored
+  // `BACKUP_LOCATION`**, which the application honours and which overrides
+  // everything else (C-06: a backup on the same disk as the database is not a
+  // backup). On 2026-09-15, with six backups in the configured folder, it
+  // listed two files from five days earlier and nothing newer.
+  //
+  // **WHICH SCRIPT IT IS, IS THE WHOLE SEVERITY.** `scripts/README.md` calls
+  // this one « the only way to open a backup when the app will not start ». In
+  // that moment the honest reading of its output is « I have no recent
+  // backup ». The operator found it by running the verification command and
+  // asking why today's backup was missing from the list.
+  //
+  // **AND IT IS THE DEFECT THAT GOT A SCRIPT DELETED FROM THAT FOLDER.**
+  // Rule 3 exists because `port-real-data.ts` opened `db/custom.db` by a
+  // hardcoded literal and ignored `DATABASE_URL`. The rule ended « nothing in
+  // this folder does that any more, and nothing new may » — and that sentence
+  // was false when it was written. This block is what makes it checkable.
+
+  /** Script source with comments stripped — a rule that fires on the comment
+   *  EXPLAINING the rule is this project's most repeated test bug. */
+  function code(file: string): string {
+    return readFileSync(path.join(SCRIPTS, file), "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, (m) => " ".repeat(m.length))
+      .split("\n")
+      .map((l) => (/^\s*(\/\/|\*)/.test(l) ? " ".repeat(l.length) : l))
+      .join("\n");
+  }
+
+  it("resolves the backups directory the way the application does", () => {
+    const src = code("decrypt-backup.ts");
+    expect(src, "the recovery tool stopped importing the app's own resolver").toContain(
+      'from "../src/lib/paths"',
+    );
+    expect(src, "`--list` no longer resolves through BACKUP_LOCATION").toMatch(
+      /const dir = resolveBackupsDir\(\);/,
+    );
+    expect(src, "the resolver stopped consulting BACKUP_LOCATION").toContain(
+      "process.env.BACKUP_LOCATION",
+    );
+    // …and falls back to `.env`, because the situation this tool is for is one
+    // where the application has never run and nothing loaded that file for it.
+    // The secret already had that courtesy; the location did not, which is how
+    // the tool ended up holding the right key and looking in the wrong folder.
+    expect(src, "the .env fallback covers the key but not the location again").toMatch(
+      /readEnvFile\("BACKUP_LOCATION"\)/,
+    );
+    expect(src).toMatch(/readEnvFile\("BACKUP_ENCRYPTION_KEY"\)/);
+  });
+
+  it("names the old folder instead of silently ignoring it", () => {
+    // Files written before `BACKUP_LOCATION` was set are still in the install
+    // directory, and this tool used to show ONLY those. Someone who ran it
+    // before and runs it now would otherwise see a different list with no
+    // explanation — its own kind of alarming during a recovery.
+    const src = code("decrypt-backup.ts");
+    expect(src).toMatch(/function legacyBackupsDir\(\)/);
+    expect(src, "the warning about the old folder is gone").toMatch(/ancien dossier/);
+  });
+
+  it("finds no OTHER script resolving the database or the backups from a literal", () => {
+    // Rule 3's claim, checked. A path the environment is supposed to decide may
+    // not be built from a literal — that is what `port-real-data.ts` did to
+    // `DATABASE_URL`, and what `decrypt-backup.ts` did to `BACKUP_LOCATION`.
+    const LITERAL =
+      /path\.join\(\s*process\.cwd\(\)\s*,\s*"db"|["'`]db\/(custom\.db|backups)["'`]|"db"\s*,\s*"(custom\.db|backups)"/;
+
+    // The ONE occurrence that is allowed, pinned by file AND by the function it
+    // sits in. It names the PRE-`BACKUP_LOCATION` folder so `--list` can warn
+    // that files are still there; it is never where anything is read from.
+    const ALLOWED = new Map([["decrypt-backup.ts", "legacyBackupsDir"]]);
+
+    const offenders: string[] = [];
+    for (const file of SCRIPT_FILES) {
+      const src = code(file);
+      src.split("\n").forEach((line, i) => {
+        if (!LITERAL.test(line)) return;
+        const fn = ALLOWED.get(file);
+        // Allowed only inside the named function: the literal may appear there
+        // and nowhere else in the file.
+        if (fn) {
+          const start = src.indexOf(`function ${fn}(`);
+          const end = src.indexOf("\n}", start);
+          const at = src.split("\n").slice(0, i).join("\n").length;
+          if (start >= 0 && at > start && at < end) return;
+        }
+        offenders.push(`${file}:${i + 1} — ${line.trim().slice(0, 70)}`);
+      });
+    }
+
+    expect(
+      offenders,
+      `a script builds a path the environment is supposed to decide:\n${offenders.join("\n")}\n` +
+        "Use `databasePath()`/`backupsDir()` from `src/lib/paths.ts`, or derive it from " +
+        "DATABASE_URL / BACKUP_LOCATION. `scripts/README.md` rule 3 exists because " +
+        "`port-real-data.ts` did this to DATABASE_URL and destroyed the production database; " +
+        "L-196 is the same defect pointed at BACKUP_LOCATION, in the recovery tool.",
+    ).toEqual([]);
+  });
+
+  it("says in the README that the rule was broken, rather than just re-asserting it", () => {
+    // A rule that has been false once and says nothing about it invites the
+    // reader to trust it exactly as much as they did before — which was too
+    // much. The correction is worth more than the claim.
+    const rule = README.slice(README.indexOf("3. **`DATABASE_URL` is not a safety belt"));
+    expect(rule, "Rule 3 no longer mentions BACKUP_LOCATION").toContain("BACKUP_LOCATION");
+    expect(rule, "Rule 3 re-asserts itself without recording that it was false").toMatch(
+      /was FALSE|sentence was false/i,
+    );
+    expect(rule).toContain("L-196");
+  });
+});
+
 describe("L-167 — the invariants name every file a test refuses to lose", () => {
   // THE FINDING: `docs/INVARIANTS.md`'s « Deliberately retained — do not clean
   // up » listed `tables-view.tsx` and two unreachable branches, and not the

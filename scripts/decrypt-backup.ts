@@ -30,6 +30,9 @@
 import { promises as fs, existsSync, readdirSync, readFileSync, statSync } from "fs";
 import path from "path";
 import crypto from "crypto";
+// L-196 — the SAME rule the application uses to find its backups. `paths.ts`
+// imports only `fs` and `path`, so it costs a CLI nothing.
+import { backupsDir } from "../src/lib/paths";
 
 const SCRYPT_N = 1 << 17;
 const SCRYPT_R = 8;
@@ -44,6 +47,62 @@ function fail(message: string): never {
   process.exit(1);
 }
 
+/**
+ * One named value out of `.env`, or null.
+ *
+ * Factored out for **L-196**: the secret was read from `.env` by hand because
+ * this tool has to work « on a machine where the app has never been started »,
+ * and `BACKUP_LOCATION` needs exactly the same courtesy for exactly the same
+ * reason. Reading one variable that way and not the other is how the tool ended
+ * up holding the right key and looking in the wrong folder.
+ */
+function readEnvFile(name: string): string | null {
+  const envPath = path.join(process.cwd(), ".env");
+  if (!existsSync(envPath)) return null;
+  const raw = readFileSync(envPath, "utf8");
+  const match = raw.match(new RegExp(`^\\s*${name}\\s*=\\s*"?([^"\\r\\n]+)"?`, "m"));
+  return match ? match[1].trim() : null;
+}
+
+/**
+ * WHERE THE BACKUPS ARE — L-196, and the reason this function exists.
+ *
+ * THE DEFECT: `listBackups()` read `path.join(process.cwd(), "db", "backups")`,
+ * a hardcoded literal, and **ignored `BACKUP_LOCATION` entirely** — while the
+ * application honours it (`backupsDir()` in `src/lib/paths.ts`, where it
+ * overrides the default outright: C-06, a backup on the same disk as the
+ * database is not a backup).
+ *
+ * So on 2026-09-15, with six backups sitting in the configured folder, `--list`
+ * showed two files from five days earlier and nothing newer. **This is the
+ * recovery tool** — `scripts/README.md` calls it « the only way to open a
+ * backup when the app will not start » — and the honest reading of its output
+ * in that moment is « I have no recent backup ».
+ *
+ * **It is also the defect that got a script DELETED from this folder.** Rule 3
+ * of `scripts/README.md` exists because `port-real-data.ts` opened
+ * `db/custom.db` by a hardcoded literal and ignored `DATABASE_URL`; that rule
+ * ends « nothing in this folder does that any more, and nothing new may », and
+ * it was not true when it was written down.
+ *
+ * The environment is consulted first, then `.env` — because the situation this
+ * tool is for is one where the application has never run and nothing has loaded
+ * that file for it.
+ */
+function resolveBackupsDir(): string {
+  if (!process.env.BACKUP_LOCATION?.trim()) {
+    const fromFile = readEnvFile("BACKUP_LOCATION");
+    if (fromFile) process.env.BACKUP_LOCATION = fromFile;
+  }
+  return backupsDir();
+}
+
+/** The pre-`BACKUP_LOCATION` default, named so `--list` can warn when files are
+ *  still sitting in it. Not where anything is written any more. */
+function legacyBackupsDir(): string {
+  return path.join(process.cwd(), "db", "backups");
+}
+
 function loadSecret(): string {
   // L-141 (R9.3) — the fallback is KEPT HERE deliberately, and it is the reason
   // the application keeps it too. This is the recovery tool: the file in front
@@ -56,18 +115,12 @@ function loadSecret(): string {
   if (!secret) {
     // Fall back to .env so the tool works on a machine where the app has
     // never been started.
-    const envPath = path.join(process.cwd(), ".env");
-    if (existsSync(envPath)) {
-      const raw = readFileSync(envPath, "utf8");
-      const match =
-        raw.match(/^\s*BACKUP_ENCRYPTION_KEY\s*=\s*"?([^"\r\n]+)"?/m) ??
-        // L-141: the .env fallback read only the long name while the env-var
-        // path accepted both, so a machine holding the key under the old name
-        // in .env — and the app never started, which is when this tool is
-        // used — was told the key was absent.
-        raw.match(/^\s*BACKUP_SECRET\s*=\s*"?([^"\r\n]+)"?/m);
-      if (match) secret = match[1];
-    }
+    //
+    // L-141: the .env fallback read only the long name while the env-var path
+    // accepted both, so a machine holding the key under the old name in .env —
+    // and the app never started, which is when this tool is used — was told the
+    // key was absent.
+    secret = readEnvFile("BACKUP_ENCRYPTION_KEY") ?? readEnvFile("BACKUP_SECRET") ?? undefined;
   }
   if (!secret) {
     fail(
@@ -93,26 +146,50 @@ function deriveKey(secret: string, salt: Buffer): Promise<Buffer> {
   });
 }
 
+function encryptedFilesIn(dir: string): string[] {
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir)
+    .filter((f) => f.endsWith(".dbenc") || f.endsWith(".enc"))
+    .sort();
+}
+
 function listBackups(): void {
-  const dir = path.join(process.cwd(), "db", "backups");
-  if (!existsSync(dir)) fail(`Dossier introuvable : ${dir}`);
-  const files = readdirSync(dir).filter((f) => f.endsWith(".dbenc") || f.endsWith(".enc"));
+  const dir = resolveBackupsDir();
+  const files = encryptedFilesIn(dir);
+
   if (files.length === 0) {
     console.log(`\n  Aucune sauvegarde chiffrée dans ${dir}\n`);
-    return;
+  } else {
+    console.log(`\n  Sauvegardes dans ${dir} :\n`);
+    for (const f of files) {
+      const stat = statSync(path.join(dir, f));
+      const mb = (stat.size / 1024 / 1024).toFixed(2);
+      const kind = f.startsWith("pre-restore-")
+        ? "instantané de sécurité"
+        : f.endsWith(".uploads.enc")
+          ? "images"
+          : "base de données";
+      console.log(`    ${f}\n      ${mb} Mo · ${kind} · ${stat.mtime.toISOString()}`);
+    }
+    console.log("");
   }
-  console.log(`\n  Sauvegardes dans ${dir} :\n`);
-  for (const f of files.sort()) {
-    const stat = statSync(path.join(dir, f));
-    const mb = (stat.size / 1024 / 1024).toFixed(2);
-    const kind = f.startsWith("pre-restore-")
-      ? "instantané de sécurité"
-      : f.endsWith(".uploads.enc")
-        ? "images"
-        : "base de données";
-    console.log(`    ${f}\n      ${mb} Mo · ${kind} · ${stat.mtime.toISOString()}`);
+
+  // L-196 — SAY SO WHEN THE OLD FOLDER STILL HOLDS SOMETHING.
+  //
+  // Files written before `BACKUP_LOCATION` was set are still in the install
+  // directory, and this tool used to show ONLY those. Someone who ran it then
+  // and runs it now would otherwise see a completely different list with no
+  // explanation, which is its own kind of alarming during a recovery. Naming
+  // both places costs four lines and removes the ambiguity entirely.
+  const legacy = legacyBackupsDir();
+  if (path.resolve(legacy) !== path.resolve(dir)) {
+    const stale = encryptedFilesIn(legacy);
+    if (stale.length > 0) {
+      console.log(`  ⚠ ${stale.length} fichier(s) également présent(s) dans l'ancien dossier :`);
+      console.log(`    ${legacy}`);
+      console.log(`    (emplacement d'avant BACKUP_LOCATION — plus rien n'y est écrit)\n`);
+    }
   }
-  console.log("");
 }
 
 async function main() {
