@@ -281,6 +281,12 @@ describe("T-03 — every API route declares an authorization gate", () => {
   "auth/step-up:POST": "ANY",
   "auth/switch-user:POST": "ANY",
   "backups:GET": "SUPER_ADMIN",
+  // L-190 / L-194 (2026-09-15) — reports what is on disk against what the
+  // table believes, and whether the backups share the database's volume.
+  // SUPER_ADMIN like `backups:GET` above it: the screen is SUPER_ADMIN-only
+  // in the navigation (DD-22 / L-33), and this one exposes absolute host
+  // paths, which is a reason to be narrower rather than wider.
+  "backups/storage:GET": "SUPER_ADMIN",
   "backups:POST": "INLINE_SA",
   "backups/[id]:DELETE": "INLINE_SA",
   "backups/[id]/restore:POST": "SUPER_ADMIN",
@@ -687,12 +693,16 @@ describe("T-03 — every API route declares an authorization gate", () => {
     // narrowed to match the handler that had been refusing the MANAGER all
     // along. **ANY, INLINE_SA and INLINE_SELF are unmoved**, and INLINE_ANY is
     // still absent: this closed a contradiction without widening anything.
+    // AMENDED 2026-09-15 (L-190 / L-194): SUPER_ADMIN 13 -> 14, the one new
+    // route `backups/storage:GET`. **BOTH, ANY, INLINE_SA and INLINE_SELF are
+    // unmoved, and INLINE_ANY is still absent** — which is this assertion doing
+    // its job: a route was added and no existing gate was widened to make room.
     expect(counts).toEqual({
       BOTH: 39,
       ANY: 26,
       INLINE_SA: 5,
       INLINE_SELF: 1,
-      SUPER_ADMIN: 13,
+      SUPER_ADMIN: 14,
     });
     expect(counts.INLINE_ANY, "a guard that refuses nobody is back — L-183").toBeUndefined();
   });

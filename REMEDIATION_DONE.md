@@ -89,6 +89,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - L-174 — the PIN hash says what made it
 - L-171 — which item came back, and the answer that did not exist
 - L-196 — the recovery tool could not see the backups
+- L-190 · L-194 — the backup screen stops believing only the table
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -4790,6 +4791,123 @@ verdict, and the first question is whether the instrument was pointed at the rig
 the same day held ~50 MB — two backups byte-identical to copies already in the configured folder,
 plus a second copy of the 49 MB media archive — all of it on the same disk as the database, and
 counted by neither `docs/BASELINES.md` nor L-194.
+---
+
+### L-190 · L-194 — the backup screen stops believing only the table
+**Done:** 2026-09-15 · **Commit:** `SHA` · **Findings:** L-190 (software half) · L-194 (software
+half). **No plan row.** **Neither finding is closed by this** — the five orphaned files and the
+single-volume machine are the operator's, and no code changes either.
+
+## L-190 — the folder and the table drift, and the application believes the table
+
+`listBackups()` is `db.backup.findMany()`. It reads the TABLE and never looks at the folder, so
+two things can be true and neither is noticed:
+
+* **unmanaged** — a FILE with no row. Invisible in Réglages, and `pruneBackups` keeps the newest
+  N **ROWS**, so retention will **never** remove it. Five appeared on 2026-09-12 when the audit's
+  pass 5 ran `createBackup` against the real `BACKUP_LOCATION` (**L-188**): the files landed in
+  the operator's folder, the rows in a throwaway test database.
+* **missing** — a ROW whose file is gone. **This is the direction L-190's row did not name, and
+  it is the one that bites.** The screen lists a backup, the operator believes they have it, and
+  they find out at the moment they try to restore. Nothing had produced one — and hand-deleting a
+  file is all it takes, which is precisely what the cleanup of 2026-09-15 involved.
+
+**The shared media archive is explicitly not counted as unmanaged.** It is content-addressed and
+**referenced** by rows rather than owned by one, so a naive « no row names this file » would
+report the single 49 MB file that must never be deleted as the one nothing is using. There is a
+test for exactly that, because it is the mistake that would cost the most.
+
+**Nothing is deleted and nothing is adopted.** Writing a row for an unmanaged file would hand it
+to the retention prune, which would then delete a file this software did not create and cannot
+vouch for. The report answers the question; the operator acts.
+
+## L-194 — and they may not even be on another disk
+
+C-06 is the entire reason `BACKUP_LOCATION` exists — « a backup on the same disk as the database
+is not a backup » — and **the software had never checked**. Measured 2026-09-14: the folder
+everybody believed was syncing is a plain directory, OneDrive is not installed, and `C:` is the
+only volume.
+
+Réglages now says so in French, with both paths and what fixes it. **It warns and does not
+block**: refusing to take a backup because it would land on the wrong disk leaves the operator
+with no backup at all, which is worse than a badly-placed one. A test asserts that **no**
+`disabled` expression anywhere in that screen consults the verdict.
+
+## Three answers, not two
+
+`sameVolume()` returns **SAME / DIFFERENT / UNKNOWN**. The third is the honest one: a
+POSIX-absolute path shares `/` with every other while sitting on any number of mounts, so `SAME`
+there would be a false alarm on every Linux install and on this project's own CI, and
+`DIFFERENT` a false all-clear. Windows drive letters and UNC shares are answered precisely,
+because that is what this product ships on.
+
+## Its own endpoint, on purpose
+
+`GET /api/backups/storage`, SUPER_ADMIN, beside `GET /api/backups`. The listing is a table read,
+cheap, and polled by the screen; this one does filesystem I/O — a `readdir` and a `stat` per
+file, in a folder that may be on a network share. Folding it in would make every listing pay for
+it, and would change an endpoint's shape for one consumer's benefit. It also exposes absolute
+host paths, which is a reason to keep it narrow rather than wide.
+
+## How it was verified
+
+1 875 pass · 0 fail · **151 files** · zero `prisma:error` blocks, typecheck and lint clean. **Thirteen reverts**,
+each restored from a copy with its sha256 compared after.
+
+**THREE OF THE TWELVE CAME BACK AS MISSES, AND TWO WERE REAL DEFECTS IN MY OWN WORK.**
+
+1. **The `UNKNOWN` branch was unreachable on Windows.** `volumeOf` called `path.resolve` first,
+   and `path.resolve("/var/data")` on Windows returns `C:\var\data` — a drive letter the path
+   never had. So the branch was dead on the machine the suite runs on here and only live on CI,
+   and the revert that broke it produced **no failure at all**. `volumeOf` now inspects the path
+   **as given** and resolves only what is relative. The semantics improved with it: a
+   POSIX-absolute path genuinely cannot say which mount it is on, whichever OS is asking — so
+   both tests stopped branching on `process.platform`.
+2. **The « does not block » assertion looked the wrong way.** It sliced FORWARD from the button's
+   label and searched the next 400 characters, while `disabled=` sits BEFORE the label in the
+   JSX. It could never have seen the prop it was written to guard. It is now a sweep over every
+   `disabled` expression in the file, with a vacuity check that there are any.
+3. The third was the revert driver naming a test that does not pin that route — my string, not
+   the guard.
+
+**AND ONE REVERT DID NOT FAIL — IT HUNG, WHICH WAS A REAL BUG.** Removing the UNC branch left
+`volumeOf` ending `return volumeOf(path.resolve(p))` for anything it did not recognise. I had
+argued that terminates, because a resolved path is always drive-prefixed or `/`-prefixed. With
+the UNC branch gone, `\\srv\share\a` matches neither, `path.resolve` returns it unchanged, and
+it recurses until the runner is killed. **The termination of one branch depended on another
+branch existing** — not a property anybody can maintain, and one edit from an infinite loop in
+the application. The function resolves once, up front, and does not recurse at all now. A revert
+that hangs is a result, not a failure of the harness.
+
+**And the design defect a revert found before either of those.** `backupStorageReport` computed
+the volume verdict from the GLOBAL configuration while scanning the folder it was GIVEN, so with
+injected paths it described one folder and the volume of another — and **no test could reach
+SAME or DIFFERENT through it**. It passed anyway, asserting only « the live machine's answer is
+one of three », which is true of every possible implementation. The verdict now follows the
+argument, and both outcomes are driven through the report on any platform.
+
+## The harness wedged for hours, three times, and the cause is worth recording
+
+The revert driver ran `subprocess.run([...], shell=True, timeout=240)`. **On Windows that spawns
+`cmd.exe`, which spawns `bun.exe` — and `timeout=` kills the SHELL, leaving the grandchild
+running and the parent still blocked on its inherited pipes.** So the timeout, which existed
+precisely to stop a hang, could not stop one. Two runs sat for over two hours each with a source
+file left mutated mid-revert; both were recovered exactly from the `.bak` the driver takes before
+every mutation, which is the one part of the design that held.
+
+The fix is to launch the binary directly — and `bun` on this machine's PATH is a **283-byte npm
+shell shim**, not an executable Python can exec, so the driver now uses
+`%APPDATA%\npm\node_modules\bun\bin\bun.exe` by absolute path. **A single run went from
+« minutes, unbounded » to 1,8 seconds.** The whole delay was the indirection.
+
+Recorded because it is the same family as the traps already in the plan's § 2 — Git Bash
+rewriting a leading-slash argument, JSON corrupted through a shell pipeline — and because a
+harness that can hang is worse than none: it leaves the tree in a state nobody inspected.
+
+**Left behind — and they are the findings themselves.**
+- **L-194: the machine still has one volume and no sync client.** R6.5 needs hardware.
+- **L-190: the five orphaned files are still there.** The app can now show them; deleting them
+  is the operator's.
 ---
 
 ## Retired from the plan's § 6 on 2026-09-11

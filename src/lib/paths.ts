@@ -67,6 +67,94 @@ export function backupsDir(): string {
   return path.join(dataDir(), "db", "backups");
 }
 
+/**
+ * Can these two paths be on the same physical volume? — L-194.
+ *
+ * **THREE ANSWERS, NOT TWO, AND THE THIRD IS THE HONEST ONE.** A path alone
+ * cannot always tell you: on Windows the drive letter decides it, and on POSIX
+ * every absolute path shares the root `/` while sitting on any number of mounts.
+ * Returning `"SAME"` there would be a false alarm on every Linux install and on
+ * CI; returning `"DIFFERENT"` would be a false all-clear. `"UNKNOWN"` is what is
+ * actually known, and the caller says so rather than inventing a verdict.
+ *
+ * Windows is what this product ships on (Tauri v2), so the case that matters is
+ * answered precisely; the rest declines to guess. Pure and total, so the tests
+ * drive it with fixed strings and pass on whichever machine runs them.
+ */
+export type VolumeVerdict = "SAME" | "DIFFERENT" | "UNKNOWN";
+
+/**
+ * The part of a path that identifies its volume, or null when unknowable.
+ *
+ * **THE PATH IS INSPECTED AS GIVEN, and only a RELATIVE one is resolved.**
+ * `path.resolve("/var/data")` on Windows returns `C:\\var\\data` — so resolving
+ * first handed a POSIX-absolute path a drive letter it never had, and the
+ * `null` branch below became unreachable on Windows. The test for it passed on
+ * CI and could not fail here, which a revert found by changing that branch and
+ * producing no failure at all.
+ */
+function volumeOf(p: string): string | null {
+  // RESOLVED ONCE, UP FRONT, and never recursively.
+  //
+  // The first version ended `return volumeOf(path.resolve(p))` for anything it
+  // did not recognise, and argued that the resolved form is always either
+  // drive-prefixed or `/`-prefixed so it terminates. **A revert disproved
+  // that**: with the UNC branch removed, `\srv\share` matches no branch,
+  // `path.resolve` returns it unchanged, and it recurses until the runner is
+  // killed. The termination of one branch depended on another branch existing,
+  // which is not a property anybody can maintain. There is no recursion now.
+  const looksAbsolute = /^([A-Za-z]:|[\\/]{2}|\/)/.test(p);
+  const abs = looksAbsolute ? p : path.resolve(p);
+
+  // UNC: \\server\share\… — the share is the volume. Either slash, as Node
+  // accepts both on Windows.
+  const unc = /^[\\/]{2}([^\\/]+)[\\/]+([^\\/]+)/.exec(abs);
+  if (unc) return `\\\\${unc[1].toLowerCase()}\\${unc[2].toLowerCase()}`;
+
+  // Windows: a drive letter.
+  const drive = /^([A-Za-z]):/.exec(abs);
+  if (drive) return drive[1].toLowerCase() + ":";
+
+  // POSIX-absolute, or a shape nothing here recognises: every such path shares
+  // `/` with every other while sitting on any number of mounts. Nothing can say
+  // which, on either operating system.
+  return null;
+}
+
+
+export function sameVolume(a: string, b: string): VolumeVerdict {
+  const va = volumeOf(a);
+  const vb = volumeOf(b);
+  if (va === null || vb === null) return "UNKNOWN";
+  return va === vb ? "SAME" : "DIFFERENT";
+}
+
+/**
+ * Are the backups on the same volume as the database? — L-194.
+ *
+ * **C-06 is the whole reason `BACKUP_LOCATION` exists**: « a backup on the same
+ * disk as the database is not a backup ». The software had never once checked,
+ * so on 2026-09-14 it turned out that the folder everybody believed was syncing
+ * was a plain directory — OneDrive is not installed — and `C:` is the only
+ * volume. Every copy of the restaurant's data was on one disk and nothing said
+ * so. **This does not block anything**: refusing to take a backup because it
+ * would land on the wrong disk leaves the operator with no backup at all, which
+ * is worse than a badly-placed one.
+ */
+export function backupVolumeReport(): {
+  verdict: VolumeVerdict;
+  backupsDirectory: string;
+  databaseDirectory: string;
+} {
+  const backups = backupsDir();
+  const database = path.dirname(databasePath());
+  return {
+    verdict: sameVolume(backups, database),
+    backupsDirectory: backups,
+    databaseDirectory: database,
+  };
+}
+
 /** Generated annual fiscal archives — what an inspector asks for. */
 export function fiscalArchivesDir(): string {
   return path.join(dataDir(), "db", "fiscal-archives");

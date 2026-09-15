@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "@/lib/api-client";
-import type { BackupDto } from "@/types/api";
+import type { BackupDto, BackupStorageDto } from "@/types/api";
 import { formatDateTime, formatBytes } from "@/lib/format";
 import { EmptyState, PageHeader } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,8 @@ import {
   Info,
   FileArchive,
   RotateCcw,
+  HardDrive,
+  TriangleAlert,
 } from "lucide-react";
 
 export function BackupsView() {
@@ -47,6 +49,16 @@ export function BackupsView() {
   const { data: backups, isLoading } = useQuery({
     queryKey: ["backups"],
     queryFn: () => api.get<BackupDto[]>("/api/backups"),
+  });
+
+  // L-190 / L-194 — what is ACTUALLY on disk, against what the table believes.
+  // Its own query because its own endpoint: the listing above is a table read,
+  // this one walks the folder. A failure here must never blank the list, so it
+  // is read as « nothing to report » rather than surfaced as an error — the
+  // screen's job is the backups, and this is the annotation beside them.
+  const { data: storage } = useQuery({
+    queryKey: ["backups", "storage"],
+    queryFn: () => api.get<BackupStorageDto>("/api/backups/storage"),
   });
 
   const create = useMutation({
@@ -115,6 +127,80 @@ export function BackupsView() {
           sauvegardes sont stockées localement sur le serveur.
         </p>
       </div>
+
+      {/* L-194 — C-06 IS THE REASON `BACKUP_LOCATION` EXISTS, and nothing had
+          ever checked it. Measured 2026-09-14: the folder everyone believed was
+          syncing is a plain directory, and `C:` is the only volume — every copy
+          of the restaurant's data on one disk, with nothing saying so.
+          It WARNS and does not block: a backup on the wrong disk beats none. */}
+      {storage?.volume === "SAME" && (
+        <div className="flex items-start gap-3 rounded-xl border border-destructive/40 bg-destructive/10 p-4">
+          <HardDrive className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+          <div className="space-y-1 text-sm">
+            <p className="font-semibold text-destructive">
+              Les sauvegardes sont sur le même disque que la base de données.
+            </p>
+            <p className="text-foreground">
+              Une copie sur le même disque n&apos;est pas une sauvegarde : une panne
+              emporte les deux. Indiquez un autre volume (clé USB, second disque,
+              partage réseau) dans <span className="font-mono text-xs">BACKUP_LOCATION</span>.
+            </p>
+            <p className="font-mono text-[11px] text-muted-foreground">
+              {storage.directory}
+              <br />
+              {storage.databaseDirectory}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* L-190 — the folder and the table can drift, and the application
+          believes the table. `missing` is the one that bites: a backup listed
+          here that is not on disk, found out at the moment of a restore. */}
+      {storage && storage.missing.length > 0 && (
+        <div className="flex items-start gap-3 rounded-xl border border-destructive/40 bg-destructive/10 p-4">
+          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+          <div className="space-y-1 text-sm">
+            <p className="font-semibold text-destructive">
+              {storage.missing.length} sauvegarde(s) introuvable(s) sur le disque.
+            </p>
+            <p className="text-foreground">
+              Ces sauvegardes sont listées ici mais le fichier n&apos;existe plus.
+              Une restauration échouerait. Ne comptez pas dessus.
+            </p>
+            <ul className="font-mono text-[11px] text-muted-foreground">
+              {storage.missing.map((m) => (
+                <li key={m.id}>{m.filename}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+
+      {/* The harmless direction, and still worth saying: the retention prune
+          keeps the newest N ROWS, so a file with no row is never removed. */}
+      {storage && storage.unmanaged.length > 0 && (
+        <div className="flex items-start gap-3 rounded-xl border border-border bg-muted/40 p-4">
+          <FileArchive className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+          <div className="space-y-1 text-sm">
+            <p className="font-semibold text-foreground">
+              {storage.unmanaged.length} fichier(s) non géré(s) dans le dossier.
+            </p>
+            <p className="text-foreground">
+              Présents sur le disque mais inconnus de l&apos;application : ils
+              n&apos;apparaissent pas ci-dessous et la purge automatique ne les
+              supprimera jamais. À supprimer à la main si vous n&apos;en voulez plus.
+            </p>
+            <ul className="font-mono text-[11px] text-muted-foreground">
+              {storage.unmanaged.map((u) => (
+                <li key={u.filename}>
+                  {u.filename} · {formatBytes(u.sizeBytes)}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="flex h-64 items-center justify-center text-muted-foreground">

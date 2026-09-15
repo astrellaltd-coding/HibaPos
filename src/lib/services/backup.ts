@@ -36,9 +36,11 @@ import { appendFiscalEvent } from "@/lib/services/fiscal";
 import { beginRestore, endRestore } from "@/lib/services/maintenance";
 import {
   backupsDir,
+  sameVolume,
   databasePath,
   fiscalArchivesDir,
   uploadsDir,
+  type VolumeVerdict,
 } from "@/lib/paths";
 
 /**
@@ -1408,6 +1410,104 @@ export async function listBackups() {
     orderBy: { createdAt: "desc" },
     include: { createdBy: { select: { name: true } } },
   });
+}
+
+/**
+ * What is ACTUALLY in the backup folder, against what the database believes —
+ * L-190 — and whether it is even on a different disk — L-194.
+ *
+ * ── WHY THIS EXISTS ─────────────────────────────────────────────────────────
+ * `listBackups()` above is `db.backup.findMany()`. It reads the TABLE and never
+ * looks at the folder, so the two can drift, and **the application believes the
+ * table**. Both directions are real and only one of them is harmless:
+ *
+ *   unmanaged  a FILE with no row. Invisible in Réglages, and `pruneBackups`
+ *              keeps the newest N ROWS — so nothing will ever remove it. Five
+ *              of these appeared on 2026-09-12 when the audit's pass 5 ran
+ *              `createBackup` against the real `BACKUP_LOCATION` (**L-188**):
+ *              the files landed in the operator's folder, the rows in a
+ *              throwaway test database.
+ *   missing    a ROW whose file is gone. **This is the one that bites.**
+ *              Réglages lists a backup, the operator believes they have it, and
+ *              they find out at the moment they try to restore. Nothing
+ *              produced one yet — hand-deleting a file is all it would take.
+ *
+ * ── IT REPORTS AND DELETES NOTHING ──────────────────────────────────────────
+ * Adopting an unmanaged file (writing it a row) would put it under the
+ * retention prune, which would then delete a file this software did not create
+ * and cannot vouch for. Deleting one is worse. So this answers the question and
+ * the operator acts — which is also why it is safe to call on every render.
+ */
+export type BackupStorageReport = {
+  directory: string;
+  databaseDirectory: string;
+  /** L-194 — `SAME` means C-06 is being violated: a backup on the same disk as
+   *  the database is not a backup. `UNKNOWN` where a path cannot answer. */
+  volume: VolumeVerdict;
+  /** Files present with no row. Never removed by retention. */
+  unmanaged: { filename: string; sizeBytes: number; modifiedAt: string }[];
+  /** Rows whose file is absent — a backup that is listed and is not there. */
+  missing: { id: string; filename: string; createdAt: string }[];
+};
+
+export async function backupStorageReport(
+  paths: BackupPaths = defaultBackupPaths(),
+): Promise<BackupStorageReport> {
+  // **THE VERDICT IS ABOUT THE PATHS THIS WAS GIVEN**, not about the global
+  // configuration. The first version called `backupVolumeReport()`, which reads
+  // `BACKUP_LOCATION` and `databasePath()` directly — so with injected paths the
+  // report described the folder it had scanned and the volume of a different
+  // one, and no test could drive SAME or DIFFERENT through it at all. The test
+  // passed; it was asserting « the live machine's answer is one of three ».
+  const dir = paths.backupDir;
+  const databaseDirectory = path.dirname(paths.dbPath);
+  const volume = sameVolume(dir, databaseDirectory);
+
+  let onDisk: string[] = [];
+  try {
+    onDisk = (await fs.readdir(dir)).filter((f) => f.endsWith(".dbenc") || f.endsWith(".enc"));
+  } catch {
+    // No folder yet is not a fault: nothing has been backed up. Every list
+    // below is then empty, which is the truthful answer rather than an error.
+  }
+
+  const rows = await db.backup.findMany({
+    select: { id: true, filename: true, createdAt: true, imagesPath: true },
+    orderBy: { createdAt: "desc" },
+  });
+
+  // The media archive is CONTENT-ADDRESSED and shared by every backup whose
+  // images have not changed, so it is referenced by rows rather than owned by
+  // one. Counting it as unmanaged would report the one file that must never be
+  // deleted as the one nothing is using.
+  const referenced = new Set<string>();
+  for (const r of rows) {
+    referenced.add(r.filename);
+    if (r.imagesPath) referenced.add(path.basename(r.imagesPath));
+  }
+
+  const unmanaged: BackupStorageReport["unmanaged"] = [];
+  for (const filename of onDisk.sort()) {
+    if (referenced.has(filename)) continue;
+    try {
+      const stat = await fs.stat(path.join(dir, filename));
+      unmanaged.push({
+        filename,
+        sizeBytes: stat.size,
+        modifiedAt: stat.mtime.toISOString(),
+      });
+    } catch {
+      // Vanished between the listing and the stat — then it is not there, and
+      // « not there » is not something to report as present.
+    }
+  }
+
+  const present = new Set(onDisk);
+  const missing = rows
+    .filter((r) => !present.has(r.filename))
+    .map((r) => ({ id: r.id, filename: r.filename, createdAt: r.createdAt.toISOString() }));
+
+  return { directory: dir, databaseDirectory, volume, unmanaged, missing };
 }
 
 export async function deleteBackup(

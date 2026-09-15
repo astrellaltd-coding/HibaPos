@@ -401,6 +401,24 @@ export type BackupDto = {
   createdBy?: { name: string } | null;
 };
 
+/**
+ * What is on disk against what the database believes — L-190 — and whether the
+ * backups are even on a different volume — L-194.
+ *
+ * `unmanaged` is a FILE with no row: invisible in Réglages and never removed by
+ * the retention prune, which keeps the newest N ROWS. `missing` is a ROW with
+ * no file — a backup the screen lists and the disk does not have, which is the
+ * one that is found out at restore time.
+ */
+export type BackupStorageDto = {
+  directory: string;
+  databaseDirectory: string;
+  /** `SAME` means C-06 is being violated. `UNKNOWN` where a path cannot say. */
+  volume: "SAME" | "DIFFERENT" | "UNKNOWN";
+  unmanaged: { filename: string; sizeBytes: number; modifiedAt: string }[];
+  missing: { id: string; filename: string; createdAt: string }[];
+};
+
 export type TableStatus = "FREE" | "OCCUPIED" | "RESERVED";
 
 export type TableDto = {
