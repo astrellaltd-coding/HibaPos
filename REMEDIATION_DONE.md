@@ -4709,7 +4709,7 @@ id and a zero quantity.
 ---
 
 ### L-196 — the recovery tool could not see the backups
-**Done:** 2026-09-15 · **Commit:** `SHA` · **Finding:** L-196 (High). **No plan row** — found and
+**Done:** 2026-09-15 · **Commit:** `23acd6a` · **Finding:** L-196 (High). **No plan row** — found and
 fixed the same day, on the operator's approval.
 
 **`scripts/decrypt-backup.ts --list` read `path.join(process.cwd(), "db", "backups")` and ignored
