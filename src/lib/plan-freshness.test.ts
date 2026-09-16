@@ -326,7 +326,19 @@ describe("plan freshness — the plan and the done file may not disagree", () =>
     //   script, the restore point is on disk, `foreign_key_check` is clean, and
     //   the catalogue moved 84 → 83 with the till grid unchanged at 80. Tasks
     //   stay at 6, all `OPERATOR`.
-    expect(taskStatuses(src).size).toBe(6);
+    //   2026-09-16: TASKS 6 → 5. **R6.5 WAS DONE BY THE OPERATOR, ON THE TILL**,
+    //   during the France commissioning: `BACKUP_LOCATION` points at a second
+    //   volume and the first backup was decrypted back to valid SQLite — not
+    //   seen, opened. Its row left for `REMEDIATION_DONE.md`, which is the plan's
+    //   own rule. **R6.4 did NOT move, and that distinction is the point.** The
+    //   printer is installed, the queue is `SUNSO WTP-801` on `USB001`, and a test
+    //   page was written to the spooler in full and drained — but nobody has seen
+    //   it on paper, and « prints nothing and reports success » is that row's own
+    //   warning. Configured is not verified, so it stays open.
+    //   FINDINGS STAY AT 5 for the second time. The day opened L-200, L-201 and
+    //   L-202 and corrected L-198; all four are audit-sequence ids and live in
+    //   `docs/audit/FINDINGS.md`, not in § 7.
+    expect(taskStatuses(src).size).toBe(5);
     expect(openFindings(src).size).toBe(5);
     expect(done()).toContain("# HibaPOS France — Completed Work");
   });

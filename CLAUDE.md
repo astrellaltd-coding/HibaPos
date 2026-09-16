@@ -51,10 +51,13 @@ machine; the rule above is about you.
 
 ## Where things stand
 
-The software is essentially complete and has never been deployed. **Deployment is deferred:
-the app will ship as a Tauri v2 native application, and that migration has its own plan
-which does not exist yet.** Anything about installing on a Windows till, kiosk launchers or
-commissioning sessions was retired on 2026-09-10 — if you find some, it is stale.
+The software is essentially complete. **It was installed on the restaurant's production
+till in France on 2026-09-16** — `C:\HibaPOS-app`, run from source with `bun run start`,
+printer on `USB001`, first backup taken to `D:` and verified by decryption. It has still
+**never traded**: FACTICE is on, the fiscal journal is empty, the chain key is not armed.
+**Tauri v2 remains the shipping form** and that migration still has no plan — what runs in
+France today is the development build, not a package. Anything about kiosk launchers is
+still stale.
 
 **The audit is DONE, and it is the work list.** On 2026-09-12 six read-only passes swept the
 whole project — money · security · data model · the till in use · build and ops · test
