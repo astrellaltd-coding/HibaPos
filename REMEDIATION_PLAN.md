@@ -155,10 +155,6 @@ audit exercised produced screen figures matching the database to the cent.
   included, `integrity_check` ok, zero FK errors, `migrate status` up to date, and a refund with
   an attribution round-tripped through the real service on a copy. R8.2's is applied too —
   § 1 and L-195. This bullet is kept as the place the next one goes.)*
-- **Delete `5 nuggets test` (L-81), prepared and rehearsed.** With the app stopped:
-  `bun scripts/delete-product.ts --id cmtvwzr050004n368crvp0mw3 --apply`. Dry run without
-  `--apply`. Rehearsed on a copy 2026-09-11: 84 → 83 products, 0 FK errors, `integrity_check`
-  ok, and a fingerprint diff over every table showing that one row and nothing else.
 - **A FRESH verified backup, off this machine.** The oldest open item in the plan and the
   only one about losing data rather than getting something wrong. The two backup rows in
   `docs/BASELINES.md` say exactly where it stands and what is left.
@@ -448,7 +444,6 @@ its own new id; FINDINGS.md's « Already known » section maps them.
 
 | ID | Severity | Finding | Owner |
 |---|---|---|---|
-| **L-81** | Cosmetic | A test product, `5 nuggets test` (Croustillants, 5,00 €), was created in the live catalogue on 2026-09-10 and left `active=0` / `available=0`. Invisible on the till and harmless, but the catalogue is meant to be real work only — and it is now inside the verified backup. Delete it with the operator, or keep it deliberately. | none |
 | **L-75** | Deferred | The app cannot run on a 32-bit Windows: both Prisma engines are `machine 0x8664` and Bun is x64/ARM64 only. **Carried to the Tauri v2 phase**, where the runtime and the packaging are both decided. No software fix at this layer. | none |
 | **L-05** | Deferred | `output: "standalone"` was dropped; whether to reinstate it deliberately is open. Still true — no `output` key — but deferred to nothing. **Carried to the Tauri v2 phase**, like L-75: its premise (a Windows-till Node install) is retired and packaging is decided there. | none |
 | **L-47** | Open | The app renders its login screen even with a valid session **in the in-app browser pane**, so no browser walkthrough reaches an authenticated view. Four data points; never reproduced outside that pane. | none |

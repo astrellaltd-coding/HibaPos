@@ -319,8 +319,15 @@ describe("plan freshness — the plan and the done file may not disagree", () =>
     //   than a defect: `showOnPos` becomes a guard at the API, and the payment
     //   dialog states its rule once instead of twice. Tasks stay at 6, all
     //   `OPERATOR`; no batch was added and none was finished.
+    //   2026-09-16: FINDINGS 6 → 5. **L-81 was CLOSED BY THE OPERATOR**, who ran
+    //   `scripts/delete-product.ts --apply` on 2026-09-15 — a live-catalogue edit,
+    //   which `CLAUDE.md` reserves to them. Verified here from the database
+    //   rather than taken on trust: the audit row names the product and the
+    //   script, the restore point is on disk, `foreign_key_check` is clean, and
+    //   the catalogue moved 84 → 83 with the till grid unchanged at 80. Tasks
+    //   stay at 6, all `OPERATOR`.
     expect(taskStatuses(src).size).toBe(6);
-    expect(openFindings(src).size).toBe(6);
+    expect(openFindings(src).size).toBe(5);
     expect(done()).toContain("# HibaPOS France — Completed Work");
   });
 

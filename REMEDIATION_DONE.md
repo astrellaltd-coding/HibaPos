@@ -91,6 +91,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - L-196 — the recovery tool could not see the backups
 - L-190 · L-194 — the backup screen stops believing only the table
 - L-84 · L-11 — a display rule becomes a guard, and one rule stops having two spellings
+- L-81 — `5 nuggets test` deleted by the operator, and verified from the database
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -4988,6 +4989,60 @@ than by reading, which is how every one of the five was caught.
 
 **Left behind.** Nothing from either. § 7 holds six findings, of which five are deferred or
 external by decision (L-81, L-75, L-05, L-47, L-51) and one is L-52's legal question.
+---
+
+### L-81 — `5 nuggets test` deleted by the operator, and verified from the database
+**Done:** 2026-09-15 by the operator · **Verified:** 2026-09-16 · **Commit:** `SHA` ·
+**Finding:** L-81, from the plan's § 7, open since 2026-09-10. § 7 goes from 6 to 5.
+
+**Not my action, and that is the point.** `CLAUDE.md` reserves edits to the live catalogue to
+the operator. What a session could do was prepare it, rehearse it on a copy, and hand over the
+exact command — which R7-era work did on 2026-09-11 — and then, afterwards, **check that what
+happened is what was rehearsed**. This entry is that check.
+
+## What was verified, and how
+
+Read-only, from a copy of the live database. **Not inferred from the operator saying so**, and
+not from the product's absence alone — an absence is consistent with a deletion, a restore, or
+a mistake.
+
+| | |
+|---|---|
+| the row | `cmtvwzr050004n368crvp0mw3` **GONE** |
+| the audit trail | one `PRODUCT_HARD_DELETED` row naming `5 nuggets test`, Croustillants, 500, **`"via":"scripts/delete-product.ts"`** — so it went through the guarded path, not a hand-written `DELETE` |
+| the restore point | `../db-snapshots/custom.db.before-delete-cmtvwzr050004n368crvp0mw3-2026-09-15`, 884 736 bytes, **on disk** — refusal 6 of the script requires it and it is there |
+| referential integrity | `PRAGMA foreign_key_check` **clean** |
+| the count | **84 → 83**, exactly what the 2026-09-11 rehearsal predicted |
+| the catalogue's shape | 14 categories, 9 menus, 25 slots, 2 accounts — **all unmoved** |
+
+**THE TILL GRID DID NOT CHANGE: 80 before, 80 after.** It was 84 less the three `showOnPos = 0`
+box components less this inactive row; it is now 83 less those three. The same 80. **That
+identity is the whole reason L-81 was Cosmetic** rather than a defect — the row was never
+reachable from the till, only from the catalogue listing and, more importantly, from inside
+every backup.
+
+**There are now zero inactive products.** This was the only one, so a `Product` with
+`active = 0` appearing in future is new information rather than known residue.
+
+## What else moved, and why it is recorded here
+
+The live database's sha256 moved twice on 2026-09-15 and **neither change is trading data**:
+the operator took a backup through the app (which records itself — a `Backup` row and a
+`BACKUP_CREATED` audit entry), and then deleted this product. `docs/BASELINES.md` carried the
+pre-deletion fingerprint until today.
+
+**The size did not move — again.** 884 736 bytes across five schema changes, a row insert and
+now a row delete. SQLite frees pages for reuse rather than returning them to the filesystem.
+The baseline has said « do not use the size as a check » since 2026-09-14; a deletion leaving
+it identical is the strongest demonstration of that yet, and it is why the install instructions
+prepared for the operator on 2026-09-16 specify `Get-FileHash` and say why.
+
+## Left behind
+
+**L-198**, opened today: the printer is a **WTP-801** and its driver is named **WTP-800**. Both
+are correct, both are already written down, and they are written down in different files — the
+operator hit the ambiguity while preparing the remote install and corrected the plan's wording,
+which was right about the driver while they were right about the printer.
 ---
 
 ## Retired from the plan's § 6 on 2026-09-11
