@@ -104,6 +104,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - Phase 4 — Small correctness — **COMPLETE 2026-09-11**
 - Phase 5 — Cleanup — **COMPLETE 2026-09-11**
 - R6.5 — the restaurant's backups are on a second volume, and one has been opened again
+- L-205 — one stderr line no longer kills the till's launcher
 
 ---
 
@@ -5090,6 +5091,49 @@ hypothetical now: there are real backups.
 verification only works when run from `C:\HibaPOS-app`. Run from anywhere else it reports the
 key missing *and* looks in the wrong folder — two failures from one cause. Recorded as part
 of **L-202**.
+
+---
+
+### L-205 — one stderr line no longer kills the till's launcher
+**Done:** 2026-09-17 · **Commit:** `SHA` · **Finding:** L-205, opened the same night, in
+`docs/audit/FINDINGS.md` alongside L-203 and L-204.
+
+**What it was.** `hibapos-server.ps1:192` ran `& bunx prisma migrate status 2>&1 \| Out-String`.
+In Windows PowerShell 5.1 a redirected **native** stderr line is wrapped as an ErrorRecord,
+and `$ErrorActionPreference = "Stop"` (`:65`) makes that a terminating error **before
+`$statusCode` is assigned on the next line** — so refusal 2 never ran, and the log stopped at
+« Checking migration status... » naming no cause.
+
+**How it surfaced.** On the France till at 2026-09-17 01:18, the first time this launcher was
+ever run in the configuration it was written for. `prisma migrate status` **exited 0** and
+wrote one deprecation warning about `package.json#prisma` to stderr. The till would not start.
+
+**What changed.** `$ErrorActionPreference` is saved, lowered to `Continue` for that one call,
+and restored immediately afterwards. `$LASTEXITCODE` still carries prisma's real exit code,
+which is all refusal 2 reads, so the refusal's behaviour is unchanged.
+
+## How it was verified
+
+| | |
+|---|---|
+| The mechanism, reproduced | PowerShell **5.1.26100**, three lines: `& cmd /c "echo oops 1>&2 & exit 0" 2>&1 \| Out-String` under `Stop` threw `NativeCommandError` — the till's exact error. The guarded form returned `exit=0`, captured the text, and left `$ErrorActionPreference` back at `Stop` |
+| The script still parses | `[Parser]::ParseFile` clean, 830 tokens. `deployment.test.ts` carries that check because an earlier edit to these files failed at exactly that point |
+| Encoding invariants held | UTF-8 BOM present, **zero** characters above U+007E, LF endings. All pinned, and the new comment was written ASCII-only for that reason — an em dash inside a double-quoted string in a BOM-less `.ps1` silently ends the string |
+| The pins still hold | `deployment.test.ts`: 48 pass / 0 fail. `prisma migrate status` still present, `migrate deploy` still absent from the **commands**, `SESSION_SECRET` still named |
+
+**Left behind — this does not reach the till by itself.** France runs from an extracted copy,
+not a clone, so `C:\HibaPOS-app\.zscripts\hibapos-server.ps1` holds the old line until the
+file is copied across. Nothing auto-starts there yet, so nothing is broken in the meantime.
+
+**Deliberately not fixed: L-203 and L-204**, both in this same script. Neither is a defect —
+each is a decision. Where should the launcher look for secrets now that an install generates
+its own, and should refusal 2 exist at all now that the application applies pending migrations
+behind a backup it verifies? `deployment.test.ts` pins both, so neither can move by accident.
+
+**Also left behind:** the trigger was any stderr output, not that one warning, so
+`package.json#prisma` is still the deprecated form. Migrating it to a `prisma.config.ts` is a
+separate and unrelated tidy-up — doing it *instead* of this fix would have removed the symptom
+and left the mechanism armed.
 
 ---
 

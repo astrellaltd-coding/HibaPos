@@ -189,8 +189,42 @@ Write-Log "Database found: $DbPath"
 
 # --- refusal 2: no pending migrations ---------------------------------------
 Write-Log "Checking migration status..."
+# L-205: `2>&1` on a NATIVE command is fatal in Windows PowerShell 5.1.
+#
+# A redirected native stderr line is wrapped as an ErrorRecord, and
+# $ErrorActionPreference = "Stop" (line 65) makes that a TERMINATING error right
+# here -- before $statusCode is assigned on the next line. Refusal 2 then never
+# runs, and the log stops at "Checking migration status..." naming no cause.
+#
+# MEASURED on the France till, 2026-09-17 01:18, the first time this script was
+# ever run in the configuration it was written for: `prisma migrate status`
+# EXITED 0 and wrote one deprecation warning to stderr -- "The configuration
+# property `package.json#prisma` is deprecated" -- and the launcher died with
+# NativeCommandError. Reproduced here on PowerShell 5.1.26100 with a three-line
+# case, and this form verified against it.
+#
+# THE TRIGGER IS ANY STDERR OUTPUT AT ALL. Silencing that one warning, by
+# moving package.json#prisma into a prisma.config.ts, would remove today's
+# cause and leave the mechanism armed for the next command that writes a line.
+#
+# THIS IS THE SAME MECHANISM REFUSAL 4 DOCUMENTS ABOVE. It was fixed there for
+# the case where bunx is MISSING, and left in place for the case where bunx
+# SUCCEEDS.
+#
+# The preference is lowered for this one call and restored immediately.
+# $LASTEXITCODE still carries prisma's real exit code, which is all refusal 2
+# reads, so the refusal keeps working exactly as designed.
+#
+# One cosmetic consequence, recorded so nobody rediscovers it: the captured
+# stderr arrives wrapped in PowerShell's error formatting ("cmd.exe : ...",
+# "At line:1 char:...") rather than as clean text. $statusOutput is only ever
+# shown inside the refusal message below, which already dumps prisma's output,
+# so it is noisier and not wrong.
+$prevEap = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
 $statusOutput = & bunx prisma migrate status 2>&1 | Out-String
 $statusCode = $LASTEXITCODE
+$ErrorActionPreference = $prevEap
 Write-Log ("prisma migrate status exit={0}" -f $statusCode)
 
 if ($statusCode -ne 0) {
