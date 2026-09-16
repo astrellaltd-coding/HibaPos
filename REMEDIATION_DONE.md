@@ -5056,7 +5056,7 @@ warnings Phase 5 left behind (`tw-animate-css` and `tar`) were promoted into the
 invariants at the same time, because they are standing traps rather than a record.*
 
 ### R6.5 — the restaurant's backups are on a second volume, and one has been opened again
-**Done:** 2026-09-16 by the operator, on the till · **Verified:** 2026-09-16 · **Commit:** `SHA` ·
+**Done:** 2026-09-16 by the operator, on the till · **Verified:** 2026-09-16 · **Commit:** `6078b09` ·
 **Decision:** C-06. § 6 goes from 6 tasks to 5.
 
 **Not my action, and the row said so.** R6.5 is `OPERATOR` and it belongs to the restaurant's
