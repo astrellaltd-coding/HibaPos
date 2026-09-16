@@ -5095,7 +5095,7 @@ of **L-202**.
 ---
 
 ### L-205 — one stderr line no longer kills the till's launcher
-**Done:** 2026-09-17 · **Commit:** `SHA` · **Finding:** L-205, opened the same night, in
+**Done:** 2026-09-17 · **Commit:** `791b433` · **Finding:** L-205, opened the same night, in
 `docs/audit/FINDINGS.md` alongside L-203 and L-204.
 
 **What it was.** `hibapos-server.ps1:192` ran `& bunx prisma migrate status 2>&1 \| Out-String`.
