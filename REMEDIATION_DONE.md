@@ -5139,7 +5139,7 @@ and left the mechanism armed.
 ---
 
 ### R6.4 — the printer prints, and somebody saw the paper
-**Done:** 2026-09-16 on the till · **Confirmed on paper:** 2026-09-17 · **Commit:** `SHA` ·
+**Done:** 2026-09-16 on the till · **Confirmed on paper:** 2026-09-17 · **Commit:** `86d637b` ·
 **Decision:** C-07, runbook § 4a. § 6 goes from 5 tasks to 4.
 
 **Why this row stayed open a day longer than the work took.** The configuration finished on
