@@ -22,9 +22,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Minus, Plus, Trash2, Pencil, ShoppingCart, Wallet, User, Pause, Layers, StickyNote, Tag, X } from "lucide-react";
+import { Minus, Plus, Trash2, Pencil, ShoppingCart, Wallet, User, Pause, Layers, StickyNote, Tag, X, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatEuro } from "@/lib/format";
+import { deliveryBlockReason } from "@/lib/delivery-customer";
 import { motion, AnimatePresence } from "framer-motion";
 
 export function CartPanel({ onCheckout, onEditItem, onOpenDiscount }: { onCheckout: () => void; onEditItem?: (item: CartItem) => void; onOpenDiscount?: () => void }) {
@@ -62,6 +63,17 @@ export function CartPanel({ onCheckout, onEditItem, onOpenDiscount }: { onChecko
     enabled: !!customerId,
     retry: false,
   });
+
+  /**
+   * L-214 — the ONE question « may this order be cashed up? », asked of the one
+   * function the server asks too.
+   *
+   * It was three hand-written conditions in this file — the Client button's
+   * amber state, its tooltip and `Encaisser`'s `disabled` — all three reading
+   * `!customerId || !customer?.address`, and all three leaving the PHONE out
+   * while `POST /api/orders` demanded it. `null` means the order may go.
+   */
+  const deliveryBlock = deliveryBlockReason(orderType, customerId, customer);
 
   return (
     <div className="flex h-full w-full flex-col bg-card">
@@ -321,17 +333,35 @@ export function CartPanel({ onCheckout, onEditItem, onOpenDiscount }: { onChecko
               />
             </div>
           )}
+          {/* L-214 — THE REASON IS ON THE SCREEN, IN WORDS.
+            *
+            * What was here: a pulsing amber outline on the Client button and a
+            * `title=` tooltip. A tooltip needs a mouse to hover; this is a
+            * touchscreen. So the cashier got a button that glowed and a
+            * « Encaisser » that would not press, and nothing anywhere said
+            * why — L-211's shape exactly, the affordance present and silent.
+            *
+            * The sentence is `deliveryBlockReason`'s, which is the same
+            * sentence the server returns if it ever gets that far. */}
+          {deliveryBlock && (
+            <div
+              role="status"
+              className="mb-2 flex items-start gap-1.5 rounded-lg border border-amber-500/60 bg-amber-500/10 px-2.5 py-2 text-[11px] font-medium leading-snug text-amber-700 dark:text-amber-400"
+            >
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>{deliveryBlock}</span>
+            </div>
+          )}
           <div className="flex gap-1.5">
             <Button
               variant="outline"
               size="sm"
               className={cn(
                 "flex-1 h-11 min-h-[44px] gap-1.5 text-xs",
-                orderType === "LIVRAISON" && (!customerId || !customer?.address)
-                  ? "border-amber-500 text-amber-600 animate-pulse"
+                deliveryBlock
+                  ? "border-amber-500 text-amber-600"
                   : customerId && "border-primary text-primary",
               )}
-              title={orderType === "LIVRAISON" && (!customerId || !customer?.address) ? "Livraison : client et adresse requis" : undefined}
               onClick={() => setCustomerPickerOpen(true)}
             >
               <User className="h-3.5 w-3.5" />
@@ -401,10 +431,17 @@ export function CartPanel({ onCheckout, onEditItem, onOpenDiscount }: { onChecko
           </div>
         )}
 
+        {/* L-214 — `deliveryBlock` replaces a hand-written condition that left
+          * the PHONE out, so a client with an address and no phone enabled this
+          * button and was refused by the server after the cash was taken. The
+          * button is still DISABLED rather than allowed-and-refused — no money
+          * should be counted for a sale the server will not book — but the
+          * reason is now printed above the Client button instead of hidden in a
+          * tooltip. */}
         <Button
           className="h-12 w-full gap-2 text-lg font-bold shadow-sm transition-all active:scale-[0.98]"
           size="lg"
-          disabled={items.length === 0 || (orderType === "LIVRAISON" && (!customerId || !customer?.address))}
+          disabled={items.length === 0 || deliveryBlock !== null}
           onClick={onCheckout}
         >
           <Wallet className="h-5 w-5" />
@@ -434,11 +471,16 @@ export function CartPanel({ onCheckout, onEditItem, onOpenDiscount }: { onChecko
       </AlertDialog>
 
       {/* Dialogs */}
+      {/* L-214 — the picker is TOLD the order type. It was not, so it looked
+        * identical on a delivery: `Adresse *` starred, `Téléphone` not, and a
+        * Créer button that lit up on a name alone — the exact client the
+        * server would refuse. */}
       <CustomerPickerDialog
         open={customerPickerOpen}
         onOpenChange={setCustomerPickerOpen}
         selectedId={customerId}
         onSelect={setCustomerId}
+        orderType={orderType}
       />
       <HeldOrdersDialog open={heldOpen} onOpenChange={setHeldOpen} />
     </div>

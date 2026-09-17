@@ -311,6 +311,38 @@ describe("L-213 — a key tap does not dismiss the dialog it is typing into", ()
     expect(layout.match(/<OnScreenKeyboard \/>/g)?.length).toBe(1);
   });
 
+  it("MAKES ROOM: a dialog centres above the keyboard instead of under it", () => {
+    // FOUND BY THE E2E SPEC, not by looking at it. Three delivery tests timed
+    // out clicking « Créer » because this panel — fixed to the bottom, above
+    // the dialog layer, as it must be — was sitting on top of the dialog's own
+    // buttons. A cashier would have typed an address and been unable to reach
+    // the button that saves it, and on the France till that is the normal case:
+    // L-211 measured that screen short of about a third of the CSS pixels this
+    // layout wants, so the keyboard takes a larger share of it than of anything
+    // this has been rendered on.
+    const css = readFileSync(path.join(process.cwd(), "src/app/globals.css"), "utf8");
+    expect(css, "no dialog rule reads --osk-height").toContain(
+      "top: calc(50% - var(--osk-height, 0px) / 2)",
+    );
+    expect(css, "a tall dialog can still grow underneath the keyboard").toContain(
+      "max-height: calc(100dvh - var(--osk-height, 0px) - 1.5rem)",
+    );
+    // …and the variable is actually published, from a MEASURED height: the
+    // alpha pad and the number pad are different heights and both move with the
+    // browser's font size, so a constant here would be wrong half the time.
+    const osk = readFileSync(
+      path.join(process.cwd(), "src/components/shared/on-screen-keyboard.tsx"),
+      "utf8",
+    );
+    expect(osk, "--osk-height is never set, so the CSS rule is inert").toContain(
+      'root.style.setProperty("--osk-height"',
+    );
+    expect(osk).toContain("panel.current?.offsetHeight");
+    expect(osk, "the variable is not cleared when the keyboard goes away").toContain(
+      'root.style.removeProperty("--osk-height")',
+    );
+  });
+
   it("LEAVES THE STEP-UP PIN ALONE, which already has a keypad (L-133)", () => {
     const src = readFileSync(path.join(process.cwd(), "src/components/pos/step-up-pin-dialog.tsx"), "utf8");
     // ANCHORED TO A LINE OF ITS OWN, which is a JSX attribute and nothing else.

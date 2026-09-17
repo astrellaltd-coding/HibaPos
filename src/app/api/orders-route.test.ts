@@ -285,6 +285,76 @@ describe("T-08 — the checkout input rules, against the schema the route runs",
     expect(status).toBe(201);
   });
 
+  it("REFUSES LIVRAISON to a customer with NO PHONE — L-214's gap", async () => {
+    // THE CASE NOTHING PINNED, and the one the owner met. This route has
+    // demanded a phone since it was written; the till gated on the address
+    // alone, so this exact client passed every check the cashier could see,
+    // the payment dialog opened, the cash was taken — and then this.
+    //
+    // The refusal is tested HERE as well as in `delivery-customer.test.ts`
+    // because a rule test proves the rule and not that the route calls it.
+    const customer = await db.customer.create({
+      data: { name: "Sans Téléphone", address: "1 rue Test" },
+    });
+    const { status, body } = await post({
+      orderType: "LIVRAISON",
+      customerId: customer.id,
+      items: [{ productId: product.id, quantity: 1, optionIds: [], addons: [] }],
+      payments: [{ method: "CASH", amount: product.price }],
+    });
+    expect(status).toBe(400);
+    expect(body.error).toContain("livraison");
+    expect(body.error, "the refusal does not say WHICH field is missing").toContain("téléphone");
+    expect(await db.order.count()).toBe(0);
+  });
+
+  it("names ONLY what is missing, rather than reciting all three", async () => {
+    // The old message recited « un nom, un téléphone et une adresse » whatever
+    // was actually absent, which tells a cashier holding the cash nothing about
+    // what to fix. Same sentence the till prints before it gets this far.
+    const customer = await db.customer.create({ data: { name: "Rien Que Le Nom" } });
+    const { status, body } = await post({
+      orderType: "LIVRAISON",
+      customerId: customer.id,
+      items: [{ productId: product.id, quantity: 1, optionIds: [], addons: [] }],
+      payments: [{ method: "CASH", amount: product.price }],
+    });
+    expect(status).toBe(400);
+    expect(body.error).toContain("téléphone");
+    expect(body.error).toContain("adresse");
+    expect(body.error, "a name was given, so it must not be listed as missing").not.toContain("le nom");
+  });
+
+  it("REFUSES a customerId that matches no row, and says so", async () => {
+    // Its own message since L-214: the shared rule would otherwise report
+    // « le nom, le téléphone et l'adresse » missing from a client that does
+    // not exist, which sends the cashier looking for a record to fix.
+    const { status, body } = await post({
+      orderType: "LIVRAISON",
+      customerId: "cl00000000000000000000000",
+      items: [{ productId: product.id, quantity: 1, optionIds: [], addons: [] }],
+      payments: [{ method: "CASH", amount: product.price }],
+    });
+    expect(status).toBe(400);
+    expect(body.error).toContain("introuvable");
+    expect(await db.order.count()).toBe(0);
+  });
+
+  it("REFUSES LIVRAISON to a customer whose address is only WHITESPACE", async () => {
+    // `!customer.address` was truthy for « "  " », so a space was an address.
+    const customer = await db.customer.create({
+      data: { name: "Espace", phone: "0600000000", address: "   " },
+    });
+    const { status, body } = await post({
+      orderType: "LIVRAISON",
+      customerId: customer.id,
+      items: [{ productId: product.id, quantity: 1, optionIds: [], addons: [] }],
+      payments: [{ method: "CASH", amount: product.price }],
+    });
+    expect(status).toBe(400);
+    expect(body.error).toContain("adresse");
+  });
+
   it("REFUSES LIVRAISON to a customer with no address", async () => {
     // Added at the re-pointing: the old schema test could not express this,
     // because the schema only knew whether a `customerId` was present.

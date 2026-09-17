@@ -93,6 +93,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - L-84 · L-11 — a display rule becomes a guard, and one rule stops having two spellings
 - L-81 — `5 nuggets test` deleted by the operator, and verified from the database
 - L-213 — a keyboard on the screen, because the day could not be closed without one
+- L-214 — one rule for what a delivery client is, and the till says it out loud
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -5292,6 +5293,18 @@ that fails is the number to check — so it was checked, not weakened.
 were taken read-only with `bun:sqlite`; sha256 `fbf2f75f…d6d5913` and mtime
 2026-09-16 11:30:39 identical before and after, no `-wal`/`-shm` beside it.
 
+**A DEFECT IN THIS WORK WAS FOUND BY L-214's E2E SPEC, an hour later, and is fixed here.**
+Three delivery tests timed out clicking « Créer »: this panel, fixed to the bottom of the
+viewport and above the dialog layer as it has to be, **was sitting on top of the dialog's own
+buttons.** A cashier would have typed an address and been unable to reach the button that saves
+it — and on the France till that is the normal case rather than a corner, because L-211
+measured that screen short of about a third of the CSS pixels this layout wants. The keyboard
+now publishes its **measured** height as `--osk-height` and `globals.css` centres a dialog in
+the space above it, capped so a tall one scrolls instead of growing underneath. Two
+declarations, reaching every dialog in the product, and no call site changed. **Neither the
+unit tests nor a screenshot would have caught it** — the panel renders perfectly and the
+dialog renders perfectly; what was wrong was where they were relative to each other.
+
 **What this does NOT do.** It does not measure the till. L-211 asks for `innerWidth`,
 `innerHeight` and `devicePixelRatio` on that machine and nobody has read them — a keyboard
 panel spends vertical space that screen has already been shown not to have, so how many rows
@@ -5300,6 +5313,115 @@ those three numbers. It also does not decide whether the two caisse money fields
 being `type="number"` altogether, which would remove the whole class of problem above at the
 cost of changing how two fiscal fields validate. That is the operator's call and is recorded
 in `osk.ts` where the workaround lives.
+
+
+### L-214 — one rule for what a delivery client is, and the till says it out loud
+
+**Done:** 2026-09-17 · **Commit:** `<SHA>` · **Finding:** L-214 (High). **Follows L-213 and
+could not have gone first** — see below. **No plan row**, as L-191 and L-213.
+
+**THE OWNER REPORTED « the client input when delivery is set ».** What was actually there was
+a disagreement: `POST /api/orders` refused `LIVRAISON` unless the client had a **name, a phone
+AND an address**, while the till gated on `!customerId || !customer?.address` — **the phone was
+not in the condition**, in all three places the condition appeared. Each side had written the
+rule out for itself and the two had drifted.
+
+**THE CONSEQUENCE WAS THE WORST-SHAPED KIND.** A delivery to a client with an address and no
+phone passed every check the cashier could see: `Encaisser` was enabled, the payment dialog
+opened, the cash was taken and counted — and *then* the server answered 400. The cart
+survived, and **no path in the POS could repair the client**: the card there is read-only and
+editing lived in Réglages → Clients, which means walking away from the caisse with a queue
+waiting. The other branch was quieter: a client with no address left `Encaisser` disabled and
+explained itself in a **`title=` tooltip, on a touchscreen**, where nothing hovers. L-211's
+shape exactly — the affordance present and silent.
+
+**AND THE PICKER ACTIVELY BUILT THE REFUSED CLIENT.** It starred `Adresse *`, left
+`Téléphone` unstarred, and lit `Créer` on a name alone. It was never told what kind of order
+it had been opened for, so it looked identical on a delivery. Its list printed
+`téléphone · email` and **never the address**, so there was no way to see which regular could
+be delivered to at all.
+
+**WHAT CHANGED — one rule, and every side calls it.** `src/lib/delivery-customer.ts` holds
+`missingForDelivery`, and `cart-panel.tsx`, `customer-picker-dialog.tsx` and
+`app/api/orders/route.ts` all ask it. **The route no longer spells the rule out**, which is
+the actual fix: a drift like the original is no longer something that can be written by
+accident — it would take deleting a caller.
+- **The phone is in the till's condition**, and the three hand-written copies are one call.
+- **The reason is printed on the screen, in words**, above the Client button and again under
+  the picker's `Créer` — and it is the *same sentence* the server returns. `Encaisser` stays
+  **disabled** rather than allowed-and-refused, because no money should be counted for a sale
+  the server will not book; what changed is that the cashier can now read why.
+- **The message names what is missing** — « Informations manquantes pour la livraison : le
+  téléphone. » — instead of reciting all three whatever was absent.
+- **The picker is told the order type.** A delivery requires all three; any other order still
+  requires a name and nothing more, because the server asks for nothing more and a till that
+  demanded an address for a sur-place order would be the same defect pointing the other way.
+- **A cashier can repair a client from the caisse** — the operator's decision, 2026-09-17 — and
+  the edit invalidates `["customer", id]` as well as the list, because that is the key the cart
+  reads. Without it the cart would go on believing the old record and `Encaisser` would stay
+  dead after the cashier had just fixed the thing blocking it.
+- **The address is on every row**, with a line naming what a non-deliverable client lacks.
+- **Whitespace counts as missing.** `!customer.address` was truthy for « "&nbsp;&nbsp;" », so a
+  space was an address — truthy, and useless to a driver.
+- **A client chosen but not yet loaded is no longer accused of missing every field.** It
+  blocks, and says « Chargement du client… », which is the truth.
+
+**WHY THIS COULD NOT GO BEFORE L-213.** Aligning the till to the server means the till
+*demands* a phone and an address for a delivery. With no on-screen keyboard that converts a
+sale which merely failed late into one that **cannot be started at all** — on a machine chosen
+to need no keyboard. The dependency was recorded in both findings before either was touched.
+
+**HOW IT WAS VERIFIED.**
+- **1 950 pass / 0 fail / 154 files**, typecheck and lint clean.
+- **21 e2e pass in a real browser.** `06-delivery-client.spec.ts` drives the owner's own
+  complaint: a delivery with no client, then the *exact* half-complete client the old form was
+  happy to make, then repairing a regular from the caisse and watching `Encaisser` come alive.
+  Neither half of this defect was visible from an API — the route tests could always see the
+  400, and nothing could see that the till had offered the sale.
+- **Four route tests were added for the gap the finding named.** `orders-route.test.ts` pinned
+  « no customer » and « no address » and **nothing pinned « no phone »** — the one case the
+  owner met. It now also pins that the message names only what is missing, that an unknown
+  `customerId` says « introuvable » rather than listing three absent fields, and that an
+  address of whitespace is refused.
+- **THE REVERT WENT RED SIXTEEN TIMES**, one property at a time, both directions where a
+  property has two: the rule dropping the phone · dropping the address · whitespace counting as
+  present · accusing an unloaded client · blocking every order type · reciting all three · the
+  route spelling the rule itself · the till deciding for itself · the picker not being told the
+  order type · the form asking only for a name · the form demanding all three on every order ·
+  the picker not calling the rule · losing the repair path · not invalidating the cart's key ·
+  taking the address off the row.
+- **TWO REVERTS SURVIVED AND BOTH WERE MY TESTS' FAULT.** (a) Reverting the form to « a name is
+  enough » — *the exact behaviour the owner reported* — left everything green, because the only
+  assertion covering it was that the OLD condition's text had gone, which says nothing about
+  what replaced it. The ternary was **extracted to `customerFormBlocked`** so it could be
+  called and tested. (b) Taking the address off the list row left
+  `expect(picker).toContain("c.address")` green, because `startEdit`'s `c.address ?? ""` kept
+  the substring alive. Now anchored to the row's own expression.
+- **AND A THIRD SELF-MATCHING ASSERTION, fixed generally rather than with another anchor.**
+  `expect(cart).not.toContain("!customer?.address")` failed against the *fix*, because the
+  comment explaining the fix quotes the old condition by name. That is the third time in this
+  project an assertion has matched the prose written to explain it (L-213's `data-osk="off"`
+  was the second), so the negative assertions now read the file **with its comments stripped**.
+  A comment saying « this used to read X » must never be able to fail a test for X.
+
+**A DEFECT IN L-213 CAME OUT OF THIS SPEC, and it is recorded in L-213's entry too.** Three of
+these tests timed out clicking `Créer`: the new keyboard panel, fixed to the bottom of the
+viewport and above the dialog layer as it has to be, **was sitting on top of the dialog's own
+buttons**. A cashier would have typed the address and been unable to reach the button that
+saves it — and on the France till that is the normal case, not a corner, because L-211
+measured that screen short of about a third of the CSS pixels this layout wants. Fixed in
+`globals.css`: the keyboard publishes its **measured** height as `--osk-height` and a dialog
+centres itself in the space above it, capped so a tall one scrolls instead of growing
+underneath. Two declarations, reaching every dialog in the product, and no call site changed.
+
+**THE LIVE DATABASE WAS NOT TOUCHED.** sha256 `fbf2f75f…d6d5913` unchanged.
+
+**What this does NOT do.** It does not touch Réglages → Clients, which keeps its own full
+editor — the picker deliberately edits only the three fields a delivery turns on, so the
+caisse cannot quietly become the place client records are managed. It also does not revisit
+whether `customerSchema` should require a phone: the schema is shared with the admin screen,
+where a client with no phone is perfectly legitimate, and the requirement belongs to the
+*delivery*, not to the record.
 
 ---
 

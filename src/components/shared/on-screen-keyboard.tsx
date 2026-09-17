@@ -69,6 +69,7 @@ import {
 const KEY = "h-11 min-h-[44px] min-w-[44px] text-base font-medium";
 
 export function OnScreenKeyboardPanel({
+  panelRef,
   layout,
   shifted,
   decimalSeparator,
@@ -77,6 +78,8 @@ export function OnScreenKeyboardPanel({
   onShift,
   onClose,
 }: {
+  /** L-213: the shell measures this node to publish `--osk-height`. */
+  panelRef?: React.Ref<HTMLDivElement>;
   layout: Exclude<OskLayout, "none">;
   shifted: boolean;
   decimalSeparator: "," | ".";
@@ -100,6 +103,7 @@ export function OnScreenKeyboardPanel({
 
   return (
     <div
+      ref={panelRef}
       {...{ [OSK_ROOT_ATTR]: "" }}
       role="group"
       aria-label="Clavier tactile"
@@ -305,6 +309,40 @@ export function OnScreenKeyboard() {
   /** The field the operator closed the keyboard on, so it does not spring back. */
   const dismissed = useRef<Element | null>(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const panel = useRef<HTMLDivElement | null>(null);
+
+  /**
+   * PUBLISH THE PANEL'S HEIGHT so a dialog can get out of its way.
+   *
+   * FOUND BY THE E2E SPEC: three delivery tests timed out clicking « Créer »
+   * because this panel was sitting on top of the dialog's buttons. A cashier
+   * would have typed an address and been unable to reach the button that saves
+   * it — and on the France till, which L-211 measured short of a third of the
+   * pixels this layout wants, that is the normal case rather than a corner.
+   *
+   * MEASURED, not assumed: the alpha pad and the number pad are different
+   * heights, and both change with the browser's font size. `globals.css` reads
+   * `--osk-height` and centres a dialog in the space above the keyboard.
+   * Cleared when no keyboard is shown, so nothing else has to know.
+   */
+  useEffect(() => {
+    const root = document.documentElement;
+    if (layout === "none" || !panel.current) {
+      root.style.removeProperty("--osk-height");
+      return;
+    }
+    const publish = () => {
+      const h = panel.current?.offsetHeight ?? 0;
+      root.style.setProperty("--osk-height", `${h}px`);
+    };
+    publish();
+    const observer = new ResizeObserver(publish);
+    observer.observe(panel.current);
+    return () => {
+      observer.disconnect();
+      root.style.removeProperty("--osk-height");
+    };
+  }, [layout]);
 
   useEffect(() => {
     const cancelHide = () => {
@@ -452,6 +490,7 @@ export function OnScreenKeyboard() {
 
   return createPortal(
     <OnScreenKeyboardPanel
+      panelRef={panel}
       layout={layout}
       shifted={shifted}
       decimalSeparator={decimalSeparatorFor(fieldType)}

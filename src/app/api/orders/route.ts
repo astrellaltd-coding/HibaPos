@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { missingForDelivery, deliveryMissingMessage } from "@/lib/delivery-customer";
 import { withAuth, parseJson } from "@/lib/api-handler";
 import { z } from "zod";
 import { getSettings } from "@/lib/services/settings";
@@ -496,7 +497,16 @@ export const POST = withAuth(async (req, { user }) => {
     );
   }
 
-  // Livraison validation: customer must exist and have name+phone+address
+  // Livraison validation: the customer must exist and be deliverable.
+  //
+  // L-214 — THE RULE IS NO LONGER SPELLED HERE. It was, in its own words, while
+  // the till spelled it in different words that left the phone out — so a
+  // client with an address and no phone passed every check the cashier could
+  // see and was refused HERE, after the cash had been taken. Both sides now
+  // call `missingForDelivery`, so they cannot drift again without a caller
+  // being deleted. The message names what is missing rather than reciting all
+  // three, and still says « livraison » and « adresse », which
+  // `orders-route.test.ts` has pinned since it was written.
   if (orderType === "LIVRAISON") {
     if (!customerId) {
       return NextResponse.json(
@@ -505,11 +515,15 @@ export const POST = withAuth(async (req, { user }) => {
       );
     }
     const customer = await db.customer.findUnique({ where: { id: customerId } });
-    if (!customer || !customer.name || !customer.phone || !customer.address) {
+    if (!customer) {
       return NextResponse.json(
-        { error: "Le client doit avoir un nom, un téléphone et une adresse pour la livraison." },
+        { error: "Client introuvable : impossible d'enregistrer cette livraison." },
         { status: 400 }
       );
+    }
+    const missing = missingForDelivery(customer);
+    if (missing.length > 0) {
+      return NextResponse.json({ error: deliveryMissingMessage(missing) }, { status: 400 });
     }
   }
 

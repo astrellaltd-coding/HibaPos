@@ -232,3 +232,32 @@
     font-family: ui-monospace, "Courier New", monospace;
   }
 }
+
+/* ───────────────────────────────────────────────────────────────────────────
+ * L-213 — A DIALOG MAKES ROOM FOR THE ON-SCREEN KEYBOARD.
+ *
+ * FOUND BY THE E2E SPEC, not by looking at it: three delivery tests failed
+ * clicking « Créer » with a timeout, because the keyboard panel — fixed to the
+ * bottom of the viewport, above the dialog layer, as it has to be — was sitting
+ * ON TOP of the dialog's own buttons. The cashier would have typed the address
+ * and then been unable to reach the button that saves it. On the France till
+ * that is not a corner case: L-211 measured that screen short of about a third
+ * of the CSS pixels this layout wants, so the keyboard takes a larger share of
+ * it than of anything this has been rendered on.
+ *
+ * `--osk-height` is set on the root element by `<OnScreenKeyboard />` from its
+ * own measured height, and is absent — hence `0px` — whenever no keyboard is
+ * shown. A dialog then centres itself in the space ABOVE the keyboard rather
+ * than in the whole viewport, and is capped so a tall one scrolls instead of
+ * growing underneath it.
+ *
+ * Why CSS and not a prop: every dialog in the product is one `DialogContent`,
+ * and the keyboard belongs to the screen rather than to any of them. Two
+ * declarations here reach all of them and no call site changes.
+ * ─────────────────────────────────────────────────────────────────────────── */
+[data-slot="dialog-content"],
+[data-slot="alert-dialog-content"] {
+  top: calc(50% - var(--osk-height, 0px) / 2);
+  max-height: calc(100dvh - var(--osk-height, 0px) - 1.5rem);
+  overflow-y: auto;
+}
