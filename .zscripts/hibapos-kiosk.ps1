@@ -6,11 +6,11 @@
 # (`hibapos-server.ps1`), which is what makes the till survive a power cut when
 # the staff on shift do not know the Windows password.
 #
-# WHAT THE OPERATOR SEES. If the app has been installed as a PWA (Edge ->
-# "Install HibaPOS"), this launches the installed app: its own window, its own
-# icon, no address bar, no tabs. If it has not, it falls back to Edge's app
-# mode, which looks the same but is not pinnable. Either way there is no
-# browser UI on screen.
+# WHAT THE OPERATOR SEES. The caisse opens in its own window -- no address bar,
+# no tabs, no browser UI -- filling the screen. `--app=` gives that in ANY
+# Chromium browser whether or not the site has been installed as a PWA, so
+# nothing here depends on the install having been done. If it HAS been
+# installed, the window carries the app's own icon as well.
 #
 # Exit with Alt+F4. Kiosk mode is a convenience for the operator, not a security
 # boundary -- anyone at the machine has the machine.
@@ -44,16 +44,37 @@ if (-not $ready) {
     # blank desktop with no explanation.
 }
 
-$edge = @(
+# BRAVE FIRST, THEN EDGE -- the operator's choice, 2026-09-17. The France till
+# rendered the login screen wrong in the browser that shipped on it and
+# correctly in Brave, so Brave is what the restaurant will actually use.
+#
+# EDGE IS KEPT AS A FALLBACK RATHER THAN REPLACED. It is present on every
+# Windows install, and a till whose Brave has been uninstalled or broken by an
+# update should still open the caisse rather than drop to a bare desktop.
+# Both are Chromium, so the argument list below is identical for either.
+#
+# BRAVE IS PROBED IN ITS PER-USER LOCATION TOO, and that line is load-bearing:
+# Brave's installer writes to %LOCALAPPDATA% unless it is run elevated, so a
+# ProgramFiles-only probe misses the common case. The cost of missing it is
+# silent -- the script falls through to the default browser and the till opens
+# with an address bar, tabs, and no fullscreen, which looks like a different
+# bug entirely.
+$browser = @(
+    "$env:ProgramFiles\BraveSoftware\Brave-Browser\Application\brave.exe",
+    "${env:ProgramFiles(x86)}\BraveSoftware\Brave-Browser\Application\brave.exe",
+    "$env:LOCALAPPDATA\BraveSoftware\Brave-Browser\Application\brave.exe",
     "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe",
     "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe"
 ) | Where-Object { Test-Path $_ } | Select-Object -First 1
 
-if (-not $edge) {
-    Write-Warning "Microsoft Edge introuvable -- ouverture avec le navigateur par defaut."
+if (-not $browser) {
+    Write-Warning "Ni Brave ni Edge n'ont ete trouves -- ouverture avec le navigateur par defaut."
+    Write-Warning "  La fenetre n'aura ni le mode application ni le plein ecran."
     Start-Process $Url
     exit 0
 }
+
+Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Navigateur : $browser"
 
 # --app= gives a chromeless window; --start-fullscreen fills the screen without
 # the hard lock of --kiosk, so the operator can still reach the taskbar to
@@ -68,4 +89,4 @@ $arguments = @(
 )
 
 Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Launching HibaPOS."
-Start-Process -FilePath $edge -ArgumentList $arguments
+Start-Process -FilePath $browser -ArgumentList $arguments
