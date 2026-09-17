@@ -52,12 +52,13 @@ machine; the rule above is about you.
 ## Where things stand
 
 The software is essentially complete. **It was installed on the restaurant's production
-till in France on 2026-09-16** — `C:\HibaPOS-app`, run from source with `bun run start`,
-printer on `USB001`, first backup taken to `D:` and verified by decryption. It has still
-**never traded**: FACTICE is on, the fiscal journal is empty, the chain key is not armed.
-**Tauri v2 remains the shipping form** and that migration still has no plan — what runs in
-France today is the development build, not a package. Anything about kiosk launchers is
-still stale.
+till in France on 2026-09-16 and confirmed working on 2026-09-17** — `C:\HibaPOS-app`, run
+from source, printer `SUNSO WTP-801` on `USB001` with two test tickets seen on paper, first
+backup taken to `D:` and verified by decryption. **The till now starts itself**: two
+Scheduled Tasks as `hibafood`, the server at boot and Brave in `--kiosk` at log on. It has
+still **never traded**: FACTICE is on, the fiscal journal is empty, the chain key is not
+armed. **Tauri v2 remains the shipping form** and that migration still has no plan — what
+runs in France is the development build, not a package.
 
 **The audit is DONE, and it is the work list.** On 2026-09-12 six read-only passes swept the
 whole project — money · security · data model · the till in use · build and ops · test
@@ -73,17 +74,22 @@ because they are evidence, with one PIN caviardé and flagged. **Tauri still sha
 where a fix has two reasonable forms, the one that survives becoming a Windows native app is
 the one to choose. It is a constraint on how things are fixed, not a phase in the list.
 
-**The model is retired; the files are not.** `.zscripts/` still holds eight tracked `.ps1`
-files that `deployment.test.ts` pins, and `print-raw.ps1` is live — R6.4 needs it. Do not
-delete them to make this prose true.
+**The model was retired; the files are not, and three of them are now live.** `.zscripts/`
+holds eight tracked `.ps1` files that `deployment.test.ts` pins. `print-raw.ps1` drives the
+printer, and since 2026-09-17 `hibapos-server.ps1` and `hibapos-kiosk.ps1` run the France
+till as two Scheduled Tasks — the server at boot, Brave in `--kiosk` at log on. **They had
+never been executed before that day and four things in them were wrong** (L-203, L-204,
+L-205, and a `--start-fullscreen` that does nothing in `--app` mode); two are fixed and two
+are open decisions. Treat a comment in that directory as an intention, not as evidence.
 
-What still has to happen before the restaurant's first real sale is **fiscal first** —
-R6.1, R6.2 and R6.3, in that order — but **R6.4 (the printer) and R6.5 (a backup volume) are
-technical**, not fiscal. It is in the plan under *Before the first real sale*. **The software
-that blocked them is fixed**: R8.1 closed **L-101** on 2026-09-13 — `PUT /api/settings` splits
-by field, so the MANAGER, the only account that will be at the till, can write `factice` and
-the printer queue without touching the SIRET — and R9.1 cleared R6.4's other half the same
-week. **Both rows are attemptable.**
+What still has to happen before the restaurant's first real sale is **fiscal**: R6.1, R6.2
+and R6.3, in that order, and the order is not a preference — arming the chain key before the
+reset makes the reset refuse. **R6.4 (the printer) and R6.5 (a backup volume) were the
+technical two and both are done** — 2026-09-16, R6.4 confirmed on paper on 2026-09-17, both
+now in `REMEDIATION_DONE.md`. The software that had blocked them was fixed first: R8.1
+closed **L-101** on 2026-09-13, so the MANAGER — the only account at the till — can write
+`factice` and the printer queue without touching the SIRET, and R9.1 cleared R6.4's other
+half the same week.
 
 `scripts/pre-golive-reset.ts` empties the fiscal journal; it runs **once**, after testing and
 before the first genuine sale, and the operator runs it. **It already ran on 2026-09-10**, so
