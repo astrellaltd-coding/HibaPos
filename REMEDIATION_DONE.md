@@ -5183,7 +5183,7 @@ how every later row will be carried out.
 
 ### L-213 — a keyboard on the screen, because the day could not be closed without one
 
-**Done:** 2026-09-17 · **Commit:** `<SHA>` · **Finding:** L-213 (High). **Decided by the
+**Done:** 2026-09-17 · **Commit:** `9a913ac` · **Finding:** L-213 (High). **Decided by the
 operator the same day**, in four answers. **No plan row** — § 6 holds nothing that is a
 session's and § 7 is closed to new rows, so this was done as its own item, as L-191 was.
 
