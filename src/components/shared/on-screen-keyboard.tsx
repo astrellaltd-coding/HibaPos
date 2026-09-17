@@ -1,0 +1,465 @@
+"use client";
+
+/**
+ * L-213 — an on-screen keyboard for a till with no keyboard.
+ *
+ * WHAT THE OWNER ASKED FOR, 2026-09-17: the France till has a wired keyboard
+ * and he wants to work by touch. What he had not yet hit is that the DAY CANNOT
+ * BE CLOSED without that keyboard — « Espèces comptées » and « Fond de caisse
+ * initial » are typed boxes with no pad beside them, so the nightly fiscal seal
+ * needs hardware the machine was chosen not to need.
+ *
+ * WHY IT IS OURS AND NOT WINDOWS'. The operator's decision, 2026-09-17. TabTip
+ * only auto-shows when no keyboard is connected — one is — `--kiosk` hides the
+ * taskbar button that would summon it by hand (L-212), and it disappears
+ * entirely under Tauri v2, which has no browser chrome to host it. Buttons we
+ * draw need no Windows setting, cannot be hidden by a launch flag, survive the
+ * native-app move untouched, and are the only one of the two a test can see.
+ * That is also what `CLAUDE.md` asks for: where a fix has two reasonable forms,
+ * take the one that survives becoming a Windows native app.
+ *
+ * ONE LISTENER, NOT NINETY-FOUR PROPS. The operator chose « every typed field
+ * in the app », and there are 94 of them across 27 files. So this mounts once
+ * in the root layout and watches `focusin`: any field that qualifies gets a pad
+ * and a field added next year gets one without anybody remembering to come
+ * back here. Nothing is passed down and no call site changes.
+ *
+ * IT NEVER OWNS A FIELD. Inherited from L-133, which added the step-up PIN
+ * keypad beside its field rather than in place of it: « The field is untouched,
+ * so a keyboard still works. This is added beside it, so a finger does too. »
+ * Every tap here goes through the field's own native value setter and a
+ * bubbling `input` event, which is exactly what a keystroke does — so React's
+ * `onChange` fires, the component's state is the one source of truth, and a
+ * failure in this file leaves the wired keyboard working as it does today.
+ */
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { Delete, X } from "lucide-react";
+import {
+  AZERTY_ROWS,
+  NUMERIC_ROWS,
+  OSK_BACKSPACE,
+  OSK_ENTER,
+  OSK_ROOT_ATTR,
+  applyKey,
+  armsSeparator,
+  decimalSeparatorFor,
+  layoutFor,
+  resolveKey,
+  shiftChar,
+  supportsSelection,
+  type FieldFacts,
+  type OskLayout,
+} from "@/lib/osk";
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * THE PANEL — pure, and therefore testable.
+ *
+ * Split out from the shell below for one reason: `bun test` has no DOM, so the
+ * only way to assert what the keyboard actually renders is
+ * `renderToStaticMarkup`, the technique `payment-line.test.tsx` established.
+ * This half takes a layout and a callback and renders buttons; the half below
+ * it is the part that needs a browser, and is covered by the e2e spec.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/** 44 px is an invariant here (L-131), and a key is a touch target like any other. */
+const KEY = "h-11 min-h-[44px] min-w-[44px] text-base font-medium";
+
+export function OnScreenKeyboardPanel({
+  layout,
+  shifted,
+  decimalSeparator,
+  separatorArmed = false,
+  onKey,
+  onShift,
+  onClose,
+}: {
+  layout: Exclude<OskLayout, "none">;
+  shifted: boolean;
+  decimalSeparator: "," | ".";
+  /** A separator waiting for its first decimal digit — see `armsSeparator`. */
+  separatorArmed?: boolean;
+  onKey: (key: string) => void;
+  onShift: () => void;
+  onClose: () => void;
+}) {
+  /**
+   * EVERY KEY IS `onPointerDown` WITH `preventDefault`, AND THAT IS THE WHOLE
+   * TRICK. A tap that is allowed to complete moves focus to the button, and a
+   * keyboard whose field has just lost focus is a keyboard that types into
+   * nothing. Preventing the default on `pointerdown` leaves focus where it is,
+   * so the caret never moves and the field never fires a `blur`.
+   */
+  const press = (key: string) => (e: React.PointerEvent) => {
+    e.preventDefault();
+    onKey(key);
+  };
+
+  return (
+    <div
+      {...{ [OSK_ROOT_ATTR]: "" }}
+      role="group"
+      aria-label="Clavier tactile"
+      /**
+       * `pointer-events-auto` is load-bearing, not tidiness. Radix puts
+       * `pointer-events: none` on `document.body` while a modal dialog is
+       * open, and this panel is portalled to the body — so without this
+       * override every key in it is dead on exactly the screens that need it
+       * most, the client picker among them.
+       */
+      className="pointer-events-auto fixed inset-x-0 bottom-0 z-[60] border-t border-border bg-card/95 px-2 pb-2 pt-1.5 shadow-[0_-4px_24px_rgba(0,0,0,0.18)] backdrop-blur-xl"
+    >
+      <div className="mx-auto flex max-w-3xl flex-col gap-1.5">
+        {layout === "alpha" ? (
+          <>
+            {AZERTY_ROWS.map((row, i) => (
+              <div key={i} className="flex justify-center gap-1.5">
+                {i === 3 && (
+                  <Button
+                    type="button"
+                    variant={shifted ? "default" : "outline"}
+                    aria-pressed={shifted}
+                    aria-label="Majuscule"
+                    className={cn(KEY, "px-3")}
+                    onPointerDown={(e) => {
+                      e.preventDefault();
+                      onShift();
+                    }}
+                  >
+                    Maj
+                  </Button>
+                )}
+                {row.map((char) => (
+                  <Button
+                    key={char}
+                    type="button"
+                    variant="outline"
+                    className={cn(KEY, "flex-1 px-0")}
+                    onPointerDown={press(shiftChar(char, shifted))}
+                  >
+                    {shiftChar(char, shifted)}
+                  </Button>
+                ))}
+                {i === 3 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    aria-label="Effacer"
+                    className={cn(KEY, "px-3")}
+                    onPointerDown={press(OSK_BACKSPACE)}
+                  >
+                    <Delete className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            ))}
+            <div className="flex justify-center gap-1.5">
+              <Button
+                type="button"
+                variant="outline"
+                aria-label="Espace"
+                className={cn(KEY, "flex-1")}
+                onPointerDown={press(" ")}
+              >
+                Espace
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className={cn(KEY, "px-4")}
+                onPointerDown={press(OSK_ENTER)}
+              >
+                Entrée
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                aria-label="Fermer le clavier"
+                className={cn(KEY, "px-3 text-muted-foreground")}
+                onPointerDown={(e) => {
+                  e.preventDefault();
+                  onClose();
+                }}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </>
+        ) : (
+          <div className="mx-auto w-full max-w-[320px]">
+            {NUMERIC_ROWS.map((row, i) => (
+              <div key={i} className="mb-1.5 flex gap-1.5">
+                {row.map((d) => (
+                  <Button
+                    key={d}
+                    type="button"
+                    variant="outline"
+                    className={cn(KEY, "flex-1 text-lg font-semibold tabular-nums")}
+                    onPointerDown={press(d)}
+                  >
+                    {d}
+                  </Button>
+                ))}
+              </div>
+            ))}
+            <div className="mb-1.5 flex gap-1.5">
+              {/* ARMED IS SHOWN, because a key that does nothing visible is
+                * the defect this project keeps finding (L-211, L-214). On a
+                * `type="number"` field the separator cannot go in until a
+                * decimal digit follows it, so the key holds instead — and says
+                * so the same way `Maj` does, by looking pressed. */}
+              <Button
+                type="button"
+                variant={separatorArmed ? "default" : "outline"}
+                aria-pressed={separatorArmed}
+                aria-label="Virgule"
+                className={cn(KEY, "flex-1 text-lg font-semibold")}
+                onPointerDown={press(decimalSeparator)}
+              >
+                {decimalSeparator}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className={cn(KEY, "flex-1 text-lg font-semibold tabular-nums")}
+                onPointerDown={press("0")}
+              >
+                0
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                aria-label="Effacer"
+                className={cn(KEY, "flex-1")}
+                onPointerDown={press(OSK_BACKSPACE)}
+              >
+                <Delete className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="flex gap-1.5">
+              <Button
+                type="button"
+                variant="outline"
+                className={cn(KEY, "flex-1")}
+                onPointerDown={press(OSK_ENTER)}
+              >
+                Entrée
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                aria-label="Fermer le clavier"
+                className={cn(KEY, "px-3 text-muted-foreground")}
+                onPointerDown={(e) => {
+                  e.preventDefault();
+                  onClose();
+                }}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * THE SHELL — the part that needs a browser.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/** Read the rules' inputs off a live node. The only DOM-reading in this file. */
+function factsOf(el: Element): FieldFacts {
+  const tag =
+    el instanceof HTMLTextAreaElement ? "textarea" : el instanceof HTMLInputElement ? "input" : "other";
+  const input = el as HTMLInputElement;
+  return {
+    tag,
+    type: tag === "input" ? (input.getAttribute("type") ?? "").toLowerCase() : "",
+    inputMode: (el.getAttribute("inputmode") ?? "").toLowerCase(),
+    readOnly: tag !== "other" && (el as HTMLInputElement | HTMLTextAreaElement).readOnly,
+    disabled: tag !== "other" && (el as HTMLInputElement | HTMLTextAreaElement).disabled,
+    optOut: el.closest('[data-osk="off"]') !== null,
+  };
+}
+
+export function OnScreenKeyboard() {
+  const [layout, setLayout] = useState<OskLayout>("none");
+  const [shifted, setShifted] = useState(false);
+  /** A decimal separator waiting for its first digit — see `armsSeparator`. */
+  const [separatorArmed, setSeparatorArmed] = useState(false);
+  /**
+   * The focused field's `type`, IN STATE rather than read off the ref at
+   * render time. It decides which separator the panel draws, and a ref read
+   * during render can be stale — `react-hooks/refs` refuses it, correctly: the
+   * ref can change without a re-render, and a number field would then be drawn
+   * a comma, which is the one character it cannot hold. Set on the same event
+   * that sets the layout, so the two can never disagree.
+   */
+  const [fieldType, setFieldType] = useState("");
+  const target = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
+  /** The field the operator closed the keyboard on, so it does not spring back. */
+  const dismissed = useRef<Element | null>(null);
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const cancelHide = () => {
+      if (hideTimer.current !== null) {
+        clearTimeout(hideTimer.current);
+        hideTimer.current = null;
+      }
+    };
+
+    const onFocusIn = (e: FocusEvent) => {
+      const el = e.target;
+      if (!(el instanceof HTMLElement)) return;
+      cancelHide();
+      const next = layoutFor(factsOf(el));
+      if (next === "none") {
+        target.current = null;
+        setLayout("none");
+        return;
+      }
+      if (dismissed.current === el) return;
+      dismissed.current = null;
+      target.current = el as HTMLInputElement | HTMLTextAreaElement;
+      setShifted(false);
+      setSeparatorArmed(false);
+      setFieldType(el instanceof HTMLInputElement ? (el.getAttribute("type") ?? "").toLowerCase() : "");
+      setLayout(next);
+      /**
+       * The panel takes the bottom of a screen L-211 has already shown to be
+       * short of vertical space, so the field is pulled into view rather than
+       * left underneath it. `block: "center"` and not `"nearest"`: nearest
+       * leaves a field that is merely *visible* exactly where it was, which on
+       * that till is often behind the keyboard.
+       */
+      requestAnimationFrame(() => el.scrollIntoView({ block: "center", behavior: "smooth" }));
+    };
+
+    /**
+     * A tap on a key cannot reach here — the keys prevent the default on
+     * `pointerdown`, so the field never blurs. This fires when focus genuinely
+     * leaves: a dialog closing, another control taking over, the operator
+     * tapping the page. The delay exists for the one case where focus lands on
+     * another field a frame later, which `focusin` then cancels.
+     */
+    const onFocusOut = () => {
+      cancelHide();
+      hideTimer.current = setTimeout(() => {
+        target.current = null;
+        setLayout("none");
+      }, 120);
+    };
+
+    document.addEventListener("focusin", onFocusIn);
+    document.addEventListener("focusout", onFocusOut);
+    return () => {
+      document.removeEventListener("focusin", onFocusIn);
+      document.removeEventListener("focusout", onFocusOut);
+      cancelHide();
+    };
+  }, []);
+
+  const handleKey = useCallback((rawKey: string) => {
+    const el = target.current;
+    if (!el) return;
+    const type = el instanceof HTMLInputElement ? (el.getAttribute("type") ?? "").toLowerCase() : "";
+
+    // A separator on a number field WAITS for its first decimal digit. The
+    // reason is in `armsSeparator`: `50.` is not a value such a field can hold,
+    // so writing it made the field report `""` and the next tap started over.
+    if (armsSeparator(rawKey, type, el.value)) {
+      setSeparatorArmed(true);
+      return;
+    }
+    const key = resolveKey(rawKey, separatorArmed, decimalSeparatorFor(type));
+    setSeparatorArmed(false);
+
+    if (key === OSK_ENTER) {
+      /**
+       * Enter is DISPATCHED, not inserted. Several fields already act on it —
+       * the payment dialog's « Montant libre » adds the line, the step-up
+       * dialog submits — and those handlers are React's `onKeyDown`, which a
+       * bubbling KeyboardEvent reaches. It deliberately does not submit a
+       * form: browsers only do implicit submission from a real user gesture,
+       * so a tap here can never post something nobody asked it to.
+       */
+      el.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+      return;
+    }
+
+    const canSelect = supportsSelection(type);
+    const before = {
+      value: el.value,
+      start: canSelect ? (el.selectionStart ?? el.value.length) : el.value.length,
+      end: canSelect ? (el.selectionEnd ?? el.value.length) : el.value.length,
+    };
+    const after = applyKey(before, key, type);
+    if (after === before || after.value === before.value) {
+      setShifted(false);
+      return;
+    }
+
+    /**
+     * THE NATIVE SETTER, NOT `el.value = …`. React 19 tracks the last value it
+     * wrote on the node; assigning through the property React has shadowed
+     * makes the following `input` event look like a no-op and the state never
+     * moves. Going through the prototype's own setter is what a real keystroke
+     * does, and it is why every controlled field in this app works with this
+     * keyboard without knowing it exists.
+     */
+    const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+    const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
+    if (setter) setter.call(el, after.value);
+    else el.value = after.value;
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+
+    if (canSelect) {
+      try {
+        el.setSelectionRange(after.start, after.end);
+      } catch {
+        // `setSelectionRange` throws on a field that does not support
+        // selection. `supportsSelection` already rules those out; this is the
+        // belt for a type nobody has thought of yet.
+      }
+    }
+    setShifted(false);
+  }, [separatorArmed]);
+
+  const close = useCallback(() => {
+    dismissed.current = target.current;
+    target.current = null;
+    setSeparatorArmed(false);
+    setLayout("none");
+  }, []);
+
+  /**
+   * NO `mounted` FLAG, and that is deliberate rather than an omission.
+   *
+   * The usual « am I on the client yet » state was here and `react-hooks/
+   * set-state-in-effect` refused it, rightly. It was never needed: `layout`
+   * starts at `"none"` and only leaves it on a `focusin`, which cannot happen
+   * on a server. So the server render and the first client render both return
+   * null — no hydration mismatch — and `document.body` is touched only on a
+   * render that a real focus event caused.
+   */
+  if (layout === "none") return null;
+
+  return createPortal(
+    <OnScreenKeyboardPanel
+      layout={layout}
+      shifted={shifted}
+      decimalSeparator={decimalSeparatorFor(fieldType)}
+      separatorArmed={separatorArmed}
+      onKey={handleKey}
+      onShift={() => setShifted((s) => !s)}
+      onClose={close}
+    />,
+    document.body,
+  );
+}

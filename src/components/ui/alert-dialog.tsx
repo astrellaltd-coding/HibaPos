@@ -44,6 +44,16 @@ function AlertDialogOverlay({
   )
 }
 
+// L-213 — THIS FILE NEEDS NO KEYBOARD GUARD, and the reason is worth writing
+// down so nobody adds one « for symmetry » with `dialog.tsx`.
+//
+// That file guards `onPointerDownOutside`, because a tap on the on-screen
+// keyboard is a pointer-down outside the dialog being typed into and Radix
+// would dismiss the layer. An ALERT dialog is deliberately not dismissible from
+// outside: Radix's own `AlertDialogContent` prevents the default on both
+// `onPointerDownOutside` and `onInteractOutside` internally and does not
+// forward either prop — passing one is a TYPE ERROR, which is how this was
+// found rather than assumed. So there is nothing here for a key tap to trip.
 function AlertDialogContent({
   className,
   ...props

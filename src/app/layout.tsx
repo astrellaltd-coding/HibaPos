@@ -3,6 +3,7 @@ import { Inter, Caveat } from "next/font/google";
 import "./globals.css";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { Providers } from "@/components/providers";
+import { OnScreenKeyboard } from "@/components/shared/on-screen-keyboard";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -51,6 +52,14 @@ export default function RootLayout({
         <Providers>
           {children}
           <SonnerToaster richColors position="top-center" />
+          {/* L-213 — mounted ONCE, here, for the whole application.
+            *
+            * The operator chose « every typed field », and there are 94 of them
+            * across 27 files. A listener on `focusin` reaches all of them
+            * without a prop, and reaches a field added next year without
+            * anybody remembering to come back. It renders nothing until a field
+            * that wants a pad has focus. */}
+          <OnScreenKeyboard />
         </Providers>
       </body>
     </html>

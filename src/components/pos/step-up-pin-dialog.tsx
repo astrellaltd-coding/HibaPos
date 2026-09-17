@@ -93,8 +93,14 @@ export function StepUpPinDialog({
         <p className="text-sm text-muted-foreground">{description}</p>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="step-up-pin">Votre code PIN</Label>
+          {/* L-213 — `data-osk="off"`: this field already has a keypad two
+            * lines below, added by L-133 for exactly the reason the global
+            * keyboard exists. Two pads in one small dialog would cover the
+            * PIN box on the screen this was measured short of vertical space
+            * on (L-211), so the specific pad wins over the general one. */}
           <Input
             id="step-up-pin"
+            data-osk="off"
             type="password"
             inputMode="numeric"
             value={pin}

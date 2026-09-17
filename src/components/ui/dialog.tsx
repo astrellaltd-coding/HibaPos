@@ -5,6 +5,7 @@ import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { XIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { isFromOsk } from "@/lib/osk"
 
 function Dialog({
   ...props
@@ -56,10 +57,21 @@ function DialogOverlay({
 //
 // The ICON stays 16 px; the TARGET is 44. `grid place-items-center` rather than
 // padding, so the cross stays optically where it was.
+//
+// L-213 — A KEY TAP ON THE ON-SCREEN KEYBOARD IS NOT « OUTSIDE ».
+//
+// The keyboard is portalled to the body, because it belongs to the screen and
+// not to whichever dialog happens to be open. Radix therefore counts every key
+// as a pointer-down outside this layer and closes the dialog — so the first
+// letter a cashier tapped into the client picker would dismiss the client
+// picker. The one guard below covers every dialog in the product and no call
+// site passes anything. A handler a call site DOES pass still runs, and runs
+// first, so nothing that already listens for this event changes behaviour.
 function DialogContent({
   className,
   children,
   showCloseButton = true,
+  onPointerDownOutside,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
@@ -73,6 +85,10 @@ function DialogContent({
           "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border p-6 shadow-lg duration-200 sm:max-w-lg",
           className
         )}
+        onPointerDownOutside={(e) => {
+          onPointerDownOutside?.(e)
+          if (isFromOsk(e.detail.originalEvent.target)) e.preventDefault()
+        }}
         {...props}
       >
         {children}

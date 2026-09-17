@@ -92,6 +92,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - L-190 · L-194 — the backup screen stops believing only the table
 - L-84 · L-11 — a display rule becomes a guard, and one rule stops having two spellings
 - L-81 — `5 nuggets test` deleted by the operator, and verified from the database
+- L-213 — a keyboard on the screen, because the day could not be closed without one
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -5178,6 +5179,127 @@ the developer's machine and cease to exist when the session closes.
 2026-09-17, and the owner confirmed the caisse opens fullscreen when he switches the machine
 on. That is not part of R6.4 and is not a plan row; it is recorded here because it changes
 how every later row will be carried out.
+
+
+### L-213 — a keyboard on the screen, because the day could not be closed without one
+
+**Done:** 2026-09-17 · **Commit:** `<SHA>` · **Finding:** L-213 (High). **Decided by the
+operator the same day**, in four answers. **No plan row** — § 6 holds nothing that is a
+session's and § 7 is closed to new rows, so this was done as its own item, as L-191 was.
+
+**THE OWNER ASKED FOR A TOUCH KEYBOARD. What he had not yet hit is that the day could not be
+sealed without the wired one.** « Espèces comptées (€) » (`shifts-view.tsx:674`) and « Fond de
+caisse initial (€) » (`:540`) are `type="number"` boxes with no pad beside them, so opening the
+caisse and closing it — a Z report — both needed hardware the machine was chosen not to need.
+Swept before building anything: `TabTip`, `osk.exe`, « clavier virtuel », `virtualkeyboard`
+and any keyboard component appear **nowhere** in the tree. The only on-screen input that
+existed was two hand-built numeric keypads, `login-screen.tsx:631` and
+`step-up-pin-dialog.tsx:125`, and both enter a PIN.
+
+**THE OPERATOR'S FOUR DECISIONS, 2026-09-17.** (1) Buttons we draw, not Windows' own TabTip —
+which needs two settings on one machine, a taskbar `--kiosk` hides (L-212), and disappears
+under Tauri v2, which has no browser chrome to host it. (2) **Every typed field in the app**,
+which is 94 fields across 27 files. (3) A delivery client must have a phone, and the till
+should ask up front — that is L-214 and it follows this. (4) A cashier should be able to
+repair a client's record from the caisse — also L-214.
+
+**ONE LISTENER, NOT NINETY-FOUR PROPS.** `<OnScreenKeyboard />` mounts once in
+`src/app/layout.tsx` and watches `focusin`. Any field that qualifies gets a pad; a field added
+next year gets one with nobody remembering to come back. No call site changed and no prop was
+threaded. The rules live in `src/lib/osk.ts` with no DOM in them, because `bun test` has none —
+`payment-line.test.tsx` explains why adding one is a dependency decision rather than a batch's.
+
+**IT NEVER OWNS A FIELD, which is L-133's rule kept.** That keypad's own comment says it:
+« The field is untouched, so a keyboard still works. This is added beside it, so a finger does
+too. » Every tap goes through the field's own prototype `value` setter and a bubbling `input`
+event — exactly what a keystroke does — so React's `onChange` fires and the component's state
+stays the single source of truth. If this file failed outright the wired keyboard would work
+as it does today.
+
+**THREE THINGS IT WOULD HAVE BEEN EASY TO GET SILENTLY WRONG, and how each was caught.**
+
+1. **A comma would have emptied a cash field.** HTML sanitises an invalid value on
+   `<input type="number">` to the empty string, so a tapped « , » clears the box rather than
+   beeping. The pad draws a full stop on a number field and a comma everywhere else, and a
+   second separator is refused rather than blanking the figure.
+2. **`50.` IS NOT A VALUE A NUMBER FIELD CAN HOLD — found by driving a real browser, and the
+   worst of the three.** The e2e spec tapped `5 0 . 0 0` into the opening float and the field
+   held **`00`**: `50.` is not a valid floating-point number, so the field reported `""` for
+   it and every later key recomputed from that. **A cashier counting the drawer would have
+   sealed a Z report on a figure with the pounds missing.** The separator is now ARMED rather
+   than inserted and goes in with the first digit after it — `50`, `50.0`, `50.00`, every step
+   a value the field can hold. **And the arming is visible**, the key showing pressed the way
+   `Maj` does, because a key that does nothing visible is the defect this project keeps
+   finding (L-211, L-214). *No unit test could have found this: the rule was right and the
+   field was the thing that disagreed.*
+3. **A key tap would have closed the dialog it was typing into.** Radix dismisses a modal layer
+   on any pointer-down outside it, and the keyboard is outside it by design — portalled to the
+   body, because it belongs to the screen and not to whichever dialog is open. One guard in
+   `dialog.tsx` covers every dialog in the product. `alert-dialog.tsx` needed **none** and
+   that is recorded in it: Radix makes an alert dialog undismissable from outside itself and
+   forwards neither prop, so **passing one is a type error** — which is how this was found
+   rather than assumed.
+
+**Also load-bearing rather than tidy:** `pointer-events-auto` on the panel, because Radix puts
+`pointer-events: none` on `document.body` for a modal dialog and the panel is portalled there —
+without it every key is dead on exactly the screens that need it most. `z-[60]`, because
+Radix's content and overlay are both `z-50`. 44 px on every key (L-131). `type="button"` on
+every key, so none of them submits a form. And the focused field is scrolled to `block:
+"center"` when the panel opens, because L-211 measured that screen short of vertical space.
+
+**`data-osk="off"` on the step-up PIN field**, which has had its own keypad since L-133: two
+pads in one small dialog would cover the box being typed into.
+
+**HOW IT WAS VERIFIED.**
+- **1 925 pass / 0 fail / 153 files**, typecheck and lint clean. 44 new unit tests across
+  `src/lib/osk.test.ts` and `src/components/shared/on-screen-keyboard.test.tsx`.
+- **17 e2e pass in a real browser**, and `05-on-screen-keyboard.spec.ts` is the **first
+  browser-level spec in this suite**. It has to be: what it proves is that a tap on a drawn
+  button arrives in a React `useState`, and no API call can show that. Because these inputs
+  are *controlled*, a tap that failed to reach `onChange` would let React re-render with its
+  old state and the DOM value would **snap back** — so every `toHaveValue` there is a test of
+  the wiring and not of the string.
+- **THE BROWSER IS THE ONE WINDOWS ALREADY HAS.** `%LOCALAPPDATA%\ms-playwright` was **empty** —
+  Playwright's own Chromium had never been downloaded here, which is the real reason every
+  other spec in this suite is API-level: a browser spec would have failed at
+  `browserType.launch` and nobody had written one to find out. `channel: "msedge"` uses the
+  Edge present on every Windows install, so this needs no 150 MB download on any machine, and
+  it is the same Chromium engine the restaurant runs the caisse in.
+- **THE REVERT WENT RED EIGHTEEN TIMES, one property at a time, both directions where a
+  property has two.** Red: the number-field separator (both ways) · the refusal of a value
+  that would blank the field · the end-of-field caret for a type with no selection · the
+  `data-osk` opt-out · `readOnly`/`disabled` · the non-text-entry exclusions · `inputMode`
+  before `type` · the one-shot shift · `pointer-events-auto` · the 44 px target · the z-index ·
+  `dialog.tsx`'s guard · the mount in `layout.tsx` · `armsSeparator` (both ways) ·
+  `resolveKey`'s digit-only rule.
+- **ONE ASSERTION SURVIVED ITS OWN REVERT and was rewritten.** `toContain('data-osk="off"')`
+  on the step-up dialog stayed green with the attribute deleted, because **the comment three
+  lines above it quotes the attribute by name**. It is now anchored to a line of its own, which
+  can only be a JSX attribute. This is the third time in this project an assertion has matched
+  the prose explaining it.
+
+**Two of my own claims were wrong and the checks caught both.** The `alert-dialog.tsx` guard
+(above), and an e2e assertion that a search for `taco` finds nothing — true of the **live**
+France catalogue, which has an empty Tacos category (L-215), and false of this suite's
+disposable database, which seeds exactly one product called « E2E Tacos ». The test caught the
+conflation.
+
+**The README's pinned counts moved with the work**: 1 881 → 1 925 unit, 13 → 17 e2e.
+`readme-counts.test.ts` enforces the agreement, and the plan's rule is that a pinned number
+that fails is the number to check — so it was checked, not weakened.
+
+**THE LIVE DATABASE WAS NOT TOUCHED.** No item here reads or writes it. L-215's measurements
+were taken read-only with `bun:sqlite`; sha256 `fbf2f75f…d6d5913` and mtime
+2026-09-16 11:30:39 identical before and after, no `-wal`/`-shm` beside it.
+
+**What this does NOT do.** It does not measure the till. L-211 asks for `innerWidth`,
+`innerHeight` and `devicePixelRatio` on that machine and nobody has read them — a keyboard
+panel spends vertical space that screen has already been shown not to have, so how many rows
+it can afford is **unmeasured**, and the layout may need a second look once someone reads
+those three numbers. It also does not decide whether the two caisse money fields should stop
+being `type="number"` altogether, which would remove the whole class of problem above at the
+cost of changing how two fiscal fields validate. That is the operator's call and is recorded
+in `osk.ts` where the workaround lives.
 
 ---
 
