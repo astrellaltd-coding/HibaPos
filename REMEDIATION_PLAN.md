@@ -99,6 +99,24 @@ every trading table is at zero.
 > restaurant's owner found the two test tickets on the printer. **R6.3 is unblocked** — R8.1
 > cleared the settings 403 — and is still an `OPERATOR` row that has not been done; being
 > reachable is not being finished.
+>
+> **THE OWNER USED THE TILL AND FOUND THREE THINGS. Two are fixed** (2026-09-17, their own
+> items — § 6 holds nothing that is a session's and § 7 is closed). **L-213** (`9a913ac`): the
+> app had **no on-screen keyboard at all**, and « Espèces comptées » / « Fond de caisse
+> initial » are typed number boxes — **the day could not be sealed without the wired
+> keyboard**. One listener in the root layout now serves all 94 typed fields; the operator
+> chose buttons we draw over Windows' TabTip, which `--kiosk` hides and Tauri removes.
+> **L-214** (`b75f45e`): the till and the server disagreed about what a delivery client is —
+> the till never checked the **phone** — so a sale was offered, the cash taken, and *then*
+> refused 400, with no way to repair the client from the caisse. One shared rule now, words on
+> the screen instead of a hover tooltip, and the cashier can fix a client where they stand.
+>
+> **L-215 IS OPEN AND WAITING ON THE OWNER, NOT ON A SESSION.** The `Tacos` category already
+> exists on the POS strip — fifth of nine tiles, its own icon, **0 products** — so it is the
+> one dead tile there. What is missing is his menu: names, tailles, prices sur place and en
+> livraison, viandes, sauces, and whether frites are included. **And it is a live-catalogue
+> edit, which `CLAUDE.md` reserves to the operator** — a session prepares and rehearses the
+> script, the operator runs it.
 
 **Phases 0-5 and 7 are COMPLETE**, with all four operator items and all three migrations
 applied. What each did, how it was verified and what it cost is in `REMEDIATION_DONE.md`;
