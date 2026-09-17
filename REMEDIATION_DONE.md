@@ -5317,7 +5317,7 @@ in `osk.ts` where the workaround lives.
 
 ### L-214 — one rule for what a delivery client is, and the till says it out loud
 
-**Done:** 2026-09-17 · **Commit:** `<SHA>` · **Finding:** L-214 (High). **Follows L-213 and
+**Done:** 2026-09-17 · **Commit:** `b75f45e` · **Finding:** L-214 (High). **Follows L-213 and
 could not have gone first** — see below. **No plan row**, as L-191 and L-213.
 
 **THE OWNER REPORTED « the client input when delivery is set ».** What was actually there was
