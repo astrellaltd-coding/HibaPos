@@ -94,10 +94,11 @@ every trading table is at zero.
 > recorded in `REMEDIATION_DONE.md`. `CLAUDE.md`'s rule that this is the operator's action is
 > unchanged; that was a one-off, not a standing waiver.)*
 >
-> **R6.4 and R6.5 were done on the till on 2026-09-16** — R6.5 has moved to
-> `REMEDIATION_DONE.md`; R6.4 remains only because nobody has yet seen its test page on
-> paper. **R6.3 is unblocked** — R8.1 cleared the settings 403 — and is still an `OPERATOR` row
-> that has not been done; being reachable is not being finished.
+> **R6.4 and R6.5 are both done, and both have left this file.** They were carried out on
+> the till on 2026-09-16, and R6.4's last unknown was answered on 2026-09-17 when the
+> restaurant's owner found the two test tickets on the printer. **R6.3 is unblocked** — R8.1
+> cleared the settings 403 — and is still an `OPERATOR` row that has not been done; being
+> reachable is not being finished.
 
 **Phases 0-5 and 7 are COMPLETE**, with all four operator items and all three migrations
 applied. What each did, how it was verified and what it cost is in `REMEDIATION_DONE.md`;
@@ -137,14 +138,15 @@ audit exercised produced screen figures matching the database to the cent.
   save that omits the key no longer performs this row by accident (L-93). **DD-27 applies from
   here on**: once the journal holds a non-factice event, only a SUPER_ADMIN can turn the stamp
   back on. Still the operator's action, and still last of the three.
-- **R6.4** printer — **done on the till 2026-09-16, bar one look at the paper.** The queue is
-  `SUNSO WTP-801` on `USB001`; a test page was written to the spooler in full and the
-  queue drained to `JobCount 0`. **This** machine's `SUNSO WTP-800` queue still sits on
-  `COM1:`, `Error`, with no `USBPRINT` device — a developer artefact, and the reason § 4a
-  warns that a `COM1:` queue « prints nothing and reports success ». **L-101** (R8.1) and
-  **L-96** (R9.1) were both fixed first, which is what made the row attemptable at all.
+- **R6.4** printer — **done, and confirmed on paper.** The queue is `SUNSO WTP-801` on
+  `USB001`, chosen in Réglages on 2026-09-16; on 2026-09-17 the owner found **two test
+  tickets** on the printer, one per attempt. Moved to `REMEDIATION_DONE.md`. **This**
+  machine's `SUNSO WTP-800` queue still sits on `COM1:`, `Error`, with no `USBPRINT`
+  device — a developer artefact, and the reason § 4a warns that a `COM1:` queue « prints
+  nothing and reports success ». **L-101** (R8.1) and **L-96** (R9.1) were both fixed
+  first, which is what made the row attemptable at all.
 - **R6.5** — **done on the till 2026-09-16 and moved to `REMEDIATION_DONE.md`.** The restaurant's
-  `BACKUP_LOCATION` is `D:HibaPOS-Sauvegardes`, a second volume, and its first backup was
+  `BACKUP_LOCATION` is `D:\HibaPOS-Sauvegardes`, a second volume, and its first backup was
   decrypted back to valid SQLite. **This** machine's is set (`docs/BASELINES.md`); see its
   backup-gap row for what is still outstanding here.
 
@@ -385,24 +387,23 @@ them is outstanding except the three items under § 1 « Awaiting the operator �
 
 **ORDER.** Every dependency that reordered this list is discharged — the four steps and why
 each existed are recorded in `REMEDIATION_DONE.md`. What is left is **Phase 9, then Phase 10,
-in the order the tables print**, and **Phase 6** alongside them: **R6.3 is reachable** since R8.1, and **R6.4 was done on the till on
-2026-09-16.
+in the order the tables print**, and **Phase 6** alongside them: **R6.3 is reachable** since R8.1, and **R6.4 and R6.5 are both done** -- 2026-09-16, with
+R6.4 confirmed on paper on 2026-09-17.
 
 ### Phase 6 — Before the first real sale
 
 *Not deployment — deployment is the Tauri phase and has its own plan. These apply whatever
 the app is packaged as. **R6.1, R6.2 and R6.3 are fiscal and their order is not a
 preference** — arming the chain key before the reset makes the reset refuse. **R6.4 and R6.5
-were the two technical ones, and both were done on the till on 2026-09-16**: R6.5 has moved
-to `REMEDIATION_DONE.md`, and R6.4 stays here for one reason only — the test page reached
-the printer and **nobody has yet seen it on paper**.*
+were the two technical ones and both are done**: carried out on the till on 2026-09-16, R6.4
+confirmed on paper on 2026-09-17, and both now in `REMEDIATION_DONE.md`. **What is left in
+this phase is fiscal, in order, and all of it the operator's.***
 
 | ID | Status | Task |
 |---|---|---|
 | **R6.1** | `OPERATOR` | **Run `scripts/pre-golive-reset.ts --apply` — once.** *(Step-by-step in `../HibaPOS-docs-archive/runbook-complet.md` **§ 6d**; §§ 6a-6c are its prerequisites, and § 6b is R6.5.)* It empties the fiscal journal, deletes every order, receipt, shift, Z report, close and archive, and resets the counters to zero. It **keeps** the catalogue, the users, the settings and the audit log. Everything rung up before it is deleted by it — that is why testing comes first. **This runs once, and never after a genuine sale**: from that point the journal is append-only and clearing it is precisely the deletion `docs/attestation-conformite.md` states is impossible. |
 | **R6.2** | `OPERATOR` | **Arm `FISCAL_CHAIN_KEY` — after R6.1, never before.** Every fiscal fingerprint becomes HMAC-SHA-256 instead of plain SHA-256. Arming onto a journal that already holds unkeyed events is refused by design, because a half-keyed chain verifies under neither mode. **Lose this key and the journal cannot be verified at all** — back it up with the same care as `BACKUP_ENCRYPTION_KEY`, and not only on the machine that holds it. |
 | **R6.3** | `OPERATOR` | **Turn FACTICE off.** `factice` is `true` today, which stamps every ticket *SIMULATION* and flags the journal row. Off is the point every rule tightens: from then on every sale is real. **Reachable from the till since R8.1** (2026-09-13): the MANAGER may write this field. **One-way after the first real sale** — DD-27 refuses turning it back on once the journal holds a non-factice event, SUPER_ADMIN excepted. |
-| **R6.4** | `OPERATOR` | **The printer is installed and configured — what is left is to look at the paper.** Done on the till 2026-09-16: vendor package **v2.6.7.2**, queue **`SUNSO WTP-801` on `USB001`**, chosen in Réglages; `printerConnection` was already `usb` and `printerEnabled` already `true`. A test page was accepted by the spooler — every byte written, queue drained to `JobCount 0`, `PrinterStatus Normal` — **but nobody was in the restaurant to see it come out**, and « prints nothing and reports success » is this row's own warning. **What remains is one look at the printer.** Two things the day taught: the current vendor package names the driver *WTP-801*, not *WTP-800* (**L-198**, corrected from the till), and the queue list offers RDP-redirected printers that print on the developer's machine and vanish with the session (**L-201**). |
 
 **Not here, deliberately:** the till hardware, the Windows install, the kiosk launcher, the
 pre-built tree, the update path. All of it belongs to the Tauri v2 migration.

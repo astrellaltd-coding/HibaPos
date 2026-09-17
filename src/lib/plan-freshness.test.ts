@@ -338,7 +338,16 @@ describe("plan freshness — the plan and the done file may not disagree", () =>
     //   FINDINGS STAY AT 5 for the second time. The day opened L-200, L-201 and
     //   L-202 and corrected L-198; all four are audit-sequence ids and live in
     //   `docs/audit/FINDINGS.md`, not in § 7.
-    expect(taskStatuses(src).size).toBe(5);
+    //   2026-09-17: TASKS 5 → 4. **R6.4 IS DONE, AND SOMEBODY SAW THE PAPER.**
+    //   The configuration finished on 2026-09-16 — queue `SUNSO WTP-801` on
+    //   `USB001`, test page accepted by the spooler, queue drained to zero — and
+    //   the row was deliberately HELD OPEN, because none of that distinguishes a
+    //   printed ticket from an empty paper roll: a thermal printer with no paper
+    //   still takes the bytes. On 2026-09-17 the restaurant's owner found **two
+    //   test tickets** on the printer, one per attempt. That is the evidence the
+    //   row was waiting for, and it is the kind no command can produce.
+    //   FINDINGS STAY AT 5.
+    expect(taskStatuses(src).size).toBe(4);
     expect(openFindings(src).size).toBe(5);
     expect(done()).toContain("# HibaPOS France — Completed Work");
   });

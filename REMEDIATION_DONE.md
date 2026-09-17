@@ -105,6 +105,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - Phase 5 — Cleanup — **COMPLETE 2026-09-11**
 - R6.5 — the restaurant's backups are on a second volume, and one has been opened again
 - L-205 — one stderr line no longer kills the till's launcher
+- R6.4 — the printer prints, and somebody saw the paper
 
 ---
 
@@ -5134,6 +5135,49 @@ behind a backup it verifies? `deployment.test.ts` pins both, so neither can move
 `package.json#prisma` is still the deprecated form. Migrating it to a `prisma.config.ts` is a
 separate and unrelated tidy-up — doing it *instead* of this fix would have removed the symptom
 and left the mechanism armed.
+
+---
+
+### R6.4 — the printer prints, and somebody saw the paper
+**Done:** 2026-09-16 on the till · **Confirmed on paper:** 2026-09-17 · **Commit:** `SHA` ·
+**Decision:** C-07, runbook § 4a. § 6 goes from 5 tasks to 4.
+
+**Why this row stayed open a day longer than the work took.** The configuration finished on
+2026-09-16: vendor package v2.6.7.2, queue `SUNSO WTP-801` on `USB001`, chosen in Réglages,
+with `printerConnection` already `usb` and `printerEnabled` already `true`. A test page was
+accepted by the spooler — every byte written, queue drained to `JobCount 0`, `PrinterStatus
+Normal`.
+
+**None of that is evidence of a printed ticket.** This row's own warning is « a queue whose
+`PortName` is not `USB00x` prints nothing and reports success », and a drained queue cannot
+tell a printed ticket from an empty paper roll: a thermal printer with no paper still accepts
+the bytes into its buffer. So the row was held open for the one thing no command could
+answer, and said so.
+
+**2026-09-17: the restaurant's owner found TWO test tickets on the printer** — one for each
+attempt made the day before. That is the whole of what was missing.
+
+## What was verified, and by what
+
+| | |
+|---|---|
+| The queue is the right one | `Get-Printer`: `SUNSO WTP-801`, driver `SUNSO WTP-801`, on **`USB001`** — not `COM1:`, which is the failure this row exists to prevent |
+| The right entry was chosen | **Two** Sunso entries were in that list. The other was `SUNSO WTP-800 (redirection de 2)` on `TS001`, the developer's own queue pushed onto the till by RDP, and its name is the one the documentation told the operator to expect (**L-201**) |
+| The bytes left the machine | `print-raw.ps1` printed `OK`, which it does only after `OpenPrinter`, `StartDocPrinter`, a **full-length** `WritePrinter` and `EndDocPrinter` |
+| The spooler handed them on | queue drained to `JobCount 0`, `PrinterStatus Normal` — which rules out printer off, cable out, wrong port, stalled queue |
+| **Paper came out** | **two tickets, seen by the owner in the restaurant, 2026-09-17** |
+
+**Left behind — two findings, both open and both decisions rather than defects.** **L-198**
+was corrected from the till: the driver's displayed name follows the *package version*, not
+the printer, so « WTP-800 » and « WTP-801 » are both normal and the hardware id is the stable
+thing. **L-201** records that the queue list offers RDP-redirected printers, which print on
+the developer's machine and cease to exist when the session closes.
+
+**Also left behind:** the till now starts itself. `hibapos-server.ps1` runs at boot as
+`hibafood` and `hibapos-kiosk.ps1` at log on, both registered as Scheduled Tasks on
+2026-09-17, and the owner confirmed the caisse opens fullscreen when he switches the machine
+on. That is not part of R6.4 and is not a plan row; it is recorded here because it changes
+how every later row will be carried out.
 
 ---
 
