@@ -76,13 +76,30 @@ if (-not $browser) {
 
 Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Navigateur : $browser"
 
-# --app= gives a chromeless window; --start-fullscreen fills the screen without
-# the hard lock of --kiosk, so the operator can still reach the taskbar to
-# print, open a folder, or shut down. Full --kiosk is one flag away if the
-# owner wants the machine locked to the till and nothing else.
+# --kiosk: TRUE fullscreen, no browser UI, no taskbar. The operator's choice,
+# 2026-09-17, taken after the alternative was tried on the till and did not work.
+#
+# WHAT WAS HERE BEFORE, AND WHY IT WENT. The pair was `--app=$Url` plus
+# `--start-fullscreen`, chosen so the operator could still reach the taskbar.
+# MEASURED on the France till at 03:36: Brave opened a chromeless window that was
+# NOT fullscreen. `--start-fullscreen` is ignored in --app mode -- it applies to
+# a normal browser window -- so that combination never delivered the fullscreen
+# its own comment claimed. The comment described an intention, not a behaviour,
+# and nothing had ever run it to find out.
+#
+# --kiosk was then verified on the till BEFORE this was written: same browser,
+# same URL, fullscreen with no chrome.
+#
+# WHAT IT COSTS. The taskbar is unreachable while the caisse is open. Alt+F4
+# closes it. Receipts reach the thermal printer from inside the application, not
+# through the browser, so the taskbar is not on the path of anything the staff do
+# during service.
+#
+# --app= is DROPPED rather than combined with --kiosk: kiosk mode has no browser
+# UI to remove, so it would add nothing.
 $arguments = @(
-    "--app=$Url"
-    "--start-fullscreen"
+    "--kiosk"
+    $Url
     "--no-first-run"
     "--no-default-browser-check"
     "--disable-features=TranslateUI"
