@@ -98,6 +98,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - L-217 — how many viandes a size includes, and the quantity selector that was missing
 - L-220 — the count boxes come from the category, so a create screen shows them
 - L-219 — a supplement's count reaches the paper, the screens and a reorder
+- L-218 — the rehearsal that congratulated itself on an empty database it had just created
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -5709,6 +5710,85 @@ direct API caller can produce one. It becomes load-bearing the moment add-ons ga
 **Verified:** 2021 pass / 0 fail, typecheck and lint clean. **The revert went red eight times**,
 including the existing SNAPSHOT test (that file exists so a ticket-formatting change must be opted
 into) and L-80's no-catalogue-id guard, confirming it was not weakened.
+
+---
+
+### L-218 — the rehearsal that congratulated itself on an empty database it had just created
+**Done:** 2026-09-18 · **Commit:** `0155c37` · **Finding:** L-218. **No plan row** — § 6 holds nothing
+that is a session's and § 7 is closed, so this was done as its own item, the shape L-191, L-213,
+L-214, L-216, L-217, L-219 and L-220 all used.
+
+**REPRODUCED BEFORE IT WAS FIXED, and the brief allowed for the finding being wrong.** It is not
+wrong. The two path forms do not agree, and the first thing found was not a reproduction at all —
+it was the original incident's own artefact, still on disk:
+`C:\c\Users\einer\OneDrive\Desktop\Work\HibaFood\db-snapshots\r217-rehearsal\custom.db`,
+created 2026-09-18 01:42, 35 tables, all 19 migrations applied in 627 ms, **every table empty**.
+That file is what « All migrations have been successfully applied » was about.
+
+**What changed:** `REMEDIATION_PLAN.md` § 2, *Migration rehearsal with a fingerprint diff* — one
+sentence, 354 bytes: give `DATABASE_URL` a WINDOWS-form path, `file:C:/…`, never Git Bash's
+`file:/c/…`, with what the second one does instead. § 1's *Current task* block updated.
+`docs/audit/FINDINGS.md`'s L-218 row marked **FIXED** and carrying the measurements below.
+**No source file was touched and no test was added** — see *Left behind*.
+
+**How it was verified:** by running the wrong command and measuring that it did nothing, which is
+better evidence than a test of a sentence. Subject: `../db-snapshots/l218-check/`, two identical
+copies of `../db-snapshots/after-tacos-2026-09-18T00-47-11/custom.db` — the 18-migration copy of
+the live database this incident was originally rehearsed against, carrying the one genuinely
+pending migration `20260918010000_product_option_quota`. **No migration was fabricated.**
+
+| | `file:/c/…` (Git Bash form) | `file:C:/…` (Windows form) |
+|---|---|---|
+| `prisma migrate status` | **« Error: P1003: Database `bash-form.db` does not exist »** | « 19 migrations found … Following migration have not yet been applied » |
+| `prisma migrate deploy` | lists **all nineteen** folders, « All migrations have been successfully applied. », **exit 0** | lists **the one**, same banner, exit 0 |
+| the copy it was aimed at | **untouched** — sha256 `cc1d9fec…` before and after, 18 migrations, no `ProductOptionQuota` | 19 migrations, `ProductOptionQuota` present, **86 products still there** |
+| what it actually wrote | a NEW, EMPTY database at `C:\c\Users\…\l218-check\bash-form.db` — 35 tables, 19 migrations, **0 products** | nothing else |
+
+**Why**, so nobody has to rediscover it: a path that is rooted but carries no drive letter is
+*relative* on Windows, in Node's `path.resolve` and in Rust's `PathBuf::join` alike. Both join it
+onto the current drive, so `/c/Users/…` becomes `C:\c\Users\…`. SQLite then creates the file,
+because that is what `migrate deploy` is for. Every layer behaves correctly and the result is a
+green banner over an empty database.
+
+**The banner is very nearly the same in both columns.** The only difference is the length of the
+folder list above it — nineteen lines against one — which is the same small line `CLAUDE.md`
+already says nobody should have to read carefully at midnight.
+
+**Live `db/custom.db` was never opened**: sha256 `13082cfd26ed9f54307e85f13dcadcd607ac09f4cf7d1d116220beb955efbff7`
+and mtime `2026-09-18 13:12:35.458068000 +0100` identical before and after every run above, no
+`-wal`/`-shm` beside it, `git status` clean throughout. All reads of any database were
+`bun:sqlite` with `readonly: true`.
+
+**AND THE OPEN QUESTION WAS MEASURED, NOT ANSWERED.** The brief says to bring it rather than
+decide it, so both halves were run and neither was implemented:
+
+- `bun scripts/apply-migration.ts` under the same bad URL **REFUSED, exit 1**, printing
+  `No database at C:\c\Users\…\via-script.db`. `databasePath()` resolves the URL itself and
+  `existsSync` then fails. **It would have stopped the original incident dead.**
+- **Its limit is the *second* run.** Once the phantom file exists the script no longer refuses —
+  it prints `Database : C:\c\Users\…`, `Size : 593 920 bytes` against the real copy's 884 736,
+  and `NOTHING PENDING`. Three visible tells, where the bare command gave a green banner and
+  nothing else, but not a refusal.
+
+**Left behind:**
+
+- **NO TEST WAS ADDED, deliberately.** The fix is one sentence of method in a markdown file. The
+  only test that could pin it would assert the plan's prose against a copy of that same prose —
+  the self-matching assertion this project has already been bitten by. `plan-freshness.test.ts`
+  checks structure, not the wording of § 2's methods, and widening it to prose would be a change
+  to what that file is for. The reproduction above is the evidence.
+- **`scripts/apply-migration.ts` is unchanged**, and so is the rehearsal half of the method. That
+  is the open question, and it is the operator's: making the rehearsal go through the script is a
+  real change to `scripts/` and to § 2.
+- **Two phantom trees are on disk and were left there.**
+  `C:\c\Users\…\db-snapshots\r217-rehearsal\` is the original incident's evidence;
+  `…\l218-check\` is this reproduction's. Both hold empty databases and no real data. Deleting
+  them was not in the item. **`C:\c\` existing at all is the signature of this bug** — it is worth
+  looking for after any rehearsal.
+- **`../db-snapshots/l218-check/`** holds the three working copies (`bash-form.db` at 18
+  migrations, `win-form.db` and `via-script.db` at 19). Disposable.
+- **The plan is at 40 527 of 40 960 bytes**, 433 left. The next item that needs room will have to
+  retire something.
 
 ---
 
