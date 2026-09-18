@@ -39,9 +39,16 @@ import { closeAnyOpenShift } from "./helpers";
 test.use({ channel: "msedge" });
 
 const KEYBOARD = '[data-osk-root]';
-const key = (label: string) => `${KEYBOARD} button:has-text("${label}")`;
-/** Exact-text key, so `a` does not also match `Maj` or `Espace`. */
-const letter = (c: string) => `${KEYBOARD} button:text-is("${c}")`;
+/**
+ * A key, BY ITS LABEL rather than its text.
+ *
+ * `:text-is("a")` worked until the refinement of 2026-09-17 put a corner mark
+ * inside each key that hides accents — the « a » key's text content became
+ * « aà », and an exact-text selector matched nothing. Every key now carries an
+ * `aria-label` of exactly the character it types, which is also what a screen
+ * reader should say instead of reading the mark aloud.
+ */
+const letter = (c: string) => `${KEYBOARD} button[aria-label="${c}"]`;
 
 test.describe("L-213 — the on-screen keyboard", () => {
   // The house pattern (T-11): leave no till open. This spec opens the
@@ -80,7 +87,7 @@ test.describe("L-213 — the on-screen keyboard", () => {
     // this suite's disposable database. The test caught the conflation.)
     await expect(page.getByText("E2E Tacos")).toBeVisible();
 
-    await page.locator(key("Maj")).click();
+    await page.locator(letter("Majuscule")).click();
     await page.locator(letter("S")).click();
     await expect(search).toHaveValue("tacoS");
 
@@ -117,9 +124,20 @@ test.describe("L-213 — the on-screen keyboard", () => {
     await expect(dialog, "the dialog closed when a key was tapped").toBeVisible();
     await expect(name).toHaveValue("dup");
 
-    // The accents are the point of having our own layout rather than the OS's.
-    await page.locator(letter("è")).click();
+    // AN ACCENT, BY LONG PRESS, INSIDE A DIALOG — the case that actually
+    // happens: « Chèvre », « Noëlle », a street called « L'Église ». It also
+    // proves the variants popover is reachable while Radix holds
+    // `pointer-events: none` on the body, which the panel overrides but the
+    // popover inherits from it.
+    const eKey = await page.locator(letter("e")).boundingBox();
+    if (!eKey) throw new Error("the e key has no box");
+    await page.mouse.move(eKey.x + eKey.width / 2, eKey.y + eKey.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(700);
+    await page.mouse.up();
+    await page.locator(`${KEYBOARD} button[aria-label="Insérer è"]`).click();
     await expect(name).toHaveValue("dupè");
+    await expect(dialog, "the dialog closed during a long press").toBeVisible();
 
     await page.keyboard.press("Escape");
     await expect(dialog).toBeHidden();
@@ -183,6 +201,120 @@ test.describe("L-213 — the on-screen keyboard", () => {
     // Dismissed, not submitted: this spec opens no shift.
     await page.keyboard.press("Escape");
     await expect(dialog).toBeHidden();
+  });
+
+  test("A LONG PRESS ON A LETTER GIVES ITS ACCENTS, and a short press does not", async ({ page }) => {
+    // The operator's instruction, 2026-09-17: « all the e special are under a
+    // long press on I and like that ». It bought back a whole row — the accents
+    // had ten keys of their own — and it can only be proved in a browser,
+    // because what is being tested is a timer between pointerdown and pointerup.
+    await page.goto("/#/pos");
+    const search = page.locator("#pos-search-input");
+    await expect(search).toBeVisible({ timeout: 30_000 });
+    await search.click();
+    await expect(page.locator(KEYBOARD)).toBeVisible();
+
+    // A SHORT press is still just the letter. This is the half a long press
+    // breaks if the key types on pointerdown, which is why it moved to
+    // pointerup.
+    await page.locator(letter("e")).click();
+    await expect(search).toHaveValue("e");
+
+    const box = await page.locator(letter("e")).boundingBox();
+    if (!box) throw new Error("the e key has no box");
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(700);
+    await page.mouse.up();
+
+    // The accents appeared…
+    await expect(page.locator(`${KEYBOARD} button[aria-label="Insérer é"]`)).toBeVisible();
+    await expect(page.locator(`${KEYBOARD} button[aria-label="Insérer è"]`)).toBeVisible();
+    // …and the long press did NOT also type a second « e ».
+    await expect(search, "the long press typed the base letter as well").toHaveValue("e");
+
+    await page.locator(`${KEYBOARD} button[aria-label="Insérer è"]`).click();
+    await expect(search).toHaveValue("eè");
+    // Choosing one puts the accents away again.
+    await expect(page.locator(`${KEYBOARD} button[aria-label="Insérer é"]`)).toHaveCount(0);
+  });
+
+  test("the numpad is on the RIGHT of the letters, and types", async ({ page }) => {
+    // « lets make the numpad on the right like a real keyboard » — 2026-09-17.
+    // A house number and a telephone number are most of what is typed here
+    // after the name.
+    await page.goto("/#/pos");
+    const search = page.locator("#pos-search-input");
+    await expect(search).toBeVisible({ timeout: 30_000 });
+    await search.click();
+
+    const a = await page.locator(letter("a")).boundingBox();
+    const one = await page.locator(letter("1")).boundingBox();
+    if (!a || !one) throw new Error("a key has no box");
+    expect(one.x, "the numpad is not to the right of the letters").toBeGreaterThan(a.x);
+
+    for (const d of ["1", "2"]) await page.locator(letter(d)).click();
+    await expect(search).toHaveValue("12");
+  });
+
+  test("ON A REAL TOUCHSCREEN, an accent does not dismiss the dialog either", async ({ page }) => {
+    // THE TILL IS A TOUCHSCREEN, AND TOUCH TAKES A DIFFERENT PATH THROUGH RADIX.
+    //
+    // For a mouse, Radix decides a dismissal during `pointerdown`. For TOUCH it
+    // defers to the following `click` — by which point the accent button has
+    // been unmounted however carefully the unmount is timed. So the mouse tests
+    // above cannot see the case the restaurant will actually hit, and this one
+    // is the reason `isFromOsk` treats a detached node as its own rather than
+    // relying on the popover staying mounted.
+    //
+    // Driven through CDP because Playwright's `touchscreen` can tap but cannot
+    // HOLD, and a hold is the whole interaction.
+    const cdp = await page.context().newCDPSession(page);
+    await page.goto("/#/customers");
+    await page.getByRole("button", { name: "Nouveau client" }).first().click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+
+    const name = page.locator("#cust-name");
+    await name.click();
+    await expect(page.locator(KEYBOARD)).toBeVisible();
+
+    const box = await page.locator(letter("e")).boundingBox();
+    if (!box) throw new Error("the e key has no box");
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height / 2;
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [{ x, y }],
+    });
+    await page.waitForTimeout(700);
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+
+    const accent = page.locator(`${KEYBOARD} button[aria-label="Insérer é"]`);
+    await expect(accent, "a long touch did not open the accents").toBeVisible();
+
+    const a = await accent.boundingBox();
+    if (!a) throw new Error("the accent has no box");
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [{ x: a.x + a.width / 2, y: a.y + a.height / 2 }],
+    });
+
+    // THE ACCENTS STAY UP WHILE THE FINGER IS DOWN, which is what a phone does
+    // and the reason the accent button types on `pointerdown` but closes on
+    // `pointerup`. Asserted here because nothing else can fail for it: the
+    // dialog survives either way thanks to `isFromOsk`, so without this the
+    // split would be untested code kept on a hunch.
+    await expect(name, "the letter did not go in on touch-down").toHaveValue("é");
+    await expect(accent, "the accents vanished before the finger lifted").toBeVisible();
+
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await expect(accent, "the accents stayed up after the finger lifted").toBeHidden();
+
+    await expect(name).toHaveValue("é");
+    await expect(dialog, "choosing an accent by TOUCH dismissed the dialog").toBeVisible();
+
+    await page.keyboard.press("Escape");
   });
 
   test("shows NOTHING until a field that takes typing has focus", async ({ page }) => {

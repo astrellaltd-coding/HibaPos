@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import path from "path";
 import {
+  ACCENT_VARIANTS,
   AZERTY_ROWS,
   NUMERIC_ROWS,
   OSK_BACKSPACE,
@@ -15,6 +16,7 @@ import {
   resolveKey,
   shiftChar,
   supportsSelection,
+  variantsFor,
   type FieldFacts,
 } from "@/lib/osk";
 
@@ -240,24 +242,81 @@ describe("L-213 — the caret, and the field types that have none", () => {
 });
 
 describe("L-213 — the French layout", () => {
-  it("is AZERTY and carries the accents a French address needs", () => {
-    expect(AZERTY_ROWS[1]?.slice(0, 6)).toEqual(["a", "z", "e", "r", "t", "y"]);
+  // REFINED 2026-09-17 on the operator's use of the first version: the digit
+  // row became a numpad on the RIGHT (« like a real keyboard ») and the accent
+  // row went under a LONG PRESS on the letter each belongs to. Two rows off a
+  // screen L-211 measured short of about a third of the pixels this wants.
+  //
+  // THESE ASSERTIONS DID NOT GET WEAKER, they moved: the capability being
+  // pinned is still « every letter, every digit and every accent this
+  // catalogue contains can be typed », and each is now pinned against the
+  // mechanism that actually provides it.
+
+  it("is AZERTY, and carries every letter of the alphabet", () => {
+    expect(AZERTY_ROWS[0]?.slice(0, 6)).toEqual(["a", "z", "e", "r", "t", "y"]);
     const all = AZERTY_ROWS.flat();
-    // Every letter of the alphabet, or a name cannot be typed.
     for (const c of "abcdefghijklmnopqrstuvwxyz") {
       expect(all, `the letter ${c} is missing from the keyboard`).toContain(c);
     }
-    // The accents the live catalogue and address book actually contain —
-    // `Chèvre Miel`, `Fromagère`, `Pêcheur`, `Végétarienne`, `L'american`.
-    for (const c of ["é", "è", "ê", "à", "ç", "ô", "î", "'", "-", "@", "."]) {
-      expect(all, `${c} is missing from the keyboard`).toContain(c);
+    expect(all, "the apostrophe is missing — L'american").toContain("'");
+    expect(all, "the hyphen is missing").toContain("-");
+  });
+
+  it("NO LONGER SPENDS A ROW ON THE DIGITS — they are on the pad to the right", () => {
+    const all = AZERTY_ROWS.flat();
+    for (const d of "0123456789") {
+      expect(all, `${d} is back in the letter block, which cost a row`).not.toContain(d);
+    }
+    expect(NUMERIC_ROWS.flat()).toEqual(["1", "2", "3", "4", "5", "6", "7", "8", "9"]);
+    expect(AZERTY_ROWS.length, "the letter block is more than three rows again").toBe(3);
+  });
+
+  it("KEEPS TELEPHONE ORDER, against the « real keyboard » a numpad would be", () => {
+    // Deliberate, and the one part of the operator's instruction not taken
+    // literally. Every other pad in this product is 1-2-3 — the login screen,
+    // the step-up PIN dialog (L-133) and this keyboard's own money pad — and a
+    // cashier who meets 1-2-3 to unlock a refund and 7-8-9 two taps later has
+    // been given two keyboards to learn. The PLACEMENT is what was asked for.
+    expect(NUMERIC_ROWS[0]).toEqual(["1", "2", "3"]);
+    expect(NUMERIC_ROWS[2]).toEqual(["7", "8", "9"]);
+  });
+
+  it("PUTS THE ACCENTS UNDER THE LETTER THEY BELONG TO", () => {
+    // « all the e special are under a long press on I and like that » — the
+    // operator, 2026-09-17. Every accent the old row carried is still typable.
+    expect(variantsFor("e")).toEqual(["é", "è", "ê", "ë"]);
+    expect(variantsFor("a")).toEqual(["à", "â", "ä"]);
+    expect(variantsFor("i")).toEqual(["î", "ï"]);
+    expect(variantsFor("o")).toContain("ô");
+    expect(variantsFor("u")).toContain("ù");
+    expect(variantsFor("c")).toEqual(["ç"]);
+  });
+
+  it("still reaches every accent the CATALOGUE ITSELF contains", () => {
+    // Chèvre Miel · Fromagère · Pêcheur · Végétarienne · Crème — read off the
+    // live catalogue, so this is not a guess about which accents matter.
+    const reachable = new Set([...AZERTY_ROWS.flat(), ...Object.keys(ACCENT_VARIANTS).flatMap((k) => variantsFor(k))]);
+    for (const c of "éèêàùçôîï") {
+      expect(reachable, `${c} cannot be typed at all any more`).toContain(c);
     }
   });
 
-  it("carries the digits, because a phone number and a house number are why it exists", () => {
-    const all = AZERTY_ROWS.flat();
-    for (const d of "0123456789") expect(all).toContain(d);
-    expect(NUMERIC_ROWS.flat()).toEqual(["1", "2", "3", "4", "5", "6", "7", "8", "9"]);
+  it("offers NOTHING under a letter that has no accent", () => {
+    // The corner mark is drawn from this, so a false positive would put a mark
+    // on a key that does nothing when held.
+    expect(variantsFor("z")).toEqual([]);
+    expect(variantsFor("p")).toEqual([]);
+    expect(variantsFor("1")).toEqual([]);
+  });
+
+  it("returns the accents CASED, so a shifted long press gives É not é", () => {
+    expect(variantsFor("e", true)).toEqual(["É", "È", "Ê", "Ë"]);
+    expect(variantsFor("E", false), "an already-capital key finds its own variants").toEqual([
+      "é",
+      "è",
+      "ê",
+      "ë",
+    ]);
   });
 
   it("shifts one letter at a time — Dupont, not DUPONT", () => {
@@ -269,6 +328,34 @@ describe("L-213 — the French layout", () => {
 });
 
 describe("L-213 — a key tap does not dismiss the dialog it is typing into", () => {
+  it("TAKES A DETACHED NODE AS ITS OWN — found by watching a dialog close", () => {
+    // Choosing an accent from a long press dismissed the dialog being typed
+    // into. The accent popover unmounts when its letter is chosen, and
+    // `pointerdown` is a DISCRETE event, so React flushes that unmount
+    // SYNCHRONOUSLY — before the event finishes bubbling to Radix's own
+    // document listener. By then the tapped button has no parents to walk,
+    // `closest` answers null, and the keyboard's own key is indistinguishable
+    // from a click on the page behind the dialog.
+    //
+    // There is no DOM in this runner, so what is pinned here is that the rule
+    // EXISTS and why. The behaviour itself is proved in
+    // `05-on-screen-keyboard.spec.ts`, where a real browser closes the dialog
+    // without it.
+    const src = readFileSync(path.join(process.cwd(), "src/lib/osk.ts"), "utf8");
+    expect(src, "a detached node is no longer recognised as the keyboard's").toContain(
+      "return !node.isConnected;",
+    );
+    // And the popover stays mounted until `pointerup`, which is the other half:
+    // it keeps the node attached for the whole of `pointerdown`.
+    const osk = readFileSync(
+      path.join(process.cwd(), "src/components/shared/on-screen-keyboard.tsx"),
+      "utf8",
+    );
+    expect(osk, "an accent button closes its own popover during pointerdown again").toMatch(
+      /onPointerUp=\{\(e\) => \{\s*e\.preventDefault\(\);\s*onCloseVariants\?\.\(\);/,
+    );
+  });
+
   it("answers « no » with no DOM, rather than throwing", () => {
     // Called from `dialog.tsx` and `alert-dialog.tsx`, which this runner
     // imports without a DOM. `Element` being undefined must not be a crash.

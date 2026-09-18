@@ -51,6 +51,7 @@ import {
   resolveKey,
   shiftChar,
   supportsSelection,
+  variantsFor,
   type FieldFacts,
   type OskLayout,
 } from "@/lib/osk";
@@ -67,6 +68,133 @@ import {
 
 /** 44 px is an invariant here (L-131), and a key is a touch target like any other. */
 const KEY = "h-11 min-h-[44px] min-w-[44px] text-base font-medium";
+
+/** How long a finger must rest on a key before its accents appear. */
+const LONG_PRESS_MS = 420;
+
+/**
+ * ONE KEY, and the only place a long press is understood.
+ *
+ * IT INSERTS ON `pointerup`, NOT `pointerdown`, and that moved for the long
+ * press: a key that has already typed by the time the finger has rested on it
+ * cannot then offer anything else. `preventDefault` stays on `pointerdown`,
+ * because that is what keeps focus — and the caret — in the field being typed
+ * into. The pointer sequence continues after it, so `pointerup` still arrives.
+ */
+function Key({
+  label,
+  value,
+  variants = [],
+  open = false,
+  onPress,
+  onInsert = undefined,
+  onOpenVariants,
+  onCloseVariants,
+  className,
+  children,
+  ...rest
+}: {
+  label?: string;
+  value: string;
+  variants?: string[];
+  open?: boolean;
+  onPress: (v: string) => void;
+  /** Types WITHOUT closing the accents. Defaults to `onPress`; only a key
+   *  that owns a popover needs the distinction. */
+  onInsert?: (v: string) => void;
+  onOpenVariants?: () => void;
+  onCloseVariants?: () => void;
+  className?: string;
+  children?: React.ReactNode;
+} & Omit<React.ComponentProps<typeof Button>, "onPress" | "value" | "children">) {
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const opened = useRef(false);
+
+  const clear = () => {
+    if (timer.current !== null) {
+      clearTimeout(timer.current);
+      timer.current = null;
+    }
+  };
+
+  return (
+    <div className={cn("relative", className)}>
+      {open && variants.length > 0 && (
+        /* The accents, above the key they belong to. Orange-edged so it reads
+         * as the same family as the Entrée key and the panel's own top line. */
+        <div className="absolute bottom-[calc(100%+4px)] left-1/2 z-10 flex -translate-x-1/2 gap-1 rounded-xl border-2 border-primary/70 bg-popover p-1 shadow-xl">
+          {variants.map((v) => (
+            <Button
+              key={v}
+              type="button"
+              variant="outline"
+              aria-label={`Insérer ${v}`}
+              className={cn(KEY, "px-3 text-lg")}
+              /* INSERTS ON DOWN, CLOSES ON UP, and the split is deliberate.
+               * Closing on `pointerdown` unmounted this very button while the
+               * event was still bubbling — `pointerdown` is discrete, so React
+               * flushes the removal synchronously — and Radix then saw a click
+               * from a node with no parents and dismissed the dialog being
+               * typed into. Staying mounted until `pointerup` also matches what
+               * a phone does: the accents stay up while the finger is down. */
+              onPointerDown={(e) => {
+                e.preventDefault();
+                (onInsert ?? onPress)(v);
+              }}
+              onPointerUp={(e) => {
+                e.preventDefault();
+                onCloseVariants?.();
+              }}
+            >
+              {v}
+            </Button>
+          ))}
+        </div>
+      )}
+      <Button
+        type="button"
+        aria-label={label}
+        className={cn(KEY, "w-full px-0", className)}
+        onPointerDown={(e) => {
+          e.preventDefault();
+          opened.current = false;
+          if (variants.length > 0 && onOpenVariants) {
+            timer.current = setTimeout(() => {
+              opened.current = true;
+              onOpenVariants();
+            }, LONG_PRESS_MS);
+          }
+        }}
+        onPointerUp={(e) => {
+          e.preventDefault();
+          clear();
+          if (opened.current) return; // the long press did the work
+          if (open) {
+            onCloseVariants?.();
+            return;
+          }
+          onPress(value);
+        }}
+        onPointerLeave={clear}
+        onPointerCancel={clear}
+        {...rest}
+      >
+        {children ?? value}
+        {variants.length > 0 && (
+          /* THE MARK THAT SAYS THERE IS MORE HERE. A long press nobody can see
+           * is L-211's silence in another costume — the characters would be
+           * present, reachable and unfindable. */
+          <span
+            aria-hidden
+            className="pointer-events-none absolute right-1 top-0.5 text-[9px] font-semibold leading-none text-primary/70"
+          >
+            {variants[0]}
+          </span>
+        )}
+      </Button>
+    </div>
+  );
+}
 
 export function OnScreenKeyboardPanel({
   panelRef,
@@ -89,17 +217,37 @@ export function OnScreenKeyboardPanel({
   onShift: () => void;
   onClose: () => void;
 }) {
-  /**
-   * EVERY KEY IS `onPointerDown` WITH `preventDefault`, AND THAT IS THE WHOLE
-   * TRICK. A tap that is allowed to complete moves focus to the button, and a
-   * keyboard whose field has just lost focus is a keyboard that types into
-   * nothing. Preventing the default on `pointerdown` leaves focus where it is,
-   * so the caret never moves and the field never fires a `blur`.
-   */
-  const press = (key: string) => (e: React.PointerEvent) => {
-    e.preventDefault();
+  /** Which key currently has its accents showing, if any. */
+  const [openVariants, setOpenVariants] = useState<string | null>(null);
+
+  /** Every key press closes an open accent popover, whichever key opened it. */
+  const press = (key: string) => {
+    setOpenVariants(null);
     onKey(key);
   };
+
+  /**
+   * Type WITHOUT closing the accents. Only the accent buttons use it, and they
+   * close themselves on `pointerup` instead — closing during `pointerdown`
+   * unmounts the button mid-event and Radix then dismisses the dialog being
+   * typed into. `isFromOsk` carries the other half of that story.
+   */
+  const insert = (key: string) => onKey(key);
+
+  const digits = (
+    <div className="grid grid-cols-3 gap-1.5">
+      {NUMERIC_ROWS.flat().map((d) => (
+        <Key
+          key={d}
+          value={d}
+          label={d}
+          onPress={press}
+          variant="outline"
+          className="text-lg font-semibold tabular-nums"
+        />
+      ))}
+    </div>
+  );
 
   return (
     <div
@@ -114,160 +262,157 @@ export function OnScreenKeyboardPanel({
        * override every key in it is dead on exactly the screens that need it
        * most, the client picker among them.
        */
-      className="pointer-events-auto fixed inset-x-0 bottom-0 z-[60] border-t border-border bg-card/95 px-2 pb-2 pt-1.5 shadow-[0_-4px_24px_rgba(0,0,0,0.18)] backdrop-blur-xl"
+      className="pointer-events-auto fixed inset-x-0 bottom-0 z-[60] border-t-2 border-t-primary/70 bg-card/95 px-2 pb-2 pt-1.5 shadow-[0_-4px_24px_rgba(0,0,0,0.18)] backdrop-blur-xl"
     >
-      <div className="mx-auto flex max-w-3xl flex-col gap-1.5">
-        {layout === "alpha" ? (
-          <>
+      {layout === "alpha" ? (
+        <div className="mx-auto flex max-w-4xl items-stretch gap-2">
+          {/* THE LETTERS. Three rows since the refinement of 2026-09-17: the
+            * digits moved to the pad on the right and the accents went under a
+            * long press, which is two rows of a screen L-211 measured short. */}
+          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
             {AZERTY_ROWS.map((row, i) => (
               <div key={i} className="flex justify-center gap-1.5">
-                {i === 3 && (
-                  <Button
-                    type="button"
-                    variant={shifted ? "default" : "outline"}
+                {i === 2 && (
+                  <Key
+                    value=""
+                    label="Majuscule"
                     aria-pressed={shifted}
-                    aria-label="Majuscule"
-                    className={cn(KEY, "px-3")}
-                    onPointerDown={(e) => {
-                      e.preventDefault();
+                    variant={shifted ? "default" : "outline"}
+                    className="w-[4.5rem] shrink-0"
+                    onPress={() => {
+                      setOpenVariants(null);
                       onShift();
                     }}
                   >
                     Maj
-                  </Button>
+                  </Key>
                 )}
-                {row.map((char) => (
-                  <Button
-                    key={char}
-                    type="button"
+                {row.map((char) => {
+                  const cased = shiftChar(char, shifted);
+                  return (
+                    <Key
+                      key={char}
+                      value={cased}
+                      /* An EXACT label, because the corner mark is inside the
+                       * button: a key for « a » reads « aà » as text content,
+                       * which a screen reader would say and a selector would
+                       * miss. The label is the letter and nothing else. */
+                      label={cased}
+                      variants={variantsFor(char, shifted)}
+                      open={openVariants === char}
+                      onInsert={insert}
+                      onOpenVariants={() => setOpenVariants(char)}
+                      onCloseVariants={() => setOpenVariants(null)}
+                      onPress={press}
+                      variant="outline"
+                      className="flex-1"
+                    />
+                  );
+                })}
+                {i === 2 && (
+                  /* BIGGER, on the operator's instruction. It is the key a
+                   * cashier reaches for most after a mistyped name. */
+                  <Key
+                    value={OSK_BACKSPACE}
+                    label="Effacer"
+                    onPress={press}
                     variant="outline"
-                    className={cn(KEY, "flex-1 px-0")}
-                    onPointerDown={press(shiftChar(char, shifted))}
+                    className="w-[6.5rem] shrink-0 border-primary/50 text-primary"
                   >
-                    {shiftChar(char, shifted)}
-                  </Button>
-                ))}
-                {i === 3 && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    aria-label="Effacer"
-                    className={cn(KEY, "px-3")}
-                    onPointerDown={press(OSK_BACKSPACE)}
-                  >
-                    <Delete className="h-4 w-4" />
-                  </Button>
+                    <Delete className="h-5 w-5" />
+                  </Key>
                 )}
               </div>
             ))}
             <div className="flex justify-center gap-1.5">
-              <Button
-                type="button"
-                variant="outline"
-                aria-label="Espace"
-                className={cn(KEY, "flex-1")}
-                onPointerDown={press(" ")}
-              >
+              <Key value="@" label="@" onPress={press} variant="outline" className="w-14 shrink-0" />
+              <Key value="." label="." onPress={press} variant="outline" className="w-14 shrink-0" />
+              <Key value=" " label="Espace" onPress={press} variant="outline" className="flex-1">
                 Espace
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className={cn(KEY, "px-4")}
-                onPointerDown={press(OSK_ENTER)}
+              </Key>
+              {/* BIGGER, and the one orange key on the board — it is the key
+                * that means « done » on every field this opens over. */}
+              <Key
+                value={OSK_ENTER}
+                label="Entrée"
+                onPress={press}
+                variant="default"
+                className="w-[7.5rem] shrink-0 text-base font-semibold"
               >
                 Entrée
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                aria-label="Fermer le clavier"
-                className={cn(KEY, "px-3 text-muted-foreground")}
-                onPointerDown={(e) => {
-                  e.preventDefault();
-                  onClose();
-                }}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          </>
-        ) : (
-          <div className="mx-auto w-full max-w-[320px]">
-            {NUMERIC_ROWS.map((row, i) => (
-              <div key={i} className="mb-1.5 flex gap-1.5">
-                {row.map((d) => (
-                  <Button
-                    key={d}
-                    type="button"
-                    variant="outline"
-                    className={cn(KEY, "flex-1 text-lg font-semibold tabular-nums")}
-                    onPointerDown={press(d)}
-                  >
-                    {d}
-                  </Button>
-                ))}
-              </div>
-            ))}
-            <div className="mb-1.5 flex gap-1.5">
-              {/* ARMED IS SHOWN, because a key that does nothing visible is
-                * the defect this project keeps finding (L-211, L-214). On a
-                * `type="number"` field the separator cannot go in until a
-                * decimal digit follows it, so the key holds instead — and says
-                * so the same way `Maj` does, by looking pressed. */}
-              <Button
-                type="button"
-                variant={separatorArmed ? "default" : "outline"}
-                aria-pressed={separatorArmed}
-                aria-label="Virgule"
-                className={cn(KEY, "flex-1 text-lg font-semibold")}
-                onPointerDown={press(decimalSeparator)}
-              >
-                {decimalSeparator}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className={cn(KEY, "flex-1 text-lg font-semibold tabular-nums")}
-                onPointerDown={press("0")}
-              >
-                0
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                aria-label="Effacer"
-                className={cn(KEY, "flex-1")}
-                onPointerDown={press(OSK_BACKSPACE)}
-              >
-                <Delete className="h-4 w-4" />
-              </Button>
-            </div>
-            <div className="flex gap-1.5">
-              <Button
-                type="button"
-                variant="outline"
-                className={cn(KEY, "flex-1")}
-                onPointerDown={press(OSK_ENTER)}
-              >
-                Entrée
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                aria-label="Fermer le clavier"
-                className={cn(KEY, "px-3 text-muted-foreground")}
-                onPointerDown={(e) => {
-                  e.preventDefault();
-                  onClose();
-                }}
-              >
-                <X className="h-4 w-4" />
-              </Button>
+              </Key>
             </div>
           </div>
-        )}
-      </div>
+
+          {/* THE NUMPAD, ON THE RIGHT, « like a real keyboard » — the
+            * operator's instruction, 2026-09-17. A house number and a telephone
+            * number are most of what is typed here after the name. */}
+          <div className="flex shrink-0 flex-col gap-1.5">
+            {digits}
+            <div className="flex gap-1.5">
+              <Key value="0" label="0" onPress={press} variant="outline" className="flex-1 text-lg font-semibold tabular-nums" />
+              <Key
+                value=""
+                label="Fermer le clavier"
+                onPress={() => onClose()}
+                variant="ghost"
+                className="w-11 shrink-0 text-muted-foreground"
+              >
+                <X className="h-4 w-4" />
+              </Key>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="mx-auto w-full max-w-[340px]">
+          <div className="mb-1.5">{digits}</div>
+          <div className="mb-1.5 flex gap-1.5">
+            {/* ARMED IS SHOWN, because a key that does nothing visible is the
+              * defect this project keeps finding (L-211, L-214). On a
+              * `type="number"` field the separator cannot go in until a decimal
+              * digit follows it, so the key holds instead — and says so the
+              * same way `Maj` does, by looking pressed. */}
+            <Key
+              value={decimalSeparator}
+              label="Virgule"
+              aria-pressed={separatorArmed}
+              onPress={press}
+              variant={separatorArmed ? "default" : "outline"}
+              className="flex-1 text-lg font-semibold"
+            />
+            <Key value="0" label="0" onPress={press} variant="outline" className="flex-1 text-lg font-semibold tabular-nums" />
+            <Key
+              value={OSK_BACKSPACE}
+              label="Effacer"
+              onPress={press}
+              variant="outline"
+              className="flex-1 border-primary/50 text-primary"
+            >
+              <Delete className="h-5 w-5" />
+            </Key>
+          </div>
+          <div className="flex gap-1.5">
+            <Key
+              value={OSK_ENTER}
+              label="Entrée"
+              onPress={press}
+              variant="default"
+              className="flex-1 text-base font-semibold"
+            >
+              Entrée
+            </Key>
+            <Key
+              value=""
+              label="Fermer le clavier"
+              onPress={() => onClose()}
+              variant="ghost"
+              className="w-11 shrink-0 text-muted-foreground"
+            >
+              <X className="h-4 w-4" />
+            </Key>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

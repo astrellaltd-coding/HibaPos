@@ -94,6 +94,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - L-81 — `5 nuggets test` deleted by the operator, and verified from the database
 - L-213 — a keyboard on the screen, because the day could not be closed without one
 - L-214 — one rule for what a delivery client is, and the till says it out loud
+- L-216 — the keyboard after somebody used it, and the accent that closed the dialog
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -5422,6 +5423,116 @@ caisse cannot quietly become the place client records are managed. It also does 
 whether `customerSchema` should require a phone: the schema is shared with the admin screen,
 where a client with no phone is perfectly legitimate, and the requirement belongs to the
 *delivery*, not to the record.
+
+
+### L-216 — the keyboard after somebody used it, and the accent that closed the dialog
+
+**Done:** 2026-09-18 · **Commit:** `<SHA>` · **Finding:** L-216. **Refines L-213**, on the
+operator's use of it within hours of it landing. **No plan row**, as L-191, L-213 and L-214.
+
+**FIVE REFINEMENTS, FOUR OF THEM ABOUT THE SAME SCARCE THING.** « its good with some
+refinement »: a numpad on the right « like a real keyboard »; the accents under a long press
+rather than ten keys of their own; a bigger Entrée and Effacer; « maybe a little bit of orange
+touch ». The first two each remove a ROW, and rows are what this panel cannot afford —
+**L-211 measured that screen short of about a third of the CSS pixels this layout wants**, and
+the keyboard spends its share of them at the bottom of every dialog.
+
+**WHAT CHANGED.**
+- **The digit row became a numpad on the right.** A house number and a telephone number are
+  most of what is typed here after a name, and a 3-wide block beats a 10-wide row of small keys.
+- **The accents moved under a long press** on the letter each belongs to — é è ê ë on `e`,
+  à â ä on `a`, î ï on `i`, ô ö œ on `o`, ù û ü on `u`, ç, ñ, ÿ. **Every accent the old row
+  carried is still typable**, which is pinned against the live catalogue's own spellings:
+  `Chèvre Miel`, `Fromagère`, `Pêcheur`, `Végétarienne`.
+- **A CORNER MARK on every key that hides accents**, and this was not asked for. A long press
+  nobody can see is L-211's silence in another costume — the characters would be present,
+  reachable and unfindable. Each such key shows its first variant, small, in the top right, and
+  a key with no accents carries no mark to mislead anyone.
+- **Entrée and Effacer are wider**, and Entrée is the one filled key on the board.
+- **The orange** is the app's own `--primary`: an edge along the top of the panel, Entrée
+  filled, Effacer outlined, and the accent popover edged to match.
+- **`-` lost the variants it briefly had** (`' @ . /`). They were not variants of it, and `@`
+  and `.` are real keys two rows down — the mark would have promised a shortcut to something
+  already in plain sight. A long press means « this letter, accented » or the mark stops
+  being readable.
+
+**ONE INSTRUCTION WAS NOT TAKEN LITERALLY, and it is flagged rather than buried.** The numpad
+is **1-2-3 on top**, not the 7-8-9 a physical numpad has. Every other pad in this product is
+1-2-3 — the login screen, the step-up PIN dialog (L-133) and this keyboard's own money pad —
+and a cashier who meets 1-2-3 to unlock a refund and 7-8-9 two taps later has been given two
+keyboards to learn. The PLACEMENT is what was asked for. One line to flip.
+
+**THE THING NOBODY ASKED FOR, AND THE REASON THIS ITEM MATTERS.**
+
+**Choosing an accent closed the dialog being typed into.** Found by the e2e spec written for
+the long press, then isolated step by step in a browser rather than reasoned about: the dialog
+survived the press, survived the hold, survived the release, and died on the accent.
+
+**The mechanism.** The popover unmounts when its letter is chosen. `pointerdown` is a DISCRETE
+event, so React flushes that unmount **synchronously** — before the event finishes bubbling to
+Radix's own document listener. By the time L-213's guard is asked « did this come from the
+keyboard? », the button that was tapped has been detached and has no parents left to walk;
+`closest('[data-osk-root]')` answers null, and the keyboard's own key is indistinguishable from
+a click on the page behind the dialog. **A cashier would have lost a half-typed client to a
+letter with an accent in it** — which is half the names in a French address book.
+
+**On a touchscreen it is worse and cannot be timed around.** Radix defers a touch dismissal to
+the following `click`, by which point the node is gone however carefully the unmount is
+scheduled. **The till is a touchscreen**, so the mouse-driven tests could not see the case the
+restaurant will actually meet.
+
+**TWO FIXES, AND THE MEASUREMENT THAT SORTED THEM OUT.**
+- **`isFromOsk` takes a detached node as its own.** `isConnected` is false only for a node
+  something has just removed. Erring this way keeps a dialog open that should perhaps have
+  closed; erring the other way loses what the cashier had typed, and the second is the one that
+  costs a customer's address.
+- **The accent button types on `pointerdown` and closes on `pointerup`**, so the popover stays
+  mounted for the whole of the event — and stays visible while the finger is down, which is
+  what a phone does.
+
+**REVERTING THEM ONE AT A TIME LEFT EVERYTHING GREEN, both of them, which is the plan's own
+warning working:** « never two together — they mask each other. » They are redundant for the
+mouse path. The measurement that settled it was the TOUCH test: **reverting `isConnected` alone
+goes red there** (necessary), **reverting the pointerup split alone does not** (not necessary as
+a fix). Rather than keep a mechanism no test could fail for, the split was given its own
+assertion — the accents must still be showing between touch-down and touch-up — and now **both
+go red alone, for different reasons.**
+
+**HOW IT WAS VERIFIED.**
+- **1 960 pass / 0 fail / 154 files**, typecheck and lint clean.
+- **24 e2e pass**, three of them new: the long press and its short-press control, the numpad
+  being physically to the right of the letters (`boundingBox().x`), and **a real touchscreen**.
+- **THE TOUCH TEST IS DRIVEN THROUGH CDP**, because Playwright's `touchscreen` can tap but
+  cannot HOLD, and a hold is the whole interaction. `Input.dispatchTouchEvent` gives genuine
+  touch events, so `pointerType` is `touch` and Radix takes its click-deferred path — the
+  till's path, and the only one that can fail for `isConnected`.
+- **The layout assertions did not get weaker when the rows moved, they moved with them.** What
+  is pinned is still « every letter, every digit and every accent this catalogue contains can
+  be typed », now against the mechanism that actually provides each. The digit assertions
+  additionally check the digits are **not** back in the letter block, because that is what the
+  row cost.
+- **The render tests needed a new reader.** `>${c}</button>` matched nothing once a corner mark
+  sat inside each key — the « a » key's text became « aà ». Every key now carries an
+  `aria-label` of exactly the character it types, which is also what a screen reader should say
+  instead of reading the mark aloud, and the e2e selects on that.
+
+**THE OPERATOR ENTERED THE TACOS WHILE THIS WAS BEING BUILT**, on a server this session
+started against the live catalogue. **Three products** — Tacos M 6,90 · L 8,90 · XL 11,90,
+each **+1,00 € en livraison**, which is the convention every other hot dish in this catalogue
+keeps — with **Sauces** (9, free, multi), **Viande** (6, required, Tenders +1,00) and
+**Extras** (7 at +1,00) as CATEGORY groups, so all three inherit them. **L-215 is closed by
+their hand, not by a script.** Two restore points were taken, `before-tacos-…` and
+`after-tacos-…`, both verified byte-for-byte.
+
+**A rebuild was run under that server at 23:58 while they were typing**, by this session's own
+e2e run, and it swapped `.next` beneath a running `next start`. Nothing was lost — Tacos M went
+in four minutes later — but it was not asked for and should not have happened. The rebuild at
+the end of this item WAS asked for, and the server was stopped first.
+
+**What this does NOT do.** It does not measure the till. L-211 still asks for `innerWidth`,
+`innerHeight` and `devicePixelRatio` from that machine and nobody has read them, so « two rows
+shorter » is an improvement of unknown sufficiency. And it does not decide whether the numpad
+should be 7-8-9 after all.
 
 ---
 

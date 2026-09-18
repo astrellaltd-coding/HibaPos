@@ -42,7 +42,30 @@ export const OSK_ROOT_ATTR = "data-osk-root";
 export function isFromOsk(node: unknown): boolean {
   if (typeof Element === "undefined") return false;
   if (!(node instanceof Element)) return false;
-  return node.closest(`[${OSK_ROOT_ATTR}]`) !== null;
+  if (node.closest(`[${OSK_ROOT_ATTR}]`) !== null) return true;
+  /**
+   * A DETACHED NODE IS TAKEN AS OURS, and this half was written after watching
+   * it fail in a browser.
+   *
+   * Choosing an accent from a long press closed the dialog being typed into.
+   * The accent popover unmounts when its letter is chosen, and `pointerdown` is
+   * a DISCRETE event, so React flushes that unmount SYNCHRONOUSLY — before the
+   * event finishes bubbling to Radix's own document listener. By the time this
+   * function is asked, the button that was tapped has no parents left to walk,
+   * `closest` answers null, and the keyboard's own key looks exactly like a
+   * click on the page behind the dialog.
+   *
+   * On a touchscreen — the till — it is worse: Radix defers a touch dismissal
+   * to the following `click`, by which point the node is gone however careful
+   * the unmount is. So the check cannot rely on the node still being in the
+   * document.
+   *
+   * `isConnected` is false only for a node something has just removed. Erring
+   * this way keeps a dialog open that should perhaps have closed; erring the
+   * other way loses what the cashier had typed. The second is the one that
+   * costs a customer's address.
+   */
+  return !node.isConnected;
 }
 
 /** Sentinel keys. Anything else is the literal text to insert.
@@ -259,32 +282,90 @@ function clamp(n: number, max: number): number {
 }
 
 /**
- * THE AZERTY PANEL.
+ * THE AZERTY PANEL — letters only, with the digits on a numpad to the right.
  *
- * A French restaurant's keyboard, in the order a French keyboard has it, so
- * nobody has to hunt. The digit row is not decoration: the two fields this was
- * built for are a client's phone number and « 12 rue de Paris », and both are
- * mostly digits.
+ * REFINED 2026-09-17, on the operator's use of the first version. Two rows left
+ * this block and the keyboard got shorter for it, which matters: L-211 measured
+ * the France till short of about a third of the CSS pixels this layout wants,
+ * and the panel spends that scarce height.
  *
- * Accented letters get their own row rather than a long-press, because a
- * long-press is invisible and this is a keyboard for people who have never
- * seen it before. `Chèvre`, `Café`, `L'Église` — all of it is in the catalogue
- * and in the address book already.
+ *  * THE DIGIT ROW went to a NUMPAD ON THE RIGHT, « like a real keyboard ». A
+ *    house number and a telephone number are most of what gets typed here after
+ *    the name, and a 3-wide block is faster to hit than a 10-wide row of small
+ *    keys.
+ *  * THE ACCENT ROW — é è ê à ù ç ô î — went under a LONG PRESS on the letter
+ *    it belongs to, the way a phone does it. Ten keys of screen for characters
+ *    that appear once in a name each.
  */
 export const AZERTY_ROWS: readonly (readonly string[])[] = [
-  ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"],
   ["a", "z", "e", "r", "t", "y", "u", "i", "o", "p"],
   ["q", "s", "d", "f", "g", "h", "j", "k", "l", "m"],
   ["w", "x", "c", "v", "b", "n", "'", "-"],
-  ["é", "è", "ê", "à", "ù", "ç", "ô", "î", "@", "."],
 ];
 
-/** The number pad, in telephone order — the order every other pad in this app uses. */
+/**
+ * The numpad that sits to the RIGHT of the letters, and the standalone pad a
+ * money field gets.
+ *
+ * TELEPHONE ORDER (1-2-3 on top), NOT CALCULATOR ORDER, and it is a deliberate
+ * choice against the « real keyboard » a physical numpad would be. Every other
+ * pad in this product is 1-2-3 — the login screen's, the step-up PIN dialog's
+ * (L-133), and this keyboard's own money pad — and a cashier who meets 1-2-3 to
+ * unlock a refund and 7-8-9 two taps later has been given two keyboards to
+ * learn. The PLACEMENT is what was asked for; the order follows the app.
+ */
 export const NUMERIC_ROWS: readonly (readonly string[])[] = [
   ["1", "2", "3"],
   ["4", "5", "6"],
   ["7", "8", "9"],
 ];
+
+/**
+ * The accented letters, under the letter each belongs to.
+ *
+ * WHY A LONG PRESS AND NOT KEYS. The operator's instruction, 2026-09-17: « all
+ * the e special are under a long press on I and like that ». It is how every
+ * phone keyboard does it and it buys back a whole row.
+ *
+ * THE COST IS THAT IT IS INVISIBLE, which is the defect this project keeps
+ * finding under another name (L-211's unreachable categories, L-214's tooltip
+ * on a touchscreen). So a key with variants carries a corner mark — the first
+ * of them, small, in the top right — and a cashier who has never been told can
+ * still see that something is there. Nothing here is reachable ONLY by long
+ * press without that mark.
+ *
+ * Covers what this catalogue and address book actually contain: `Chèvre Miel`,
+ * `Fromagère`, `Pêcheur`, `Végétarienne`, `L'american`, `Crème`, `Noël`.
+ */
+export const ACCENT_VARIANTS: Readonly<Record<string, readonly string[]>> = {
+  a: ["à", "â", "ä"],
+  c: ["ç"],
+  e: ["é", "è", "ê", "ë"],
+  i: ["î", "ï"],
+  o: ["ô", "ö", "œ"],
+  u: ["ù", "û", "ü"],
+  y: ["ÿ"],
+  n: ["ñ"],
+};
+
+// NOTHING BUT ACCENTS LIVES IN THAT MAP. `-` briefly carried `' @ . /` and it
+// was wrong twice over: it put a corner mark on a key whose « variants » are not
+// variants of it, and `@` and `.` are real keys two rows down, so the mark
+// promised a shortcut to something already in plain sight. A long press means
+// « this letter, accented » and nothing else, or the mark stops being readable.
+
+/**
+ * The variants a key offers, already cased for the shift state.
+ *
+ * Returns an empty array for a key with none, which is what the panel reads to
+ * decide whether to draw the corner mark at all.
+ */
+export function variantsFor(char: string, shifted = false): string[] {
+  const base = char.toLocaleLowerCase("fr-FR");
+  const variants = ACCENT_VARIANTS[base];
+  if (!variants) return [];
+  return variants.map((v) => shiftChar(v, shifted));
+}
 
 /**
  * Whether a tapped letter should come out capital.

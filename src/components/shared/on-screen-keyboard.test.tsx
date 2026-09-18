@@ -25,18 +25,57 @@ function render(props: Partial<Parameters<typeof OnScreenKeyboardPanel>[0]> = {}
   );
 }
 
+/** Each key's visible text, tags stripped — a key is `a<span>à</span>` now that
+ *  a letter with accents carries a corner mark, so `>a</button>` no longer
+ *  matches anything. Strips the mark's own span so the key reads as its letter. */
+function keyTexts(html: string): string[] {
+  return (html.match(/<button[^>]*>([\s\S]*?)<\/button>/g) ?? []).map((b) =>
+    b
+      .replace(/<span[^>]*text-\[9px\][^>]*>[\s\S]*?<\/span>/g, "")
+      .replace(/<[^>]+>/g, "")
+      .trim(),
+  );
+}
+
 describe("L-213 — the letters", () => {
   const html = render();
 
   it("renders every letter of the alphabet", () => {
+    const texts = keyTexts(html);
     for (const c of "abcdefghijklmnopqrstuvwxyz") {
-      expect(html, `the letter ${c} is not on the rendered keyboard`).toContain(`>${c}</button>`);
+      expect(texts, `the letter ${c} is not on the rendered keyboard`).toContain(c);
     }
   });
 
-  it("renders the accents a French name and address need", () => {
+  it("RENDERS THE NUMPAD BESIDE THEM — the operator's « like a real keyboard »", () => {
+    // The digit ROW is gone; the digits are a 3-wide block on the right. Both
+    // halves matter: the capability must survive the row's removal.
+    const texts = keyTexts(html);
+    for (const d of "0123456789") {
+      expect(texts, `${d} is not reachable from the letter keyboard`).toContain(d);
+    }
+  });
+
+  it("MARKS THE KEYS THAT HIDE ACCENTS, so a long press is findable", () => {
+    // The row of é è ê à ù ç ô î is gone and those characters now live under a
+    // long press. A long press nobody can see is L-211's silence in another
+    // costume — the characters would be present, reachable and unfindable. So
+    // each such key carries its first variant as a small corner mark.
+    expect(html, "the é mark is not on the e key").toContain(">é</span>");
+    expect(html, "the à mark is not on the a key").toContain(">à</span>");
+    expect(html, "the î mark is not on the i key").toContain(">î</span>");
+    expect(html, "the ç mark is not on the c key").toContain(">ç</span>");
+    // …and a letter with no accents carries no mark to mislead anyone.
+    const marks = html.match(/<span[^>]*text-\[9px\][^>]*>([^<]*)<\/span>/g) ?? [];
+    expect(marks.length).toBe(8); // a c e i n o u y — and nothing else
+  });
+
+  it("does NOT render the accents as keys of their own any more", () => {
+    // The row they used to occupy is what paid for the numpad and the shorter
+    // panel. If they come back, so does the row.
+    const texts = keyTexts(html);
     for (const c of ["é", "è", "ê", "à", "ù", "ç", "ô", "î"]) {
-      expect(html, `${c} is not on the rendered keyboard`).toContain(`>${c}</button>`);
+      expect(texts, `${c} is back as a key of its own — that costs a row`).not.toContain(c);
     }
   });
 
@@ -45,12 +84,36 @@ describe("L-213 — the letters", () => {
     expect(html).toContain(">Entrée</button>");
     expect(html).toContain('aria-label="Effacer"');
     expect(html).toContain('aria-label="Fermer le clavier"');
+    // @ and . stay real keys: an email and a street address need them and
+    // neither is worth a long press.
+    const texts = keyTexts(html);
+    expect(texts).toContain("@");
+    expect(texts).toContain(".");
+  });
+
+  it("GIVES ENTRÉE AND EFFACER MORE ROOM, on the operator's instruction", () => {
+    const wide = html.match(/<button[^>]*w-\[[0-9.]+rem\][^>]*>/g) ?? [];
+    expect(wide.length, "no key is wider than a letter — Entrée and Effacer were asked to be").toBeGreaterThanOrEqual(3);
+    // Entrée is the widest thing on the board after the space bar.
+    expect(html).toMatch(/<button[^>]*w-\[7\.5rem\][^>]*>[\s\S]*?Entrée/);
+    expect(html).toMatch(/<button[^>]*w-\[6\.5rem\][^>]*aria-label="Effacer"/);
+  });
+
+  it("CARRIES THE ORANGE, which is the app's own primary", () => {
+    // « maybe a little bit of orange touch » — the operator, 2026-09-17.
+    // `--primary` is the amber this product is built around (globals.css).
+    expect(html, "the panel has no orange edge").toContain("border-t-primary/70");
+    expect(html, "Effacer is not picked out").toContain("border-primary/50");
+    // Entrée uses the primary BUTTON variant rather than an outline, which is
+    // the orange fill itself.
+    expect(html).toMatch(/<button[^>]*bg-primary[^>]*>[\s\S]*?Entrée/);
   });
 
   it("renders MAJUSCULES when shift is held, and says it is pressed", () => {
     const shifted = render({ shifted: true });
-    expect(shifted).toContain(">D</button>");
-    expect(shifted).toContain(">É</button>");
+    const texts = keyTexts(shifted);
+    expect(texts).toContain("D");
+    expect(shifted, "a shifted long press must offer É, not é").toContain(">É</span>");
     expect(shifted).toContain('aria-pressed="true"');
     expect(html).toContain('aria-pressed="false"');
   });
