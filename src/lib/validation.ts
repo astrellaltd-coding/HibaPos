@@ -178,6 +178,26 @@ export const productSchema = z.object({
    */
   options: z.array(optionGroupSchema).optional(),
   /**
+   * L-217 — how many of a CATEGORY group this product's price includes.
+   *
+   * `.optional()` and NOT `.default([])`, for exactly the reason `options`
+   * above carries that warning: the handler replaces these wholesale, so a
+   * partial update that omitted the field would parse as « the empty list » and
+   * silently delete the ceilings — putting the six-viande Tacos M back with a
+   * 200. Absent means LEAVE THEM ALONE; an explicit `[]` clears them.
+   *
+   * `min(0)` because zero is a real answer (« this size includes none of that
+   * group »), not an absence. The upper bound is a till bound, not a rule.
+   */
+  optionQuotas: z
+    .array(
+      z.object({
+        groupId: z.string().min(1),
+        included: z.number().int().min(0).max(20),
+      }),
+    )
+    .optional(),
+  /**
    * A menu composé (Batch 5.9). Defaults false, so every existing caller and
    * every existing product is unaffected.
    */

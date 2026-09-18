@@ -95,6 +95,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - L-213 — a keyboard on the screen, because the day could not be closed without one
 - L-214 — one rule for what a delivery client is, and the till says it out loud
 - L-216 — the keyboard after somebody used it, and the accent that closed the dialog
+- L-217 — how many viandes a size includes, and the quantity selector that was missing
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -5533,6 +5534,107 @@ the end of this item WAS asked for, and the server was stopped first.
 `innerHeight` and `devicePixelRatio` from that machine and nobody has read them, so « two rows
 shorter » is an improvement of unknown sufficiency. And it does not decide whether the numpad
 should be 7-8-9 after all.
+
+
+### L-217 — how many viandes a size includes, and the quantity selector that was missing
+
+**Done:** 2026-09-18 · **Commit:** `<SHA>` · **Finding:** L-217 (High).
+**A MIGRATION IS REHEARSED AND AWAITS THE OPERATOR** — see below. **No plan row**, as L-191,
+L-213, L-214 and L-216.
+
+**THE HOLE.** The operator entered the tacos on 2026-09-17/18 with `Viande` as a category
+option group, `required` and `multiple`. The server enforced « at least one » (because
+required) and « at most one » (only for a single-select group) and **nothing anywhere enforced
+a ceiling** — so a **Tacos M at 6,90 € took all six viandes for 6,90 €**, priced by the server,
+booked and sealed. The three sizes are 6,90 · 8,90 · 11,90 and their names were the only thing
+saying how much meat each is: a convention in the operator's head, not a rule the till held.
+
+**AND THE CATALOGUE COULD NOT SAY OTHERWISE**, which is why this was never a mistake in what
+was entered. `CategoryOptionGroup` and `OptionGroup` carry `required` and `multiple` and
+nothing else — no `minSelect`, no `maxSelect` — and `optionIds` went through a `Set`, so
+« 2 × viande hachée » collapsed to one. A required single-select would have forced ONE viande
+onto an XL. The shape chosen was the only one available.
+
+**THE RULES, settled by the operator 2026-09-18**, three questions each of which changed the
+build: **up to** the count rather than exactly it (one meat on an L is served, at the L price —
+`required` still gives the floor of one); **the same viande may be taken twice**; and **beyond
+the count is REFUSED, not charged** — a size costs the size's price, and somebody wanting more
+rings the bigger size.
+
+**THE COUNT LIVES ON THE PRODUCT, and the catalogue forced that.** M, L and XL are three
+PRODUCTS sharing ONE category group, so a single `maxSelect` on `Viande` cannot be 1, 2 and 3
+at once. The category says WHICH viandes exist; the product says HOW MANY are included. Hence
+`ProductOptionQuota`, a row per (product, group), and the one migration this needed.
+
+**A REPEATED ID IS THE QUANTITY, so nothing new crosses the wire.** `selected[group]` was
+already a LIST of names, `toCartOptions` already pushed one cart option per entry and
+`buildCheckoutItems` already mapped each to its id — the multiset plumbed itself from the
+dialog to the server. What was missing was a `Map` where the `Set` was. **Nothing the till sent
+before today contained a repeat**, so counting them changes no existing sale.
+
+**WHAT CHANGED, END TO END** — and the list is long because an option touches every layer:
+- **`lib/option-quota.ts`** — the rules, pure: count occurrences, pin a menu's choices without
+  double-counting them, check a group, read a product's quota.
+- **`services/pricing.ts`** — the `Set` became a count; the ceiling is enforced; a modifier
+  applies **per occurrence**, so two paid supplements cost twice; and the snapshot gains an
+  optional `quantity`, **the same shape and the same reason as `addOnsJson`'s** (L-127, R8.5):
+  every `optionsJson` already written omits it and readers must tolerate both vintages.
+- **`orders/route.ts` and `services/combo-checkout.ts`** — both **fetch** the quotas, so a taco
+  sold inside a menu meets the same ceiling as one sold alone.
+- **`lib/order-parsers.ts`** — a reorder **expands** the quantity back into one cart option per
+  pick. Without it, reordering a 2-viande L would have rebuilt it with one and charged for one:
+  a reorder quietly serving half of what the customer had last time, on the screen that exists
+  so a regular's usual order is one tap.
+- **`services/receipt.ts`** — the paper prints `2× Viande hachée`, using the mark the article
+  lines already use, so the ticket has one way of saying how many.
+- **The options dialog** — a quota'd group is **counted, not toggled**: tapping adds one, a
+  `−` target on the card removes one, the header reads « 1 / 2 incluses », and the (N+1)th card
+  is disabled. **Only** a quota'd group behaves this way; Sauces, Crudités and Type de pain keep
+  their toggle, so a cashier tapping « Harissa » twice still orders one.
+- **The product editor** — a number per inherited multi-select group, under the inherit toggle
+  where the operator is already thinking about what the category lends this product. Empty
+  means no ceiling, which is every other group in the catalogue.
+- **`validation.ts`** — `optionQuotas` is `.optional()` and **not** `.default([])`, for exactly
+  the reason `options` carries that warning: a partial update omitting the field would have
+  parsed as « the empty list » and silently deleted the ceilings, answering 200.
+
+**HOW IT WAS VERIFIED.**
+- **1 994 pass / 0 fail / 155 files**, typecheck and lint clean, **24 e2e pass**.
+- **THE REVERT WENT RED NINE TIMES**, one property at a time, each on the test named for it:
+  the ceiling not enforced · the ceiling off by one · a repeat collapsed again · a pinned menu
+  choice added to the cashier's count · a quota of zero read as « no quota » · the checkout not
+  fetching the quota · the price not counting occurrences · the snapshot not carrying the
+  quantity · a reorder not expanding it.
+- **REHEARSED AGAINST THE RESTAURANT'S OWN CATALOGUE**, not only a synthetic one: the three
+  ceilings were written onto a copy and every case walked — the six-viande M refused, 2 × the
+  same refused on M and accepted on L and XL, one viande accepted everywhere, none refused as
+  « obligatoire ».
+- **A quota a test cannot see is a quota that does not exist**, so the ids the checkout
+  *fetches* are asserted as well as the rule — method 4, and reverting the fetch goes red.
+
+**THE MIGRATION — `20260918010000_product_option_quota`, REHEARSED, NOT APPLIED.**
+One new table, no column added to an existing one, no data touched; inert until a row is
+written. The fingerprint diff on a copy of the live database says **only the intended change**:
+`FiscalCounter`, `GrandTotal`, every event hash, receipts, order lines, products, category
+groups and choices all **identical**, `integrity_check` **ok**, **zero** FK errors, column order
+unchanged in every existing table. The only movements are the new table and the
+`_prisma_migrations` row.
+
+**AND THE REHEARSAL CAUGHT `CLAUDE.md`'s OWN WARNING HAPPENING.** The first attempt ran
+`bunx prisma migrate deploy` with `DATABASE_URL="file:/c/Users/…"` — a Git Bash path — and
+printed **« All migrations have been successfully applied. »** while applying **nothing**:
+the copy still had 18 migrations and no table, and so did production. That is precisely why the
+governing file says the hand-over command is `scripts/apply-migration.ts`, which names what it
+actually applied, and why it says a bare `migrate deploy` « prints the same green banner
+whichever migration it ran ». **Recorded as L-218**, because the trap is the PATH FORM and the
+plan's own method section does not warn about it in this context.
+
+**What this does NOT do.** It does not set the ceilings on the live catalogue — that is a live
+catalogue edit and the operator's, and the migration has to land first. It does not add a
+`minSelect`: « up to » was the decision, and the group's own `required` already supplies the
+floor. And it does not touch how **add-ons** print — `pushAddOns` shows a supplement's name and
+unit price and never its quantity, so two of the same print as one. The money is right and the
+paper understates; recorded as **L-219**.
 
 ---
 

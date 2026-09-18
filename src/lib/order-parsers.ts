@@ -4,7 +4,9 @@
 // Guards receipt/order-detail rendering against malformed
 // server JSON (a single corrupt line item shouldn't crash the modal).
 
-export type ParsedOption = { group: string; choice: string; priceModifier?: number };
+/** L-217: `quantity` is present only when a choice was taken more than once,
+ *  and absent on every snapshot written before 2026-09-18. */
+export type ParsedOption = { group: string; choice: string; priceModifier?: number; quantity?: number };
 export type ParsedAddOn = { id?: string | null; name: string; price: number };
 
 export function safeParseOptions(json: string | null): ParsedOption[] {
@@ -103,12 +105,27 @@ export function resolveSnapshotOptions(
       unresolved.push(`${opt.group} : ${opt.choice}`);
       continue;
     }
-    resolved.push({
-      group: opt.group,
-      choice: opt.choice,
-      choiceId: choice.id,
-      priceModifier: opt.priceModifier ?? 0,
-    });
+    /**
+     * L-217 — ONE ENTRY PER PICK, expanding the snapshot's quantity.
+     *
+     * The cart is a multiset: `toCartOptions` pushes one entry per pick and
+     * `buildCheckoutItems` maps each to its id, which is how « 2 × viande
+     * hachée » reaches the server at all. The snapshot MERGES a repeat into one
+     * entry carrying `quantity`, so reordering without expanding it here would
+     * rebuild the line with ONE viande and charge for one — a reorder quietly
+     * serving half of what the customer had last time.
+     *
+     * `?? 1` is the vintage rule: every snapshot written before 2026-09-18
+     * omits the field and means one.
+     */
+    for (let n = 0; n < Math.max(1, opt.quantity ?? 1); n++) {
+      resolved.push({
+        group: opt.group,
+        choice: opt.choice,
+        choiceId: choice.id,
+        priceModifier: opt.priceModifier ?? 0,
+      });
+    }
   }
   return { resolved, unresolved };
 }

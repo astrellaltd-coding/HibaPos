@@ -168,19 +168,21 @@ model Product {
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
-  category   Category          @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  options    OptionGroup[]
-  orderItems OrderItem[]
+  category     Category             @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  options      OptionGroup[]
+  /// L-217: how many of a CATEGORY group this product includes (M=1, L=2, XL=3).
+  optionQuotas ProductOptionQuota[]
+  orderItems   OrderItem[]
   /**
    * The slots of THIS product, when it is a menu.
    */
-  comboSlots ComboSlot[]       @relation("ComboSlotMenu")
+  comboSlots   ComboSlot[]          @relation("ComboSlotMenu")
   /**
    * The slots this product is an explicit filler of — see `ComboSlotChoice`.
    * `Restrict` on that side is why a product inside a menu cannot be deleted
    * without the operator being told which menu depends on it.
    */
-  comboFills ComboSlotChoice[]
+  comboFills   ComboSlotChoice[]
 
   @@index([categoryId])
   @@index([name])
@@ -333,6 +335,39 @@ model OptionChoice {
 }
 
 // Global option groups for a category (shared by all products in that category)
+// L-217 — HOW MANY OF A GROUP A SIZE INCLUDES.
+//
+// The tacos are three PRODUCTS — M, L, XL — sharing ONE category group,
+// `Viande`. The category says which viandes exist; only the product can say how
+// many are included, because a single `maxSelect` on the group cannot be 1, 2
+// and 3 at once. Hence a row per (product, group) rather than a column
+// anywhere.
+//
+// A CEILING, NOT A REQUIREMENT (the operator's decision, 2026-09-18): a
+// customer who wants one meat on an L pays the L price and is served. The
+// group's own `required` still supplies the floor.
+//
+// ADDITIVE AND INERT. No row exists until somebody sets one, and a group with
+// no row behaves exactly as it does today — which is what makes the migration
+// safe to apply to a catalogue that is already live.
+model ProductOptionQuota {
+  id        String @id @default(cuid())
+  productId String
+  /// `CategoryOptionGroup.id`. Product-level groups are not quota'd: a product
+  /// that owns its group can already say what it wants in the group itself.
+  groupId   String
+  /// How many picks the price includes. Repeats count: « 2 x viande hachee »
+  /// is two.
+  included  Int
+
+  product Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
+  group   CategoryOptionGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, groupId])
+  @@index([productId])
+  @@index([groupId])
+}
+
 model CategoryOptionGroup {
   id         String                 @id @default(cuid())
   categoryId String
@@ -346,6 +381,8 @@ model CategoryOptionGroup {
    * Menu slots that govern this group instead of asking it (Batch 5.9).
    */
   comboRules ComboSlotOptionRule[]
+  /// L-217: the per-product ceilings on this group.
+  quotas     ProductOptionQuota[]
 
   @@index([categoryId])
 }
@@ -1052,9 +1089,9 @@ model TechnicalLog {
 // ---------------------------------------------------------------------------
 
 model FiscalEvent {
-  id             String   @id @default(cuid())
-  sequence       Int      @unique // gapless monotonic journal sequence
-  type           String // VENTE | ANNULATION | REMBOURSEMENT | MOUVEMENT_CAISSE | CLOTURE_Z | CLOTURE_M | CLOTURE_A | OUVERTURE_TIROIR | REIMPRESSION | SESSION_OPEN | SESSION_CLOSE | SESSION_LOCK | ARCHIVE_GENEREE | RESTAURATION | SUPPRESSION_SAUVEGARDE
+  id       String @id @default(cuid())
+  sequence Int    @unique // gapless monotonic journal sequence
+  type     String // VENTE | ANNULATION | REMBOURSEMENT | MOUVEMENT_CAISSE | CLOTURE_Z | CLOTURE_M | CLOTURE_A | OUVERTURE_TIROIR | REIMPRESSION | SESSION_OPEN | SESSION_CLOSE | SESSION_LOCK | ARCHIVE_GENEREE | RESTAURATION | SUPPRESSION_SAUVEGARDE
 
   // L-145 (R9.8) — EVERY ID BELOW IS A **PLAIN ID, NO FK**, and the reason is
   // the one the header states: THE JOURNAL IS IMMUTABLE.

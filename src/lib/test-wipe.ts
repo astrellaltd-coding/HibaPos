@@ -75,6 +75,11 @@ export const WIPE_ORDER = [
   "grandTotal",
   "fiscalCounter",
   // ── the catalogue, deepest first ───────────────────────────────────────────
+  // L-217. Points at BOTH `Product` and `CategoryOptionGroup`, so it goes
+  // before either of them. Cascade would have taken it either way; the order is
+  // what L-154 is about, and a list that only works because of a cascade is the
+  // list that breaks when somebody changes one to Restrict.
+  "productOptionQuota",
   "comboSlotOptionRule",
   "comboSlotChoice",
   "comboSlot",

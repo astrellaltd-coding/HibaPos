@@ -82,6 +82,41 @@ export function ProductOptionsDialog({
   const sizeGroup = options.find((g) => g.name === "Taille");
   const otherOptions = options.filter((g) => g.name !== "Taille");
 
+  /**
+   * L-217 — A GROUP WITH A QUOTA IS COUNTED, not toggled.
+   *
+   * `selected[group]` has always been a LIST of choice names, and
+   * `toCartOptions` pushes one cart option per entry — so the same name twice
+   * is « 2 x viande hachee » all the way to the server. Nothing ever produced a
+   * repeat, because every group was a toggle.
+   *
+   * ONLY a group carrying `included` behaves this way. Sauces, Crudites and
+   * Type de pain keep the toggle they have always had: a cashier who taps
+   * « Harissa » twice must not order two of it.
+   */
+  const countOf = (groupName: string, choiceName: string) =>
+    (selected[groupName] ?? []).filter((c) => c === choiceName).length;
+  const totalOf = (groupName: string) => (selected[groupName] ?? []).length;
+
+  const addOne = (groupName: string, choiceName: string, included: number) => {
+    setSelected((s) => {
+      const current = s[groupName] ?? [];
+      // REFUSED, not charged - the operator's decision, 2026-09-18. A size
+      // costs the size's price; somebody wanting more meat rings a bigger one.
+      if (current.length >= included) return s;
+      return { ...s, [groupName]: [...current, choiceName] };
+    });
+  };
+
+  const removeOne = (groupName: string, choiceName: string) => {
+    setSelected((s) => {
+      const current = s[groupName] ?? [];
+      const i = current.lastIndexOf(choiceName);
+      if (i < 0) return s;
+      return { ...s, [groupName]: [...current.slice(0, i), ...current.slice(i + 1)] };
+    });
+  };
+
   const toggleChoice = (groupName: string, choiceName: string, multiple: boolean) => {
     setSelected((s) => {
       const current = s[groupName] ?? [];
@@ -241,8 +276,20 @@ export function ProductOptionsDialog({
                       {g.required && <span className="text-destructive">*</span>}
                     </p>
                     <span className="text-[11px] text-muted-foreground">
-                      {g.required ? "Obligatoire" : "Facultatif"} ·{" "}
-                      {g.multiple ? "plusieurs" : "un seul"}
+                      {g.included != null ? (
+                        /* L-217 - the size's own count, said out loud. Without
+                         * it a cashier meets a card that will not add and has
+                         * nothing to read, which is the silence L-211 and L-214
+                         * were both about. */
+                        <span className={cn("font-medium", totalOf(g.name) >= g.included && "text-primary")}>
+                          {totalOf(g.name)} / {g.included} incluse{g.included > 1 ? "s" : ""}
+                        </span>
+                      ) : (
+                        <>
+                          {g.required ? "Obligatoire" : "Facultatif"} ·{" "}
+                          {g.multiple ? "plusieurs" : "un seul"}
+                        </>
+                      )}
                     </span>
                   </div>
 
@@ -251,24 +298,59 @@ export function ProductOptionsDialog({
                     style={{ gridTemplateColumns: `repeat(${colCount}, minmax(0, 1fr))` }}
                   >
                     {g.choices.map((c) => {
-                      const isSel = (selected[g.name] ?? []).includes(c.name);
+                      const count = countOf(g.name, c.name);
+                      const isSel = count > 0;
+                      // L-217: a quota'd group counts; every other group toggles.
+                      const quota = g.included ?? null;
+                      const full = quota !== null && totalOf(g.name) >= quota;
                       const hasImg = c.image && (c.image.startsWith("/") || c.image.startsWith("http"));
                       return (
                         <button
                           key={c.id}
                           type="button"
-                          onClick={() => toggleChoice(g.name, c.name, g.multiple)}
+                          onClick={() =>
+                            quota !== null
+                              ? addOne(g.name, c.name, quota)
+                              : toggleChoice(g.name, c.name, g.multiple)
+                          }
+                          disabled={quota !== null && full && count === 0}
+                          aria-label={quota !== null ? `${c.name} (${count})` : undefined}
                           className={cn(
                             "group relative flex h-[100px] w-full flex-col items-center gap-1 rounded-lg border-2 px-1 py-2 text-center transition-all duration-150",
                             isSel
                               ? "border-primary bg-primary/5 shadow-sm"
                               : "border-border bg-card hover:border-primary/40 hover:bg-muted/30",
+                            quota !== null && full && count === 0 && "opacity-40",
                           )}
                         >
-                          {isSel && (
+                          {isSel && quota === null && (
                             <div className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground">
                               <Check className="h-2.5 w-2.5" />
                             </div>
+                          )}
+                          {isSel && quota !== null && (
+                            <>
+                              <div className="absolute right-1 top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[11px] font-bold text-primary-foreground">
+                                {count}
+                              </div>
+                              {/* THE WAY BACK. A stepper that only goes up is a
+                                * trap on a touchscreen: the cashier's only
+                                * escape from a mis-tap would be to cancel the
+                                * whole article. A real 44 px target, and
+                                * `stopPropagation` so it does not also add one. */}
+                              <span
+                                role="button"
+                                tabIndex={-1}
+                                aria-label={`Retirer ${c.name}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  removeOne(g.name, c.name);
+                                }}
+                                className="absolute left-0 top-0 grid h-11 w-11 min-h-[44px] min-w-[44px] place-items-center rounded-lg text-muted-foreground hover:text-destructive"
+                              >
+                                <Minus className="h-4 w-4" />
+                              </span>
+                            </>
                           )}
                           <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-md bg-muted/50">
                             {hasImg ? (

@@ -291,6 +291,11 @@ export const POST = withAuth(async (req, { user }) => {
           },
         },
         options: { include: { choices: true } },
+        // L-217. Without this the quota is invisible to `computeLinePricing`
+        // and a Tacos M takes six viandes again — the rule would exist and
+        // nothing would consult it, which is the gap method 4 of the plan
+        // exists to catch.
+        optionQuotas: { select: { groupId: true, included: true } },
         // Batch 5.9. Always fetched, because whether this product is a menu is
         // not knowable until it has been read, and reading it twice to find out
         // would be a second query per line on the hottest path in the app.

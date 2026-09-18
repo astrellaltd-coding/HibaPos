@@ -394,6 +394,21 @@ function ProductFormDialog({
   // predates the column, and every new one, appears on the grid.
   const [showOnPos, setShowOnPos] = useState(product?.showOnPos ?? true);
   const [inheritCategoryGlobals, setInheritCategoryGlobals] = useState(product?.inheritCategoryGlobals ?? true);
+  /**
+   * L-217 — how many of each INHERITED group this size includes, by group id.
+   *
+   * Seeded from the product's own serialisation, where the ceiling rides on the
+   * group as `included`. `""` is « no ceiling » and is what every group in the
+   * catalogue but Viande has; it is kept as a string so the box can be emptied
+   * while it is being retyped without the field jumping to 0.
+   */
+  const [quotas, setQuotas] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      (product?.options ?? [])
+        .filter((g) => g.inherited && g.included != null)
+        .map((g) => [g.id, String(g.included)]),
+    ),
+  );
   const [inheritCategoryVat, setInheritCategoryVat] = useState(product?.inheritCategoryVat ?? false);
   const [pickerOpen, setPickerOpen] = useState(false);
   // Per-choice picker: tracks which choice index is being picked for
@@ -536,6 +551,16 @@ function ProductFormDialog({
       inheritCategoryVat,
       sortOrder: product?.sortOrder ?? 0,
       options: finalOptions,
+      /**
+       * L-217. ALWAYS SENT, never omitted — the form knows the complete set,
+       * and an absent field means « leave the stored ones alone » (C-24), which
+       * would make clearing the last ceiling impossible. An empty array is how
+       * the form says « no ceilings », and that is what it means.
+       */
+      optionQuotas: Object.entries(quotas)
+        .filter(([, v]) => v.trim() !== "")
+        .map(([groupId, v]) => ({ groupId, included: Number(v) }))
+        .filter((q) => Number.isInteger(q.included) && q.included >= 0),
       // Batch 5.10. `comboSlotsForPayload` returns `undefined` for a product
       // that is not and never was a menu, and the key is then dropped below —
       // an ABSENT field means « leave the stored slots alone » (C-24's rule),
@@ -960,6 +985,53 @@ function ProductFormDialog({
               </div>
               <Switch checked={inheritCategoryGlobals} onCheckedChange={setInheritCategoryGlobals} />
             </div>
+
+            {/* ── 4a. L-217 — COMBIEN DE CHAQUE GROUPE CE FORMAT INCLUT ──
+              *
+              * Right under the inherit toggle, because that is where the
+              * operator is already thinking about what the category lends this
+              * product — and because the ceiling only exists for a group the
+              * product inherits.
+              *
+              * THE HOLE THIS FILLS: `Viande` is required and multi-select, so a
+              * Tacos M at 6,90 € took all six viandes for 6,90 €. M, L and XL
+              * are three PRODUCTS sharing one group, so only the product can
+              * say 1, 2 and 3. Empty means no ceiling, which is every other
+              * group in the catalogue. */}
+            {inheritCategoryGlobals &&
+              (product?.options ?? []).some((g) => g.inherited && g.multiple) && (
+                <div className="space-y-2 rounded-lg border border-border bg-muted/20 p-3">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Nombre inclus dans le prix</p>
+                    <p className="text-xs text-muted-foreground">
+                      Combien de choix ce format comprend. Au-delà, la caisse refuse. Laissez vide
+                      pour ne pas limiter.
+                    </p>
+                  </div>
+                  {(product?.options ?? [])
+                    .filter((g) => g.inherited && g.multiple)
+                    .map((g) => (
+                      <div key={g.id} className="flex items-center justify-between gap-3">
+                        <Label htmlFor={`quota-${g.id}`} className="text-xs font-medium">
+                          {g.name}
+                        </Label>
+                        <Input
+                          id={`quota-${g.id}`}
+                          type="number"
+                          min={0}
+                          max={20}
+                          inputMode="numeric"
+                          placeholder="illimité"
+                          className="h-11 w-28"
+                          value={quotas[g.id] ?? ""}
+                          onChange={(e) =>
+                            setQuotas((q) => ({ ...q, [g.id]: e.target.value }))
+                          }
+                        />
+                      </div>
+                    ))}
+                </div>
+              )}
 
             {/* -- 4b. TVA (L-16/L-17, Batch 3.1c) --
                 Replaces a switch that was shown only when the category's own

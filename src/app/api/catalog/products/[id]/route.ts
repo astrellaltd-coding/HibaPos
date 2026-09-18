@@ -8,6 +8,7 @@ import { audit } from "@/lib/services/audit";
 import type { ProductDto } from "@/types/api";
 import { Prisma } from "@prisma/client";
 import { resolveVatRate } from "@/lib/services/pricing";
+import { replaceOptionQuotas } from "@/lib/services/product-quotas";
 
 type ProductWithRelations = Prisma.ProductGetPayload<{
   include: {
@@ -354,6 +355,8 @@ export const PUT = withAuthParams(async (req, { user, params }) => {
         }
       }
     }
+    // L-217 — the ceilings, replaced wholesale or left alone.
+    await replaceOptionQuotas(tx, params.id, parsed.data.optionQuotas);
     return tx.product.findUnique({
       where: { id: params.id },
       include: {
@@ -370,6 +373,9 @@ export const PUT = withAuthParams(async (req, { user, params }) => {
           },
         },
         options: { include: { choices: true } },
+        // L-217 — the same include the list uses, so an edited product comes
+        // back describing itself the way a listed one does.
+        optionQuotas: true,
         comboSlots: { include: { choices: true, optionRules: true } },
       },
     });

@@ -7,6 +7,8 @@ import { audit } from "@/lib/services/audit";
 import type { ProductDto } from "@/types/api";
 import { Prisma } from "@prisma/client";
 import { resolveVatRate } from "@/lib/services/pricing";
+import { quotaFor } from "@/lib/option-quota";
+import { replaceOptionQuotas } from "@/lib/services/product-quotas";
 
 type ProductWithRelations = Prisma.ProductGetPayload<{
   include: {
@@ -23,9 +25,11 @@ type ProductWithRelations = Prisma.ProductGetPayload<{
       };
     };
     options: { include: { choices: true } };
+    optionQuotas: true;
     comboSlots: { include: { choices: true; optionRules: true } };
   };
 }>;
+
 
 // Serialize a raw product + category data into ProductDto.
 // Category options are merged first, then product-specific options.
@@ -51,6 +55,13 @@ function serialize(p: ProductWithRelations): ProductDto {
           multiple: g.multiple,
           sortOrder: g.sortOrder,
           inherited: true,
+          // L-217 — HOW MANY OF THIS GROUP THE SIZE INCLUDES, or null.
+          //
+          // It rides on the GROUP rather than beside it because that is where
+          // every reader already is: the options dialog draws this group, the
+          // admin editor edits this group, and a number kept somewhere else
+          // would have to be joined back to it by both of them.
+          included: quotaFor(p.optionQuotas, g.id),
           choices: (g.choices ?? [])
             .slice()
             .sort((a, b) => a.sortOrder - b.sortOrder)
@@ -235,6 +246,8 @@ export const GET = withAuth(async (req) => {
         },
       },
       options: { include: { choices: true } },
+      // L-217 — how many of a category group this size includes.
+      optionQuotas: true,
       // Batch 5.9 — the POS needs a menu's slots to ask for its components.
       comboSlots: { include: { choices: true, optionRules: true } },
     },
@@ -337,6 +350,8 @@ export const POST = withAuth(async (req, { user }) => {
         });
       }
     }
+    // L-217 — the ceilings, replaced wholesale or left alone.
+    await replaceOptionQuotas(tx, created.id, parsed.data.optionQuotas);
     return tx.product.findUnique({
       where: { id: created.id },
       include: {
@@ -353,6 +368,9 @@ export const POST = withAuth(async (req, { user }) => {
           },
         },
         options: { include: { choices: true } },
+        // L-217 — the same include the list uses, so a freshly created product
+        // comes back describing itself the way a listed one does.
+        optionQuotas: true,
         comboSlots: { include: { choices: true, optionRules: true } },
       },
     });

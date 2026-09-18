@@ -70,6 +70,10 @@ export type OptionGroupDto = {
    *  the category's groups back to `PUT`, and each one is stored a second time
    *  as the product's own. */
   inherited: boolean;
+  /** L-217 — how many picks of this group the product's price includes, or
+   *  `null`/absent for no ceiling. Repeats count, so « 2 x viande hachee » is
+   *  two. Only a CATEGORY group carries one. */
+  included?: number | null;
   choices: {
     id: string;
     name: string;

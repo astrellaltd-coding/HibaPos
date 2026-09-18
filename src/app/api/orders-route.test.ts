@@ -612,3 +612,160 @@ describe("T-02 — a discount over the threshold cannot be taken without a PIN",
     expect(await db.order.count()).toBe(0);
   });
 });
+
+describe("L-217 — how many viandes a size includes, through the real route", () => {
+  // THE DEFECT THIS PINS. The operator entered the tacos with `Viande` as a
+  // category group, required and multi-select. The route enforced « at least
+  // one » and nothing else, so a Tacos M at 6,90 € took all six viandes for
+  // 6,90 €. Priced by the server, booked, and sealed.
+  //
+  // THROUGH THE ROUTE and not only `computeLinePricing`, because the rule and
+  // its fetch are two different things: a quota the checkout does not SELECT is
+  // a quota that cannot fire, and no rule test can see that.
+
+  /** A category with a `Viande` group, and a taco whose quota is `included`. */
+  async function tacosWith(included: number | null, price = 690) {
+    const cat = await db.category.create({
+      data: { name: `Tacos-${Date.now()}-${Math.random()}`, color: "#f97316", sortOrder: 9 },
+    });
+    const group = await db.categoryOptionGroup.create({
+      data: { categoryId: cat.id, name: "Viande", required: true, multiple: true },
+    });
+    const hachee = await db.categoryOptionChoice.create({
+      data: { groupId: group.id, name: "Viande hachée", priceModifier: 0 },
+    });
+    const merguez = await db.categoryOptionChoice.create({
+      data: { groupId: group.id, name: "Merguez", priceModifier: 0 },
+    });
+    const tenders = await db.categoryOptionChoice.create({
+      data: { groupId: group.id, name: "Tenders", priceModifier: 100 },
+    });
+    const taco = await db.product.create({
+      data: {
+        name: included === 1 ? "Tacos M" : included === 2 ? "Tacos L" : "Tacos libre",
+        price,
+        vatRate: 10,
+        categoryId: cat.id,
+        active: true,
+        available: true,
+        inheritCategoryGlobals: true,
+      },
+    });
+    if (included !== null) {
+      await db.productOptionQuota.create({
+        data: { productId: taco.id, groupId: group.id, included },
+      });
+    }
+    return { taco, hachee, merguez, tenders };
+  }
+
+  it("REFUSES the six-viande Tacos M — the sale that was possible until now", async () => {
+    const { taco, hachee, merguez, tenders } = await tacosWith(1);
+    const { status, body } = await post({
+      orderType: "TAKEAWAY",
+      items: [
+        { productId: taco.id, quantity: 1, optionIds: [hachee.id, merguez.id, tenders.id], addons: [] },
+      ],
+      payments: [{ method: "CASH", amount: 790 }],
+    });
+    expect(status).toBe(400);
+    expect(body.error).toContain("1 au maximum");
+    expect(body.error).toContain("Tacos M");
+    expect(await db.order.count()).toBe(0);
+  });
+
+  it("REFUSES two of the SAME viande on a Tacos M", async () => {
+    // The repeat is the quantity. Before this, the server put the list through
+    // a `Set` and this order was one viande — accepted, and half of it never
+    // priced or printed.
+    const { taco, hachee } = await tacosWith(1);
+    const { status, body } = await post({
+      orderType: "TAKEAWAY",
+      items: [{ productId: taco.id, quantity: 1, optionIds: [hachee.id, hachee.id], addons: [] }],
+      payments: [{ method: "CASH", amount: 690 }],
+    });
+    expect(status).toBe(400);
+    expect(body.error).toContain("1 au maximum");
+  });
+
+  it("ACCEPTS two of the same viande on a Tacos L, and SNAPSHOTS the quantity", async () => {
+    const { taco, hachee } = await tacosWith(2, 890);
+    const { status } = await post({
+      orderType: "TAKEAWAY",
+      items: [{ productId: taco.id, quantity: 1, optionIds: [hachee.id, hachee.id], addons: [] }],
+      payments: [{ method: "CASH", amount: 890 }],
+    });
+    expect(status).toBe(201);
+    const item = await db.orderItem.findFirst({ where: { productName: "Tacos L" } });
+    const options = JSON.parse(item!.optionsJson!) as { choice: string; quantity?: number }[];
+    // ONE entry carrying two, not two entries — the shape `addOnsJson` already
+    // uses (L-127, R8.5), so the ticket can print « 2 × Viande hachée ».
+    expect(options).toHaveLength(1);
+    expect(options[0]!.choice).toBe("Viande hachée");
+    expect(options[0]!.quantity).toBe(2);
+  });
+
+  it("OMITS the quantity when it is one, so old and new snapshots read alike", () => {
+    // L-127's rule, kept: every `optionsJson` already written omits it and
+    // readers must tolerate both vintages.
+    return (async () => {
+      const { taco, hachee } = await tacosWith(2, 890);
+      const { status } = await post({
+        orderType: "TAKEAWAY",
+        items: [{ productId: taco.id, quantity: 1, optionIds: [hachee.id], addons: [] }],
+        payments: [{ method: "CASH", amount: 890 }],
+      });
+      expect(status).toBe(201);
+      const item = await db.orderItem.findFirst({ where: { productName: "Tacos L" } });
+      const options = JSON.parse(item!.optionsJson!) as Record<string, unknown>[];
+      expect(options[0]).not.toHaveProperty("quantity");
+    })();
+  });
+
+  it("CHARGES a repeated PAID choice twice", async () => {
+    // Tenders is +1,00. Two of them on an L is 8,90 + 2,00, and the old `Set`
+    // would have sold it for 9,90.
+    const { taco, tenders } = await tacosWith(2, 890);
+    const { status } = await post({
+      orderType: "TAKEAWAY",
+      items: [{ productId: taco.id, quantity: 1, optionIds: [tenders.id, tenders.id], addons: [] }],
+      payments: [{ method: "CASH", amount: 1090 }],
+    });
+    expect(status).toBe(201);
+    const item = await db.orderItem.findFirst({ where: { productName: "Tacos L" } });
+    expect(item!.unitPrice).toBe(1090);
+  });
+
+  it("ACCEPTS ONE viande on an L — the ceiling is not a requirement", async () => {
+    const { taco, hachee } = await tacosWith(2, 890);
+    const { status } = await post({
+      orderType: "TAKEAWAY",
+      items: [{ productId: taco.id, quantity: 1, optionIds: [hachee.id], addons: [] }],
+      payments: [{ method: "CASH", amount: 890 }],
+    });
+    expect(status).toBe(201);
+  });
+
+  it("still refuses NO viande at all, because the group is required", async () => {
+    const { taco } = await tacosWith(2, 890);
+    const { status, body } = await post({
+      orderType: "TAKEAWAY",
+      items: [{ productId: taco.id, quantity: 1, optionIds: [], addons: [] }],
+      payments: [{ method: "CASH", amount: 890 }],
+    });
+    expect(status).toBe(400);
+    expect(body.error).toContain("obligatoire");
+  });
+
+  it("LEAVES A GROUP WITH NO QUOTA ALONE — every other group in the catalogue", async () => {
+    // Sauces, Crudités, Type de pain… none has a quota row, and a product with
+    // none must behave exactly as it did before this existed.
+    const { taco, hachee, merguez } = await tacosWith(null, 890);
+    const { status } = await post({
+      orderType: "TAKEAWAY",
+      items: [{ productId: taco.id, quantity: 1, optionIds: [hachee.id, merguez.id], addons: [] }],
+      payments: [{ method: "CASH", amount: 890 }],
+    });
+    expect(status).toBe(201);
+  });
+});

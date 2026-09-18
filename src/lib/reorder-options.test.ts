@@ -151,3 +151,56 @@ describe("L-87 — the reorder path is wired to it", () => {
     expect(code).toContain("unresolvable");
   });
 });
+
+describe("L-217 — a reorder brings back BOTH viandes", () => {
+  // THE DEFECT THIS WOULD HAVE INTRODUCED. The sealed snapshot MERGES a repeat
+  // into one entry carrying `quantity` — « 2 × viande hachée » is one row, not
+  // two — so a resolver that emits one cart option per snapshot row would
+  // rebuild the line with ONE viande. The reorder would serve half of what the
+  // customer had last time and charge for half, silently, on a screen that
+  // exists precisely so a regular's usual order is one tap.
+  const groups = [
+    { name: "Viande", choices: [{ id: "c-hachee", name: "Viande hachée" }, { id: "c-merguez", name: "Merguez" }] },
+  ];
+
+  it("expands a quantity into one cart option per pick", () => {
+    const { resolved, unresolved } = resolveSnapshotOptions(
+      [{ group: "Viande", choice: "Viande hachée", priceModifier: 0, quantity: 2 }],
+      groups,
+    );
+    expect(unresolved).toEqual([]);
+    expect(resolved).toHaveLength(2);
+    expect(resolved.map((r) => r.choiceId)).toEqual(["c-hachee", "c-hachee"]);
+  });
+
+  it("READS AN OLD SNAPSHOT AS ONE — every one written before 2026-09-18", () => {
+    // The vintage rule the plan requires of anything reading a sealed payload:
+    // the field is absent, and absent means one, not zero and not unknown.
+    const { resolved } = resolveSnapshotOptions(
+      [{ group: "Viande", choice: "Merguez", priceModifier: 0 }],
+      groups,
+    );
+    expect(resolved).toHaveLength(1);
+  });
+
+  it("never emits nothing for a choice it resolved", () => {
+    // A corrupt or hand-edited `quantity: 0` must not delete a line the
+    // customer was served and charged for.
+    const { resolved } = resolveSnapshotOptions(
+      [{ group: "Viande", choice: "Merguez", priceModifier: 0, quantity: 0 }],
+      groups,
+    );
+    expect(resolved).toHaveLength(1);
+  });
+
+  it("keeps two DIFFERENT viandes as two, as it always did", () => {
+    const { resolved } = resolveSnapshotOptions(
+      [
+        { group: "Viande", choice: "Viande hachée", priceModifier: 0 },
+        { group: "Viande", choice: "Merguez", priceModifier: 0 },
+      ],
+      groups,
+    );
+    expect(resolved.map((r) => r.choiceId)).toEqual(["c-hachee", "c-merguez"]);
+  });
+});

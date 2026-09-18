@@ -98,7 +98,7 @@ les autres sont couverts par `src/lib/deployment.test.ts`.
 ## Tests
 
 ```bash
-bun run test         # 1960 tests unitaires + intégration — chiffre épinglé par src/lib/readme-counts.test.ts
+bun run test         # 1994 tests unitaires + intégration — chiffre épinglé par src/lib/readme-counts.test.ts
 bun run typecheck   # tsc --noEmit
 bun run test:e2e     # Playwright — 24 tests (auth, encaissement, caisse, catalogue, clavier tactile, client livraison)
                      # Base de données jetable sous %TEMP%, port 3100 : ne touche jamais la production

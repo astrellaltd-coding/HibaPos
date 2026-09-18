@@ -121,6 +121,11 @@ const COMPONENT_INCLUDE = {
     },
   },
   options: { include: { choices: true } },
+  // L-217. A component is priced by the same `computeLinePricing` as an
+  // ordinary line, so a taco sold INSIDE a menu must meet the same ceiling as
+  // one sold on its own. Its comment says this include is « the same one
+  // `orders/route.ts` fetches » — that had to stay true.
+  optionQuotas: { select: { groupId: true, included: true } },
 } as const;
 
 /**

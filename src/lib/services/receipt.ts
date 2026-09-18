@@ -183,8 +183,17 @@ export function renderReceipt(order: OrderDto, settings?: Partial<SettingsDto>):
   const pushOptions = (item: OrderDto["items"][number], indent: string) => {
     if (!item.optionsJson) return;
     try {
-      const opts = JSON.parse(item.optionsJson) as { group: string; choice: string }[];
-      for (const o of opts) pushMarked(indent, o.choice);
+      // L-217: `quantity` is OPTIONAL and absent on every snapshot written
+      // before 2026-09-18, so `?? 1` is the vintage rule the plan requires of
+      // anything reading a sealed payload — not a default standing in for a
+      // figure nobody recorded.
+      const opts = JSON.parse(item.optionsJson) as { group: string; choice: string; quantity?: number }[];
+      for (const o of opts) {
+        const n = o.quantity ?? 1;
+        // `2× ` and not `(x2)`: the same mark the article lines above use, so
+        // the paper has ONE way of saying how many of something there are.
+        pushMarked(indent, n > 1 ? `${n}× ${o.choice}` : o.choice);
+      }
     } catch {
       pushMarked(indent, "(options illisibles)");
     }

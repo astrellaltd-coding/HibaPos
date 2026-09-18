@@ -6,6 +6,8 @@
 // compute the server-authoritative unit price, line total, and JSON snapshots.
 // Returns either a pricing result or an error string (which the route maps to 400).
 
+import { checkGroupSelection, countChoices, quotaFor, withPinnedChoices } from "@/lib/option-quota";
+
 export type ProductWithRelations = {
   id: string;
   name: string;
@@ -23,6 +25,9 @@ export type ProductWithRelations = {
   } | null;
   options: { id: string; name: string; required: boolean; multiple: boolean; choices: ChoiceRow[] }[];
   inheritCategoryGlobals: boolean;
+  /** L-217: how many of a category group this product includes. Optional, so a
+   *  caller that has not fetched them behaves exactly as before. */
+  optionQuotas?: { groupId: string; included: number }[] | null;
 };
 
 /** The shape `resolveVatRate` needs — far less than a full product row, so a
@@ -291,28 +296,58 @@ export function computeLinePricing(
 
   // Validate and apply options
   let optionsModifier = 0;
-  const chosenOptions: { group: string; choice: string; priceModifier: number }[] = [];
-  // Batch 5.9: the menu's pinned choices join what the cashier tapped. They are
-  // priced identically - the size is part of what the component is worth.
-  const selectedOptionIds = new Set([...itemIntent.optionIds, ...(combo?.fixedChoiceIds ?? [])]);
+  // L-217: `quantity` joins the snapshot, optional and omitted when it is one —
+  // the same shape and the same reason as `addOnsJson`'s (L-127, R8.5): every
+  // `optionsJson` already written omits it and readers must tolerate both.
+  const chosenOptions: { group: string; choice: string; priceModifier: number; quantity?: number }[] = [];
+  /**
+   * L-217 — A REPEATED ID IS A QUANTITY, and this Map replaces the `Set` that
+   * used to swallow one.
+   *
+   * « 2 × viande hachée » on a Tacos L arrives as the same choice id twice,
+   * because `toCartOptions` pushes one entry per pick and `buildCheckoutItems`
+   * maps each to its id. The old union-of-sets collapsed that to one, so the
+   * second meat was ordered, prepared and never priced or printed.
+   *
+   * Nothing the till sent before today contained a repeat, so counting them
+   * changes no existing sale.
+   */
+  const counts = withPinnedChoices(countChoices(itemIntent.optionIds), combo?.fixedChoiceIds ?? []);
 
   for (const group of allOptions) {
-    const selectedInGroup = group.choices.filter((c) => selectedOptionIds.has(c.id));
+    const selectedInGroup = group.choices.filter((c) => (counts.get(c.id) ?? 0) > 0);
+    const total = selectedInGroup.reduce((n, c) => n + (counts.get(c.id) ?? 0), 0);
     // Batch 5.9: a group the MENU governs is never asked inside the menu, so it
     // cannot be missing. Outside a menu `combo` is undefined and this reads
     // exactly as it did before.
     const governed = combo?.governedGroupIds.has(group.id) ?? false;
-    if (group.required && !governed && selectedInGroup.length === 0) {
-      return { error: `Option obligatoire manquante : ${group.name}` };
-    }
-    if (!group.multiple && selectedInGroup.length > 1) {
-      return { error: `Une seule sélection autorisée pour : ${group.name}` };
-    }
+    const refusal = checkGroupSelection(
+      {
+        groupName: group.name,
+        productName: product.name,
+        required: group.required,
+        multiple: group.multiple,
+        // L-217: the ceiling this SIZE includes. A group with no quota row is
+        // unchanged — `quotaFor` answers null and nothing is enforced.
+        quota: quotaFor(product.optionQuotas, group.id),
+        governed,
+      },
+      total,
+    );
+    if (refusal) return { error: refusal };
     for (const choice of selectedInGroup) {
       const c = choice as ChoiceRow;
+      const quantity = counts.get(choice.id) ?? 1;
       const modifier = resolveChoiceModifier(c, orderType, basePrice, product.price);
-      optionsModifier += modifier;
-      chosenOptions.push({ group: group.name, choice: choice.name, priceModifier: modifier });
+      // Per OCCURRENCE: two paid supplements of the same kind cost twice, which
+      // is what the cashier sees in the cart before they press Encaisser.
+      optionsModifier += modifier * quantity;
+      chosenOptions.push({
+        group: group.name,
+        choice: choice.name,
+        priceModifier: modifier,
+        ...(quantity > 1 ? { quantity } : {}),
+      });
     }
   }
 
