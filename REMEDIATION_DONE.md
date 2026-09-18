@@ -5538,7 +5538,7 @@ should be 7-8-9 after all.
 
 ### L-217 — how many viandes a size includes, and the quantity selector that was missing
 
-**Done:** 2026-09-18 · **Commit:** `<SHA>` · **Finding:** L-217 (High).
+**Done:** 2026-09-18 · **Commit:** `0fe2acf` · **Finding:** L-217 (High).
 **A MIGRATION IS REHEARSED AND AWAITS THE OPERATOR** — see below. **No plan row**, as L-191,
 L-213, L-214 and L-216.
 
