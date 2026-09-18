@@ -110,3 +110,57 @@ export function quotaFor(
   const found = quotas?.find((q) => q.groupId === groupId);
   return found ? found.included : NO_QUOTA;
 }
+
+/**
+ * L-220 — which groups the product form offers a count for, and what it sends.
+ *
+ * WHY THIS IS NOT READ OFF THE PRODUCT. It was, and the field was then
+ * INVISIBLE WHILE CREATING one: the gate asked `product.options` for its
+ * inherited groups, and a product being created has none yet. The operator
+ * filled the form, saved, reopened it, and only then could say how many viandes
+ * it included. The groups were knowable all along — they belong to the CATEGORY
+ * being chosen, which the form has from its first render.
+ *
+ * MULTI-SELECT ONLY. A single-select group is already capped at one by
+ * `!multiple`, so a count on it could never be reached and the field would be
+ * asking a question with no answer.
+ *
+ * `inherits` is `inheritCategoryGlobals`: a product that does not inherit never
+ * sees the category's groups, so it is offered none and — see `quotaPayload` —
+ * sends none.
+ */
+export function quotaGroupsFor(
+  category: { optionGroups?: readonly { id: string; name: string; multiple: boolean }[] } | null | undefined,
+  inherits: boolean,
+): { id: string; name: string; multiple: boolean }[] {
+  if (!inherits) return [];
+  return (category?.optionGroups ?? []).filter((g) => g.multiple).map((g) => ({ ...g }));
+}
+
+/**
+ * The `optionQuotas` a save carries, from the boxes the form is showing.
+ *
+ * BUILT FROM THE GROUPS ON SCREEN, not from everything the form has ever held.
+ * Changing a product's category leaves the previous category's numbers in
+ * state, and sending those would write a ceiling against a group the product
+ * cannot see — inert, invisible, and confusing to the next person who reads the
+ * table wondering why a Tacos rule is attached to a burger.
+ *
+ * An empty box means NO CEILING and is dropped. `0` is kept, because « this
+ * size includes none of that group » is a real answer and a truthiness test
+ * would silently discard it.
+ */
+export function quotaPayload(
+  groups: readonly { id: string }[],
+  values: Readonly<Record<string, string>>,
+): { groupId: string; included: number }[] {
+  const out: { groupId: string; included: number }[] = [];
+  for (const g of groups) {
+    const raw = (values[g.id] ?? "").trim();
+    if (raw === "") continue;
+    const included = Number(raw);
+    if (!Number.isInteger(included) || included < 0) continue;
+    out.push({ groupId: g.id, included });
+  }
+  return out;
+}

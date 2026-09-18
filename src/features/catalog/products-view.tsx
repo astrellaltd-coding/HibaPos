@@ -37,6 +37,7 @@ import {
 } from "@/lib/combo-slot-form";
 import { formatEuro } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { quotaGroupsFor, quotaPayload } from "@/lib/option-quota";
 import { toast } from "sonner";
 import {
   Package,
@@ -380,6 +381,25 @@ function ProductFormDialog({
   const globalsCategory =
     (selectedCategory?.parentId ? categories.find((c) => c.id === selectedCategory.parentId) : null) ??
     selectedCategory;
+  /**
+   * L-220 — the chosen category's own option groups.
+   *
+   * THE COUNT FIELD USED TO READ `product.options`, so it was INVISIBLE while a
+   * product was being created: a product that does not exist yet has no groups,
+   * the gate was false, and the operator had to save, reopen and come back. The
+   * groups belong to the CATEGORY, which the form has known since its first
+   * render.
+   *
+   * Fetched here rather than added to `/api/catalog/categories`, which the POS
+   * loads on every start: one admin form's need is not worth fattening a hot
+   * path with every group and every choice in the catalogue.
+   */
+  const { data: globalsCategoryDetail } = useQuery({
+    queryKey: ["category", globalsCategory?.id],
+    queryFn: () => api.get<CategoryDto>(`/api/catalog/categories/${globalsCategory!.id}`),
+    enabled: !!globalsCategory?.id,
+  });
+
   const [expandedParent, setExpandedParent] = useState<string | null>(() => {
     // On edit, pre-expand the parent if the product is in a sub-category
     const cat = categories.find((c) => c.id === product?.categoryId);
@@ -409,6 +429,11 @@ function ProductFormDialog({
         .map((g) => [g.id, String(g.included)]),
     ),
   );
+
+  /** L-220 — which groups get a count box. From the CATEGORY, so a product
+   *  being created shows them too; multi-select only, because a single-select
+   *  group is already capped at one. */
+  const quotaGroups = quotaGroupsFor(globalsCategoryDetail, inheritCategoryGlobals);
   const [inheritCategoryVat, setInheritCategoryVat] = useState(product?.inheritCategoryVat ?? false);
   const [pickerOpen, setPickerOpen] = useState(false);
   // Per-choice picker: tracks which choice index is being picked for
@@ -557,10 +582,7 @@ function ProductFormDialog({
        * would make clearing the last ceiling impossible. An empty array is how
        * the form says « no ceilings », and that is what it means.
        */
-      optionQuotas: Object.entries(quotas)
-        .filter(([, v]) => v.trim() !== "")
-        .map(([groupId, v]) => ({ groupId, included: Number(v) }))
-        .filter((q) => Number.isInteger(q.included) && q.included >= 0),
+      optionQuotas: quotaPayload(quotaGroups, quotas),
       // Batch 5.10. `comboSlotsForPayload` returns `undefined` for a product
       // that is not and never was a menu, and the key is then dropped below —
       // an ABSENT field means « leave the stored slots alone » (C-24's rule),
@@ -998,8 +1020,7 @@ function ProductFormDialog({
               * are three PRODUCTS sharing one group, so only the product can
               * say 1, 2 and 3. Empty means no ceiling, which is every other
               * group in the catalogue. */}
-            {inheritCategoryGlobals &&
-              (product?.options ?? []).some((g) => g.inherited && g.multiple) && (
+            {quotaGroups.length > 0 && (
                 <div className="space-y-2 rounded-lg border border-border bg-muted/20 p-3">
                   <div>
                     <p className="text-sm font-semibold text-foreground">Nombre inclus dans le prix</p>
@@ -1008,9 +1029,7 @@ function ProductFormDialog({
                       pour ne pas limiter.
                     </p>
                   </div>
-                  {(product?.options ?? [])
-                    .filter((g) => g.inherited && g.multiple)
-                    .map((g) => (
+                  {quotaGroups.map((g) => (
                       <div key={g.id} className="flex items-center justify-between gap-3">
                         <Label htmlFor={`quota-${g.id}`} className="text-xs font-medium">
                           {g.name}

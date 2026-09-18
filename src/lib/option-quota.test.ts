@@ -6,6 +6,8 @@ import {
   checkGroupSelection,
   countChoices,
   quotaFor,
+  quotaGroupsFor,
+  quotaPayload,
   withPinnedChoices,
 } from "@/lib/option-quota";
 
@@ -190,5 +192,115 @@ describe("L-217 — the rule is CONSULTED, not merely written", () => {
       .replace(/\/\*[\s\S]*?\*\//g, "")
       .replace(/^\s*\/\/.*$/gm, "");
     expect(code, "a repeated PAID choice is charged once").toContain("modifier * quantity");
+  });
+});
+
+describe("L-220 — which groups the product form offers a count for", () => {
+  // THE DEFECT. The gate read `product.options` for its inherited groups, and a
+  // product BEING CREATED has none — so the field was invisible on the create
+  // screen and the operator had to save, reopen, and come back to say how many
+  // viandes a size included. The groups belong to the CATEGORY, which the form
+  // has known since its first render.
+  const tacos = {
+    optionGroups: [
+      { id: "g-viande", name: "Viande", multiple: true },
+      { id: "g-sauces", name: "Sauces", multiple: true },
+      { id: "g-taille", name: "Taille", multiple: false },
+    ],
+  };
+
+  it("offers the category's MULTI-SELECT groups, with no saved product at all", () => {
+    // The create screen: there is no product, and this must still answer.
+    expect(quotaGroupsFor(tacos, true).map((g) => g.id)).toEqual(["g-viande", "g-sauces"]);
+  });
+
+  it("LEAVES SINGLE-SELECT GROUPS OUT", () => {
+    // `Taille`, `Type de pain`, `Frite`, `Type de frite`. `!multiple` already
+    // caps them at one, so a count could never be reached and the box would be
+    // asking a question with no answer.
+    expect(quotaGroupsFor(tacos, true).some((g) => g.id === "g-taille")).toBe(false);
+  });
+
+  it("offers NOTHING when the product does not inherit the category's globals", () => {
+    // It never sees those groups, so a ceiling on one would be inert.
+    expect(quotaGroupsFor(tacos, false)).toEqual([]);
+  });
+
+  it("offers nothing for a category with no groups, or none loaded yet", () => {
+    expect(quotaGroupsFor({ optionGroups: [] }, true)).toEqual([]);
+    expect(quotaGroupsFor(undefined, true)).toEqual([]);
+    expect(quotaGroupsFor(null, true)).toEqual([]);
+  });
+});
+
+describe("L-220 — what the form sends", () => {
+  const groups = [{ id: "g-viande" }, { id: "g-sauces" }];
+
+  it("sends the numbers that were typed", () => {
+    expect(quotaPayload(groups, { "g-viande": "2", "g-sauces": "3" })).toEqual([
+      { groupId: "g-viande", included: 2 },
+      { groupId: "g-sauces", included: 3 },
+    ]);
+  });
+
+  it("drops an EMPTY box — that is « no ceiling », not zero", () => {
+    expect(quotaPayload(groups, { "g-viande": "2", "g-sauces": "" })).toEqual([
+      { groupId: "g-viande", included: 2 },
+    ]);
+    expect(quotaPayload(groups, { "g-viande": "  " })).toEqual([]);
+  });
+
+  it("KEEPS A ZERO, because « this size includes none of that group » is an answer", () => {
+    expect(quotaPayload(groups, { "g-viande": "0" })).toEqual([{ groupId: "g-viande", included: 0 }]);
+  });
+
+  it("DROPS A NUMBER LEFT OVER FROM ANOTHER CATEGORY", () => {
+    // Changing a product's category leaves the previous category's numbers in
+    // the form's state. Sending those would write a ceiling against a group the
+    // product cannot see — inert, invisible, and baffling to whoever next reads
+    // the table and finds a Tacos rule attached to a burger.
+    expect(quotaPayload(groups, { "g-viande": "2", "g-crudites-from-burgers": "1" })).toEqual([
+      { groupId: "g-viande", included: 2 },
+    ]);
+  });
+
+  it("refuses rubbish rather than sending it", () => {
+    expect(quotaPayload(groups, { "g-viande": "deux" })).toEqual([]);
+    expect(quotaPayload(groups, { "g-viande": "-1" })).toEqual([]);
+    expect(quotaPayload(groups, { "g-viande": "1.5" })).toEqual([]);
+  });
+
+  it("sends an EMPTY ARRAY when nothing is set, which is how a ceiling is cleared", () => {
+    // Not `undefined`: the schema treats absent as « leave the stored ones
+    // alone », so the form must always say what it means.
+    expect(quotaPayload(groups, {})).toEqual([]);
+    expect(quotaPayload([], { "g-viande": "2" })).toEqual([]);
+  });
+});
+
+describe("L-220 — and the form actually uses them", () => {
+  const src = readFileSync(path.join(process.cwd(), "src/features/catalog/products-view.tsx"), "utf8");
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+
+  it("derives the boxes from the CATEGORY, not from the saved product", () => {
+    expect(code).toContain("quotaGroupsFor(globalsCategoryDetail, inheritCategoryGlobals)");
+    expect(code, "the create screen reads the product's groups again").not.toContain(
+      "(product?.options ?? []).some((g) => g.inherited && g.multiple)",
+    );
+  });
+
+  it("builds the payload from the boxes ON SCREEN", () => {
+    expect(code).toContain("quotaPayload(quotaGroups, quotas)");
+  });
+
+  it("fetches that category, AND ACTUALLY RUNS THE QUERY", () => {
+    // The URL alone was asserted first, and that survived its own revert:
+    // `enabled: false` leaves the fetch written and never run, so the boxes are
+    // always empty and the assertion goes on passing. Same lesson as the other
+    // source assertions in this project — name the thing, not a substring of it.
+    expect(code).toContain("/api/catalog/categories/${globalsCategory!.id}");
+    expect(code, "the category query is never enabled, so nothing is fetched").toContain(
+      "enabled: !!globalsCategory?.id",
+    );
   });
 });
