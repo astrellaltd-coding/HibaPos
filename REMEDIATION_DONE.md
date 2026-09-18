@@ -5629,6 +5629,26 @@ actually applied, and why it says a bare `migrate deploy` « prints the same gre
 whichever migration it ran ». **Recorded as L-218**, because the trap is the PATH FORM and the
 plan's own method section does not warn about it in this context.
 
+**THE CEILINGS WERE THEN SET ON THE LIVE CATALOGUE, at the operator's explicit instruction**
+(2026-09-18, « set the quotas for me, M=1 L=2 XL=3 »). `CLAUDE.md` reserves a live catalogue
+edit to them; this is the same shape as the migrations applied by a session on 2026-09-13 —
+**their instruction, a one-off, not a standing waiver.** Done through
+`scripts/set-option-quotas.ts` rather than a raw write, so it has the folder's envelope: dry
+run by default, its own sha-verified restore point into `../db-snapshots/`, refusals rather
+than guesses, and the rows **read back** before it claims success. **Rehearsed on a copy
+first** — applied, then run a second time to confirm it reports `NOTHING TO CHANGE` — and the
+server was stopped before the live run so nothing else held the database open. Verified
+read-only afterwards: Tacos M 1, L 2, XL 3; 86 products, 14 categories, 11 category groups and
+61 choices unchanged; every trading table still 0; `integrity_check` ok; zero FK errors.
+
+**THE MIGRATION WAS APPLIED BY THE APPLICATION, not by hand, and not deliberately.** Restarting
+the preview server after the commit triggered PREP-4's startup path: « Applied 1 migration(s)
+behind verified backup `hibapos-backup-2026-09-18T01-03-22-901Z.dbenc` ». That is exactly what
+`CLAUDE.md` says the app does on its own machine, it took and re-opened its backup first, and
+the catalogue came through intact — but the trigger was a session restarting a server, not an
+operator running the hand-over command. **Worth knowing before the next migration**: any
+pending migration will land the next time that server starts.
+
 **What this does NOT do.** It does not set the ceilings on the live catalogue — that is a live
 catalogue edit and the operator's, and the migration has to land first. It does not add a
 `minSelect`: « up to » was the decision, and the group's own `required` already supplies the
