@@ -652,7 +652,7 @@ export function OrdersView() {
                       {opts.length > 0 && (
                         <div className="pl-4 text-[11px] text-foreground/70">
                           {opts.map((o, i) => (
-                            <div key={i}>· {o.choice}</div>
+                            <div key={i}>· {(o.quantity ?? 1) > 1 ? `${o.quantity}× ` : ""}{o.choice}</div>
                           ))}
                         </div>
                       )}
@@ -660,7 +660,7 @@ export function OrdersView() {
                         <div className="pl-4 text-[11px] text-foreground/70">
                           {addons.map((a, i) => (
                             <div key={i}>
-                              + {a.name} ({formatEuro(a.price)})
+                              + {(a.quantity ?? 1) > 1 ? `${a.quantity}× ` : ""}{a.name} ({formatEuro(a.price)})
                             </div>
                           ))}
                         </div>

@@ -203,8 +203,25 @@ export function renderReceipt(order: OrderDto, settings?: Partial<SettingsDto>):
   const pushAddOns = (item: OrderDto["items"][number], indent: string) => {
     if (!item.addOnsJson) return;
     try {
-      const adds = JSON.parse(item.addOnsJson) as { name: string; price: number }[];
-      for (const a of adds) pushMarked(indent, `${a.name} (${formatEuro(a.price)})`);
+      // L-219: `quantity` has been in this snapshot since L-127 (R8.5) and no
+      // reader had ever looked at it. R8.5's own comment measured the cost —
+      // « 3 x Viande Hachee printed as one + Viande Hachee (1,50 EUR), 4,50 EUR
+      // unexplained on a document that is never re-rendered » — and fixed the
+      // WRITER. This is the reader catching up.
+      //
+      // THE PRICE STAYS THE UNIT PRICE. Everything indented under an article is
+      // its per-unit configuration; the article's own line carries the total,
+      // and that is the figure the customer reconciles against. `2x Cheddar
+      // (1,00 EUR)` is two cheddars at a euro each, which needs no new
+      // convention to read.
+      //
+      // `?? 1` is the vintage rule: every snapshot written before R8.5 omits the
+      // field, and absent means one.
+      const adds = JSON.parse(item.addOnsJson) as { name: string; price: number; quantity?: number }[];
+      for (const a of adds) {
+        const n = a.quantity ?? 1;
+        pushMarked(indent, `${n > 1 ? `${n}× ` : ""}${a.name} (${formatEuro(a.price)})`);
+      }
     } catch {
       pushMarked(indent, "(suppléments illisibles)");
     }

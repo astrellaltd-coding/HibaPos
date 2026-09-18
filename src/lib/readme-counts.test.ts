@@ -87,6 +87,18 @@ const EXPANSIONS = [
     runs: 9,
   },
   {
+    where: "src/lib/services/receipt.test.ts",
+    what: "for (const f of [the two screens]) it(…) — L-219, the option count on each of the two",
+    marker: "prints an OPTION's count",
+    runs: 2,
+  },
+  {
+    where: "src/lib/services/receipt.test.ts",
+    what: "for (const f of [the two screens]) it(…) — L-219, the supplement count on each of the two",
+    marker: "prints a SUPPLEMENT's count",
+    runs: 2,
+  },
+  {
     where: "src/lib/services/hidden-product.test.ts",
     what: "for (const c of CASES) it(…) — the two L-69 box shapes R3.3 hands over, Phase 3",
     marker: "for (const c of CASES)",

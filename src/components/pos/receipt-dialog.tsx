@@ -155,8 +155,10 @@ export function ReceiptDialog({
                 </div>
                 {opts.length > 0 && (
                   <div className="pl-4 text-[11px] text-foreground/70">
+                    {/* L-217 reached the PRINTED ticket and not this one, so the
+                      * paper and the screen disagreed about the same sale. */}
                     {opts.map((o, i) => (
-                      <div key={i}>· {o.choice}</div>
+                      <div key={i}>· {(o.quantity ?? 1) > 1 ? `${o.quantity}× ` : ""}{o.choice}</div>
                     ))}
                   </div>
                 )}
@@ -164,7 +166,7 @@ export function ReceiptDialog({
                   <div className="pl-4 text-[11px] text-foreground/70">
                     {addons.map((a, i) => (
                       <div key={i} className="flex justify-between">
-                        <span>+ {a.name}</span>
+                        <span>+ {(a.quantity ?? 1) > 1 ? `${a.quantity}× ` : ""}{a.name}</span>
                         <span>{formatEuro(a.price)}</span>
                       </div>
                     ))}

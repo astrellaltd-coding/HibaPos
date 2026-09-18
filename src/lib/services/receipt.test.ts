@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { renderReceipt } from "@/lib/services/receipt";
 import { SOFTWARE_IDENTITY } from "@/lib/version";
+import { formatEuro } from "@/lib/format";
+import { readFileSync } from "fs";
+import path from "path";
 import type { OrderDto, OrderItemDto, SettingsDto } from "@/types/api";
 
 type TestRefund = { id: string; amount: number; reason: string; createdAt: string };
@@ -589,3 +592,118 @@ describe("renderReceipt lays out every line, not only the centred ones (L-63)", 
 function formatEuroLike(cents: number): string {
   return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(cents / 100);
 }
+
+describe("L-219 — a supplement bought twice says so on the paper", () => {
+  // THE DEFECT. `addOnsJson` has carried `quantity` since L-127 (R8.5), whose
+  // own comment measured what it costs when nothing reads it: « 3 × Viande
+  // Hachee printed as one + Viande Hachee (1,50 €), 4,50 € unexplained on a
+  // document that is never re-rendered ». R8.5 fixed the WRITER. Every reader —
+  // the printed ticket, the on-screen ticket, the order detail and the reorder —
+  // went on ignoring it. This is the printed one, which is the SEALED one
+  // (`Receipt.content`, R9.1): once it is written it is what the customer has.
+  //
+  // NOT REACHABLE FROM THE TILL TODAY, and that is worth writing down rather
+  // than overstating the bug: the add-on picker is a boolean toggle and
+  // `buildCheckoutItems` sends `quantity: 1` always, so only a direct API
+  // caller can produce one. It becomes load-bearing the moment add-ons get the
+  // stepper options gained in L-217.
+
+  function orderWithAddons(addons: unknown[]): TestOrder {
+    return {
+      ...baseOrder,
+      items: [
+        {
+          ...baseOrder.items[0]!,
+          optionsJson: null,
+          addOnsJson: JSON.stringify(addons),
+        },
+      ],
+    };
+  }
+
+  const settings = baseSettings;
+
+  it("PRINTS THE COUNT when a supplement was taken more than once", () => {
+    const text = renderReceipt(orderWithAddons([{ id: "a1", name: "Cheddar", price: 100, quantity: 2 }]), settings);
+    expect(text).toContain("2× Cheddar");
+  });
+
+  it("KEEPS THE UNIT PRICE beside it, which is the convention for an indented line", () => {
+    // The article's own line carries the total; everything indented under it is
+    // per-unit configuration. `2× Cheddar (1,00 €)` is two at a euro each and
+    // needs no new convention to read.
+    const text = renderReceipt(orderWithAddons([{ id: "a1", name: "Cheddar", price: 100, quantity: 2 }]), settings);
+    // `formatEuro` is used rather than a hand-typed « 1,00 € »: the formatter
+    // emits a NARROW NO-BREAK SPACE before the sign and a typed string does not,
+    // so the literal version failed against output that was already correct.
+    expect(text).toContain(`2× Cheddar (${formatEuro(100)})`);
+    expect(text, "the unit price was replaced by a computed total").not.toContain(
+      `Cheddar (${formatEuro(200)})`,
+    );
+  });
+
+  it("SAYS NOTHING EXTRA when there is one, so no existing ticket's wording moves", () => {
+    const one = renderReceipt(orderWithAddons([{ id: "a1", name: "Cheddar", price: 100, quantity: 1 }]), settings);
+    expect(one).toContain(`Cheddar (${formatEuro(100)})`);
+    expect(one).not.toContain("1× Cheddar");
+  });
+
+  it("READS AN OLD SNAPSHOT AS ONE — every one written before R8.5", () => {
+    // The vintage rule the plan requires of anything reading a sealed payload:
+    // the field is absent, and absent means one.
+    const old = renderReceipt(orderWithAddons([{ id: "a1", name: "Cheddar", price: 100 }]), settings);
+    expect(old).toContain(`Cheddar (${formatEuro(100)})`);
+    expect(old).not.toContain("× Cheddar");
+  });
+
+  it("uses the SAME MARK as the article lines and as an option (L-217)", () => {
+    // One way of saying how many of something there are, on one piece of paper.
+    const text = renderReceipt(
+      {
+        ...baseOrder,
+        items: [
+          {
+            ...baseOrder.items[0]!,
+            quantity: 2,
+            optionsJson: JSON.stringify([{ group: "Viande", choice: "Viande hachée", quantity: 2 }]),
+            addOnsJson: JSON.stringify([{ id: "a1", name: "Cheddar", price: 100, quantity: 3 }]),
+          },
+        ],
+      },
+      settings,
+    );
+    expect(text).toContain("2× Double Cheese"); // the article
+    expect(text).toContain("2× Viande hachée"); // the option (L-217)
+    expect(text).toContain("3× Cheddar"); // the supplement (L-219)
+  });
+});
+
+describe("L-219 — and the SCREENS say the same as the paper", () => {
+  // The printed ticket is the sealed document, but a cashier checks the
+  // on-screen one and an order is reopened from the detail view. L-217 reached
+  // `receipt.ts` and NEITHER of those, so the paper and the screen already
+  // disagreed about the same sale before this item started.
+  //
+  // Source-level because `bun test` has no DOM and both are dialogs rather than
+  // pure renderable rows. Comments are stripped first: this project has had
+  // assertions satisfied by the prose explaining them four times now.
+  const read = (f: string) =>
+    readFileSync(path.join(process.cwd(), f), "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^\s*\/\/.*$/gm, "")
+      .replace(/\{\/\*[\s\S]*?\*\/\}/g, "");
+
+  for (const f of ["src/components/pos/receipt-dialog.tsx", "src/features/orders/orders-view.tsx"]) {
+    it(`${f} prints an OPTION's count`, () => {
+      expect(read(f), `${f} still prints an option without its quantity`).toContain(
+        '(o.quantity ?? 1) > 1 ? `${o.quantity}× ` : ""',
+      );
+    });
+
+    it(`${f} prints a SUPPLEMENT's count`, () => {
+      expect(read(f), `${f} still prints a supplement without its quantity`).toContain(
+        '(a.quantity ?? 1) > 1 ? `${a.quantity}× ` : ""',
+      );
+    });
+  }
+});

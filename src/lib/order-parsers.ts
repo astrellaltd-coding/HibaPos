@@ -7,7 +7,9 @@
 /** L-217: `quantity` is present only when a choice was taken more than once,
  *  and absent on every snapshot written before 2026-09-18. */
 export type ParsedOption = { group: string; choice: string; priceModifier?: number; quantity?: number };
-export type ParsedAddOn = { id?: string | null; name: string; price: number };
+/** L-127 (R8.5) snapshots `quantity`; it is absent on anything written before
+ *  that, and absent means one. L-219: every reader now honours it. */
+export type ParsedAddOn = { id?: string | null; name: string; price: number; quantity?: number };
 
 export function safeParseOptions(json: string | null): ParsedOption[] {
   if (!json) return [];
@@ -53,9 +55,26 @@ export function safeParseAddOns(json: string | null): ParsedAddOn[] {
 export function cartAddOnsFromSnapshot(
   parsed: ParsedAddOn[],
 ): { id: string; name: string; price: number }[] {
-  return parsed
-    .filter((a): a is ParsedAddOn & { id: string } => typeof a.id === "string" && a.id.length > 0)
-    .map((a) => ({ id: a.id, name: a.name, price: a.price }));
+  /**
+   * L-219 — ONE CART ENTRY PER UNIT, expanding the snapshot's quantity.
+   *
+   * The cart is a multiset: `buildCheckoutItems` sends one `{ addonId,
+   * quantity: 1 }` per entry, so two cheddars are two entries. The snapshot
+   * MERGES them into one row carrying `quantity`, and a reorder that did not
+   * expand it rebuilt the line with ONE cheddar and charged for one — a reorder
+   * quietly serving less than the customer had last time, on the screen that
+   * exists so a regular's usual order is one tap.
+   *
+   * Exactly the bug L-217 fixed for OPTIONS, in the add-on path beside it.
+   */
+  const out: { id: string; name: string; price: number }[] = [];
+  for (const a of parsed) {
+    if (typeof a.id !== "string" || a.id.length === 0) continue;
+    for (let n = 0; n < Math.max(1, a.quantity ?? 1); n++) {
+      out.push({ id: a.id, name: a.name, price: a.price });
+    }
+  }
+  return out;
 }
 
 /**

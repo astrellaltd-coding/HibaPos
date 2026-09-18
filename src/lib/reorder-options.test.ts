@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import path from "path";
-import { resolveSnapshotOptions, safeParseOptions } from "@/lib/order-parsers";
+import { resolveSnapshotOptions, safeParseOptions, cartAddOnsFromSnapshot } from "@/lib/order-parsers";
 
 // L-87 (R4.7) — reordering a line must put REAL catalogue ids in the cart.
 //
@@ -202,5 +202,45 @@ describe("L-217 — a reorder brings back BOTH viandes", () => {
       groups,
     );
     expect(resolved.map((r) => r.choiceId)).toEqual(["c-hachee", "c-merguez"]);
+  });
+});
+
+describe("L-219 — a reorder brings back BOTH cheddars", () => {
+  // The same bug L-217 fixed for OPTIONS, in the add-on path beside it. The
+  // snapshot merges a repeat into one row carrying `quantity`, the cart is a
+  // multiset — `buildCheckoutItems` sends one `{ addonId, quantity: 1 }` per
+  // entry — so a resolver that emitted one entry per row rebuilt the line with
+  // ONE cheddar and charged for one.
+
+  it("expands a quantity into one cart add-on per unit", () => {
+    const out = cartAddOnsFromSnapshot([{ id: "a1", name: "Cheddar", price: 100, quantity: 2 }]);
+    expect(out).toHaveLength(2);
+    expect(out.map((a) => a.id)).toEqual(["a1", "a1"]);
+    expect(out[0]).toEqual({ id: "a1", name: "Cheddar", price: 100 });
+  });
+
+  it("READS AN OLD SNAPSHOT AS ONE — every one written before R8.5", () => {
+    expect(cartAddOnsFromSnapshot([{ id: "a1", name: "Cheddar", price: 100 }])).toHaveLength(1);
+  });
+
+  it("never emits nothing for an add-on the customer was charged for", () => {
+    // A hand-edited or corrupt `quantity: 0` must not delete a line that was
+    // served and paid for.
+    expect(cartAddOnsFromSnapshot([{ id: "a1", name: "Cheddar", price: 100, quantity: 0 }])).toHaveLength(1);
+  });
+
+  it("still drops an add-on with no catalogue id, as it always did", () => {
+    // L-80: `combo-checkout` writes add-on rows with no id, and the cart cannot
+    // hold one — it would be sent to the server as an empty `addonId`.
+    expect(cartAddOnsFromSnapshot([{ id: null, name: "Sans id", price: 100, quantity: 3 }])).toEqual([]);
+    expect(cartAddOnsFromSnapshot([{ name: "Sans id", price: 100 }])).toEqual([]);
+  });
+
+  it("keeps two DIFFERENT add-ons as two, as it always did", () => {
+    const out = cartAddOnsFromSnapshot([
+      { id: "a1", name: "Cheddar", price: 100 },
+      { id: "a2", name: "Bacon", price: 150 },
+    ]);
+    expect(out.map((a) => a.id)).toEqual(["a1", "a2"]);
   });
 });
