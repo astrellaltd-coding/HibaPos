@@ -5427,7 +5427,7 @@ where a client with no phone is perfectly legitimate, and the requirement belong
 
 ### L-216 — the keyboard after somebody used it, and the accent that closed the dialog
 
-**Done:** 2026-09-18 · **Commit:** `<SHA>` · **Finding:** L-216. **Refines L-213**, on the
+**Done:** 2026-09-18 · **Commit:** `5c2af06` · **Finding:** L-216. **Refines L-213**, on the
 operator's use of it within hours of it landing. **No plan row**, as L-191, L-213 and L-214.
 
 **FIVE REFINEMENTS, FOUR OF THEM ABOUT THE SAME SCARCE THING.** « its good with some
