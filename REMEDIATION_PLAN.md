@@ -115,12 +115,15 @@ every trading table is at zero.
 > **L-215 IS CLOSED — the operator entered the tacos himself**, through the app's own screens.
 > No script was needed. The `Tacos` tile is no longer the dead one.
 >
-> **THREE ARE OPEN AND NONE IS STARTED**, all in `docs/audit/FINDINGS.md`, all for the next
-> session: **L-218**, a migration rehearsal that printed « successfully applied » and applied
-> nothing, because `DATABASE_URL` was in Git Bash path form · **L-221**, no `ville` field
-> anywhere on a client · **L-222**, a delivery ticket saying « Type : Livraison » and nothing
-> about who or where. **L-221 and L-222 are one workflow and belong together**, and L-222 needs
-> a decision first: `Receipt.content` is sealed, so a home address in it is undeletable.
+> **L-218 IS CLOSED** (2026-09-18): reproduced on a copy first — the Git Bash form makes Prisma
+> CREATE an empty database at `C:\c\…`, migrate THAT, and print success. § 2's rehearsal method
+> now says to give `DATABASE_URL` a Windows-form path. **An open question went with it**: should
+> the rehearsal half go through `scripts/apply-migration.ts`, which refused the same URL.
+>
+> **TWO ARE OPEN AND NEITHER IS STARTED**, both in `docs/audit/FINDINGS.md`: **L-221**, no
+> `ville` field anywhere on a client · **L-222**, a delivery ticket saying « Type : Livraison »
+> and nothing about who or where. **They are one workflow**, and L-222 needs a decision first:
+> `Receipt.content` is sealed, so a home address in it is undeletable.
 
 **Phases 0-5 and 7 are COMPLETE**, with all four operator items and all three migrations
 applied. What each did, how it was verified and what it cost is in `REMEDIATION_DONE.md`;
@@ -290,7 +293,11 @@ fiscal document.)*
   file and send with `--data-binary @file`.
 - **Migration rehearsal with a fingerprint diff.** Never apply a migration to production
   first. Snapshot to **`../db-snapshots/`, a SIBLING of the repo** — creating it inside puts a
-  production database in the working tree. Apply to a copy, then diff a fingerprint of every
+  production database in the working tree. **Give `DATABASE_URL` a WINDOWS-form path —
+  `file:C:/…`, never Git Bash's `file:/c/…`** (L-218): Prisma resolves the second to
+  `C:\c\…`, CREATES an empty database there, applies every migration to THAT and prints
+  « All migrations have been successfully applied », leaving the copy you aimed at
+  untouched and the fingerprint diff EMPTY. Apply to a copy, then diff a fingerprint of every
   fiscal table before and after: row counts, `FiscalCounter`, `GrandTotal`, every event hash,
   sealed rows, order lines, `integrity_check`, FK errors, column order. Only the intended
   columns and the `_prisma_migrations` row may differ. Then hand over **`bun
