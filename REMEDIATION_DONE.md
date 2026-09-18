@@ -96,6 +96,8 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - L-214 — one rule for what a delivery client is, and the till says it out loud
 - L-216 — the keyboard after somebody used it, and the accent that closed the dialog
 - L-217 — how many viandes a size includes, and the quantity selector that was missing
+- L-220 — the count boxes come from the category, so a create screen shows them
+- L-219 — a supplement's count reaches the paper, the screens and a reorder
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -5655,6 +5657,58 @@ catalogue edit and the operator's, and the migration has to land first. It does 
 floor. And it does not touch how **add-ons** print — `pushAddOns` shows a supplement's name and
 unit price and never its quantity, so two of the same print as one. The money is right and the
 paper understates; recorded as **L-219**.
+
+
+### L-220 — the count boxes come from the category, so a create screen shows them
+**Done:** 2026-09-18 · **Commit:** `931a20f` · **Finding:** L-220. **No plan row.**
+
+The « Nombre inclus dans le prix » block was gated on `(product?.options ?? []).some(...)`, and a
+product being CREATED has no options yet — so the field was invisible on the create screen and the
+operator had to save, reopen and come back. **The cause was the SOURCE, not the gate**: the
+inherited groups were read off the product instead of off the category being chosen, and the
+category is the one thing a create does have. Fetched from `/api/catalog/categories/[id]` rather
+than added to the list route, which the POS loads on every start.
+
+**A SECOND DEFECT FELL OUT OF THE SAME CHANGE.** The payload was built from everything the form had
+ever held, so changing a product's category left the previous category's numbers in state and sent
+them — writing a ceiling against a group the product cannot see. Inert, invisible, and baffling to
+whoever next read the table and found a Tacos rule on a burger. Built from the boxes on screen now.
+
+Both decisions are extracted as `quotaGroupsFor` and `quotaPayload`, because a rule inside a
+component cannot be exercised — M-19's lesson, and why the original survived review.
+
+**THE CATEGORY-LEVEL DEFAULT WAS DECLINED BY THE OPERATOR** the same day (« keep it like now we
+dont need anything »), and L-220's row records that as a closed question. Counts stay per product.
+
+**Verified:** 2007 pass / 0 fail, typecheck and lint clean. **The revert went red six times**; one
+stayed green first — the test asserted the fetch was WRITTEN and not that it RUNS, so
+`enabled: false` left the boxes permanently empty and the assertion passing. Tightened.
+
+### L-219 — a supplement's count reaches the paper, the screens and a reorder
+**Done:** 2026-09-18 · **Commit:** `1523004` · **Finding:** L-219. **No plan row.**
+
+`addOnsJson` has carried `quantity` since **L-127 (R8.5)**, whose own comment measured the cost of
+nothing reading it — « 3 × Viande Hachee printed as one + Viande Hachee (1,50 €), 4,50 €
+unexplained on a document that is never re-rendered ». R8.5 fixed the WRITER; every reader went on
+ignoring it. **The fix was wider than the row**: the printed ticket (the SEALED one, R9.1), the
+on-screen ticket and the order detail — which ignored it for supplements AND for options, so L-217
+had reached the paper and not the two screens — **and the REORDER**, where
+`cartAddOnsFromSnapshot` emitted one cart entry per row, so reordering a line with two cheddars
+rebuilt it with one and charged for one. Exactly L-217's reorder bug, in the path beside it.
+
+**The printed price stays the UNIT price**: everything indented under an article is its per-unit
+configuration and the article's own line carries the total. Reverting it to a computed total goes
+red.
+
+**TWO CORRECTIONS TO WHAT THE ROW FIRST CLAIMED**, both from reading the code. The stored figure is
+`aIntent.quantity`, per host unit — the multiplied one is the SEPARATE-line path, which becomes its
+own `OrderItem` and already prints its own count. And **it is not reachable from the till**: the
+add-on picker is a boolean toggle and `buildCheckoutItems` sends `quantity: 1` always, so only a
+direct API caller can produce one. It becomes load-bearing the moment add-ons gain L-217's stepper.
+
+**Verified:** 2021 pass / 0 fail, typecheck and lint clean. **The revert went red eight times**,
+including the existing SNAPSHOT test (that file exists so a ticket-formatting change must be opted
+into) and L-80's no-catalogue-id guard, confirming it was not weakened.
 
 ---
 

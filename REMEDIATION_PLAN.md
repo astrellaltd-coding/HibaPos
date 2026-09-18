@@ -100,23 +100,27 @@ every trading table is at zero.
 > cleared the settings 403 — and is still an `OPERATOR` row that has not been done; being
 > reachable is not being finished.
 >
-> **THE OWNER USED THE TILL AND FOUND THREE THINGS. Two are fixed** (2026-09-17, their own
-> items — § 6 holds nothing that is a session's and § 7 is closed). **L-213** (`9a913ac`): the
-> app had **no on-screen keyboard at all**, and « Espèces comptées » / « Fond de caisse
-> initial » are typed number boxes — **the day could not be sealed without the wired
-> keyboard**. One listener in the root layout now serves all 94 typed fields; the operator
-> chose buttons we draw over Windows' TabTip, which `--kiosk` hides and Tauri removes.
-> **L-214** (`b75f45e`): the till and the server disagreed about what a delivery client is —
-> the till never checked the **phone** — so a sale was offered, the cash taken, and *then*
-> refused 400, with no way to repair the client from the caisse. One shared rule now, words on
-> the screen instead of a hover tooltip, and the cashier can fix a client where they stand.
+> **THE OWNER IS USING THE TILL, AND EVERYTHING HE HAS FOUND SO FAR IS DONE.** Seven items,
+> 2026-09-17/18, each its own commit and each with a full record in `REMEDIATION_DONE.md` —
+> § 6 holds nothing that is a session's and § 7 is closed, so they were done as their own items
+> as L-191 was. **L-213** the on-screen keyboard, without which the day could not be sealed ·
+> **L-214** the delivery client the till offered and the server refused after the cash ·
+> **L-216** the keyboard refined, and the accent that closed the dialog being typed into ·
+> **L-217** a Tacos M taking all six viandes for 6,90 €, now M=1 L=2 XL=3 and SET on the live
+> catalogue at the operator's explicit instruction · **L-219** and **L-220**, which came out of
+> reading that back. **L-217's migration went in by itself**: restarting the server triggered
+> PREP-4's startup path, behind a verified backup — what the app does on its own machine, and
+> worth knowing before the next one.
 >
-> **L-215 IS OPEN AND WAITING ON THE OWNER, NOT ON A SESSION.** The `Tacos` category already
-> exists on the POS strip — fifth of nine tiles, its own icon, **0 products** — so it is the
-> one dead tile there. What is missing is his menu: names, tailles, prices sur place and en
-> livraison, viandes, sauces, and whether frites are included. **And it is a live-catalogue
-> edit, which `CLAUDE.md` reserves to the operator** — a session prepares and rehearses the
-> script, the operator runs it.
+> **L-215 IS CLOSED — the operator entered the tacos himself**, through the app's own screens.
+> No script was needed. The `Tacos` tile is no longer the dead one.
+>
+> **THREE ARE OPEN AND NONE IS STARTED**, all in `docs/audit/FINDINGS.md`, all for the next
+> session: **L-218**, a migration rehearsal that printed « successfully applied » and applied
+> nothing, because `DATABASE_URL` was in Git Bash path form · **L-221**, no `ville` field
+> anywhere on a client · **L-222**, a delivery ticket saying « Type : Livraison » and nothing
+> about who or where. **L-221 and L-222 are one workflow and belong together**, and L-222 needs
+> a decision first: `Receipt.content` is sealed, so a home address in it is undeletable.
 
 **Phases 0-5 and 7 are COMPLETE**, with all four operator items and all three migrations
 applied. What each did, how it was verified and what it cost is in `REMEDIATION_DONE.md`;

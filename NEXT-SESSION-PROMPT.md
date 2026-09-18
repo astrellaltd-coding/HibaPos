@@ -1,123 +1,128 @@
-# The next sessions — R8.0, R9.6 + R8.1, then Phase 6
+# The next session — L-218, then L-221 + L-222
 
-**Rewritten 2026-09-12.** This file held prompts for *Phase 7, then Phase 6*. **Phase 7 closed
-on 2026-09-11**, and Phase 6 is no longer "the last one" — the 2026-09 audit added Phases 8, 9
-and 10, twenty batches, and **R8.1 blocks two of Phase 6's five rows**. The old prompts are
-in git history if anyone wants them; keeping them here would have pointed the next session at
-finished work.
+**Rewritten 2026-09-18.** This file held prompts for *R8.0, R9.6 + R8.1, then Phase 6*. **All
+three of those closed on 2026-09-13**, and the file went on pointing at them for five days —
+which is exactly the failure it exists to prevent. The old prompts are in git history.
 
 One prompt per session. Paste the block between the rules, and nothing else.
 
----
-
-## SESSION 0 — R8.0, five minutes, its own commit
-
-HibaPOS France. Read `CLAUDE.md`, then `REMEDIATION_PLAN.md` § 1 and § 2.
-
-**Add `.gitattributes` at the repository root containing `* text=auto eol=lf`, and commit
-nothing else.** `core.autocrlf=true` is set and there is no attributes file, so a fresh
-checkout writes CRLF — which makes `restore-swap.test.ts` fail outright and
-`pos-resilience.test.ts:104` pass vacuously. **Any clone of this repository currently starts
-red.** That is L-124, reproduced by the audit, not predicted.
-
-Verify by reproducing a checkout into a scratch directory (`git checkout-index --prefix=…`)
-and confirming the file lands LF. Then the three gates, then commit, then stop.
+**Both sessions below are FINDINGS work, not plan rows.** § 6 holds nothing that is a session's
+and § 7 is closed to new rows, so each is done as its own item with its own commit and its own
+entry in `REMEDIATION_DONE.md` — the shape L-191, L-213, L-214, L-216, L-217, L-219 and L-220
+all used.
 
 ---
 
-## SESSION 1 — R9.6, then R8.1
+## SESSION A — L-218, small, its own commit
 
-HibaPOS France. Read `CLAUDE.md`, then `REMEDIATION_PLAN.md` in full — all of it, top to
-bottom — then `docs/audit/FINDINGS.md`, at least its verdict, View A group A and View B.
+HibaPOS France. Read `CLAUDE.md`, then `REMEDIATION_PLAN.md` § 1 and § 2, then **L-218** in
+`docs/audit/FINDINGS.md`.
 
-**Do R9.6 first.** `api-authorization.test.ts`'s inline-guard detector is
-`/user\.role\s*!==\s*"SUPER_ADMIN"/`, which matches a **widened** guard
-(`… && user.role !== "MANAGER"`) exactly as well as a narrow one — so a route can be opened to
-every role with the suite green. Classify the two forms separately and re-pin the counts at
-`:407`. **This must precede R8.1**, because R8.1 changes `settings:PUT`'s guard and moves that
-very count (L-120, L-151).
+**A migration rehearsal reported success and applied nothing.** Running
 
-**Then R8.1, and only R8.1.** Two findings, one area:
+```
+DATABASE_URL="file:/c/Users/…/db-snapshots/…/custom.db" bunx prisma migrate deploy
+```
 
-- **L-93** — `settingsSchema` materialises `factice: false` and `printerConnection: "network"`
-  where `DEFAULT_SETTINGS` answers `true` and `"usb"`, and `saveSettings` merges present keys
-  over stored ones. A settings save that merely *omits* `factice` therefore performs R6.3 —
-  turns the fiscal simulation stamp off — silently. Both defaults are pinned separately and
-  **nothing asserts they agree**.
-- **L-101** — `nav-config.ts:60` gives MANAGER the Réglages screen with an enabled save button;
-  `settings/route.ts:25` refuses every non-SUPER_ADMIN a 403. The MANAGER is the only account
-  that will be at the till in France.
+from Git Bash printed the migration's folder name and then **« All migrations have been
+successfully applied »** — and afterwards the copy still held 18 migrations and no new table,
+as did production. The same command with `file:C:/Users/…` applied it correctly, and
+`migrate status` had been saying « Following migration have not yet been applied » the whole
+time. It was caught only because the fingerprint diff came out **empty** — every table
+identical, including the one that should have appeared.
 
-**Do them in that order.** Reconciling the defaults first is not a preference: opening the
-write to MANAGER before the two tables agree hands a till operator a route that can flip
-`factice` by omission.
+**The plan knows both halves and joins them nowhere.** § 2 warns that Git Bash rewrites a
+leading-slash argument and to use `MSYS_NO_PATHCONV=1`, but says it about request bodies and
+shell arguments, not `DATABASE_URL`. `CLAUDE.md` warns that a bare `migrate deploy` prints the
+same green banner whichever migration it ran. This is that banner lying for a third reason
+neither note covers.
 
-**L-101's decision is already made — DD-26 and DD-27 in `docs/DECISIONS.md`. Implement them;
-do not re-open them.**
+**Do this:**
 
-- **DD-26 — split `PUT /api/settings` by FIELD, not by role.** MANAGER may write the
-  operational fields: `printerName`, `printerConnection`, `printerQueue`, `printerHost`,
-  `printerPort`, `printerEnabled`, `openDrawerOnCash`, `receiptWidth`, `autoPrint`, `factice`.
-  SUPER_ADMIN only for identity and fiscal policy: `restaurantName`, `restaurantAddress`,
-  `restaurantPhone`, `restaurantSiret`, `restaurantTva`, `footerNote`, `currency`,
-  `defaultVatRate`, `discountApprovalThreshold`, `businessDayCutoffHour`.
-- **DD-27 — FACTICE is one-way once anything real has been sold.** MANAGER may turn it off
-  (that is R6.3). Turning it back **on** is refused once the journal holds a non-factice
-  event; **SUPER_ADMIN is excepted**. Before the first real sale it toggles freely, which is
-  what this machine needs during testing. No such guard exists today.
+1. **Reproduce it before fixing it.** Copy `db/custom.db` to `../db-snapshots/l218-check/`,
+   run `migrate status` against it with the `/c/…` form and with the `C:/…` form, and record
+   what each says. If the two forms now agree, say so and stop — the finding would be wrong and
+   that is worth more than a fix.
+2. **One line in § 2's rehearsal method**: give `DATABASE_URL` a Windows-form path, `C:/…`,
+   never `/c/…`. It belongs where the method is, beside the `MSYS_NO_PATHCONV=1` note it sits
+   next to.
+3. **Then decide, and bring the decision rather than taking it**: should the REHEARSAL half go
+   through `scripts/apply-migration.ts` too? That script names the migration it actually applied
+   and verifies the result instead of trusting an exit code, which is why `CLAUDE.md` makes it
+   the hand-over command. A rehearsal through the same script would have refused rather than
+   congratulated itself. It is a real change to `scripts/` and to the method, so it is the
+   operator's call.
 
-**Do not fix L-101 by hiding the screen** — that leaves R6.3 and R6.4 unreachable without the
-developer's account.
+**Mind the plan's ceiling**: 39 992 of 40 960 bytes, 968 left. A line in § 2 fits; a paragraph
+may not.
 
-**What "done" looks like.** A test that parses an empty settings input and asserts every
-materialised key equals `DEFAULT_SETTINGS`; DD-26's field split and DD-27's one-way guard
-implemented; a test driving `PUT /api/settings` as a MANAGER that asserts an operational field
-is written and an identity field is refused; and a test that a MANAGER cannot re-enable
-`factice` against a journal holding a real event, while a SUPER_ADMIN can.
-`PUT /api/settings` is invoked by **no test in either suite** today, which is half of why this
-got here.
-
-**Re-measure before you start.** The baselines are in `docs/BASELINES.md` now, not in the
-plan's § 4 — the section moved 2026-09-12. They were last taken that day and the operator
-changes the catalogue between sessions.
-
-**Stop at the end of R8.1 and report.** Do not roll into R8.2.
+Three gates, commit, push, `REMEDIATION_DONE.md` entry, stop.
 
 ---
 
-## SESSION 2 — Phase 6, once R8.1 has landed
+## SESSION B — L-221 + L-222, one workflow, a decision first
 
-HibaPOS France. Read `CLAUDE.md`, then `REMEDIATION_PLAN.md` in full.
+HibaPOS France. Read `CLAUDE.md`, then `REMEDIATION_PLAN.md` in full, then **L-221 and L-222**
+in `docs/audit/FINDINGS.md`.
 
-**Phase 6 is the fiscal go-live: five `OPERATOR` rows, R6.1 to R6.5.** They are the operator's
-to run, not yours — your job is to prepare, rehearse, verify and hand over exact commands.
+**Reported by the restaurant's owner on 2026-09-18**, at the caisse, trying a livraison. Two
+halves of one workflow:
 
-**Check the blockers are actually gone before anything else.** R6.3 and R6.4 were blocked on
-**L-101** (fixed in session 1) and R6.4 additionally on **L-96** — the USB print helper is
-resolved from `process.cwd()` and `powershell.exe -File <missing>` exits 0, so a helper that
-never runs is written to the database as `PRINTED`. **If L-96 is still open, R6.4 cannot be
-trusted even once the queue is chosen**, and choosing it proves nothing.
+- **L-221 — there is no VILLE field anywhere.** A client's whole location is one free-text
+  `address` string, and the only thing saying a town belongs in it is a placeholder.
+- **L-222 — the delivery ticket says « Type : Livraison » and nothing about who or where.**
+  `OrderDto.customer` is `{ name: string }` alone, both order routes select only the name, and
+  `renderReceipt` prints no customer at all. **The driver gets a ticket with no destination.**
 
-Order is not a preference: **R6.1 → R6.2 → R6.3.** Arming the chain key before the reset makes
-the reset refuse. R6.4 and R6.5 are technical and can happen at any point before the first
-sale.
+**DO NOT START WITH CODE. L-222 needs a decision that is not a layout question.**
+`Receipt.content` is the SEALED document (R9.1 — « the customer's paper IS the sealed
+`Receipt.content` »), the journal is append-only, and `docs/attestation-conformite.md` states
+deletion is impossible. **A name, a telephone number and a home address in it are permanently
+undeletable.** Bring the operator two shapes, in plain language with a worked example, per
+`decision-briefs-plain-language.md`:
 
-**Re-measure before you start** — `docs/BASELINES.md`.
+- **(a)** the address goes into the sealed receipt — one document, as today;
+- **(b)** a delivery ALSO prints a non-fiscal « bon de livraison » carrying the address, and the
+  sealed ticket is unchanged. More work, and the only shape that keeps a customer's home out of
+  an immutable fiscal record.
+
+**And L-221 has its own fork**: a second box composing into the existing `address` string (no
+migration, cannot be sorted on), or a real `city` column (a migration, and every reader —
+`customerSchema`, `CustomerDto`, both forms, the list, the API — in the same commit).
+
+**READ DD-15's TOMBSTONE FIRST.** `prisma/schema.prisma:462` still carries the comment from the
+`postalCode` column that was DELETED for having « ZERO references in `src/` — not in
+`customerSchema`, not in `CustomerDto`, not in the delivery form ». A location column added
+without its readers is that column again.
+
+**Whatever is decided, it has to reach `missingForDelivery`** (`src/lib/delivery-customer.ts`):
+if a town is required for a delivery it belongs in that rule beside name, phone and address, or
+the till will accept a client the driver cannot find. That function is called by the cart panel,
+the client picker and `POST /api/orders` — L-214 made it the single rule precisely so the three
+cannot drift again.
+
+**No test renders a LIVRAISON ticket and reads it.** Every delivery test asserts the order is
+accepted or refused. Add one, and prove it red first.
+
+If the migration route is chosen: rehearse it on a copy with a fingerprint diff, hand over
+`bun scripts/apply-migration.ts --apply --expect <path>`, and **do not apply it** — except that
+restarting the app applies pending migrations itself (PREP-4), so say so plainly rather than
+being surprised by it as this session was.
+
+Three gates, commit, push, `REMEDIATION_DONE.md` entry, stop.
 
 ---
 
-## Behind both
+## What is NOT next, and why
 
-- **R6.1 would delete 0 rows today.** Every trading table is at zero and the counters are
-  0/0/0/0. Whether it needs to run again is a decision, not a step.
-- **§ 7's nine findings are unchanged** and none of them blocks a first sale. The audit's 94
-  are in `docs/audit/FINDINGS.md` and are **not** in § 7 — § 6 carries their ids and nothing
-  else.
-- **Group A is the rest of Phase 8**, and R8.2 and R8.5 are both migrations. **R9.2 — the
-  startup migration gate — lands before them**: a fresh install applies every migration through
-  a gate that currently reports a failed one as applied. A migration on a database that has
-  never traded is far cheaper than one on a database that has.
-- **The loop is `REMEDIATION_PLAN.md` § 2, and it grew a step on 2026-09-12.** Step 3 is now
-  « prove the new test FAILS against the old code before you commit » — revert one property at
-  a time, watch it go red, restore, and say in the commit message what you reverted. The audit
-  found four tests that cannot fail against the bug they are named for; green is not evidence.
+- **Phase 6** — R6.1 reset, R6.2 arm the chain key, R6.3 FACTICE off. All `OPERATOR`, in that
+  order, and the order is not a preference. Nothing a session does.
+- **A category-level default for option counts** — « every sandwich includes 3 sauces » is eight
+  separate edits today. **Declined by the operator on 2026-09-18**; L-220's row records it as a
+  closed question, not an outstanding one.
+- **L-211's measurement** — nobody has read `innerWidth`, `innerHeight` or `devicePixelRatio` on
+  the France till, so « the keyboard is two rows shorter » is an improvement of unknown
+  sufficiency. It needs someone at that machine, not a session.
+- **Tauri v2** — still the shipping form, still without a plan. What runs in France is the
+  development build. Where a fix has two reasonable forms, take the one that survives becoming
+  a Windows native app.
