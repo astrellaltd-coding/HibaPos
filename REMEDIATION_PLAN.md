@@ -117,8 +117,8 @@ every trading table is at zero.
 >
 > **L-218 IS CLOSED** (2026-09-18): reproduced on a copy first — the Git Bash form makes Prisma
 > CREATE an empty database at `C:\c\…`, migrate THAT, and print success. § 2's rehearsal method
-> now says to give `DATABASE_URL` a Windows-form path. **An open question went with it**: should
-> the rehearsal half go through `scripts/apply-migration.ts`, which refused the same URL.
+> now says to give `DATABASE_URL` a Windows-form path. **Its open question is now L-223**, the
+> operator having answered « record it, not now »: the rehearsal half stays a bare command.
 >
 > **TWO ARE OPEN AND NEITHER IS STARTED**, both in `docs/audit/FINDINGS.md`: **L-221**, no
 > `ville` field anywhere on a client · **L-222**, a delivery ticket saying « Type : Livraison »

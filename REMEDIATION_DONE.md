@@ -5777,9 +5777,11 @@ decide it, so both halves were run and neither was implemented:
   the self-matching assertion this project has already been bitten by. `plan-freshness.test.ts`
   checks structure, not the wording of § 2's methods, and widening it to prose would be a change
   to what that file is for. The reproduction above is the evidence.
-- **`scripts/apply-migration.ts` is unchanged**, and so is the rehearsal half of the method. That
-  is the open question, and it is the operator's: making the rehearsal go through the script is a
-  real change to `scripts/` and to § 2.
+- **`scripts/apply-migration.ts` is unchanged**, and so is the rehearsal half of the method.
+  **The operator answered the open question the same day — « not now, record it » — and it is
+  now `L-223`**, carrying the measurements above. What it would take is a `--rehearse` mode:
+  the script refuses while any node/bun process runs and demands a verified restore point
+  beside the live database, and a rehearsal on a copy wants neither. Not a one-line redirect.
 - **Two phantom trees are on disk and were left there.**
   `C:\c\Users\…\db-snapshots\r217-rehearsal\` is the original incident's evidence;
   `…\l218-check\` is this reproduction's. Both hold empty databases and no real data. Deleting
