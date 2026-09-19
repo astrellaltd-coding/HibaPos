@@ -464,6 +464,18 @@ model Customer {
   // `customerSchema`, not in `CustomerDto`, not in the delivery form. The
   // delivery rule at `orders/route.ts` requires name + phone + address and
   // has never asked for a postcode. 0 of the 2 customers had one.
+  //
+  // L-221: `city` below is the column DD-15's comment is a warning about, and
+  // it is added with every reader in the same commit — `customerSchema`,
+  // `CustomerDto`, both customer forms, the picker's list row, the detail
+  // dialog, the three `/api/customers` routes, `DeliveryCandidate`, both order
+  // routes' selects, and the bon de livraison that prints it. Reported by the
+  // restaurant's owner at the caisse on 2026-09-18: a client's whole location
+  // was one free-text `address` string and the town had nowhere to go.
+  // Required for a LIVRAISON since the same commit (`missingForDelivery`), and
+  // nullable all the same, because the column must accept the clients that
+  // already exist.
+  city      String?
   notes     String?
   active    Boolean  @default(true)
   createdAt DateTime @default(now())

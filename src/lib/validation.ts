@@ -290,6 +290,9 @@ export const customerSchema = z.object({
   phone: z.string().max(30).optional().nullable(),
   email: z.string().email("Email invalide").optional().or(z.literal("")),
   address: z.string().max(200).optional().nullable(),
+  // L-221: the town, as its own field. 80 matches `name` above; the longest
+  // commune name in France is 45 characters.
+  city: z.string().max(80).optional().nullable(),
   notes: z.string().max(500).optional().nullable(),
 });
 export type CustomerInput = z.infer<typeof customerSchema>;

@@ -58,6 +58,8 @@ type CustomerForm = {
   phone: string;
   email: string;
   address: string;
+  /** L-221 — the town, its own column since 2026-09-18. */
+  city: string;
   notes: string;
 };
 
@@ -66,6 +68,7 @@ const EMPTY_FORM: CustomerForm = {
   phone: "",
   email: "",
   address: "",
+  city: "",
   notes: "",
 };
 
@@ -114,6 +117,7 @@ export function CustomersView() {
       phone: c.phone ?? "",
       email: c.email ?? "",
       address: c.address ?? "",
+      city: c.city ?? "",
       notes: c.notes ?? "",
     });
     setDialogOpen(true);
@@ -172,6 +176,7 @@ export function CustomersView() {
         phone: form.phone.trim(),
         email: form.email.trim(),
         address: form.address.trim(),
+        city: form.city.trim(),
         notes: form.notes.trim(),
       };
       if (editing) {
@@ -406,9 +411,24 @@ export function CustomersView() {
                 onChange={(e) =>
                   setForm((f) => ({ ...f, address: e.target.value }))
                 }
-                placeholder="12 rue de la Paix, 75002 Paris"
+                placeholder="12 rue des Lilas"
                 rows={2}
                 maxLength={200}
+              />
+            </div>
+
+            {/* L-221 — the same box as the caisse picker's, in the other form
+              * that edits a client. Both, in the same commit, is the whole
+              * lesson of DD-15's deleted `postalCode`: a location column with
+              * no readers. */}
+            <div className="grid gap-2">
+              <Label htmlFor="cust-city">Ville</Label>
+              <Input
+                id="cust-city"
+                value={form.city}
+                onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))}
+                placeholder="Villeurbanne"
+                maxLength={80}
               />
             </div>
 

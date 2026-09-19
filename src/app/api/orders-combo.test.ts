@@ -178,7 +178,7 @@ beforeEach(async () => {
   });
 
   const cust = await db.customer.create({
-    data: { name: "Client Test", phone: "0600000000", address: "1 rue du Test" },
+    data: { name: "Client Test", phone: "0600000000", address: "1 rue du Test", city: "Lyon" },
   });
 
   await db.shift.create({

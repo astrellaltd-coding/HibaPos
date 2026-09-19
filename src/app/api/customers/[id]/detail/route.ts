@@ -13,6 +13,7 @@ export const GET = withAuthParams(async (_req, { params }) => {
       phone: true,
       email: true,
       address: true,
+      city: true,
       notes: true,
       createdAt: true,
     },

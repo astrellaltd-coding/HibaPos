@@ -26,28 +26,47 @@ import {
 // tests that matter are the ones asserting that nobody spells it out again.
 
 describe("L-214 — which fields a delivery needs", () => {
-  it("names all three, in the order the screen asks for them", () => {
-    expect([...DELIVERY_REQUIRED_FIELDS]).toEqual(["name", "phone", "address"]);
+  it("names all four, in the order the screen asks for them", () => {
+    // L-221 added `city` on 2026-09-18, on the operator's decision, and this is
+    // the assertion that makes it a RULE rather than a box on a form. A column
+    // added without its readers is DD-15's deleted `postalCode` again.
+    expect([...DELIVERY_REQUIRED_FIELDS]).toEqual(["name", "phone", "address", "city"]);
+  });
+
+  it("REPORTS A MISSING TOWN — L-221, the field that did not exist", () => {
+    // Reported by the owner at the caisse on 2026-09-18: a client's whole
+    // location was one free-text `address`, and the town had nowhere to go. A
+    // street with no town is a street in every town.
+    expect(
+      missingForDelivery({ name: "Dupont", phone: "0612131415", address: "12 rue de Paris" }),
+    ).toEqual(["city"]);
+    expect(
+      isDeliverable({ name: "Dupont", phone: "0612131415", address: "12 rue de Paris" }),
+    ).toBe(false);
   });
 
   it("REPORTS A MISSING PHONE — the field the till used to ignore", () => {
     // The exact client that reached a 400 after the cash was counted.
-    expect(missingForDelivery({ name: "Dupont", address: "12 rue de Paris" })).toEqual(["phone"]);
-    expect(isDeliverable({ name: "Dupont", address: "12 rue de Paris" })).toBe(false);
+    expect(missingForDelivery({ name: "Dupont", address: "12 rue de Paris", city: "Lyon" })).toEqual([
+      "phone",
+    ]);
+    expect(isDeliverable({ name: "Dupont", address: "12 rue de Paris", city: "Lyon" })).toBe(false);
   });
 
   it("reports a missing address, which is the half that was already caught", () => {
-    expect(missingForDelivery({ name: "Dupont", phone: "0612131415" })).toEqual(["address"]);
+    expect(missingForDelivery({ name: "Dupont", phone: "0612131415", city: "Lyon" })).toEqual([
+      "address",
+    ]);
   });
 
   it("reports several at once, so the screen can name them all", () => {
-    expect(missingForDelivery({ name: "Dupont" })).toEqual(["phone", "address"]);
-    expect(missingForDelivery({})).toEqual(["name", "phone", "address"]);
-    expect(missingForDelivery(null)).toEqual(["name", "phone", "address"]);
+    expect(missingForDelivery({ name: "Dupont" })).toEqual(["phone", "address", "city"]);
+    expect(missingForDelivery({})).toEqual(["name", "phone", "address", "city"]);
+    expect(missingForDelivery(null)).toEqual(["name", "phone", "address", "city"]);
   });
 
   it("accepts the complete client", () => {
-    const c = { name: "Dupont", phone: "0612131415", address: "12 rue de Paris" };
+    const c = { name: "Dupont", phone: "0612131415", address: "12 rue de Paris", city: "Lyon" };
     expect(missingForDelivery(c)).toEqual([]);
     expect(isDeliverable(c)).toBe(true);
   });
@@ -56,12 +75,26 @@ describe("L-214 — which fields a delivery needs", () => {
     // Not pedantry: the picker sends `newAddress.trim()` and the route stores
     // what it is given, so « " " » was an address as far as `!customer?.address`
     // was concerned — truthy, and useless to a driver.
-    expect(missingForDelivery({ name: "Dupont", phone: "0612131415", address: "   " })).toEqual(["address"]);
-    expect(missingForDelivery({ name: " ", phone: " ", address: " " })).toEqual(["name", "phone", "address"]);
+    expect(
+      missingForDelivery({ name: "Dupont", phone: "0612131415", address: "   ", city: "Lyon" }),
+    ).toEqual(["address"]);
+    expect(
+      missingForDelivery({ name: "Dupont", phone: "0612131415", address: "12 rue", city: "  " }),
+    ).toEqual(["city"]);
+    expect(missingForDelivery({ name: " ", phone: " ", address: " ", city: " " })).toEqual([
+      "name",
+      "phone",
+      "address",
+      "city",
+    ]);
   });
 
   it("treats null and undefined alike, because the DTO and Prisma differ", () => {
-    expect(missingForDelivery({ name: "D", phone: null, address: undefined })).toEqual(["phone", "address"]);
+    expect(missingForDelivery({ name: "D", phone: null, address: undefined, city: null })).toEqual([
+      "phone",
+      "address",
+      "city",
+    ]);
   });
 });
 
@@ -73,8 +106,11 @@ describe("L-214 — what the operator is told", () => {
     expect(deliveryMissingMessage(["phone", "address"])).toBe(
       "Informations manquantes pour la livraison : le téléphone et l'adresse.",
     );
-    expect(deliveryMissingMessage(["name", "phone", "address"])).toBe(
-      "Informations manquantes pour la livraison : le nom, le téléphone et l'adresse.",
+    expect(deliveryMissingMessage(["city"])).toBe(
+      "Informations manquantes pour la livraison : la ville.",
+    );
+    expect(deliveryMissingMessage(["name", "phone", "address", "city"])).toBe(
+      "Informations manquantes pour la livraison : le nom, le téléphone, l'adresse et la ville.",
     );
   });
 
@@ -86,7 +122,7 @@ describe("L-214 — what the operator is told", () => {
     for (const m of [
       deliveryMissingMessage(["phone"]),
       deliveryMissingMessage(["address"]),
-      deliveryMissingMessage(["name", "phone", "address"]),
+      deliveryMissingMessage(["name", "phone", "address", "city"]),
     ]) {
       expect(m).toContain("livraison");
     }
@@ -105,11 +141,16 @@ describe("L-214 — what the operator is told", () => {
     expect(deliveryBlockReason("LIVRAISON", null, null)).toBe(
       "Un client est obligatoire pour une livraison.",
     );
-    expect(deliveryBlockReason("LIVRAISON", "c1", { name: "Dupont", address: "12 rue" })).toBe(
-      "Informations manquantes pour la livraison : le téléphone.",
-    );
     expect(
-      deliveryBlockReason("LIVRAISON", "c1", { name: "Dupont", phone: "06", address: "12 rue" }),
+      deliveryBlockReason("LIVRAISON", "c1", { name: "Dupont", address: "12 rue", city: "Lyon" }),
+    ).toBe("Informations manquantes pour la livraison : le téléphone.");
+    expect(
+      deliveryBlockReason("LIVRAISON", "c1", {
+        name: "Dupont",
+        phone: "06",
+        address: "12 rue",
+        city: "Lyon",
+      }),
     ).toBeNull();
   });
 
@@ -130,13 +171,25 @@ describe("L-214 — what the client FORM requires, which depends on the order", 
   // replaced it.
 
   it("on a DELIVERY, asks for all three", () => {
-    expect(customerFormBlocked("LIVRAISON", { name: "", phone: "", address: "" })).toBe(true);
+    expect(customerFormBlocked("LIVRAISON", { name: "", phone: "", address: "", city: "" })).toBe(
+      true,
+    );
     expect(customerFormBlocked("LIVRAISON", { name: "Dupont" })).toBe(true);
     // The client the old form was happy to make and the server then refused.
     expect(customerFormBlocked("LIVRAISON", { name: "Dupont", address: "12 rue" })).toBe(true);
     expect(customerFormBlocked("LIVRAISON", { name: "Dupont", phone: "06" })).toBe(true);
+    // L-221: three of the four is still refused, which is the whole point of
+    // the town joining the rule rather than only the form.
     expect(
       customerFormBlocked("LIVRAISON", { name: "Dupont", phone: "06", address: "12 rue" }),
+    ).toBe(true);
+    expect(
+      customerFormBlocked("LIVRAISON", {
+        name: "Dupont",
+        phone: "06",
+        address: "12 rue",
+        city: "Lyon",
+      }),
     ).toBe(false);
   });
 
@@ -145,6 +198,9 @@ describe("L-214 — what the client FORM requires, which depends on the order", 
     // must not suddenly need an address the server never asks for.
     expect(customerFormBlocked("DINE_IN", { name: "Dupont" })).toBe(false);
     expect(customerFormBlocked("TAKEAWAY", { name: "Dupont" })).toBe(false);
+    // L-221 pointing the other way: a quick client for a sur-place order must
+    // not suddenly need a town either.
+    expect(customerFormBlocked("DINE_IN", { name: "Dupont", city: "" })).toBe(false);
     expect(customerFormBlocked("TAKEAWAY", { name: "" })).toBe(true);
     expect(customerFormBlocked("TAKEAWAY", { name: "   " })).toBe(true);
   });
@@ -234,7 +290,12 @@ describe("L-214 — ONE rule, and every side calls it", () => {
     // address was taken off the row and `startEdit`'s `c.address ?? ""` kept
     // the assertion true. Same lesson as the comment-stripping above — an
     // assertion must name the thing it is about, not a substring of it.
-    expect(picker, "the address is not printed on the list row").toContain('{c.address || "—"}');
+    // L-221: the row prints street AND town. `toContain('{c.address || "—"}')`
+    // was the old anchor and this replaces it with the expression that is
+    // actually there, for the same reason the comment above gives.
+    expect(picker, "the address is not printed on the list row").toContain(
+      '{[c.address, c.city].filter(Boolean).join(", ") || "—"}',
+    );
     expect(picker).toContain("isDeliverable(c)");
   });
 

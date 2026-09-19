@@ -4,6 +4,7 @@ import { withAuthParams } from "@/lib/api-handler";
 import { appendFiscalEvent } from "@/lib/services/fiscal";
 import { getSettings } from "@/lib/services/settings";
 import { printReceiptText, type PrinterDeps } from "@/lib/services/printer";
+import { printDeliveryNote } from "@/lib/services/delivery-note";
 
 /**
  * L-186 — the handler is built rather than declared, so the printer can be
@@ -23,7 +24,14 @@ export function createReprintHandler(deps: PrinterDeps = {}) {
 
       const order = await db.order.findUnique({
         where: { id: orderId },
-        include: { receipt: true },
+        include: {
+          receipt: true,
+          // L-222 — see `print/route.ts`. A reprint is what a cashier reaches
+          // for when the paper jammed, so it owes the driver the same two
+          // documents the first print did. Leaving it out would be the drift
+          // L-214 was about, one route away from the other.
+          customer: { select: { name: true, phone: true, address: true, city: true } },
+        },
       });
 
       if (!order) {
@@ -80,6 +88,13 @@ export function createReprintHandler(deps: PrinterDeps = {}) {
       // the till — a reprint that opened the drawer would be a way around the
       // traced manual-open path.
       const outcome = await printReceiptText(copieContent, {}, deps);
+
+      // L-222 — the slip goes with the copy. It carries no « [COPIE] » mark of
+      // its own: it is not a fiscal document, nothing counts its tirages, and
+      // the address on it is the same address it was the first time.
+      const deliveryNotePrinted = outcome.ok
+        ? await printDeliveryNote(order, settings, deps)
+        : null;
       // L-143 (R9.1): FAILED means ATTEMPTED AND FAILED. This wrote it for any
       // non-ok outcome, so a reprint with printing switched off in the settings
       // marked the receipt failed — when nothing had been tried and nothing was
@@ -101,6 +116,7 @@ export function createReprintHandler(deps: PrinterDeps = {}) {
           reprintCount: updated.reprintCount,
           createdAt: updated.createdAt,
           printed: outcome.ok,
+          deliveryNote: deliveryNotePrinted,
           ...(outcome.ok ? {} : { printMessage: outcome.message }),
         },
         { status: 201 }

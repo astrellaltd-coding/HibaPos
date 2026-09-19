@@ -217,7 +217,11 @@ export const GET = withAuth(async (req) => {
       items: true,
       payments: true,
       cashier: { select: { name: true, username: true } },
-      customer: { select: { name: true } },
+      // L-222: the four delivery fields, not the name alone. The renderers
+      // decide what reaches paper; a route that does not SELECT them takes
+      // that decision away from them, which is how the driver ended up with a
+      // ticket carrying no destination.
+      customer: { select: { name: true, phone: true, address: true, city: true } },
       shift: { select: { number: true } },
     },
     orderBy: { createdAt: "desc" },

@@ -204,11 +204,68 @@ describe("what the removal must NOT have changed", () => {
     // `src/`, so `customerSchema` and `CustomerDto` should not move at all.
     // Asserted because a removal that "tidied" them would be a behaviour
     // change smuggled in under a dead-column deletion.
+    //
+    // `city` JOINED THE LIST ON 2026-09-18 — L-221, on the operator's explicit
+    // decision, and this is the one edit this assertion is meant to survive.
+    // The owner, creating a client for a livraison at the caisse, found that a
+    // town had nowhere to go: the whole location was one free-text `address`.
+    //
+    // **THIS TEST IS NOT WEAKENED BY THE EDIT, AND THAT IS THE POINT.** It
+    // exists so that `customerSchema` cannot move by accident, and the list is
+    // still exact — it went from five names to six, once, in a commit that also
+    // carried the migration, `CustomerDto`, both customer forms, the picker's
+    // list row, the detail dialog, the three `/api/customers` routes,
+    // `DeliveryCandidate` and the bon de livraison that prints it. That is
+    // precisely what DD-15's tombstone twelve lines above `city` in
+    // `schema.prisma` asks for: a location column arrives with its readers or
+    // it does not arrive.
     const validation = readFileSync(path.join(SRC, "lib", "validation.ts"), "utf8");
     const customer = /export const customerSchema = z\.object\(\{([\s\S]*?)\}\);/.exec(validation);
     expect(customer).not.toBeNull();
     const fields = [...customer![1].matchAll(/^\s{2}(\w+):/gm)].map((m) => m[1]);
-    expect(fields).toEqual(["name", "phone", "email", "address", "notes"]);
+    expect(fields).toEqual(["name", "phone", "email", "address", "city", "notes"]);
+  });
+
+  it("L-221 — and `city` did NOT arrive alone, which is DD-15's whole lesson", () => {
+    // The assertion the one above cannot make. A field list that simply gained
+    // a name would be satisfied by the dead `postalCode` column DD-15 deleted
+    // « with a comment calling it a French delivery requirement and ZERO
+    // references in `src/` ». So this names the readers, and it fails if a
+    // later tidy-up removes any of them while leaving the column in place.
+    //
+    // EVERY NEEDLE IS AN EXPRESSION, NEVER AN id OR A LABEL, and the file is
+    // read with its COMMENTS STRIPPED. Both rules were bought with a failed
+    // revert: the first draft asserted `"customer-picker-ville"`, the revert
+    // renamed that id to `customer-picker-ville-REMOVED` — taking the box out
+    // of the form — and the assertion SURVIVED, because the old id is a
+    // substring of the new one. An id is a name somebody can change; a binding
+    // is what actually puts the town on the screen. Same lesson as L-213's
+    // `data-osk="off"` and L-214's `c.address`, for the third time.
+    const reads = (rel: string, needle: string) => {
+      const src = readFileSync(path.join(SRC, ...rel.split("/")), "utf8")
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/^\s*\/\/.*$/gm, "");
+      expect(src, `${rel} no longer reads the town`).toContain(needle);
+    };
+    reads("types/api.ts", "city: string | null;");
+    reads("lib/delivery-customer.ts", '"address", "city"');
+    reads("app/api/customers/route.ts", "city: c.city,");
+    reads("app/api/customers/[id]/detail/route.ts", "city: true,");
+    // The two forms: the BINDING, which is what fills the box and sends it.
+    reads("components/pos/customer-picker-dialog.tsx", "value={form.city}");
+    reads("components/pos/customer-picker-dialog.tsx", "city: form.city.trim() || null");
+    reads("features/catalog/customers-view.tsx", "value={form.city}");
+    reads("features/catalog/customers-view.tsx", "city: form.city.trim()");
+    // The JOIN, not the bare `detail.city`: taking the town out of the line the
+    // card prints left that needle satisfied by the `!detail.city` guard lower
+    // down the same file, and the revert stayed green. Second hole the reverts
+    // found in this one assertion.
+    reads("components/pos/customer-detail-dialog.tsx", "[detail.address, detail.city]");
+    reads("lib/services/delivery-note.ts", "customer.city");
+    // And both order routes select it, or nothing can print it.
+    reads("app/api/orders/route.ts", "city: true");
+    reads("app/api/orders/[id]/route.ts", "city: true");
+    reads("lib/services/checkout.ts", "city: true");
   });
 
   it("keeps categoryAddOnSchema, which is not the schema that was deleted", () => {

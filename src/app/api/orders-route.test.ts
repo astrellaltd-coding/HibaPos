@@ -270,11 +270,12 @@ describe("T-08 — the checkout input rules, against the schema the route runs",
     expect(await db.order.count()).toBe(0);
   });
 
-  it("accepts LIVRAISON with a customer who has name, phone and address", async () => {
+  it("accepts LIVRAISON with a customer who has name, phone, address and town", async () => {
     // CONTROL, and it pins what "a customer" has to mean: the route demands
-    // all three, so a customer row with only a name is still refused.
+    // all four, so a customer row with only a name is still refused. L-221
+    // added the town on 2026-09-18, on the operator's decision.
     const customer = await db.customer.create({
-      data: { name: "Jean Dupont", phone: "0612131415", address: "1 rue Test" },
+      data: { name: "Jean Dupont", phone: "0612131415", address: "1 rue Test", city: "Lyon" },
     });
     const { status } = await post({
       orderType: "LIVRAISON",
@@ -294,7 +295,7 @@ describe("T-08 — the checkout input rules, against the schema the route runs",
     // The refusal is tested HERE as well as in `delivery-customer.test.ts`
     // because a rule test proves the rule and not that the route calls it.
     const customer = await db.customer.create({
-      data: { name: "Sans Téléphone", address: "1 rue Test" },
+      data: { name: "Sans Téléphone", address: "1 rue Test", city: "Lyon" },
     });
     const { status, body } = await post({
       orderType: "LIVRAISON",
@@ -305,6 +306,29 @@ describe("T-08 — the checkout input rules, against the schema the route runs",
     expect(status).toBe(400);
     expect(body.error).toContain("livraison");
     expect(body.error, "the refusal does not say WHICH field is missing").toContain("téléphone");
+    expect(await db.order.count()).toBe(0);
+  });
+
+  it("REFUSES LIVRAISON to a customer with NO TOWN — L-221", async () => {
+    // Tested HERE as well as in `delivery-customer.test.ts` for the reason the
+    // test above gives: a rule test proves the rule and not that the route
+    // calls it. This project has shipped that gap three times.
+    //
+    // The client the owner made at the caisse on 2026-09-18: a name, a phone
+    // and a street, because there was no box for a town anywhere. Yesterday
+    // this order was accepted and the driver got a street with no commune.
+    const customer = await db.customer.create({
+      data: { name: "Sans Ville", phone: "0612131415", address: "1 rue Test" },
+    });
+    const { status, body } = await post({
+      orderType: "LIVRAISON",
+      customerId: customer.id,
+      items: [{ productId: product.id, quantity: 1, optionIds: [], addons: [] }],
+      payments: [{ method: "CASH", amount: product.price }],
+    });
+    expect(status).toBe(400);
+    expect(body.error).toContain("livraison");
+    expect(body.error, "the refusal does not name the town").toContain("ville");
     expect(await db.order.count()).toBe(0);
   });
 

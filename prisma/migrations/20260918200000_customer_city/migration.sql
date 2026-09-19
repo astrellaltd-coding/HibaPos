@@ -1,0 +1,32 @@
+-- L-221 — the town a delivery goes to, as a column of its own.
+--
+-- REPORTED by the restaurant's owner at the caisse on 2026-09-18, creating a
+-- client for a livraison: there was nowhere to put the town. A client's whole
+-- location was one free-text `address` string, and the only thing saying a town
+-- belonged in it was a placeholder.
+--
+-- DD-15'S TOMBSTONE IS TWELVE LINES ABOVE THIS COLUMN IN `schema.prisma`, and
+-- it is about this exact mistake: a `postalCode` column was DELETED from this
+-- model for having « ZERO references in `src/` — not in `customerSchema`, not
+-- in `CustomerDto`, not in the delivery form ». So the readers land in the SAME
+-- COMMIT as this migration: `customerSchema`, `CustomerDto`, both customer
+-- forms, the picker's list row, the detail dialog, the three `/api/customers`
+-- routes, `DeliveryCandidate`, the two order routes' selects, and the bon de
+-- livraison that prints it. The operator's decision, 2026-09-18.
+--
+-- NULLABLE, like `address` beside it. Not because a town is optional on a
+-- delivery — it is required, and `missingForDelivery` refuses without one since
+-- this commit — but because the column has to accept the clients that already
+-- exist. A `NOT NULL DEFAULT ''` would mean « every existing client is in the
+-- town whose name is the empty string », which is a claim, not a default.
+--
+-- NO INDEX. SQLite cannot use one for the `contains` search the customers list
+-- does (`%q%`), the table is small, and `20260829165200_drop_redundant_indexes`
+-- is this project's record of what unused indexes cost.
+--
+-- ADD COLUMN with no default, which SQLite performs in place — deliberately not
+-- the generator's RedefineTables block for `Customer`, because `Order.customerId`
+-- points at it. Same argument as `20260910233000_product_show_on_pos`.
+
+-- AlterTable
+ALTER TABLE "Customer" ADD COLUMN "city" TEXT;

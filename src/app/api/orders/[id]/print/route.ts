@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { withAuthParams } from "@/lib/api-handler";
 import { getSettings } from "@/lib/services/settings";
 import { printReceiptText, type PrinterDeps } from "@/lib/services/printer";
+import { printDeliveryNote } from "@/lib/services/delivery-note";
 
 /**
  * POST /api/orders/[id]/print — print the ticket for a completed sale.
@@ -39,7 +40,14 @@ export function createPrintHandler(deps: PrinterDeps = {}) {
 
     const order = await db.order.findUnique({
       where: { id: orderId },
-      include: { receipt: true, payments: { select: { method: true } } },
+      include: {
+        receipt: true,
+        payments: { select: { method: true } },
+        // L-222: the driver's destination. This route selected the receipt and
+        // the payment methods and nothing else, so even a renderer that wanted
+        // to print an address had none to print.
+        customer: { select: { name: true, phone: true, address: true, city: true } },
+      },
     });
 
     if (!order) {
@@ -57,6 +65,22 @@ export function createPrintHandler(deps: PrinterDeps = {}) {
     const openDrawer = paidWithCash && settings.openDrawerOnCash !== false;
 
     const outcome = await printReceiptText(order.receipt.content, { openDrawer }, deps);
+
+    // L-222 — THE BON DE LIVRAISON, a second piece of paper on a delivery.
+    //
+    // AFTER the receipt and never instead of it: the sealed ticket is the
+    // document that matters, and it carries the customer's NAME. This slip
+    // carries the telephone number and the address, and is not stored anywhere
+    // — the operator's decision of 2026-09-18, so that a customer's home never
+    // enters `Receipt.content` and, through it, the annual fiscal archive.
+    //
+    // `printDeliveryNote` answers `null` when no slip is owed, so the rule
+    // « which orders get one » lives in one place and both print routes ask it.
+    // Nothing here can fail the receipt or move `printStatus`: a slip that does
+    // not come out is a reprint away and the sale is already journalled.
+    const deliveryNotePrinted = outcome.ok
+      ? await printDeliveryNote(order, settings, deps)
+      : null;
 
     // Record what actually happened — L-143 (R9.1) settled which of the two
     // routes was right, because they disagreed.
@@ -91,6 +115,10 @@ export function createPrintHandler(deps: PrinterDeps = {}) {
       {
         printed: outcome.ok,
         drawerOpened: outcome.ok && openDrawer,
+        // `null` = no slip was owed; true/false = whether it came out. Three
+        // states rather than two, because « there was nothing to print » and
+        // « it failed » are different things to tell a cashier (L-143).
+        deliveryNote: deliveryNotePrinted,
         ...(outcome.ok ? {} : { reason: outcome.reason, message: outcome.message }),
       },
       { status: 200 },

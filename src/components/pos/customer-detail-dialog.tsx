@@ -35,6 +35,8 @@ type CustomerDetail = {
   phone: string | null;
   email: string | null;
   address: string | null;
+  /** L-221 — the town, its own column since 2026-09-18. */
+  city: string | null;
   notes: string | null;
   createdAt: string;
   stats: {
@@ -113,13 +115,14 @@ export function CustomerDetailDialog({
                     <span className="truncate">{detail.email}</span>
                   </div>
                 )}
-                {detail.address && (
+                {/* L-221: street and town on one line, as an address reads. */}
+                {(detail.address || detail.city) && (
                   <div className="col-span-2 flex items-center gap-2">
                     <MapPin className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    <span>{detail.address}</span>
+                    <span>{[detail.address, detail.city].filter(Boolean).join(", ")}</span>
                   </div>
                 )}
-                {!detail.phone && !detail.email && !detail.address && (
+                {!detail.phone && !detail.email && !detail.address && !detail.city && (
                   <p className="col-span-2 text-sm text-muted-foreground">Aucune coordonnée renseignée</p>
                 )}
               </div>

@@ -64,7 +64,7 @@ export function CustomerPickerDialog({
   const [search, setSearch] = useState("");
   /** `null` = the list; `"new"` = the create form; a DTO = editing that client. */
   const [editing, setEditing] = useState<CustomerDto | "new" | null>(null);
-  const [form, setForm] = useState({ name: "", phone: "", address: "" });
+  const [form, setForm] = useState({ name: "", phone: "", address: "", city: "" });
   const queryClient = useQueryClient();
 
   /**
@@ -77,7 +77,7 @@ export function CustomerPickerDialog({
    */
   const close = () => {
     setEditing(null);
-    setForm({ name: "", phone: "", address: "" });
+    setForm({ name: "", phone: "", address: "", city: "" });
     onOpenChange(false);
   };
 
@@ -91,6 +91,7 @@ export function CustomerPickerDialog({
     name: form.name.trim(),
     phone: form.phone.trim() || null,
     address: form.address.trim() || null,
+    city: form.city.trim() || null,
   });
 
   const createMutation = useMutation({
@@ -130,7 +131,12 @@ export function CustomerPickerDialog({
   });
 
   const pending = createMutation.isPending || updateMutation.isPending;
-  const draft = { name: form.name.trim(), phone: form.phone.trim(), address: form.address.trim() };
+  const draft = {
+    name: form.name.trim(),
+    phone: form.phone.trim(),
+    address: form.address.trim(),
+    city: form.city.trim(),
+  };
   const missing = missingForDelivery(draft);
   /**
    * WHAT THE FORM REQUIRES depends on the order, and on nothing else.
@@ -144,7 +150,7 @@ export function CustomerPickerDialog({
 
   const startEdit = (c: CustomerDto) => {
     setEditing(c);
-    setForm({ name: c.name, phone: c.phone ?? "", address: c.address ?? "" });
+    setForm({ name: c.name, phone: c.phone ?? "", address: c.address ?? "", city: c.city ?? "" });
   };
 
   const submit = () => {
@@ -166,7 +172,7 @@ export function CustomerPickerDialog({
           <p className="text-sm text-muted-foreground">
             {editing
               ? forDelivery
-                ? "Une livraison demande le nom, le téléphone et l'adresse."
+                ? "Une livraison demande le nom, le téléphone, l'adresse et la ville."
                 : "Le nom suffit pour une commande sur place ou à emporter."
               : forDelivery
                 ? "Livraison : choisissez un client livrable, ou complétez sa fiche."
@@ -212,7 +218,28 @@ export function CustomerPickerDialog({
                 id="customer-picker-adresse"
                 value={form.address}
                 onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
-                placeholder="12 rue de Paris, 75001 Paris"
+                placeholder="12 rue des Lilas"
+              />
+            </div>
+            <div>
+              {/* L-221 — THE VILLE BOX. There was none, anywhere: a client's
+                * whole location was this one free-text `Adresse`, and the only
+                * thing saying a town belonged in it was the placeholder — which
+                * is why the owner, creating a client for a livraison on
+                * 2026-09-18, found the town had nowhere to go. It is a real
+                * column (`Customer.city`) and not a second half of the string
+                * above, which is what makes « combien de livraisons à
+                * Villeurbanne » answerable. The star follows the same rule as
+                * the two boxes above it, and that rule is
+                * `DELIVERY_REQUIRED_FIELDS`. */}
+              <Label htmlFor="customer-picker-ville" className="mb-1.5 block text-xs">
+                Ville {forDelivery && <span className="text-destructive">*</span>}
+              </Label>
+              <Input
+                id="customer-picker-ville"
+                value={form.city}
+                onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))}
+                placeholder="Villeurbanne"
               />
             </div>
 
@@ -261,7 +288,7 @@ export function CustomerPickerDialog({
                 size="sm"
                 className="mt-2 h-11 min-h-[44px] w-full gap-1.5"
                 onClick={() => {
-                  setForm({ name: "", phone: "", address: "" });
+                  setForm({ name: "", phone: "", address: "", city: "" });
                   setEditing("new");
                 }}
               >
@@ -297,9 +324,13 @@ export function CustomerPickerDialog({
                               <Phone className="h-3 w-3 shrink-0" />
                               {c.phone || "—"}
                             </p>
+                            {/* L-221: the town is on the row beside the street.
+                               * The row exists (L-214) so a cashier can see which
+                               * regulars are deliverable; a street with no town is
+                               * a street in every town. */}
                             <p className="flex items-center gap-1 truncate text-xs text-muted-foreground">
                               <MapPin className="h-3 w-3 shrink-0" />
-                              {c.address || "—"}
+                              {[c.address, c.city].filter(Boolean).join(", ") || "—"}
                             </p>
                             {forDelivery && !deliverable && (
                               <p className="mt-0.5 text-[11px] font-medium text-amber-600 dark:text-amber-400">

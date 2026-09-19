@@ -24,10 +24,19 @@
  * The driver has to be able to ring. Nothing that gets booked changed — the
  * server has demanded all three since it was written — what changed is that the
  * screen now asks for what the server will insist on.
+ *
+ * L-221 — THE TOWN JOINED THE RULE on 2026-09-18, and this is the one place it
+ * had to join. The owner, at the caisse, found that a client had nowhere to put
+ * one; the operator decided both that `Customer` gets a real `city` column and
+ * that a delivery may not be booked without it. Adding the column and leaving
+ * this list at three would have been exactly DD-15's deleted `postalCode`
+ * again: a location field nothing reads. It is a BEHAVIOUR CHANGE — a client
+ * who was deliverable yesterday with no town is refused today — and it is the
+ * decision, not a side effect. Nothing had traded when it was taken.
  */
 
-/** The three fields, in the order the screen asks for them. */
-export const DELIVERY_REQUIRED_FIELDS = ["name", "phone", "address"] as const;
+/** The four fields, in the order the screen asks for them. */
+export const DELIVERY_REQUIRED_FIELDS = ["name", "phone", "address", "city"] as const;
 
 export type DeliveryField = (typeof DELIVERY_REQUIRED_FIELDS)[number];
 
@@ -36,6 +45,8 @@ export interface DeliveryCandidate {
   name?: string | null;
   phone?: string | null;
   address?: string | null;
+  /** L-221. A street with no town is a street in every town. */
+  city?: string | null;
 }
 
 /** French for each field, with its article, ready to drop into a sentence. */
@@ -43,6 +54,7 @@ const LABELS: Record<DeliveryField, string> = {
   name: "le nom",
   phone: "le téléphone",
   address: "l'adresse",
+  city: "la ville",
 };
 
 /**

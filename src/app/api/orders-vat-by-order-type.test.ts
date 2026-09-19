@@ -76,11 +76,12 @@ beforeEach(async () => {
   const p = await db.product.create({
     data: { name: "Margarita", price: 900, vatRate: 10, inheritCategoryVat: true, categoryId: food.id, active: true, available: true },
   });
-  // LIVRAISON is refused outright without a customer carrying name, phone and
-  // address — `orders/route.ts` enforces it — so the delivery arm of the
-  // operator's ruling cannot be tested without one.
+  // LIVRAISON is refused outright without a customer carrying name, phone,
+  // address and town — `orders/route.ts` enforces it — so the delivery arm of
+  // the operator's ruling cannot be tested without one. The town joined the
+  // rule with L-221 on 2026-09-18.
   const cust = await db.customer.create({
-    data: { name: "Client Test", phone: "0600000000", address: "1 rue du Test" },
+    data: { name: "Client Test", phone: "0600000000", address: "1 rue du Test", city: "Lyon" },
   });
   customer = { id: cust.id };
 

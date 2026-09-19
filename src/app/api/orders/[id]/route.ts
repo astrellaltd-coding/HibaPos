@@ -9,7 +9,8 @@ export const GET = withAuthParams(async (_req, { params }) => {
       items: true,
       payments: true,
       cashier: { select: { name: true, username: true } },
-      customer: { select: { name: true } },
+      // L-222 — see `orders/route.ts`. Both routes select the same four.
+      customer: { select: { name: true, phone: true, address: true, city: true } },
       shift: { select: { number: true } },
       refunds: { include: { cashier: { select: { name: true } } } },
     },

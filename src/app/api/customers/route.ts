@@ -14,6 +14,11 @@ export const GET = withAuth(async (req) => {
             { name: { contains: q } },
             { phone: { contains: q } },
             { email: { contains: q } },
+            // L-221: the town is searchable. It is the reason the operator
+            // chose a column over a second box folded into `address` — « which
+            // of my clients are in Villeurbanne » is not a question free text
+            // can answer.
+            { city: { contains: q } },
           ],
         }
       : {},
@@ -28,6 +33,7 @@ export const GET = withAuth(async (req) => {
       phone: c.phone,
       email: c.email,
       address: c.address,
+      city: c.city,
       notes: c.notes,
       createdAt: c.createdAt,
       orderCount: c._count.orders,

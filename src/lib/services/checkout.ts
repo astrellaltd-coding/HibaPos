@@ -152,7 +152,11 @@ const ORDER_DTO_INCLUDE = {
   items: true,
   payments: true,
   cashier: { select: { name: true, username: true } },
-  customer: { select: { name: true } },
+  // L-222: the four delivery fields. This include is what `renderReceipt` is
+  // handed inside the transaction, so a narrower select here would mean the
+  // SEALED ticket could never name the customer however the renderer was
+  // written.
+  customer: { select: { name: true, phone: true, address: true, city: true } },
   shift: { select: { number: true } },
   // L-97 (R9.1): the SEALED receipt text, so the till can print the archived
   // document rather than re-render one from the DTO. `renderReceipt` writes

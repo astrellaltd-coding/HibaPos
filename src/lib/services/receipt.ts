@@ -176,6 +176,26 @@ export function renderReceipt(order: OrderDto, settings?: Partial<SettingsDto>):
   pushLeftRight(`Caissier : ${order.cashier?.name ?? "-"}`, `Service ${order.shift?.number ?? "-"}`);
   const typeLabel = order.orderType === "DINE_IN" ? "Sur place" : order.orderType === "TAKEAWAY" ? "À emporter" : "Livraison";
   pushLeftRight(`Type : ${typeLabel}`, order.tableLabel ? `Table : ${order.tableLabel}` : "");
+  // L-222 — WHO THE DELIVERY IS FOR, and only that.
+  //
+  // THE FINDING, from the restaurant's owner at the caisse on 2026-09-18: this
+  // ticket said « Type : Livraison » and nothing whatever about who or where,
+  // so the driver was handed a ticket with no destination on it. A search of
+  // this file for « customer » found only comments.
+  //
+  // THE NAME AND NOT THE ADDRESS is the operator's decision of the same day,
+  // and the reason is what this text IS. `Receipt.content` is sealed: nothing
+  // in the application rewrites it, and `buildAnnualArchive` copies it verbatim
+  // into the archive file for the exercice. A name identifies the bag; a
+  // telephone number and a home address in an archived fiscal document are
+  // permanent and serve no fiscal purpose. Those go on the BON DE LIVRAISON
+  // (`delivery-note.ts`), which is printed for the driver and never stored.
+  //
+  // Delivery only. No sur-place or à-emporter ticket moves, which is what keeps
+  // this to one line on one kind of document.
+  if (order.orderType === "LIVRAISON" && order.customer?.name) {
+    lines.push(...marked("", `Client : ${order.customer.name}`, w));
+  }
   lines.push("-".repeat(w));
 
   // The chosen options of one article, as indented price-less lines. Extracted

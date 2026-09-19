@@ -153,6 +153,8 @@ export type CustomerDto = {
   phone: string | null;
   email: string | null;
   address: string | null;
+  /** L-221 — the town, its own column since 2026-09-18. */
+  city: string | null;
   notes: string | null;
   createdAt: string;
   orderCount?: number;
@@ -219,7 +221,19 @@ export type OrderDto = {
   items: OrderItemDto[];
   payments: PaymentDto[];
   cashier?: { name: string; username: string };
-  customer?: { name: string } | null;
+  /**
+   * L-222 — the customer, widened from `{ name }` alone on 2026-09-18.
+   *
+   * THE FINDING: this said `{ name: string }` and both order routes selected
+   * exactly that, so a delivery's telephone number and address never left the
+   * database and the driver was handed a ticket with no destination on it.
+   *
+   * The four fields are what a delivery needs (`DELIVERY_REQUIRED_FIELDS`).
+   * Where they are allowed to be PRINTED is the operator's decision of the same
+   * day and is not this type's business: the sealed `Receipt.content` carries
+   * the name only, and the non-fiscal bon de livraison carries the rest.
+   */
+  customer?: { name: string; phone: string | null; address: string | null; city: string | null } | null;
   shift?: { number: number };
   /**
    * L-97 (R9.1) — the SEALED receipt text, `Receipt.content`.

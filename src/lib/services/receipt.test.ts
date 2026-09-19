@@ -191,10 +191,66 @@ describe("renderReceipt", () => {
       ...baseOrder,
       orderType: "LIVRAISON",
       tableLabel: null,
-      customer: { name: "Jean Dupont" },
+      customer: { name: "Jean Dupont", phone: "0612131415", address: "12 rue des Lilas", city: "Villeurbanne" },
     };
     const text = renderReceipt(delivery, baseSettings);
     expect(text).toContain("Livraison");
+  });
+
+  // L-222 — WHAT A DELIVERY TICKET SAYS ABOUT WHO AND WHERE.
+  //
+  // THE FINDING, reported by the restaurant's owner at the caisse on
+  // 2026-09-18: the delivery ticket said « Type : Livraison » and nothing
+  // whatever else, so the driver was handed a ticket with no destination on it.
+  //
+  // The test above it has rendered a LIVRAISON ticket since it was written and
+  // read only the word « Livraison » — with `customer: { name: "Jean Dupont" }`
+  // sitting in its own fixture, unasserted. That is why nothing pointed at this.
+  //
+  // THE OPERATOR'S DECISION, 2026-09-18, and both halves of it are pinned here.
+  // `Receipt.content` is the sealed document: nothing in the app can rewrite it
+  // and `buildAnnualArchive` copies it verbatim into the archive file for the
+  // year. So the NAME goes on it — the kitchen and the driver need to match the
+  // bag to a person — and the telephone number and the home address do NOT.
+  // They go on the bon de livraison, which is printed and never stored.
+  describe("L-222 — a delivery ticket names the customer and not their home", () => {
+    const delivery: TestOrder = {
+      ...baseOrder,
+      orderType: "LIVRAISON",
+      tableLabel: null,
+      customer: { name: "Jean Dupont", phone: "0612131415", address: "12 rue des Lilas", city: "Villeurbanne" },
+    };
+
+    it("NAMES THE CUSTOMER, which it did not", () => {
+      const text = renderReceipt(delivery, baseSettings);
+      expect(text, "the sealed delivery ticket still says nothing about who").toContain("Client : Jean Dupont");
+    });
+
+    it("KEEPS THE ADDRESS AND THE TELEPHONE OFF THE SEALED TICKET", () => {
+      // The half that is a decision rather than a layout. This text is archived
+      // for the exercice; a customer's home has no business in it.
+      const text = renderReceipt(delivery, baseSettings);
+      expect(text, "a home address reached the sealed, archived receipt").not.toContain("12 rue des Lilas");
+      expect(text, "the town reached the sealed, archived receipt").not.toContain("Villeurbanne");
+      expect(text, "a telephone number reached the sealed, archived receipt").not.toContain("0612131415");
+    });
+
+    it("says nothing about a customer on a SUR PLACE or A EMPORTER ticket", () => {
+      // The other direction, and it is the one that keeps this change small:
+      // the decision was about the delivery ticket, so no other ticket moves.
+      for (const orderType of ["DINE_IN", "TAKEAWAY"] as const) {
+        const text = renderReceipt({ ...delivery, orderType }, baseSettings);
+        expect(text, `${orderType} grew a customer line`).not.toContain("Client :");
+      }
+    });
+
+    it("prints no customer line at all when a delivery has no customer row", () => {
+      // Defensive rather than reachable: the route refuses a LIVRAISON without
+      // a deliverable client. An empty « Client : » on paper would be worse
+      // than nothing, so the line is absent, not blank.
+      const text = renderReceipt({ ...delivery, customer: null }, baseSettings);
+      expect(text).not.toContain("Client :");
+    });
   });
 
   it("does NOT render a refunds section (fiscal receipt is immutable at sale time)", () => {
