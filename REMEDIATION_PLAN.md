@@ -120,10 +120,15 @@ every trading table is at zero.
 > now says to give `DATABASE_URL` a Windows-form path. **Its open question is now L-223**, the
 > operator having answered « record it, not now »: the rehearsal half stays a bare command.
 >
-> **TWO ARE OPEN AND NEITHER IS STARTED**, both in `docs/audit/FINDINGS.md`: **L-221**, no
-> `ville` field anywhere on a client · **L-222**, a delivery ticket saying « Type : Livraison »
-> and nothing about who or where. **They are one workflow**, and L-222 needs a decision first:
-> `Receipt.content` is sealed, so a home address in it is undeletable.
+> **L-221, L-222 AND L-224 ARE CLOSED** (2026-09-19) — the delivery workflow the owner reported
+> from the caisse. `f28b6d7`: a client has a real `city` column with all eleven readers in the
+> one commit, a town is required for a livraison, the sealed ticket names the customer, and a
+> delivery also prints a **non-fiscal bon de livraison** carrying the address — the operator's
+> decision, because `buildAnnualArchive` copies the sealed text verbatim into the archive file.
+> `9270a00`: the telephone number typed into the picker's search is carried into the new-client
+> form. **Two reverts stayed green and both were the test's fault**, a substring anchor and a
+> needle matched by the wrong occurrence; both are bindings now. **A migration is pending on the
+> France till** — see *Awaiting the operator*.
 
 **Phases 0-5 and 7 are COMPLETE**, with all four operator items and all three migrations
 applied. What each did, how it was verified and what it cost is in `REMEDIATION_DONE.md`;
@@ -178,7 +183,12 @@ audit exercised produced screen figures matching the database to the cent.
 ### Awaiting the operator
 
 
-*(**No migration is waiting.** L-171's was applied by the operator on 2026-09-14 and
+- **`20260918200000_customer_city` IS PENDING ON THE FRANCE TILL** (L-221, 2026-09-19). One
+  `ADD COLUMN`, nullable, in place. Rehearsed on a copy: `city` present, 20 migrations, 86 products
+  intact. **The app applies it itself at startup behind a verified backup** (PREP-4), as L-217's
+  went in — so a restart is the apply, and taking a backup off the machine first is the care it
+  deserves.
+*(**No migration is waiting on THIS machine.** L-171's was applied by the operator on 2026-09-14 and
   **verified**: the live fingerprint is identical to the rehearsal's on every key, checksums
   included, `integrity_check` ok, zero FK errors, `migrate status` up to date, and a refund with
   an attribution round-tripped through the real service on a copy. R8.2's is applied too —
@@ -200,36 +210,11 @@ printer are in France. So R6.1-R6.3 belong to that install, not to this machine,
 **nothing in the app exports or imports a catalogue today** — carrying it is unsolved.
 `FISCAL_CHAIN_KEY` is in `.env`, `factice` is in the database: they do not travel together.
 
-**Last updated:** 2026-09-13 — **PHASE 8 IS COMPLETE.** **R8.6 done** (`88ea4c3`): a day whose only event was a refund can no longer be skipped — its absence became permanent once a later day was sealed — the premature-close refusal agrees with its own noun, and « a close equals the sum of its Z reports » is narrowed to the true statement and finally has a test, with the straddling-shift caveat written up for the accountant. **L-153 closed early** out of R9.7, because R8.6 made it fail. Seventeen task rows became sixteen and Phase 8's section left the file. Earlier the same day — **R8.5** (`6ccc13f`): a supplement carries its own VAT
-rate and gets its own line when that rate differs from the one it is added to; the add-on
-quantity is snapshotted and bounded; a short `tendered` is refused rather than sealing a
-negative change; and **L-134 is answered — sur place and à emporter cost the same, so a sized
-product's `Product.price` cancelling is intended**, pinned by tests, with the
-`docs/INVARIANTS.md` paragraph drafted and HELD for the operator. Eighteen task rows became
-seventeen. **A SECOND MIGRATION IS PENDING** and the apply command changed — see *Awaiting the
-operator*. Earlier the same day — **R8.4** (`31ebd9d`): report periods sit on the
-trading-day cut-off, so a filed VAT figure measures the same window the sealed close measured;
-**the operator decided to snap AND say so**, and the screen states the boundaries the server
-returned rather than the dates typed into the boxes. Nineteen task rows became eighteen.
-Earlier the same day — **R8.3** (`6a580dd`): a category save reconciles its
-option groups by id instead of replacing them, so the seven menu rules that pin `Pizzas →
-Taille` survive it, and a save that would remove one is refused in French naming the menu.
-**The client had to be fixed in the same commit** — it sent no ids at all, so match-by-id
-alone would have changed nothing. Twenty task rows became nineteen. Earlier the same day —
-**R8.2** (`67d0347`): a double-tap no longer books the
-sale twice, a lost response no longer re-rings it, and the OFFERT tender stops crashing the
-POS. **Its migration is rehearsed and awaits the operator** (see above). Twenty-one task rows
-became twenty. **L-185 recorded, and L-154 escalated from « has not yet bitten » to bitten.**
-Earlier the same day — **R9.2** (`1d010b8`), and with it **the whole execution
-order**: the startup migration gate no longer reports a half-applied schema as `UP_TO_DATE`,
-a deploy that says it failed is a failure, and every startup failure leaves a row rather than
-a stdout line. Twenty-two task rows became twenty-one. Earlier the same day: **R8.1**
-(`622411c`) — the settings defaults agree and the write splits by field, so **R6.3 is
-reachable from the till** — and **R9.6** (`f918578`) —
-the authorization map distinguishes a guard from a no-op — which recorded **L-183 and L-184**
-in a new *Found after the audit* section of `docs/audit/FINDINGS.md` that keeps the audit's 94
-(L-89 … L-182) a closed set. 2026-09-12: **R8.0** (`f68dcf6`), and the audit was phased into
-Phases 8-10. § 7 unchanged at nine.
+**Last updated:** 2026-09-19 — L-221, L-222 and L-224 closed; a migration is pending on the
+France till. *(The batch-by-batch recap that stood here from 2026-09-13 — R8.0 … R8.6, R9.2, R9.6
+and the audit's phasing — was retired to `REMEDIATION_DONE.md` on 2026-09-19 to make room. Every
+line of it is in that file's own entries, which is where a reader should have been looking: this
+paragraph was a second copy, and the only part of § 1 that was not outstanding work.)*
 
 ## 2. HOW TO WORK HERE
 

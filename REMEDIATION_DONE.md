@@ -99,6 +99,9 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - L-220 — the count boxes come from the category, so a create screen shows them
 - L-219 — a supplement's count reaches the paper, the screens and a reorder
 - L-218 — the rehearsal that congratulated itself on an empty database it had just created
+- L-221 + L-222 — a delivery client has a town, and the driver gets the address
+- L-224 — the telephone number is typed once, not twice
+- Retired from the plan's § 1 on 2026-09-19 — the 2026-09-13 batch recap
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -5791,6 +5794,189 @@ decide it, so both halves were run and neither was implemented:
   migrations, `win-form.db` and `via-script.db` at 19). Disposable.
 - **The plan is at 40 527 of 40 960 bytes**, 433 left. The next item that needs room will have to
   retire something.
+
+---
+
+### L-221 + L-222 — a delivery client has a town, and the driver gets the address
+**Done:** 2026-09-19 · **Commit:** `f28b6d7` · **Findings:** L-221, L-222. **No plan row** — § 6
+holds nothing that is a session's and § 7 is closed, so this was its own item.
+
+**Reported by the restaurant's owner at the caisse on 2026-09-18**, trying a livraison. Two halves
+of one workflow: there was no VILLE field anywhere on a client, and the delivery ticket said
+« Type : Livraison » and nothing whatever about who or where. **The driver was handed a ticket with
+no destination on it.**
+
+**TWO DECISIONS WERE BROUGHT TO THE OPERATOR IN PLAIN LANGUAGE BEFORE ANY CODE**, with a worked
+example of each shape, and both were answered 2026-09-18.
+
+**What the brief got wrong, and it changed the question.** The row said `Receipt.content` is sealed
+into the append-only journal. It is **not hashed into the fiscal chain** — the VENTE payload carries
+totals, counts, order type, payments and the cashier (`sale-journal.ts:54`), not the ticket text.
+What makes it permanent is that nothing in the application rewrites it — the only production writes
+to `Receipt` are `printStatus`, `printedAt` and `reprintCount` — **and that `buildAnnualArchive`
+includes `receipt: true` on every order** (`fiscal.ts:1167`), so the text is copied VERBATIM into the
+annual archive file destined for the administration. That is the fact the decision turned on, and it
+was measured rather than repeated.
+
+**DECISION 1 — a real `city` column** (L-221), not a second box folded into `address`. The readers
+land in the same commit, which is the whole of DD-15's lesson twelve lines above it in
+`schema.prisma`: `customerSchema` · `CustomerDto` · both customer forms · the picker's list row ·
+the detail dialog · the three `/api/customers` routes, including the search filter · the two order
+routes' selects · `checkout.ts`'s own include · `DeliveryCandidate` · the renderer that prints it.
+**The timing is what made it free**: this machine's database holds 0 customers and
+`pre-golive-reset.ts` deletes `Customer` with the sales, so there was no address string to split —
+and there never will be again.
+
+**DECISION 2 — the address does NOT go in the sealed ticket** (L-222). It gains the customer's
+**name**, which the kitchen and the driver use to match a bag to a person; the telephone number, the
+address, the town and the order's own note go on a **non-fiscal « BON DE LIVRAISON »** that is
+printed and never stored, never journalled, never archived. No total, no VAT, no ticket number, no
+SIRET, no software identity line. Leaving the money off is deliberate: the sale is settled at the
+till before this prints, and a figure would invite the slip being handed over as a receipt.
+
+**THE TOWN IS REQUIRED FOR A LIVRAISON** — the operator's third answer — so it joined
+`DELIVERY_REQUIRED_FIELDS` and not merely the form. A client who was deliverable yesterday with no
+town is refused today. L-214 made that function the single rule, so the cart panel, the picker and
+`POST /api/orders` all learned it at once.
+
+**What changed:** `prisma/schema.prisma` + `20260918200000_customer_city` · `lib/validation.ts` ·
+`types/api.ts` (`CustomerDto.city`, and `OrderDto.customer` widened from `{ name }` alone) ·
+`lib/delivery-customer.ts` · three `/api/customers` routes · both order routes · `checkout.ts` ·
+`lib/services/receipt.ts` · **new** `lib/services/delivery-note.ts` · both print routes · the two
+customer forms · the POS customer card. 26 files, +1 126 lines.
+
+**`printDeliveryNote` lives beside the renderer and BOTH print routes call it**, so neither decides
+for itself when a slip is owed — and the REPRINT owes the driver the same two documents the first
+print did. It returns three states, not two: `null` « none was owed », `true`/`false` for whether
+the paper came out, because collapsing those is how `printStatus` came to mean two things (L-143).
+
+**How it was verified:** 2 049 pass / 0 fail / 157 files, typecheck and lint clean, and **21
+reverts, one property at a time, in both directions**. RED: the town leaves the rule (7 tests) · the
+customers list stops returning it · `customerSchema` forgets it · the picker's box removed · the
+picker stops sending it · Réglages loses its box · Réglages stops sending it · the card stops showing
+it · the ticket stops naming the customer · **the address is put INTO the sealed ticket** (the other
+direction) · the first print stops printing the slip (3) · the reprint stops printing it (2) · the
+slip is attempted after the ticket failed · a sur-place order gets a slip (2) · the slip grows a
+TOTAL · the slip stops wrapping to the paper.
+
+**TWO REVERTS STAYED GREEN AND BOTH WERE THE TEST'S FAULT.** Renaming the Ville box's id to
+`customer-picker-ville-REMOVED` passed, because the old id is a **substring** of the new one — the
+third time this project has had an assertion match more than it means (L-213's `data-osk="off"`,
+L-214's `c.address`). And taking the town off the customer card passed, because `detail.city` also
+appears in the « no contact details » guard lower in the same file. **Both anchors are now
+BINDINGS** — `value={form.city}`, `[detail.address, detail.city]` — and the `reads()` helper strips
+comments before matching. Re-run: both RED.
+
+**A test rendered a LIVRAISON ticket all along and read only the word « Livraison »** —
+`receipt.test.ts:189`, with `customer: { name: "Jean Dupont" }` sitting unasserted in its own
+fixture. That is the precise reason nothing pointed at L-222. There is now a test that drives a real
+print through the route and reads the captured ESC/POS bytes **per job**, so « it is on the paper
+somewhere » cannot pass.
+
+**Left behind:**
+
+- **THE MIGRATION IS NOT APPLIED to any real installation by this commit.** `ALTER TABLE "Customer"
+  ADD COLUMN "city" TEXT` — in place, nullable, no index (SQLite cannot use one for the `contains`
+  search, and `20260829165200_drop_redundant_indexes` is this project's record of what unused
+  indexes cost). Rehearsed on a copy of the live database: `city` present, 20 migrations, 86
+  products intact. **The France till applies it itself at startup behind a verified backup**
+  (PREP-4), which is how L-217's went in.
+- **NOT COVERED, and said out loud rather than papered over**: nothing asserts that the customer
+  card's « Aucune coordonnée renseignée » line accounts for the town. Reverting that guard stays
+  green. It is cosmetic, on a read-only card, and an assertion on that guard's text is the exact
+  fragile anchor that had just bitten twice.
+- **The slip carries no amount.** Deliberate, and reversible: if the restaurant ever takes cash at
+  the door, the driver will want a figure and this is the decision to revisit.
+- **`OrderDto.customer` is now four fields wide.** Where they may be PRINTED is not that type's
+  business, and the two renderers disagree on purpose.
+
+---
+
+### L-224 — the telephone number is typed once, not twice
+**Done:** 2026-09-19 · **Commit:** `9270a00` · **Finding:** L-224. **No plan row.**
+
+**The owner, reviewing the above in a scratch-copy preview the same session**: you type the
+customer's telephone number into the picker's search, find nothing because they are new, click
+« Créer un nouveau client » — and the form opens EMPTY. You type the same number again, with a queue
+waiting.
+
+**What changed:** whatever is in the search box comes across. `search "0612131415"` → `Téléphone`;
+`search "Dupont"` → `Nom`. **Three decisions, all the operator's, 2026-09-19**: decide by what was
+typed rather than always one box; **every time** rather than only on an empty result list, because
+if there had been a match the cashier would have tapped it; and **caisse only**, not Réglages, where
+nobody is waiting.
+
+**One letter anywhere disqualifies the whole string**, so « 75001 Paris » does not reach the
+telephone box — a ratio rule would have put it there. Four digits minimum, so « 3 » does not. **Kept
+exactly as typed**: a normaliser would put a second spelling of every number into the customer file,
+and the list searches with `contains`, so the two spellings would stop finding each other.
+**`Adresse` and `Ville` are NOT seeded** — the search has matched a town since L-221, so
+« Villeurbanne » typed into it would otherwise have a claim on a field a delivery is now refused
+without.
+
+**THE RULE IS NOT IN THE `onClick`.** It is `lib/customer-search-seed.ts`, because a rule inside a
+component is a rule no test can call — which is what L-214 found when `customerFormBlocked` was an
+inline ternary and its revert stayed green. **It is a guess and it is allowed to be wrong**: it
+seeds a form and decides nothing, `customerFormBlocked` still requires all four fields and
+`POST /api/orders` still refuses what it always refused.
+
+**How it was verified:** 2 060 pass / 0 fail / 158 files, typecheck and lint clean. Eleven tests,
+two of them asserting the picker CALLS the rule and has not grown its own digit check — **the wiring
+test was written and run RED before the wiring existed**. Five reverts, all RED: the form opens
+empty again · one digit counts as a telephone number · the text always goes to `Nom` · the text
+always goes to `Téléphone` · `MIN_PHONE_DIGITS` lowered to 1. **Confirmed by the operator in the
+preview before the commit.**
+
+**Left behind:**
+
+- **Réglages → Clients does not do this**, by decision. If a second cashier ever asks, the rule is
+  already extracted and the change is one `onClick`.
+- **The `autoFocus` still lands on `Nom`**, even when `Nom` is the box that was seeded. Moving it to
+  the first empty required field is nicer and was out of this item's scope.
+
+---
+
+### Retired from the plan's § 1 on 2026-09-19 — the 2026-09-13 batch recap
+**Done:** 2026-09-19 · **Commit:** with L-221/L-222's records. **Not a batch** — a move, for the
+reason §§ 3, 4 and 9 moved before it: the plan holds outstanding work, this was history, and the
+40 960-byte ceiling had gone negative by 444 bytes when L-221's pending migration was recorded.
+3 163 bytes came out; the paragraph that replaces it is 5 lines.
+
+**Nothing in it was lost and nothing in it was new** — every batch named below has its own entry
+above, with its commit, its reverts and what it cost. Kept verbatim all the same, because a
+summary somebody wrote at the time says which things they thought belonged together.
+
+> **Last updated:** 2026-09-13 — **PHASE 8 IS COMPLETE.** **R8.6 done** (`88ea4c3`): a day whose only event was a refund can no longer be skipped — its absence became permanent once a later day was sealed — the premature-close refusal agrees with its own noun, and « a close equals the sum of its Z reports » is narrowed to the true statement and finally has a test, with the straddling-shift caveat written up for the accountant. **L-153 closed early** out of R9.7, because R8.6 made it fail. Seventeen task rows became sixteen and Phase 8's section left the file. Earlier the same day — **R8.5** (`6ccc13f`): a supplement carries its own VAT
+> rate and gets its own line when that rate differs from the one it is added to; the add-on
+> quantity is snapshotted and bounded; a short `tendered` is refused rather than sealing a
+> negative change; and **L-134 is answered — sur place and à emporter cost the same, so a sized
+> product's `Product.price` cancelling is intended**, pinned by tests, with the
+> `docs/INVARIANTS.md` paragraph drafted and HELD for the operator. Eighteen task rows became
+> seventeen. **A SECOND MIGRATION IS PENDING** and the apply command changed — see *Awaiting the
+> operator*. Earlier the same day — **R8.4** (`31ebd9d`): report periods sit on the
+> trading-day cut-off, so a filed VAT figure measures the same window the sealed close measured;
+> **the operator decided to snap AND say so**, and the screen states the boundaries the server
+> returned rather than the dates typed into the boxes. Nineteen task rows became eighteen.
+> Earlier the same day — **R8.3** (`6a580dd`): a category save reconciles its
+> option groups by id instead of replacing them, so the seven menu rules that pin `Pizzas →
+> Taille` survive it, and a save that would remove one is refused in French naming the menu.
+> **The client had to be fixed in the same commit** — it sent no ids at all, so match-by-id
+> alone would have changed nothing. Twenty task rows became nineteen. Earlier the same day —
+> **R8.2** (`67d0347`): a double-tap no longer books the
+> sale twice, a lost response no longer re-rings it, and the OFFERT tender stops crashing the
+> POS. **Its migration is rehearsed and awaits the operator** (see above). Twenty-one task rows
+> became twenty. **L-185 recorded, and L-154 escalated from « has not yet bitten » to bitten.**
+> Earlier the same day — **R9.2** (`1d010b8`), and with it **the whole execution
+> order**: the startup migration gate no longer reports a half-applied schema as `UP_TO_DATE`,
+> a deploy that says it failed is a failure, and every startup failure leaves a row rather than
+> a stdout line. Twenty-two task rows became twenty-one. Earlier the same day: **R8.1**
+> (`622411c`) — the settings defaults agree and the write splits by field, so **R6.3 is
+> reachable from the till** — and **R9.6** (`f918578`) —
+> the authorization map distinguishes a guard from a no-op — which recorded **L-183 and L-184**
+> in a new *Found after the audit* section of `docs/audit/FINDINGS.md` that keeps the audit's 94
+> (L-89 … L-182) a closed set. 2026-09-12: **R8.0** (`f68dcf6`), and the audit was phased into
+> Phases 8-10. § 7 unchanged at nine.
+>
 
 ---
 
