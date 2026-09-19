@@ -185,9 +185,14 @@ audit exercised produced screen figures matching the database to the cent.
 
 - **`20260918200000_customer_city` IS PENDING ON THE FRANCE TILL** (L-221, 2026-09-19). One
   `ADD COLUMN`, nullable, in place. Rehearsed on a copy: `city` present, 20 migrations, 86 products
-  intact. **The app applies it itself at startup behind a verified backup** (PREP-4), as L-217's
-  went in — so a restart is the apply, and taking a backup off the machine first is the care it
-  deserves.
+  intact. **A RESTART IS NOT THE APPLY, AND THE FIRST DRAFT OF THIS BULLET SAID IT WAS.** PREP-4
+  applies pending migrations at startup — but `hibapos-server.ps1`'s refusal 2 runs
+  `prisma migrate status` FIRST and stops the task when it exits non-zero, which it does when
+  anything is pending (**measured 2026-09-19: exit 1 pending, 0 up to date**). So the launcher
+  refuses before the app that would have applied it ever runs. **That is L-203, and it is no longer
+  hypothetical** — it fires on this migration. The refusal points at `update.ps1 -Apply`, which
+  carries **L-206** (the bare `migrate deploy` `CLAUDE.md` forbids) and **L-207** (it stops the task
+  by a name the France till does not use, then continues anyway against a running server).
 *(**No migration is waiting on THIS machine.** L-171's was applied by the operator on 2026-09-14 and
   **verified**: the live fingerprint is identical to the rehearsal's on every key, checksums
   included, `integrity_check` ok, zero FK errors, `migrate status` up to date, and a refund with

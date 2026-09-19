@@ -5879,8 +5879,16 @@ somewhere » cannot pass.
   ADD COLUMN "city" TEXT` — in place, nullable, no index (SQLite cannot use one for the `contains`
   search, and `20260829165200_drop_redundant_indexes` is this project's record of what unused
   indexes cost). Rehearsed on a copy of the live database: `city` present, 20 migrations, 86
-  products intact. **The France till applies it itself at startup behind a verified backup**
-  (PREP-4), which is how L-217's went in.
+  products intact. **AND A RESTART DOES NOT APPLY IT — this entry said it did, for about an hour on
+  2026-09-19, and the correction is worth more than the claim was.** PREP-4 applies pending
+  migrations at startup, but `hibapos-server.ps1`'s refusal 2 runs `prisma migrate status` first and
+  stops the Scheduled Task when it exits non-zero. **Measured 2026-09-19 against a copy one
+  migration behind the code: exit 1; against an up-to-date one: exit 0.** So the launcher refuses
+  before the app that would have applied it ever starts. **This is L-203 becoming real** — its row
+  predicted exactly this, « an update carrying a schema change produces a till that will not start,
+  stopped by a script, while the app one layer down would have applied it » — and L-217's migration
+  did not hit it only because that one went in on a machine whose server was started another way.
+  The refusal's own message points at `update.ps1 -Apply`, which carries **L-206** and **L-207**.
 - **NOT COVERED, and said out loud rather than papered over**: nothing asserts that the customer
   card's « Aucune coordonnée renseignée » line accounts for the town. Reverting that guard stays
   green. It is cosmetic, on a read-only card, and an assertion on that guard's text is the exact
