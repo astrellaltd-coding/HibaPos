@@ -25,6 +25,14 @@
  * THE OPERATOR DECIDED BOTH OPEN QUESTIONS on 2026-09-17: a delivery client
  * must have a phone and the till should ask up front; and a cashier should be
  * able to fix a client's record here rather than being sent to Réglages.
+ *
+ * L-224 (2026-09-19) — THE NUMBER IS TYPED ONCE. The owner, on a livraison:
+ * you type the customer's telephone number into the search above, find nothing
+ * because they are new, click « Créer un nouveau client » — and the form opened
+ * EMPTY, so you typed it again with a queue waiting. `seedFromSearch` carries
+ * it across. The rule lives in `lib/customer-search-seed.ts` rather than in the
+ * `onClick` below, because a rule inside a component is a rule no test can call
+ * — which is what L-214 found when `customerFormBlocked` was an inline ternary.
  */
 
 import { useState } from "react";
@@ -45,6 +53,7 @@ import {
   isDeliverable,
   missingForDelivery,
 } from "@/lib/delivery-customer";
+import { seedFromSearch } from "@/lib/customer-search-seed";
 
 export function CustomerPickerDialog({
   open,
@@ -288,7 +297,18 @@ export function CustomerPickerDialog({
                 size="sm"
                 className="mt-2 h-11 min-h-[44px] w-full gap-1.5"
                 onClick={() => {
-                  setForm({ name: "", phone: "", address: "", city: "" });
+                  // L-224 — whatever is in the search box comes across, every
+                  // time, not only when the list came back empty: if there had
+                  // been a match the cashier would have tapped it rather than
+                  // this. `seedFromSearch` decides which box it lands in and
+                  // fills at most one, so the other opens empty as before.
+                  //
+                  // ADDRESS AND VILLE ARE NOT SEEDED. The search has matched a
+                  // town since L-221, so « Villeurbanne » typed into it would
+                  // otherwise have a claim on the Ville box — and a town nobody
+                  // chose, on a field a delivery is refused without, is worse
+                  // than an empty one.
+                  setForm({ ...seedFromSearch(search), address: "", city: "" });
                   setEditing("new");
                 }}
               >
