@@ -129,11 +129,12 @@ every trading table is at zero.
 >
 > ### ▶ WHAT IS WAITING, AND NONE OF IT IS CODE
 >
-> 1. **THE FRANCE TILL IS CURRENT SINCE 2026-09-20** — a clone at `81eb2f3`, **20 migrations, 86
->    products**, cut-off **0**, server answering `200`, and **reset to `0/0/0/0`** the same evening
->    after the 48-hour caisse was found still open at 73. **The blocker was never there**: git was
->    already installed and the repository is **public**. Every measured step is in
->    `REMEDIATION_DONE.md`.
+> 1. **THREE CHECKS NEED A PERSON IN THE RESTAURANT, AND NOBODY IS THERE UNTIL 2026-09-22.**
+>    **Printing above all** — both print routes and `receipt.ts` changed and nothing has printed
+>    since; a drained spooler cannot tell a ticket from an empty paper roll (R6.4's whole lesson).
+>    Then **a `Tacos M` refusing a second viande** (L-217), and **one sale rung, paid and printed**.
+>    The till is otherwise current and running — `81eb2f3`, 20 migrations, 86 products, cut-off 0,
+>    reset to `0/0/0/0`, boots itself fullscreen — but **its output path is unverified**.
 > 2. **L-234 IS THE NEXT UPDATE'S TRAP, AND BELONGS BEFORE IT.** `apply-migration.ts` refuses a
 >    harmless 0-byte `-wal` — the kind any read-only tool leaves — and its refusal text points at
 >    `update.ps1 -Apply`, which `CLAUDE.md` forbids. Today survived on command ORDER alone.

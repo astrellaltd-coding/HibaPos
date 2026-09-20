@@ -62,13 +62,22 @@ armed. **Tauri v2 remains the shipping form** and that migration still has no pl
 runs in France is the development build, not a package.
 
 **THAT TILL IS CURRENT SINCE 2026-09-20.** `C:\HibaPOS-app` is a git clone at `81eb2f3`: **20
-migrations**, **86 products with the Tacos**, catalogue fingerprint **`b6a76daf0befc587`**,
-identical to this machine's. **The blocker was never there** — git was already installed and
-the repository is **public**, so the token nobody had was never needed. Every measured step is
-in `REMEDIATION_DONE.md`. **L-203 is dormant, not fixed**: the launcher still refuses to boot
-on a pending migration, and **L-234 must be fixed before the next update** —
-`apply-migration.ts` refuses a harmless 0-byte `-wal` and its refusal points at `update.ps1
--Apply`, which carries L-206 and L-207.
+migrations**, **86 products with the Tacos**, fiscal slate reset to **0/0/0/0** the same
+evening, and it boots itself fullscreen. Its fingerprint is **`a38c95977b5e1122`** and this
+machine's is still `b6a76daf0befc587`: the Tacos photograph is attached there and not here
+(**L-232**), and three edits here close the gap. **The blocker was never there** — git was
+already installed and the repository is **public**, so the token nobody had was never needed.
+Every measured step is in `REMEDIATION_DONE.md`. **L-203 is dormant, not fixed**: the launcher
+still refuses to boot on a pending migration, and **L-234 must be fixed before the next
+update** — `apply-migration.ts` refuses a harmless 0-byte `-wal` and its refusal points at
+`update.ps1 -Apply`, which carries L-206 and L-207.
+
+**THREE THINGS ON THAT TILL NEED A PERSON IN THE RESTAURANT, AND NOBODY IS THERE UNTIL
+2026-09-22.** **Printing above all** — both print routes and `receipt.ts` changed in the update
+and nothing has printed since; a drained spooler cannot tell a ticket from an empty paper roll,
+which is why R6.4 stayed open until somebody found two on paper. Then **a `Tacos M` refusing a
+second viande** (L-217, the bug the ceilings exist for), and **one sale rung, paid and
+printed**. Until then the till is current and running but its output path is unverified.
 
 **THE TRADING DAY IS A RULE THE TILL ENFORCES, since 2026-09-20.** It refuses a sale into a
 sealed day, refuses a sale through a caisse whose trading day has ended, and refuses to open

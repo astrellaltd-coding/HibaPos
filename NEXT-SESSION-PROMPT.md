@@ -21,6 +21,22 @@ and four more were opened (**L-234, L-235, L-236, L-237**).
 
 ---
 
+## THE TILL IS PARKED UNTIL 2026-09-22, AND THAT IS NOT A BLOCKER
+
+**Nobody is at the restaurant until 2026-09-22**, so three checks cannot happen and must not be
+quietly dropped: **printing** (both print routes and `receipt.ts` changed and nothing has printed
+since — and a drained spooler cannot tell a ticket from an empty paper roll, which is why R6.4
+stayed open until somebody found two on paper), **a `Tacos M` refusing a second viande** (L-217),
+and **one sale rung, paid and printed**. The till is current and running meanwhile; its **output
+path is unverified**.
+
+**None of the sessions below needs that visit.** They are code and documents on this machine, and
+the operator's intention is to keep optimising while the restaurant is empty. Take them in order —
+A is the one with a deadline attached to it, because it bites the *next* update rather than this
+one.
+
+---
+
 ## SESSION A — L-234, and it should come before the next update
 
 HibaPOS France. Read `CLAUDE.md`, then `REMEDIATION_PLAN.md` § 1 and § 2, then **L-233 and L-234**
