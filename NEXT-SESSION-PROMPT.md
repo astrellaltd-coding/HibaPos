@@ -1,8 +1,8 @@
 # The next session
 
-**Rewritten 2026-09-20.** The previous version held prompts for L-218 and L-221 + L-222. **Both
-closed on 2026-09-19**, along with L-223, L-224 and L-228 — that session ran long and did six items.
-The old prompts are in git history.
+**Rewritten 2026-09-20, after the France till was brought current.** The previous version was one
+long Session A for that update. It is done; its record is in `REMEDIATION_DONE.md` under « THE
+FRANCE TILL IS CURRENT ». The old prompt is in git history.
 
 One prompt per session. Paste the block between the rules, and nothing else.
 
@@ -10,203 +10,120 @@ One prompt per session. Paste the block between the rules, and nothing else.
 
 ## WHAT CHANGED WHILE YOU WERE AWAY, IN ONE PARAGRAPH
 
-The restaurant's till was found **open for 48 hours** on 2026-09-19. The half nobody had noticed is
-that **no fiscal day could be sealed at all** meanwhile. So the trading day is now a rule the till
-enforces — it refuses a sale into a sealed day, refuses a sale through a caisse whose day has ended,
-and refuses to open a caisse while an ended day is unsealed — and **closing the caisse now seals the
-day**, which needed a narrow, flagged bypass of the premature-close guard rather than relaxing it.
-Separately, a client gained a `city` column and a delivery now prints a **non-fiscal bon de
-livraison** so the sealed ticket need not carry a home address. **Nothing has reached France.**
+**The France till is current.** On 2026-09-20 it went from code dated 2026-09-16 to `81eb2f3`: 20
+migrations, **86 products with the Tacos**, catalogue fingerprint **`b6a76daf0befc587`** identical
+to the development machine's, trading-day cut-off **0**, server answering. It gained the on-screen
+keyboard, the `city` column and the bon de livraison, the option ceilings, the trading-day guards
+and the auto-seal — about fifty commits. **The blocker that held it up for four days did not
+exist**: git was already installed on that machine and the repository is public, so the token
+nobody had was never needed. One defect was found on the till and fixed mid-operation (**L-233**),
+and four more were opened (**L-234, L-235, L-236, L-237**).
 
 ---
 
-## SESSION A — the France till update, and it is the one that matters
+## SESSION A — L-234, and it should come before the next update
 
-HibaPOS France. Read `CLAUDE.md`, then `REMEDIATION_PLAN.md` § 1 and § 2, then the two entries
-**« The Tacos, carried to France »** and **« L-99 / L-228 »** in `REMEDIATION_DONE.md`.
+HibaPOS France. Read `CLAUDE.md`, then `REMEDIATION_PLAN.md` § 1 and § 2, then **L-233 and L-234**
+in `docs/audit/FINDINGS.md` and the commit `81eb2f3`.
 
-**The restaurant is running code from 2026-09-16 and is four days behind.** Measured, not assumed:
-18 migrations, no `city`, no `ProductOptionQuota`, no on-screen keyboard, no delivery rule, **83
-products and no Tacos at all**. Everything it needs is pushed.
+`apply-migration.ts` refuses a `-wal` on its **existence** rather than its content. A **read-only**
+connection cannot clean up on close, so every run of `catalogue-fingerprint.ts` leaves
+`custom.db-wal` at exactly **0 bytes** — a log with no pages, beside a database that is therefore
+whole. The 2026-09-20 update survived only because the commands happened to run in the order
+apply-then-fingerprint; the other way round, which is what a session wanting to know what it is
+about to change would naturally do, it refuses. **And its refusal text points the operator at
+`update.ps1 -Apply`**, the command `CLAUDE.md` forbids (L-206) — so a spurious refusal actively
+recommends the forbidden path.
 
-**THE BLOCKER IS NOT CODE.** `C:\HibaPOS-app` **is not a git clone** and **no `git.exe` exists** on
-that machine. The operator has to install git and get a GitHub token with read access to the private
-repo before anything can happen. **Ask whether that is done before writing any procedure.**
+`81eb2f3` is the same fix, one file over, already reviewed: check before the first query, refuse a
+`-wal` only when `size > 0` naming the bytes, keep `-journal` on existence, checkpoint before the
+restore-point copy. **Do not simply delete the check** — it is what stands between a restore point
+and half a database.
 
-**ASKED AND STILL BLOCKED, 2026-09-20: neither exists yet.** Nothing about the till changed that
-day. What did change is that its proof step now names a script and a number that can be reproduced
-— see the fingerprint note below — and that the same `customer_city` migration turned out to be
-pending on THIS machine as well (L-231).
-
-**WHAT THE OPERATOR HAS TO DO ON THE TILL BEFORE ANY SESSION CAN HELP.** Both are theirs to do —
-Claude does not type credentials.
-
-1. **Install Git for Windows** from `https://git-scm.com/download/win` (64-bit standalone
-   installer), accepting the defaults. The only thing that matters is that `git.exe` lands on
-   `PATH`. Check it in PowerShell: `git --version` should answer. If it does not, the installer's
-   « Adjusting your PATH » page was set to the most restrictive option — re-run it and choose
-   « Git from the command line and also from 3rd-party software ».
-2. **Create a fine-grained GitHub token**, on github.com → Settings → Developer settings →
-   Personal access tokens → **Fine-grained tokens** → Generate new token. **Repository access:
-   Only select repositories → the HibaPOS repo. Permissions: Repository permissions → Contents →
-   Read-only.** Nothing else — this token only ever needs to pull. Give it a short expiry; it is
-   for one update, not for living on a till. Copy it once; GitHub will not show it again.
-
-Neither step touches the database, and both are reversible: uninstall git, revoke the token.
-**Do not reboot the till while doing this** — its two migrations are still pending and the
-launcher refuses to start on a pending migration (L-203).
-
-**BOTH ALTERNATIVES WERE PUT TO THE OPERATOR ON 2026-09-20 AND BOTH WERE DECLINED**, so a later
-session need not re-open them. A GitHub ZIP downloaded in Brave, and a USB copy from the
-development machine, each avoid installing git — and each makes the NEXT update this same
-conversation again. Git is the route.
-
-**The owner has never traded on that till and does not mind it being reinstalled**, which was new
-information the same day. It was tempting, and the answer was still to **update in place**: the
-till's *data* is disposable but its *configuration* is not. The printer queue — `SUNSO WTP-801` on
-`USB001` — lives in the `Setting` table, took two days and somebody looking at paper to confirm
-(R6.4), and a wholesale database copy would overwrite it with this machine's dev settings, which
-point at a `COM1:` queue that **prints nothing and reports success**. The Scheduled Tasks and the
-`.env` holding the backup key for the files already on `D:` are in the same category. What the
-disposable data *does* buy is nerve: if the update goes wrong, wiping and starting again costs
-nothing but time.
-
-**Then, and every step has a check in the done entry:** stop both Scheduled Tasks **by their French
-names** (`HibaPOS Serveur`, `HibaPOS Caisse` — `update.ps1` looks for the English ones, which is
-L-207) · back up and confirm it landed on `D:` · `git init` + remote + fetch + **`git reset`
-without `--hard` first, and read `git status` together before overwriting** · `bun install`,
-`db:generate`, `build` · `bun scripts/apply-migration.ts` dry run, expect **two** pending ·
-`--apply` · **`bun scripts/catalogue-fingerprint.ts` — expect `a6fa4bbcb699afdf` and 83 products** ·
-`bun scripts/add-tacos.ts --apply` then `bun scripts/set-option-quotas.ts --apply` · restart ·
-`bun scripts/catalogue-fingerprint.ts` again and **expect `b6a76daf0befc587` and 86 products**,
-which is the proof it worked.
-
-**THE FIRST FINGERPRINT IS THE ONE THAT CAN STILL SAVE YOU, and it goes AFTER the migrations, not
-before.** Before them the till has no `ProductOptionQuota` table at all, so the script says TABLE
-ABSENT and warns the number is not comparable — correct, and useless as a check. **After** the two
-migrations and **before** the two scripts, the till should be in exactly the shape the rehearsal
-reconstructed: 83 products, 8 category option groups, 39 choices, an empty quota table,
-`a6fa4bbcb699afdf`.
-
-**If that number is not `a6fa4bbcb699afdf`, STOP and do not run the two scripts.** It would mean the
-France catalogue is not the one every plan since 2026-09-19 assumes it is — and that assumption has
-only ever been checked against a RECONSTRUCTION built here, never measured on the till itself under
-this digest. The section digests printed above the total say which part differs; the row counts
-beside them usually say why. Nothing is lost by stopping there: no migration is undone and no
-catalogue row has been written yet.
-
-**`2d62a6b83ba006bf` IS RETIRED — do not look for it** (L-229). It came from a throwaway that no
-longer exists, and being id-inclusive it could never have matched: `add-tacos.ts` creates its rows
-with fresh `cuid()`s, so France's Tacos rows will never carry this machine's ids. The replacement
-script ignores ids, covers the option ceilings, and prints `a6fa4bbcb699afdf` on a database still in
-the till's shape — so a wrong number tells you *which* section differs instead of only that one does.
-
-**THE THREE TACOS HAVE NO PICTURE, ON EITHER MACHINE** (L-232), and the operator chose on
-2026-09-20 to attach it **by hand** rather than by script. 80 of 86 products carry an image; the
-six that do not are the three Tacos and the three « sans boisson » boxes — and the boxes are
-`showOnPos = 0`, so **the tacos are the only tile a cashier sees with no photograph**.
-`Tacos.webp` arrives with the code and appears in the médiathèque by itself; nothing points a row
-at it.
-
-**Do it in this order, and it is six edits, not three:**
-
-1. Finish the France update and **both** fingerprint checks first, while the photo is absent on
-   both machines and the two numbers are known to agree.
-2. Then attach it to `Tacos M`, `L` and `XL` **on both installs** — in France only after
-   `add-tacos.ts` has run, because until then the rows do not exist.
-3. Then run `bun scripts/catalogue-fingerprint.ts` on both and confirm they **still** match.
-
-Step 3 is not ceremony. `image` is one of the columns the fingerprint compares, so attaching the
-photo **changes the number** — `b6a76daf0befc587` stops being the expected value the moment the
-first machine is edited. Doing both and re-measuring turns that into a verified change; doing one
-and stopping leaves the two catalogues genuinely different with nothing recording it.
-
-**Do not use `update.ps1 -Apply`** — L-206 (it applies migrations with the bare command `CLAUDE.md`
-forbids) and L-207. **Do not reboot before the migrations are applied**: the launcher refuses to
-start on a pending migration (L-203, measured: `migrate status` exits 1) and the refusal points at
-the script you must not use.
-
-**THE CUT-OFF IS 0 ON THIS MACHINE SINCE 2026-09-20 AND STILL 5 IN FRANCE.** Verified here: the
-file came out byte-identical to the rehearsal, exactly one `Setting` row moved, the value re-parses
-as the *number* 0, catalogue and fiscal state untouched. **France gets the same one command as part
-of the till update**, with both Scheduled Tasks stopped:
-
-```
-bun scripts/set-business-day-cutoff.ts --hour 0 --apply
-```
-
-`set-business-day-cutoff.ts` exists because Réglages is the wrong instrument on both installs —
-reaching it here means running the app against the live catalogue, which § 5 forbids, and on the
-till DD-26 makes the field SUPER_ADMIN-only so the **Gérant account in daily use is refused it**
-(L-230). The script sidesteps both. **`--hour` is required and has no default.** It refuses to
-**raise** the hour once any day has been sealed — one of the two things that arm L-228 — while
-always allowing a lowering, and it refuses while a `-wal`/`-shm` sits beside the database, since
-the restore point would not then be the whole file. On the till, run it with both Scheduled Tasks
-stopped, which they are during the update.
-
-**THE `customer_city` MIGRATION IS APPLIED ON THIS MACHINE** — 2026-09-20 by the operator, and
-verified: **zero differences** from the rehearsal's expected post-migration fingerprint, `Customer`
-gained `city` as its last column with the first nine byte-identical, catalogue still
-`b6a76daf0befc587` / 86 products, every trading table at zero. `migrate status` exits 0 here now,
-so L-203's launcher refusal no longer applies to this machine. Both restore points in
-`../db-snapshots/` hold the exact pre-migration file. **The France till's two are still pending.**
+**REHEARSE IT ON A WAL DATABASE.** This machine cannot produce one: the development database lives
+inside OneDrive, so `pragmaDecision` returns `CLOUD_SYNC` and WAL is never enabled. That is exactly
+why L-233 passed every rehearsal here and failed on the first run in France. Force a scratch copy
+into WAL mode and test there — `PRAGMA journal_mode = WAL`, then a write, then close.
 
 ---
 
-## SESSION B — L-203, L-206, L-207: the launcher and the update script
+## SESSION B — the three Tacos have no photograph (L-232)
 
-HibaPOS France. Read `CLAUDE.md`, then `REMEDIATION_PLAN.md`, then **L-203, L-206, L-207** in
-`docs/audit/FINDINGS.md`.
+HibaPOS France. Read **L-232** in `docs/audit/FINDINGS.md`.
 
-Three defects in `.zscripts/`, all measured on the France till, all worked around by hand today.
-**L-203** the launcher refuses to boot on a pending migration, for a reason the app stopped
-believing when PREP-4 made it apply them itself — so an update produces a till that will not start.
-**L-206** `update.ps1` applies migrations with `bunx prisma migrate deploy`, the one command
-`CLAUDE.md` forbids and for the reason it gives. **L-207** the Scheduled Task names are a contract
-four references depend on and no document states — the France till's are French and nothing matches.
+80 of 86 products carry an image. The six that do not are the three Tacos and the three « sans
+boisson » box variants — and the boxes are `showOnPos = 0`, so **the Tacos are the only tile a
+cashier sees with no photograph**, on both installs. `Tacos.webp` is in version control and reaches
+every install with the code; the médiathèque finds it by walking the uploads directory. Nothing
+points a row at it.
 
-**L-203 NEEDS A DECISION BEFORE CODE**: should the launcher stop refusing and let the app apply
-(PREP-4's position), or keep refusing with advice that does not point at a broken script? Bring both
-shapes. **And rehearse whatever you write** — these files had never been executed before 2026-09-17
-and four things in them were wrong the first time they ran.
+**It is six operator edits, three per install, and the ORDER matters.** `image` is one of the
+columns `catalogue-fingerprint.ts` compares, so attaching the photo **changes the number** —
+`b6a76daf0befc587` stops being the expected value the moment the first machine is edited. Do both,
+then re-run the fingerprint on both and confirm they still agree. Doing one and stopping leaves the
+two catalogues genuinely different with nothing recording it.
 
 ---
 
 ## SESSION C — the catalogue transfer, half-built
 
-HibaPOS France. Read **L-225, L-226, L-227** in `docs/audit/FINDINGS.md`.
+HibaPOS France. Read **L-225, L-226** in `docs/audit/FINDINGS.md`.
 
 `catalogue-transfer.ts` exists and is the right way to carry a menu. It cannot be used: the option
 **ceilings do not travel** (`CATALOGUE_TABLES` omits `ProductOptionQuota`, and the test pins the
 list at ten so a missing TABLE is invisible), and the import **refuses unless the catalogue is
-empty** with nothing able to empty one. Fixing both turns Session A's two scripts into « export
-here, import there » for ever after.
+empty** with nothing able to empty one. Fixing both turns « a script per change » into « export
+here, import there » for ever after — which is what the 2026-09-20 update had to do by hand.
 
-**L-227 is the operator's file and needs text brought, not edited.** Both `CLAUDE.md` and the plan's
-§ 6 say « nothing in the app exports or imports a catalogue today ». The replacement must say what
-is true AND what is missing, because the reason the wrong sentence survived is that the feature is
-half-built.
+---
+
+## SESSION D — `.zscripts/`, and it has three open items
+
+HibaPOS France. Read **L-203, L-206, L-207, L-236, L-237** in `docs/audit/FINDINGS.md`.
+
+**L-203** the launcher refuses to boot on a pending migration, for a reason the app stopped
+believing when PREP-4 made it apply them itself. Dormant on the till today — `migrate status` exits
+0 — and live again the moment a migration is prepared and not applied. **It needs a decision before
+code**: should the launcher stop refusing and let the app apply, or keep refusing with advice that
+does not point at a broken script? Bring both shapes. **L-206** `update.ps1` applies migrations with
+the bare `bunx prisma migrate deploy`. **L-207** the task names are a contract nothing states.
+
+**L-237 is cheap and wants the owner's eyes, not code.** The till ran the pre-decision kiosk
+launcher for four days and the operator reports it worked — which contradicts the measurement in
+`c9e3ffd`'s own comment. `--kiosk` went on with the update; the previous file is at
+`%TEMP%\hibapos-kiosk.ps1.till-version`. **Look at the physical screen**, not RDP, where the session
+resolution is not the panel's (L-211). Whichever wins, correct the losing comment.
+
+**L-236** is two orphaned files on the till: `hibapos-server.ps1.ps1`, which nothing executes, and
+`secrets.json.1192.tmp` from commissioning evening, which may hold partial secret material.
 
 ---
 
 ## What is NOT next, and why
 
-- **Phase 6** — R6.1 reset, R6.2 arm the chain key, R6.3 FACTICE off. All `OPERATOR`, in that order.
+- **Phase 6** — R6.1 reset, R6.2 arm the chain key, R6.3 FACTICE off. All `OPERATOR`, in that
+  order. **R6.1 may no longer have a subject**: the till's trading tables were never reset, but the
+  owner has only ever tested under FACTICE. Measure before assuming it must run.
+- **The repository is PUBLIC**, measured 2026-09-20. `.env` is untracked, no database, **no SIRET**
+  — but the audit documents list open unfixed findings for a live POS. The documents call it
+  private. Whether it should be is the operator's decision, not a defect to fix.
 - **The untested branch in the close route.** Its `try/catch` around the day seal fires only if the
-  walk throws — a database error. **The next step is known**: the print routes solved the identical
-  problem for L-186 by accepting an injected printer; the close route can accept the sealing step
-  the same way. Half an hour, one route, a pattern this codebase already trusts.
-- **Tauri v2** — still the shipping form, still without a plan. Where a fix has two reasonable
-  forms, take the one that survives becoming a Windows native app.
+  walk throws. The print routes solved the identical problem for L-186 by accepting an injected
+  printer; the close route can accept the sealing step the same way.
+- **Tauri v2** — still the shipping form, still without a plan.
 
-## Two habits this week paid for, keep both
+## Three habits that paid for themselves this week
 
-**Reverts find bad tests, not just bad code.** Five reverts proved nothing this week and **four were
-the assertion's fault** — a substring anchor a rename satisfied, a needle matched by the wrong
-occurrence in the same file, a widened flag letting a future day be sealed, a banner suppressed
-while its wording stayed. Pin the **expression that decides**, never a name, a label or a sentence.
+**A number handed forward as proof is a claim.** `2d62a6b83ba006bf` went into a hand-over as « the
+proof it worked » and could not be reproduced at all — the script was a scratch file, and being
+id-inclusive it could never have matched rows `add-tacos.ts` creates with fresh `cuid()`s. Anything
+that will be re-run on another machine belongs in `scripts/`, with its method in the header.
+
+**Rehearse on the conditions the target has, not the ones you have.** L-233 passed every rehearsal
+here and failed on the first run in France, because this machine cannot make a WAL database and
+that till always has one.
 
 **The shell corrupts edits silently here.** Backticks inside a double-quoted bash string are command
 substitution; `\\` in a quoted heredoc collapses to `\`; and `cmd | tail && echo "clean"` tests
-`tail`, which reported a FAILING typecheck as passing for a full round trip. Write the script with
-the Write tool and run it by path.
+`tail`. Write the script with the Write tool and run it by path. **And never put a `<PLACEHOLDER>`
+in a command somebody is going to paste** — one was, and it was pasted verbatim into `Copy-Item`.

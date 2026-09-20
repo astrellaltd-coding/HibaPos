@@ -106,6 +106,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - Retired from the plan's § 1 on 2026-09-19 — the 2026-09-13 batch recap
 - The week re-measured before the till update — L-229, L-230, L-231
 - `customer_city` applied here, and the cut-off becomes a script
+- THE FRANCE TILL IS CURRENT — the update, and the blocker that was not there
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -6337,6 +6338,88 @@ run cannot silently re-impose today's answer.
   cut-off « a setting in Réglages » are corrected, but nothing about the authorization moved, and
   nothing should — the field belongs where DD-26 put it.
 - **The plan is at 40 838 of 40 960 bytes.** The next session that needs room retires something.
+
+---
+
+### THE FRANCE TILL IS CURRENT — the update, and the blocker that was not there
+**Done:** 2026-09-20, on the till over RDP, by the operator with a session reading each step
+**Commits:** `81eb2f3` (L-233, fixed mid-operation) · this one (the records)
+**Findings:** L-233 fixed · **L-234, L-235, L-236, L-237 opened.** **No plan row.**
+
+**IT IS DONE.** `C:\HibaPOS-app` is a git clone at `81eb2f3`, on **20 migrations**, holding **86
+products** with the Tacos, their three option groups, their 22 choices and their three ceilings.
+The catalogue fingerprint is **`b6a76daf0befc587`**, identical to this machine's. The trading-day
+cut-off is **0**. The server answers `200` on `/api/auth/profiles`. It has gained the on-screen
+keyboard, the `city` column and the bon de livraison, the option quotas, the trading-day guards
+and the auto-seal — roughly fifty commits, from code dated 2026-09-16.
+
+**THE BLOCKER THAT HELD THIS UP FOR FOUR DAYS DID NOT EXIST.** `CLAUDE.md` and every hand-over
+since 2026-09-19 said `C:\HibaPOS-app` is not a clone and **no `git.exe` exists in any standard
+location**. The first command of the session found `C:\Program Files\Git\cmd\git.exe` — about as
+standard as a location gets — and `git --version` answered `2.55.0.windows.3`. **And no token was
+needed either**: `git ls-remote` never prompted, because the repository is **public**. An
+unauthenticated request to the API returns 200. Both halves of « the only blocker » were false.
+Whether git was installed by the operator in the interval or the 2026-09-19 sweep looked wrongly
+is not established and is recorded as unknown rather than guessed.
+
+**WHAT WAS MEASURED, IN ORDER.** Every step had a check and the checks are the point:
+
+| step | result |
+|---|---|
+| `Test-Path .git` | `False` — not a clone, as recorded |
+| `migrate status` before | **18 migrations**, up to date — exactly the 2026-09-19 measurement |
+| database | `C:\HibaPOS-app\db\custom.db`, **no `HIBAPOS_DATA_DIR`**, backups to `D:` |
+| backup before anything | copied to `D:\HibaPOS-Sauvegardes\custom.db.before-update-2026-09-20`, **hashes identical** |
+| `git reset origin/main` | working tree untouched; `git status` read together before any overwrite |
+| after `git checkout` | clean but for one untracked stray; `.gitignore` back, so `db/` and `.env` protected again |
+| `bun install` · `db:generate` · `build` | **exit 0, 0, 0** — asked for explicitly, because `build.ps1` one directory over prints success it never checks (L-209) |
+| `apply-migration.ts --apply` | 18 → **20**, both migrations named, `schema_version 176 → 181`, restore point verified first |
+| **fingerprint BEFORE the scripts** | **`a6fa4bbcb699afdf` / 83 products** |
+| `add-tacos.ts` · `set-option-quotas.ts` | 83 → 86 products, 8 → 11 groups, 39 → 61 choices, 0 → 3 quotas |
+| **fingerprint AFTER** | **`b6a76daf0befc587` / 86 products** |
+| `set-business-day-cutoff.ts --hour 0` | applied, read back as a **number**, two differing sha256 |
+| restart | `HibaPOS Server` started, `/api/auth/profiles` → **200** |
+
+**THE PRE-FLIGHT FINGERPRINT IS THE LINE WORTH KEEPING.** Added to the procedure the same day and
+run after the migrations but before the two catalogue scripts, it returned `a6fa4bbcb699afdf` — and
+**all eleven section digests matched the reconstruction character for character.** Until that
+moment, « the two catalogues differ by exactly the Tacos » had only ever been checked against a
+database built on THIS machine by deleting rows from a copy. Nobody had measured the France
+catalogue. It was the first look, it was free, and it held exactly. Had it differed, nothing would
+have been written: no migration undone, no catalogue row touched.
+
+**L-233 WAS FOUND ON THE TILL AND FIXED WHILE THE TILL WAS DOWN.** `set-business-day-cutoff.ts`
+refused on `custom.db-wal` with the app stopped and nothing running, because its guard sat after
+the `Setting` read and that read CREATES the log on a WAL database. It had passed every rehearsal
+here because **this machine cannot produce the condition**: the database is inside OneDrive, so
+`pragmaDecision` returns `CLOUD_SYNC` and WAL is never enabled. Reproduced afterwards by forcing a
+scratch copy into WAL, fixed, gated, pushed, pulled to the till, re-run. The full argument, and the
+second defect the fix uncovered — refusing on a log's *existence* rather than its *content*, when a
+read-only reader always leaves a 0-byte one — is in `81eb2f3` and in the finding.
+
+**Left behind:**
+
+- **L-234 IS THE NEXT UPDATE'S TRAP AND SHOULD BE FIXED BEFORE IT.** `apply-migration.ts` carries
+  L-233's second defect — existence, not content — and survived today only through the order the
+  commands happened to run in. Fingerprint first and it refuses on a harmless 0-byte log, in a
+  refusal whose own text points at `update.ps1 -Apply`, which `CLAUDE.md` forbids.
+- **THE THREE TACOS STILL HAVE NO PHOTOGRAPH**, on either machine (**L-232**). They are now the only
+  products a cashier sees without one. Six edits in the médiathèque, three per install, France only
+  now that `add-tacos.ts` has run — then the fingerprint must be re-taken on BOTH, because `image`
+  is one of the columns it compares and `b6a76daf0befc587` stops being the expected value the
+  moment the first machine is edited.
+- **THE KIOSK QUESTION IS OPEN AND CHEAP TO SETTLE** (**L-237**). `--kiosk` went on with the update;
+  the till's previous file is at `%TEMP%\hibapos-kiosk.ps1.till-version`. The owner looks at the
+  **physical** screen at the next local log on — over RDP the resolution is not the panel's (L-211).
+- **TWO ORPHANED FILES ON THE TILL** (**L-236**): `hibapos-server.ps1.ps1`, which nothing executes,
+  and `secrets.json.1192.tmp` from commissioning evening, which may hold partial secret material.
+- **THE REPOSITORY IS PUBLIC.** Measured, not assumed. Nothing catastrophic is in it — `.env` is
+  untracked, no database, **no SIRET anywhere** — but the audit documents list open, unfixed
+  findings for a live POS, and the two published PINs are in it (mitigated: R9.5 refuses them at
+  login). **The documents call it private.** Whether it should be is the operator's decision.
+- **`CLAUDE.md` NEEDS THE OPERATOR'S WORD.** Three of its paragraphs are now false: the till is not
+  days behind, it is not un-updatable, git exists on it, and the cut-off is not 5. Text brought
+  separately; that file is theirs.
 
 ---
 

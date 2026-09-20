@@ -129,21 +129,16 @@ every trading table is at zero.
 >
 > ### ▶ WHAT IS WAITING, AND NONE OF IT IS CODE
 >
-> 1. **THE FRANCE TILL IS FOUR DAYS BEHIND AND CANNOT BE UPDATED YET.** Measured 2026-09-19: **18
->    migrations**, no `city`, no `ProductOptionQuota`, no on-screen keyboard, **83 products and no
->    Tacos**, and **`C:\HibaPOS-app` is not a git clone and no `git.exe` exists on it**. Everything
->    is prepared and pushed; it needs git and a GitHub token installed there. The procedure, the
->    refusals to expect and the fingerprint that proves it worked are in `REMEDIATION_DONE.md`.
-> 2. **THE CUT-OFF IS 0 HERE SINCE 2026-09-20 AND STILL 5 IN FRANCE.** Verified here: exactly one
->    `Setting` row moved, catalogue and fiscal state untouched, and the file came out
->    **byte-identical to the rehearsal**. On the till it is the same command with both Scheduled
->    Tasks stopped: `bun scripts/set-business-day-cutoff.ts --hour 0 --apply`. It refuses to RAISE
->    the hour after a seal — which arms L-228 — and sidesteps DD-26 (L-230).
-> 3. **THE PROOF THE TILL UPDATE WORKED IS A SCRIPT NOW, NOT A REMEMBERED NUMBER** (L-229).
->    `bun scripts/catalogue-fingerprint.ts`: this machine and the rehearsal both print
->    **`b6a76daf0befc587`** / 86 products, the till's shape prints `a6fa4bbcb699afdf` / 83.
->    **`2d62a6b83ba006bf` is retired** — it came from a throwaway that no longer exists, and being
->    id-inclusive it could never have matched rows `add-tacos.ts` creates with fresh `cuid()`s.
+> 1. **THE FRANCE TILL IS CURRENT SINCE 2026-09-20** — a clone at `81eb2f3`, **20 migrations, 86
+>    products**, catalogue **`b6a76daf0befc587`**, cut-off **0**, server answering `200`. **The
+>    blocker was never there**: git was already installed and the repository is **public**, so no
+>    token was needed. Every measured step is in `REMEDIATION_DONE.md`.
+> 2. **L-234 IS THE NEXT UPDATE'S TRAP, AND BELONGS BEFORE IT.** `apply-migration.ts` refuses a
+>    harmless 0-byte `-wal` — the kind any read-only tool leaves — and its refusal text points at
+>    `update.ps1 -Apply`, which `CLAUDE.md` forbids. Today survived on command ORDER alone.
+> 3. **THE THREE TACOS HAVE NO PHOTOGRAPH** on either install (**L-232**), and are now the only
+>    products a cashier sees without one. Six médiathèque edits, then **re-take the fingerprint on
+>    both** — `image` is a compared column, so it moves `b6a76daf0befc587`.
 
 
 **Phases 0-5 and 7 are COMPLETE**, with all four operator items and all three migrations
@@ -199,13 +194,13 @@ audit exercised produced screen figures matching the database to the cent.
 ### Awaiting the operator
 
 
-- **TWO MIGRATIONS ARE PENDING ON THE FRANCE TILL** — `20260918010000_product_option_quota`
-  (L-217) and `20260918200000_customer_city` (L-221). Both rehearsed on copies. **A RESTART IS NOT
-  THE APPLY**: `hibapos-server.ps1`'s refusal 2 runs `prisma migrate status` and stops the task when
-  it exits non-zero, which it does when anything is pending (**measured 2026-09-19: exit 1 pending,
-  0 up to date**), so the launcher refuses before PREP-4 ever runs. That is **L-203**, live. The
-  refusal points at `update.ps1 -Apply`, which carries **L-206** and **L-207**. Apply them by hand
-  with `bun scripts/apply-migration.ts --apply`.
+- **No migration is pending on the FRANCE TILL either** — `20260918010000_product_option_quota`
+  (L-217) and `20260918200000_customer_city` (L-221) were applied there on 2026-09-20, 18 → 20,
+  both named by the script, `schema_version 176 → 181`, restore point verified before a byte moved.
+  **L-203 is dormant on that machine, not fixed**: `migrate status` exits 0 so the launcher starts,
+  and it goes live again the moment a migration is prepared and not applied. **L-234 is the thing
+  to fix before the next update** — the applier refuses a harmless 0-byte `-wal` and its refusal
+  recommends the forbidden `update.ps1 -Apply`.
 - **No migration is waiting on THIS machine** — `20260918200000_customer_city` (L-221) was applied
   by the operator on 2026-09-20 with
   `bun scripts/apply-migration.ts --apply --expect ../db-snapshots/r221-city-rehearsal/fp-after.json`
@@ -236,8 +231,8 @@ app exports or imports a catalogue today » until 2026-09-20. It was false from 
 nearly produced a whole-database copy onto the restaurant's till.)*
 `FISCAL_CHAIN_KEY` is in `.env`, `factice` is in the database: they do not travel together.
 
-**Last updated:** 2026-09-20 — L-229 … L-232 recorded; `customer_city` applied and verified here;
-cut-off 0 here, 5 in France. *(The batch-by-batch recap that stood here from 2026-09-13 — R8.0 … R8.6, R9.2, R9.6
+**Last updated:** 2026-09-20 — **THE FRANCE TILL IS CURRENT**: 20 migrations, 86 products,
+`b6a76daf0befc587`, cut-off 0 on both. L-229 … L-237 recorded, L-233 fixed. *(The batch-by-batch recap that stood here from 2026-09-13 — R8.0 … R8.6, R9.2, R9.6
 and the audit's phasing — was retired to `REMEDIATION_DONE.md` on 2026-09-19 to make room. Every
 line of it is in that file's own entries, which is where a reader should have been looking: this
 paragraph was a second copy, and the only part of § 1 that was not outstanding work.)*
