@@ -134,11 +134,11 @@ every trading table is at zero.
 >    Tacos**, and **`C:\HibaPOS-app` is not a git clone and no `git.exe` exists on it**. Everything
 >    is prepared and pushed; it needs git and a GitHub token installed there. The procedure, the
 >    refusals to expect and the fingerprint that proves it worked are in `REMEDIATION_DONE.md`.
-> 2. **THE CUT-OFF IS STILL 5 AND THE OPERATOR CHOSE 0.** A setting in Réglages, on each install,
->    no code. Cheapest now, while nothing real is sealed — every sealed close records the hour it
->    used, and **RAISING it after a seal is one of the two things that arm L-228**.
->    `bun scripts/set-business-day-cutoff.ts --hour 0 --apply` — it refuses exactly that raise, and
->    sidesteps DD-26's refusal of this field to a Gérant (L-230).
+> 2. **THE CUT-OFF IS 0 HERE SINCE 2026-09-20 AND STILL 5 IN FRANCE.** Verified here: exactly one
+>    `Setting` row moved, catalogue and fiscal state untouched, and the file came out
+>    **byte-identical to the rehearsal**. On the till it is the same command with both Scheduled
+>    Tasks stopped: `bun scripts/set-business-day-cutoff.ts --hour 0 --apply`. It refuses to RAISE
+>    the hour after a seal — which arms L-228 — and sidesteps DD-26 (L-230).
 > 3. **THE PROOF THE TILL UPDATE WORKED IS A SCRIPT NOW, NOT A REMEMBERED NUMBER** (L-229).
 >    `bun scripts/catalogue-fingerprint.ts`: this machine and the rehearsal both print
 >    **`b6a76daf0befc587`** / 86 products, the till's shape prints `a6fa4bbcb699afdf` / 83.
@@ -236,8 +236,8 @@ app exports or imports a catalogue today » until 2026-09-20. It was false from 
 nearly produced a whole-database copy onto the restaurant's till.)*
 `FISCAL_CHAIN_KEY` is in `.env`, `factice` is in the database: they do not travel together.
 
-**Last updated:** 2026-09-20 — L-229, L-230, L-231 recorded; migrations pending on the France
-till AND here. *(The batch-by-batch recap that stood here from 2026-09-13 — R8.0 … R8.6, R9.2, R9.6
+**Last updated:** 2026-09-20 — L-229 … L-232 recorded; `customer_city` applied and verified here;
+cut-off 0 here, 5 in France. *(The batch-by-batch recap that stood here from 2026-09-13 — R8.0 … R8.6, R9.2, R9.6
 and the audit's phasing — was retired to `REMEDIATION_DONE.md` on 2026-09-19 to make room. Every
 line of it is in that file's own entries, which is where a reader should have been looking: this
 paragraph was a second copy, and the only part of § 1 that was not outstanding work.)*

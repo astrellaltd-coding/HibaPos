@@ -126,7 +126,10 @@ forbids) and L-207. **Do not reboot before the migrations are applied**: the lau
 start on a pending migration (L-203, measured: `migrate status` exits 1) and the refusal points at
 the script you must not use.
 
-**The cut-off is still 5 and the operator chose 0, and it is now a SCRIPT rather than a screen:**
+**THE CUT-OFF IS 0 ON THIS MACHINE SINCE 2026-09-20 AND STILL 5 IN FRANCE.** Verified here: the
+file came out byte-identical to the rehearsal, exactly one `Setting` row moved, the value re-parses
+as the *number* 0, catalogue and fiscal state untouched. **France gets the same one command as part
+of the till update**, with both Scheduled Tasks stopped:
 
 ```
 bun scripts/set-business-day-cutoff.ts --hour 0 --apply

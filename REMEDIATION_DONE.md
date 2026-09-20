@@ -6322,6 +6322,16 @@ run cannot silently re-impose today's answer.
 - **THE CUT-OFF IS STILL 5 ON BOTH MACHINES.** The script is rehearsed and not run against live —
   `--apply` on `db/custom.db` is the operator's, as every write here is. One command on each
   install, and on the till it wants both Scheduled Tasks stopped.
+  > **DONE HERE the same day, 2026-09-20, by the operator**, and verified rather than reported.
+  > The live file came out **byte-identical to the rehearsal's outcome** (`43c51eb5…` on both, from
+  > the same `fbf7055e…` starting file), which is as close to proof as this gets. A full `Setting`
+  > diff against the restore point shows **exactly one row changed** — `businessDayCutoffHour`
+  > `"5"` → `"0"` — with all 18 rows present before and after and migrations still 20. The stored
+  > text `"0"` re-parses as the **number** 0, not the string, which is what the application needs.
+  > Catalogue still `b6a76daf0befc587` / 86 products, every trading table at zero, counters
+  > 0/0/0/0, `factice` untouched, no `-wal`/`-shm`. The restore point
+  > `before-cutoff-2026-09-20T17-10-51-635Z.db` holds the exact pre-change database.
+  > **France is still 5** — it waits on the till update, which waits on git.
 - **THE FRANCE TILL IS UNCHANGED AND STILL BLOCKED** on git and a token, asked again on 2026-09-20.
 - **L-230 is worked around, not fixed.** The script sidesteps DD-26; the documents that called the
   cut-off « a setting in Réglages » are corrected, but nothing about the authorization moved, and
