@@ -6430,9 +6430,14 @@ next reset refuse (its guard 1), and FACTICE off would make test sales non-facti
   compares sixteen row counts. The fingerprint run immediately afterwards showed `Product` had
   moved while its count had not. The cause was benign and unrelated to the reset — but the line
   cannot tell that from the other kind, in the one script with no undo.
-- **THE KIOSK QUESTION IS OPEN AND CHEAP TO SETTLE** (**L-237**). `--kiosk` went on with the update;
-  the till's previous file is at `%TEMP%\hibapos-kiosk.ps1.till-version`. The owner looks at the
-  **physical** screen at the next local log on — over RDP the resolution is not the panel's (L-211).
+- **THE REBOOT PASSED, AND `--kiosk` WORKS** — the operator power-cycled the till after the reset
+  and **the app came up fullscreen by itself**, no keyboard, no prompt. That is the whole auto-start
+  path exercised against the new code: all five of `hibapos-server.ps1`'s refusals passed (database,
+  **no pending migrations**, `SESSION_SECRET`, bun on that account's PATH, a fresh `.next/BUILD_ID`),
+  and the `--kiosk` launcher installed hours earlier ran for the first time. **L-237's remaining
+  half is a preference, not a defect**: whether the hard lock is better than the old chromeless
+  window is the owner's call, on the physical panel, with the previous file kept at
+  `%TEMP%\hibapos-kiosk.ps1.till-version`.
 - **TWO ORPHANED FILES ON THE TILL** (**L-236**): `hibapos-server.ps1.ps1`, which nothing executes,
   and `secrets.json.1192.tmp` from commissioning evening, which may hold partial secret material.
 - **THE REPOSITORY IS PUBLIC.** Measured, not assumed. Nothing catastrophic is in it — `.env` is
