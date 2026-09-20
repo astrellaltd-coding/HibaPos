@@ -56,20 +56,70 @@ Neither step touches the database, and both are reversible: uninstall git, revok
 **Do not reboot the till while doing this** — its two migrations are still pending and the
 launcher refuses to start on a pending migration (L-203).
 
+**BOTH ALTERNATIVES WERE PUT TO THE OPERATOR ON 2026-09-20 AND BOTH WERE DECLINED**, so a later
+session need not re-open them. A GitHub ZIP downloaded in Brave, and a USB copy from the
+development machine, each avoid installing git — and each makes the NEXT update this same
+conversation again. Git is the route.
+
+**The owner has never traded on that till and does not mind it being reinstalled**, which was new
+information the same day. It was tempting, and the answer was still to **update in place**: the
+till's *data* is disposable but its *configuration* is not. The printer queue — `SUNSO WTP-801` on
+`USB001` — lives in the `Setting` table, took two days and somebody looking at paper to confirm
+(R6.4), and a wholesale database copy would overwrite it with this machine's dev settings, which
+point at a `COM1:` queue that **prints nothing and reports success**. The Scheduled Tasks and the
+`.env` holding the backup key for the files already on `D:` are in the same category. What the
+disposable data *does* buy is nerve: if the update goes wrong, wiping and starting again costs
+nothing but time.
+
 **Then, and every step has a check in the done entry:** stop both Scheduled Tasks **by their French
 names** (`HibaPOS Serveur`, `HibaPOS Caisse` — `update.ps1` looks for the English ones, which is
 L-207) · back up and confirm it landed on `D:` · `git init` + remote + fetch + **`git reset`
 without `--hard` first, and read `git status` together before overwriting** · `bun install`,
 `db:generate`, `build` · `bun scripts/apply-migration.ts` dry run, expect **two** pending ·
-`--apply` · `bun scripts/add-tacos.ts --apply` then `bun scripts/set-option-quotas.ts --apply` ·
-restart · `bun scripts/catalogue-fingerprint.ts` and **expect `b6a76daf0befc587` and 86 products**,
+`--apply` · **`bun scripts/catalogue-fingerprint.ts` — expect `a6fa4bbcb699afdf` and 83 products** ·
+`bun scripts/add-tacos.ts --apply` then `bun scripts/set-option-quotas.ts --apply` · restart ·
+`bun scripts/catalogue-fingerprint.ts` again and **expect `b6a76daf0befc587` and 86 products**,
 which is the proof it worked.
+
+**THE FIRST FINGERPRINT IS THE ONE THAT CAN STILL SAVE YOU, and it goes AFTER the migrations, not
+before.** Before them the till has no `ProductOptionQuota` table at all, so the script says TABLE
+ABSENT and warns the number is not comparable — correct, and useless as a check. **After** the two
+migrations and **before** the two scripts, the till should be in exactly the shape the rehearsal
+reconstructed: 83 products, 8 category option groups, 39 choices, an empty quota table,
+`a6fa4bbcb699afdf`.
+
+**If that number is not `a6fa4bbcb699afdf`, STOP and do not run the two scripts.** It would mean the
+France catalogue is not the one every plan since 2026-09-19 assumes it is — and that assumption has
+only ever been checked against a RECONSTRUCTION built here, never measured on the till itself under
+this digest. The section digests printed above the total say which part differs; the row counts
+beside them usually say why. Nothing is lost by stopping there: no migration is undone and no
+catalogue row has been written yet.
 
 **`2d62a6b83ba006bf` IS RETIRED — do not look for it** (L-229). It came from a throwaway that no
 longer exists, and being id-inclusive it could never have matched: `add-tacos.ts` creates its rows
 with fresh `cuid()`s, so France's Tacos rows will never carry this machine's ids. The replacement
 script ignores ids, covers the option ceilings, and prints `a6fa4bbcb699afdf` on a database still in
 the till's shape — so a wrong number tells you *which* section differs instead of only that one does.
+
+**THE THREE TACOS HAVE NO PICTURE, ON EITHER MACHINE** (L-232), and the operator chose on
+2026-09-20 to attach it **by hand** rather than by script. 80 of 86 products carry an image; the
+six that do not are the three Tacos and the three « sans boisson » boxes — and the boxes are
+`showOnPos = 0`, so **the tacos are the only tile a cashier sees with no photograph**.
+`Tacos.webp` arrives with the code and appears in the médiathèque by itself; nothing points a row
+at it.
+
+**Do it in this order, and it is six edits, not three:**
+
+1. Finish the France update and **both** fingerprint checks first, while the photo is absent on
+   both machines and the two numbers are known to agree.
+2. Then attach it to `Tacos M`, `L` and `XL` **on both installs** — in France only after
+   `add-tacos.ts` has run, because until then the rows do not exist.
+3. Then run `bun scripts/catalogue-fingerprint.ts` on both and confirm they **still** match.
+
+Step 3 is not ceremony. `image` is one of the columns the fingerprint compares, so attaching the
+photo **changes the number** — `b6a76daf0befc587` stops being the expected value the moment the
+first machine is edited. Doing both and re-measuring turns that into a verified change; doing one
+and stopping leaves the two catalogues genuinely different with nothing recording it.
 
 **Do not use `update.ps1 -Apply`** — L-206 (it applies migrations with the bare command `CLAUDE.md`
 forbids) and L-207. **Do not reboot before the migrations are applied**: the launcher refuses to
