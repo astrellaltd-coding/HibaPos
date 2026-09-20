@@ -104,6 +104,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - The Tacos, carried to France — the photo, the script, and what the two catalogues actually differ by
 - L-99 / L-228 — the trading day becomes a rule the till enforces
 - Retired from the plan's § 1 on 2026-09-19 — the 2026-09-13 batch recap
+- The week re-measured before the till update — L-229, L-230, L-231
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -6008,6 +6009,18 @@ script with no row in the index.
   forbids) and **L-207** (it stops the task by a name the France till does not use, then carries on
   against a running server).
 
+**CORRECTION, 2026-09-20 (L-229): `2d62a6b83ba006bf` IS NOT USABLE AND THE PROOF STEP ABOVE HAS
+CHANGED.** The entry is left as written, because it is the record of what was done and the
+reconstruction it describes was sound — re-measured the next day by an unrelated method and
+confirmed to the row. Two things about the NUMBER were not: **the code that produced it was a
+scratchpad file and no longer exists** (about 500 serialisation variants reproduce none of the six
+section hashes in `606cdf6`), and it was **id-inclusive**, which `add-tacos.ts`'s fresh `cuid()`s
+mean could never have matched in France. « byte-identical to this machine on all eight sections »
+above cannot be literally true of a digest carrying ids, and the rehearsal database proves it:
+right counts, three section hashes differing by id alone. **The proof step is now
+`bun scripts/catalogue-fingerprint.ts`, expecting `b6a76daf0befc587` and 86 products.** See « The
+week re-measured before the till update » below.
+
 ---
 
 ### L-99 / L-228 — the trading day becomes a rule the till enforces
@@ -6137,6 +6150,112 @@ summary somebody wrote at the time says which things they thought belonged toget
 > (L-89 … L-182) a closed set. 2026-09-12: **R8.0** (`f68dcf6`), and the audit was phased into
 > Phases 8-10. § 7 unchanged at nine.
 >
+
+---
+
+### The week re-measured before the till update — L-229, L-230, L-231
+**Done:** 2026-09-20 · **Commits:** `7c92e08` (the fingerprint script) · this one (the records)
+**Findings:** L-229, L-230, L-231 opened. **No plan row.** The France till update itself is
+**NOT DONE** and the reason is below.
+
+**WHY THIS EXISTS AT ALL.** The operator asked for the previous session's six closed items to be
+**checked rather than trusted** before the France till was touched, that session having run long.
+Most of it held. Three things did not, and one of them would have been read at a caisse.
+
+**WHAT HELD, MEASURED:**
+
+| claim | result |
+|---|---|
+| `bun run test` | **2098 pass / 0 fail / 161 files**, exit **0** |
+| `bun run typecheck` · `bun run lint` | clean, exit **0** each |
+| newest commit `9e57f51`, tree clean | yes — **and `origin/main` is at `9e57f51`**, so it was genuinely pushed |
+| `db/custom.db` sha256 `13082cfd…efbff7` | unchanged, mtime 18 Sep 13:12, no `-wal`/`-shm` beside it |
+| 86 products · every trading table at zero · counters 0/0/0/0 | all confirmed, `bun:sqlite` `readonly: true` |
+
+Exit codes were captured into variables **before** any pipe. This project spent a round trip on a
+`cmd | tail && echo clean` that reported a failing typecheck as passing.
+
+**① L-231 — THE PLAN SAID NO MIGRATION WAS WAITING HERE, AND ONE WAS.** `prisma/migrations/` holds
+**20** directories; `_prisma_migrations` holds **19**. `20260918200000_customer_city` (L-221) has
+been on disk since 2026-09-19 and was never applied to this machine, and `Customer` carries no
+`city` column — checked against the schema rather than the table, because a row saying « applied »
+is the thing that has been wrong here before. The project's own tool agrees: a dry run against a
+verified copy reports **20 on disk, 19 applied, PENDING (1)**. § 1's parenthetical was true when
+written on 2026-09-14 and stopped being true the day L-221 landed, **in the paragraph whose job is
+to list what is outstanding** — the same shape as L-227 a week earlier.
+
+**It had a live consequence for this very session.** The cut-off change the operator asked for is
+made in Réglages, which means starting the server, and `instrumentation.ts:72` runs the PREP-4 gate
+at **every** startup — so the first thing to touch the live fiscal database would have been an
+automatic migration nobody had planned for that sitting. `prisma migrate status` also **exits 1**
+here now (measured), so this machine would meet L-203's launcher refusal exactly as the till does.
+
+**REHEARSED, on the operator's instruction to rehearse rather than let the app do it.** A verified
+copy in `../db-snapshots/r221-city-rehearsal/`, `apply-migration.ts --apply` against it, fingerprint
+before and after. **Three differences and no others:** `_prisma_migrations` 19 → 20, the
+`migrations` list, and `Customer.columns` — where `city:TEXT:notnull=0:default=null` is **appended
+as column 9 with the first nine byte-identical**, which proves SQLite did `ADD COLUMN` in place
+rather than the generator's RedefineTables rebuild. That matters because `Order.customerId` points
+at `Customer`, and it is what the migration's own header claims it does. Every fiscal table, row
+count, event hash, `integrity_check` and FK check identical.
+
+**The hand-over command, and it is the operator's action:**
+`bun scripts/apply-migration.ts --apply --expect ../db-snapshots/r221-city-rehearsal/fp-after.json`
+**Apply it BEFORE going into Réglages**, so the migration is a deliberate step and not a side
+effect of opening the settings screen.
+
+**② L-229 — THE PROOF OF THE FRANCE UPDATE COULD NOT BE PRODUCED, AND COULD NEVER HAVE MATCHED.**
+The full argument is in `7c92e08`'s message and the script's header. In short: `2d62a6b83ba006bf`
+came from a scratchpad file that no longer exists, ~500 serialisation variants reproduce none of the
+six section hashes recorded in `606cdf6`, and — the part that matters — **`add-tacos.ts` calls
+`create()` with no `id`**, so every row it makes gets a fresh `@default(cuid())`. The preserved
+rehearsal database proves the consequence: right counts, and three section digests differing from
+this machine's **purely by id** (`Tacos M` is `cmu64xa4r000sn31w…` here and `cmu8uol39001fn3f8…`
+there). A session re-running an id-inclusive digest in France would have read a **successful**
+update as a **failed** one, standing at the till with both scripts already applied.
+
+`scripts/catalogue-fingerprint.ts` replaces it: natural keys built from names, ids and `createdAt`
+ignored, `ProductOptionQuota` covered because `CATALOGUE_TABLES` omits it (L-225) and it is the
+difference between a Tacos M including one viande and six. **This machine and the rehearsal both
+print `b6a76daf0befc587` / 86 products. That is the number France must reproduce.** The till's
+shape prints `a6fa4bbcb699afdf` / 83, and a 2026-09-14 schema prints `184b3550b4a7a01e` with the
+quota table named as ABSENT rather than silently skipped.
+
+**And it independently re-confirms the previous session's real claim.** Under a digest written from
+scratch, the eight catalogue sections the tacos do not touch are **identical** between this machine
+and the till reconstruction; only `Product`, `CategoryOptionGroup` and `CategoryOptionChoice` differ,
+by exactly 3, 3 and 22 rows. The delta is the tacos and nothing else — measured twice now, by two
+unrelated methods.
+
+**③ L-230 — THE CUT-OFF IS SUPER_ADMIN-ONLY AND NO DOCUMENT SAID SO.** `businessDayCutoffHour` sits
+in `SUPER_ADMIN_ONLY_SETTINGS` (`settings-authz.ts:55`) under DD-26, beside the SIRET, for the stated
+reason that it sets the edges of every sealed document. Every document describing the 5 → 0 change
+calls it « a setting in Réglages, on each install » — and `CLAUDE.md` separately calls the MANAGER
+« the only account at the till ». Read together, the instruction is one the account named beside it
+is refused. **No harm done**: the operator confirmed the same day that the France till carries an
+Administrateur as well. The behaviour is correct and deliberate; the prose was what was wrong, and
+it is corrected in the plan and the hand-over.
+
+**How it was verified:** every number above measured read-only, `bun:sqlite` with `readonly: true`,
+never Prisma against the live file. The live database's sha256 and mtime were re-checked after the
+whole session and are unchanged. **Two reverts, one property at a time, both red** —
+`scripts-docs.test.ts` naming the new script for a missing index row, then for a missing shebang —
+each restored from a copy taken before its revert and sha256-verified. `2098 pass / 0 fail / 161
+files`, typecheck 0, lint 0, on the final tree.
+
+**Left behind:**
+
+- **THE FRANCE TILL UPDATE IS STILL BLOCKED, AND THE BLOCKER IS UNCHANGED.** The operator confirmed
+  on 2026-09-20 that **git is still not installed on `C:\HibaPOS-app` and there is no GitHub
+  token**. Nothing can be pulled until both exist. The procedure, its checks and its refusals are in
+  « The Tacos, carried to France »; the only thing that changed today is that its proof step now
+  names **`b6a76daf0befc587` / 86 products** and a script that exists, instead of a remembered number.
+- **THE CUT-OFF IS STILL 5 ON BOTH MACHINES.** In France it needs no update and can be done as soon
+  as the operator signs in as **Administrateur** — cleanest with no caisse open. Here it waits on the
+  `customer_city` apply above, deliberately, so the migration is not a side effect of the settings
+  screen. Lowering 5 → 0 is the safe direction; **raising** it after a seal is what arms L-228.
+- **`2d62a6b83ba006bf` IS RETIRED** wherever it was written — the plan and `NEXT-SESSION-PROMPT.md`.
+  It was never wrong, exactly; it was unusable, which took measuring to tell apart.
 
 ---
 

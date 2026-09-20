@@ -122,6 +122,11 @@ every trading table is at zero.
 > closing the caisse seals the day. **L-225 … L-228 were opened**; L-228 is fixed, the other three
 > are about carrying a catalogue and are open.
 >
+> **2026-09-20 — THE WEEK'S CLAIMS WERE RE-MEASURED BEFORE THE TILL UPDATE, AND MOST HELD.**
+> 2098 pass / 0 fail / 161 files, `9e57f51` pushed, the live database unmoved at 86 products with
+> every trading table at zero. **Three did not hold**: **L-229** (the proof number), **L-230**
+> (who may set the cut-off) and **L-231** (a migration pending here, in the bullet saying none was).
+>
 > ### ▶ WHAT IS WAITING, AND NONE OF IT IS CODE
 >
 > 1. **THE FRANCE TILL IS FOUR DAYS BEHIND AND CANNOT BE UPDATED YET.** Measured 2026-09-19: **18
@@ -131,9 +136,13 @@ every trading table is at zero.
 >    refusals to expect and the fingerprint that proves it worked are in `REMEDIATION_DONE.md`.
 > 2. **THE CUT-OFF IS STILL 5 AND THE OPERATOR CHOSE 0.** A setting in Réglages, on each install,
 >    no code. Cheapest now, while nothing real is sealed — every sealed close records the hour it
->    used, and **RAISING it after a seal is one of the two things that arm L-228**.
-> 3. **`CLAUDE.md` AND § 6 BOTH CARRY A FALSE SENTENCE** (L-227) — « nothing in the app exports or
->    imports a catalogue today ». It has since R9.9. The correction is the operator's to approve.
+>    used, and **RAISING it after a seal is one of the two things that arm L-228**. **An
+>    Administrateur must sign in: DD-26 refuses this field to a Gérant** (L-230).
+> 3. **THE PROOF THE TILL UPDATE WORKED IS A SCRIPT NOW, NOT A REMEMBERED NUMBER** (L-229).
+>    `bun scripts/catalogue-fingerprint.ts`: this machine and the rehearsal both print
+>    **`b6a76daf0befc587`** / 86 products, the till's shape prints `a6fa4bbcb699afdf` / 83.
+>    **`2d62a6b83ba006bf` is retired** — it came from a throwaway that no longer exists, and being
+>    id-inclusive it could never have matched rows `add-tacos.ts` creates with fresh `cuid()`s.
 
 
 **Phases 0-5 and 7 are COMPLETE**, with all four operator items and all three migrations
@@ -196,11 +205,13 @@ audit exercised produced screen figures matching the database to the cent.
   0 up to date**), so the launcher refuses before PREP-4 ever runs. That is **L-203**, live. The
   refusal points at `update.ps1 -Apply`, which carries **L-206** and **L-207**. Apply them by hand
   with `bun scripts/apply-migration.ts --apply`.
-*(**No migration is waiting on THIS machine.** L-171's was applied by the operator on 2026-09-14 and
-  **verified**: the live fingerprint is identical to the rehearsal's on every key, checksums
-  included, `integrity_check` ok, zero FK errors, `migrate status` up to date, and a refund with
-  an attribution round-tripped through the real service on a copy. R8.2's is applied too —
-  § 1 and L-195. This bullet is kept as the place the next one goes.)*
+- **ONE MIGRATION IS PENDING ON THIS MACHINE TOO** — `20260918200000_customer_city` (L-221), on
+  disk since 2026-09-19 and never applied here; `Customer` carries no `city` column. **This bullet
+  read « No migration is waiting on THIS machine » until 2026-09-20**, when it was counted rather
+  than read (**L-231**). Rehearsed the same day on a verified copy; the hand-over command is
+  `bun scripts/apply-migration.ts --apply --expect ../db-snapshots/r221-city-rehearsal/fp-after.json`.
+  **Starting the server applies it unasked** — PREP-4, `instrumentation.ts:72`, behind a backup it
+  re-opens to verify — so apply it deliberately BEFORE going into Réglages, not during.
 - **A FRESH verified backup, off this machine.** The oldest open item in the plan and the
   only one about losing data rather than getting something wrong. The two backup rows in
   `docs/BASELINES.md` say exactly where it stands and what is left.
@@ -222,8 +233,8 @@ app exports or imports a catalogue today » until 2026-09-20. It was false from 
 nearly produced a whole-database copy onto the restaurant's till.)*
 `FISCAL_CHAIN_KEY` is in `.env`, `factice` is in the database: they do not travel together.
 
-**Last updated:** 2026-09-19 — L-221, L-222 and L-224 closed; a migration is pending on the
-France till. *(The batch-by-batch recap that stood here from 2026-09-13 — R8.0 … R8.6, R9.2, R9.6
+**Last updated:** 2026-09-20 — L-229, L-230, L-231 recorded; migrations pending on the France
+till AND here. *(The batch-by-batch recap that stood here from 2026-09-13 — R8.0 … R8.6, R9.2, R9.6
 and the audit's phasing — was retired to `REMEDIATION_DONE.md` on 2026-09-19 to make room. Every
 line of it is in that file's own entries, which is where a reader should have been looking: this
 paragraph was a second copy, and the only part of § 1 that was not outstanding work.)*

@@ -33,14 +33,43 @@ products and no Tacos at all**. Everything it needs is pushed.
 that machine. The operator has to install git and get a GitHub token with read access to the private
 repo before anything can happen. **Ask whether that is done before writing any procedure.**
 
+**ASKED AND STILL BLOCKED, 2026-09-20: neither exists yet.** Nothing about the till changed that
+day. What did change is that its proof step now names a script and a number that can be reproduced
+— see the fingerprint note below — and that the same `customer_city` migration turned out to be
+pending on THIS machine as well (L-231).
+
+**WHAT THE OPERATOR HAS TO DO ON THE TILL BEFORE ANY SESSION CAN HELP.** Both are theirs to do —
+Claude does not type credentials.
+
+1. **Install Git for Windows** from `https://git-scm.com/download/win` (64-bit standalone
+   installer), accepting the defaults. The only thing that matters is that `git.exe` lands on
+   `PATH`. Check it in PowerShell: `git --version` should answer. If it does not, the installer's
+   « Adjusting your PATH » page was set to the most restrictive option — re-run it and choose
+   « Git from the command line and also from 3rd-party software ».
+2. **Create a fine-grained GitHub token**, on github.com → Settings → Developer settings →
+   Personal access tokens → **Fine-grained tokens** → Generate new token. **Repository access:
+   Only select repositories → the HibaPOS repo. Permissions: Repository permissions → Contents →
+   Read-only.** Nothing else — this token only ever needs to pull. Give it a short expiry; it is
+   for one update, not for living on a till. Copy it once; GitHub will not show it again.
+
+Neither step touches the database, and both are reversible: uninstall git, revoke the token.
+**Do not reboot the till while doing this** — its two migrations are still pending and the
+launcher refuses to start on a pending migration (L-203).
+
 **Then, and every step has a check in the done entry:** stop both Scheduled Tasks **by their French
 names** (`HibaPOS Serveur`, `HibaPOS Caisse` — `update.ps1` looks for the English ones, which is
 L-207) · back up and confirm it landed on `D:` · `git init` + remote + fetch + **`git reset`
 without `--hard` first, and read `git status` together before overwriting** · `bun install`,
 `db:generate`, `build` · `bun scripts/apply-migration.ts` dry run, expect **two** pending ·
 `--apply` · `bun scripts/add-tacos.ts --apply` then `bun scripts/set-option-quotas.ts --apply` ·
-restart · re-run the catalogue fingerprint and **expect `2d62a6b83ba006bf` and 86 products**, which
-is the proof it worked.
+restart · `bun scripts/catalogue-fingerprint.ts` and **expect `b6a76daf0befc587` and 86 products**,
+which is the proof it worked.
+
+**`2d62a6b83ba006bf` IS RETIRED — do not look for it** (L-229). It came from a throwaway that no
+longer exists, and being id-inclusive it could never have matched: `add-tacos.ts` creates its rows
+with fresh `cuid()`s, so France's Tacos rows will never carry this machine's ids. The replacement
+script ignores ids, covers the option ceilings, and prints `a6fa4bbcb699afdf` on a database still in
+the till's shape — so a wrong number tells you *which* section differs instead of only that one does.
 
 **Do not use `update.ps1 -Apply`** — L-206 (it applies migrations with the bare command `CLAUDE.md`
 forbids) and L-207. **Do not reboot before the migrations are applied**: the launcher refuses to
@@ -49,7 +78,15 @@ the script you must not use.
 
 **The cut-off is still 5 and the operator chose 0.** It is a setting in Réglages, on each install.
 Do it while nothing real is sealed: **raising it after a seal is one of the two things that arm
-L-228.**
+L-228.** **Sign in as Administrateur** — DD-26 refuses this field to a Gérant, and the Gérant is the
+account the till is normally used with (L-230). In France it needs no update and can be done today;
+**here it waits on the pending migration below**, so that apply is deliberate rather than a side
+effect of opening Réglages.
+
+**ONE MIGRATION IS PENDING ON THIS MACHINE TOO** — `20260918200000_customer_city`, rehearsed
+2026-09-20, three expected differences and no others. § 1 said none was waiting until that day
+(L-231). The operator applies it:
+`bun scripts/apply-migration.ts --apply --expect ../db-snapshots/r221-city-rehearsal/fp-after.json`
 
 ---
 
