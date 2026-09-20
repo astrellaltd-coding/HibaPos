@@ -105,6 +105,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - L-99 / L-228 — the trading day becomes a rule the till enforces
 - Retired from the plan's § 1 on 2026-09-19 — the 2026-09-13 batch recap
 - The week re-measured before the till update — L-229, L-230, L-231
+- `customer_city` applied here, and the cut-off becomes a script
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -6256,6 +6257,76 @@ files`, typecheck 0, lint 0, on the final tree.
   screen. Lowering 5 → 0 is the safe direction; **raising** it after a seal is what arms L-228.
 - **`2d62a6b83ba006bf` IS RETIRED** wherever it was written — the plan and `NEXT-SESSION-PROMPT.md`.
   It was never wrong, exactly; it was unusable, which took measuring to tell apart.
+
+---
+
+### `customer_city` applied here, and the cut-off becomes a script
+**Done:** 2026-09-20 · **Commits:** *(this one)* · **Findings:** L-230 worked around, L-231 closed.
+**No plan row.** The migration was applied **by the operator**; everything else is this session's.
+
+**THE MIGRATION WAS APPLIED AND THEN CHECKED RATHER THAN BELIEVED.** The operator ran
+`bun scripts/apply-migration.ts --apply --expect ../db-snapshots/r221-city-rehearsal/fp-after.json`
+and reported it done. Verified read-only afterwards, because this project has twice been told a
+migration was applied when it was not:
+
+| check | result |
+|---|---|
+| `_prisma_migrations` | **20**, latest `20260918200000_customer_city`, **0 unfinished** |
+| `Customer` columns | `…, updatedAt, city` — appended as column 9, first nine byte-identical, so `ADD COLUMN` in place and not a RedefineTables rebuild |
+| against the rehearsal's `fp-after.json` | **0 differences** — row counts, column order, `FiscalCounter`, `GrandTotal`, event hashes, sealed rows, order lines, `integrity_check`, FK errors, migration checksums |
+| catalogue · trading tables | `b6a76daf0befc587` / 86 products · all 16 at zero · counters 0/0/0/0 |
+| the file | `13082cfd…` → `fbf7055e…`, no `-wal`/`-shm`, **both restore points hold the exact pre-migration database** |
+
+`prisma migrate status` now **exits 0** here, so **L-203's launcher refusal no longer applies to
+this machine**. **L-231 is closed** and § 1's bullet says « No migration is waiting on THIS
+machine » again — true this time because it was counted.
+
+**THEN THE CUT-OFF, AND THE ROUTE CHANGED BEFORE IT WAS TAKEN.** The hand-over said to open
+Réglages. Checking that before saying it again found three things: **the build here was stale**
+(eight source files newer than `.next/BUILD_ID`, including `close/route.ts`, `pos-view.tsx` and
+`validation.ts`); **`bun run start` is a ❌ in § 5**, « Never, from this directory », for the exact
+reason we would have been running it; and **in France the UI route needs a different account**,
+because DD-26 makes this field SUPER_ADMIN-only and the till is used as Gérant (**L-230**). One
+thing was *better* than feared: this database sits inside OneDrive, so `pragmaDecision` returns
+`CLOUD_SYNC` and starting the app would **not** have switched the file to WAL.
+
+**So `scripts/set-business-day-cutoff.ts`**, in the house pattern — dry run by default, own
+sha-verified restore point, read-back, idempotent — and carrying **a refusal Réglages does not
+have**: it will not **raise** the hour once any day has been sealed, because moving the boundary
+later drags moments belonging to a later day back into a sealed one, which is one of the two things
+that arm **L-228**. Lowering is always allowed. `--hour` is required and has no default, so a later
+run cannot silently re-impose today's answer.
+
+**How it was verified — every refusal fired, on a database built to trip it:**
+
+- `--hour` absent · `--hour` with no value · `24` · `7h` · `-1` — each refused, **exit 1**, checked
+  as an exit code and not through a pipe.
+- **`-wal` beside the database** — refused, naming the file and saying to stop the Scheduled Tasks.
+  This one matters: on the France till the app is normally running and WAL is likely on, so the
+  restore point would otherwise be a copy of less than the whole database.
+- **Raising after a seal** — a scratch copy was given a fabricated `DailyClose` row, then `--hour 9`
+  was refused by name: « 1 trading day(s) are already sealed (latest 2026-09-19) … one of the two
+  things that arm L-228 ». **`--hour 0` on the SAME database was allowed**, which is the asymmetry
+  the script exists for.
+- **Applied on a scratch copy**: `5` → `0`, read back and re-parsed as a *number* (a row holding
+  the string `"0"` would satisfy a naive check and give the app a cut-off it cannot use), re-run is
+  idempotent and exits 0, and afterwards the catalogue was still `b6a76daf0befc587` / 86 products
+  with every trading table at zero — only the one `Setting` row moved.
+- `scripts-docs.test.ts` went **red first**, naming `set-business-day-cutoff.ts` as a script with no
+  row in the index; restored from a copy taken before the revert, sha256 verified.
+
+`2098 pass / 0 fail / 161 files`, typecheck 0, lint 0.
+
+**Left behind:**
+
+- **THE CUT-OFF IS STILL 5 ON BOTH MACHINES.** The script is rehearsed and not run against live —
+  `--apply` on `db/custom.db` is the operator's, as every write here is. One command on each
+  install, and on the till it wants both Scheduled Tasks stopped.
+- **THE FRANCE TILL IS UNCHANGED AND STILL BLOCKED** on git and a token, asked again on 2026-09-20.
+- **L-230 is worked around, not fixed.** The script sidesteps DD-26; the documents that called the
+  cut-off « a setting in Réglages » are corrected, but nothing about the authorization moved, and
+  nothing should — the field belongs where DD-26 put it.
+- **The plan is at 40 838 of 40 960 bytes.** The next session that needs room retires something.
 
 ---
 

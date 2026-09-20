@@ -136,8 +136,9 @@ every trading table is at zero.
 >    refusals to expect and the fingerprint that proves it worked are in `REMEDIATION_DONE.md`.
 > 2. **THE CUT-OFF IS STILL 5 AND THE OPERATOR CHOSE 0.** A setting in Réglages, on each install,
 >    no code. Cheapest now, while nothing real is sealed — every sealed close records the hour it
->    used, and **RAISING it after a seal is one of the two things that arm L-228**. **An
->    Administrateur must sign in: DD-26 refuses this field to a Gérant** (L-230).
+>    used, and **RAISING it after a seal is one of the two things that arm L-228**.
+>    `bun scripts/set-business-day-cutoff.ts --hour 0 --apply` — it refuses exactly that raise, and
+>    sidesteps DD-26's refusal of this field to a Gérant (L-230).
 > 3. **THE PROOF THE TILL UPDATE WORKED IS A SCRIPT NOW, NOT A REMEMBERED NUMBER** (L-229).
 >    `bun scripts/catalogue-fingerprint.ts`: this machine and the rehearsal both print
 >    **`b6a76daf0befc587`** / 86 products, the till's shape prints `a6fa4bbcb699afdf` / 83.
@@ -205,13 +206,15 @@ audit exercised produced screen figures matching the database to the cent.
   0 up to date**), so the launcher refuses before PREP-4 ever runs. That is **L-203**, live. The
   refusal points at `update.ps1 -Apply`, which carries **L-206** and **L-207**. Apply them by hand
   with `bun scripts/apply-migration.ts --apply`.
-- **ONE MIGRATION IS PENDING ON THIS MACHINE TOO** — `20260918200000_customer_city` (L-221), on
-  disk since 2026-09-19 and never applied here; `Customer` carries no `city` column. **This bullet
-  read « No migration is waiting on THIS machine » until 2026-09-20**, when it was counted rather
-  than read (**L-231**). Rehearsed the same day on a verified copy; the hand-over command is
-  `bun scripts/apply-migration.ts --apply --expect ../db-snapshots/r221-city-rehearsal/fp-after.json`.
-  **Starting the server applies it unasked** — PREP-4, `instrumentation.ts:72`, behind a backup it
-  re-opens to verify — so apply it deliberately BEFORE going into Réglages, not during.
+- **No migration is waiting on THIS machine** — `20260918200000_customer_city` (L-221) was applied
+  by the operator on 2026-09-20 with
+  `bun scripts/apply-migration.ts --apply --expect ../db-snapshots/r221-city-rehearsal/fp-after.json`
+  and **verified**: zero differences from the rehearsal's post-migration fingerprint, `city`
+  appended as the last column with the first nine byte-identical, catalogue still
+  `b6a76daf0befc587` / 86 products, every trading table at zero, `migrate status` exit 0. Both
+  restore points in `../db-snapshots/` hold the pre-migration file. *(This bullet asserted the same
+  sentence throughout 2026-09-19/20 while the migration was in fact pending — **L-231**. It is true
+  again because it was counted, not because it was left alone.)*
 - **A FRESH verified backup, off this machine.** The oldest open item in the plan and the
   only one about losing data rather than getting something wrong. The two backup rows in
   `docs/BASELINES.md` say exactly where it stands and what is left.

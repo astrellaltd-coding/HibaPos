@@ -126,17 +126,27 @@ forbids) and L-207. **Do not reboot before the migrations are applied**: the lau
 start on a pending migration (L-203, measured: `migrate status` exits 1) and the refusal points at
 the script you must not use.
 
-**The cut-off is still 5 and the operator chose 0.** It is a setting in Réglages, on each install.
-Do it while nothing real is sealed: **raising it after a seal is one of the two things that arm
-L-228.** **Sign in as Administrateur** — DD-26 refuses this field to a Gérant, and the Gérant is the
-account the till is normally used with (L-230). In France it needs no update and can be done today;
-**here it waits on the pending migration below**, so that apply is deliberate rather than a side
-effect of opening Réglages.
+**The cut-off is still 5 and the operator chose 0, and it is now a SCRIPT rather than a screen:**
 
-**ONE MIGRATION IS PENDING ON THIS MACHINE TOO** — `20260918200000_customer_city`, rehearsed
-2026-09-20, three expected differences and no others. § 1 said none was waiting until that day
-(L-231). The operator applies it:
-`bun scripts/apply-migration.ts --apply --expect ../db-snapshots/r221-city-rehearsal/fp-after.json`
+```
+bun scripts/set-business-day-cutoff.ts --hour 0 --apply
+```
+
+`set-business-day-cutoff.ts` exists because Réglages is the wrong instrument on both installs —
+reaching it here means running the app against the live catalogue, which § 5 forbids, and on the
+till DD-26 makes the field SUPER_ADMIN-only so the **Gérant account in daily use is refused it**
+(L-230). The script sidesteps both. **`--hour` is required and has no default.** It refuses to
+**raise** the hour once any day has been sealed — one of the two things that arm L-228 — while
+always allowing a lowering, and it refuses while a `-wal`/`-shm` sits beside the database, since
+the restore point would not then be the whole file. On the till, run it with both Scheduled Tasks
+stopped, which they are during the update.
+
+**THE `customer_city` MIGRATION IS APPLIED ON THIS MACHINE** — 2026-09-20 by the operator, and
+verified: **zero differences** from the rehearsal's expected post-migration fingerprint, `Customer`
+gained `city` as its last column with the first nine byte-identical, catalogue still
+`b6a76daf0befc587` / 86 products, every trading table at zero. `migrate status` exits 0 here now,
+so L-203's launcher refusal no longer applies to this machine. Both restore points in
+`../db-snapshots/` hold the exact pre-migration file. **The France till's two are still pending.**
 
 ---
 
