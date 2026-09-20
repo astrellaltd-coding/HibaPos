@@ -17,7 +17,6 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -212,7 +211,7 @@ export function ShiftsView() {
 
   // --- Close shift mutation ---
   const closeMutation = useMutation({
-    mutationFn: (vars: { closingFloat: number; notes?: string; sealDay: boolean }) =>
+    mutationFn: (vars: { closingFloat: number; notes?: string }) =>
       api.post<{ zReport: ZReportSummary; cashVariance: number; backup: { filename: string } | null; backupError?: string | null; daySeal?: DaySeal }>(
         `/api/shifts/${current?.id}/close`,
         vars,
@@ -697,7 +696,7 @@ function CloseShiftDialog({
   expectedCash: number;
   openingFloat: number;
   loading: boolean;
-  onSubmit: (v: { closingFloat: number; notes?: string; sealDay: boolean }) => void;
+  onSubmit: (v: { closingFloat: number; notes?: string }) => void;
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -727,23 +726,9 @@ function CloseShiftForm({
   expectedCash: number;
   openingFloat: number;
   loading: boolean;
-  onSubmit: (v: { closingFloat: number; notes?: string; sealDay: boolean }) => void;
+  onSubmit: (v: { closingFloat: number; notes?: string }) => void;
   onCancel: () => void;
 }) {
-  // L-228 (2026-09-20) — CLOSING THE CAISSE CLOSES THE DAY, and it is checked.
-  //
-  // The operator's decision: « once he closed the till, the day is auto
-  // closed ». So the ordinary flow is unchanged — count the cash, press the
-  // button, the day seals — and this box exists for the one case that would
-  // otherwise be expensive.
-  //
-  // WHY IT IS A BOX AND NOT UNCONDITIONAL. Sealing the day makes guard A refuse
-  // every further sale in it, and there is NO override for that: the
-  // SUPER_ADMIN escape covers opening a caisse, never a sale into a sealed day.
-  // A caisse closed at 15:00 by mistake would therefore cost the evening. One
-  // pre-checked box is the cheapest way to make that unreachable by accident.
-  const [sealDay, setSealDay] = useState(true);
-
   // L-132 (R9.10) — EMPTY, not pre-filled with what we already believe.
   //
   // This was `useState((expectedCash / 100).toFixed(2))`, so the default action
@@ -830,28 +815,25 @@ function CloseShiftForm({
           </div>
         </div>
 
-        {/* L-228 — the second half of the close, where the operator can see it. */}
-        <label
-          htmlFor="close-seal-day"
-          className="flex min-h-[44px] cursor-pointer items-start gap-3 rounded-lg border border-border bg-muted/40 p-3"
-        >
-          <Switch
-            id="close-seal-day"
-            checked={sealDay}
-            onCheckedChange={setSealDay}
-            className="mt-0.5 shrink-0"
-          />
+        {/* L-228 — WHAT THIS BUTTON IS ABOUT TO DO, stated rather than offered.
+          *
+          * This was a pre-checked switch for one evening. The operator settled
+          * it on 2026-09-20: closing the till IS ending the day here, always,
+          * so a switch would only ever be left on. What remains is the warning,
+          * because the consequence is irreversible and has no override — and a
+          * cashier about to take that step should read it, not discover it. */}
+        <div className="flex items-start gap-3 rounded-lg border border-amber-500/50 bg-amber-500/10 p-3">
+          <LockKeyhole className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
           <span className="text-sm">
-            <span className="font-medium text-foreground">
-              Clôturer aussi la journée du {todayLabel()}
+            <span className="font-medium text-amber-900 dark:text-amber-300">
+              La journée du {todayLabel()} sera clôturée et scellée
             </span>
-            <span className="mt-0.5 block text-xs text-muted-foreground">
-              Scelle la clôture du jour en même temps que la caisse.{" "}
-              <span className="font-medium">Plus aucune vente ne sera possible aujourd&apos;hui.</span>{" "}
-              Décochez si vous rouvrez la caisse plus tard dans la journée.
+            <span className="mt-0.5 block text-xs text-amber-800/90 dark:text-amber-300/80">
+              Plus aucune vente ne sera possible aujourd&apos;hui, et une clôture scellée ne peut
+              être ni modifiée ni supprimée.
             </span>
           </span>
-        </label>
+        </div>
 
         <div className="grid gap-2">
           <Label htmlFor="close-notes">Note de clôture (optionnelle)</Label>
@@ -871,15 +853,13 @@ function CloseShiftForm({
         </Button>
         <Button
           variant="destructive"
-          onClick={() =>
-            onSubmit({ closingFloat: countedCents, notes: notes.trim() || undefined, sealDay })
-          }
+          onClick={() => onSubmit({ closingFloat: countedCents, notes: notes.trim() || undefined })}
           // L-132 (R9.10): a Z cannot be sealed over a count nobody made.
           disabled={loading || !hasCount}
           title={hasCount ? undefined : "Saisissez les espèces comptées pour clôturer."}
         >
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <LockKeyhole className="h-4 w-4" />}
-          {sealDay ? "Clôturer la caisse et la journée" : "Générer le rapport Z et clôturer"}
+          Clôturer la caisse et la journée
         </Button>
       </DialogFooter>
     </>

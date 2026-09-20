@@ -3,6 +3,7 @@
 import { useState, useMemo, useCallback, memo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
+import { staleShiftDay } from "@/lib/services/trading-day-guard";
 import type { CategoryDto, ProductDto, OrderDto } from "@/types/api";
 import { CartPanel } from "@/components/pos/cart-panel";
 import { ProductOptionsDialog } from "@/components/pos/product-options-dialog-v2";
@@ -520,16 +521,47 @@ const ProductCard = memo(function ProductCard({ product, onClick }: { product: P
 function ShiftHint({ onClick }: { onClick: () => void }) {
   const { data: shift } = useQuery({
     queryKey: ["shift", "current"],
-    queryFn: () => api.get<{ id: string } | null>("/api/shifts/current"),
+    queryFn: () => api.get<{ id: string; openedAt: string } | null>("/api/shifts/current"),
   });
-  if (shift) return null;
+  // L-228 — the cut-off is what decides whether the open caisse still belongs
+  // to today, so it has to be read here rather than assumed to be midnight.
+  const { data: settings } = useQuery({
+    queryKey: ["settings"],
+    queryFn: () => api.get<{ businessDayCutoffHour?: number }>("/api/settings"),
+  });
+
+  // L-228 — A CAISSE FROM A DAY THAT IS OVER, said HERE rather than at the
+  // payment.
+  //
+  // THE CASE, in the operator's words (2026-09-20): « if he forgot to close the
+  // tail that day … Tuesday when he goes back to the restaurant … the first
+  // thing he will need to do is to close the previous day ». Without this
+  // banner the first thing he meets is a refusal on « Encaisser », after the
+  // order has been rung and possibly after the customer has handed over money —
+  // which is the exact shape L-214 was raised about, one screen along.
+  //
+  // `staleShiftDay` is the same rule `POST /api/orders` refuses with. The till
+  // says what the server will say, before the cash is counted.
+  const staleDay = shift
+    ? staleShiftDay(new Date(shift.openedAt), new Date(), settings?.businessDayCutoffHour ?? 5)
+    : null;
+
+  if (shift && !staleDay) return null;
+
   return (
     <div className="pointer-events-none fixed bottom-4 left-1/2 z-40 -translate-x-1/2">
       <div className="pointer-events-auto flex items-center gap-3 rounded-full border border-amber-300 bg-amber-50 px-4 py-2 shadow-lg">
         <LockKeyhole className="h-4 w-4 text-amber-600" />
-        <span className="text-xs font-medium text-amber-800">Aucune caisse ouverte — l'encaissement est bloqué</span>
+        {staleDay ? (
+          <span className="text-xs font-medium text-amber-800">
+            Caisse ouverte le {staleDay} — cette journée est terminée. Clôturez-la avant
+            d&apos;encaisser.
+          </span>
+        ) : (
+          <span className="text-xs font-medium text-amber-800">Aucune caisse ouverte — l&apos;encaissement est bloqué</span>
+        )}
         <Button size="sm" className="h-11 min-h-[44px] px-4" onClick={onClick}>
-          Ouvrir
+          {staleDay ? "Clôturer" : "Ouvrir"}
         </Button>
       </div>
     </div>

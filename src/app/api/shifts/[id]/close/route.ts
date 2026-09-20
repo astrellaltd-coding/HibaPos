@@ -59,7 +59,6 @@ export const POST = withAuthParams(async (req, { user, params }) => {
       cutoffHour: settings.businessDayCutoffHour,
       userId: user.id,
       factice: settings.factice ?? false,
-      includeToday: parsed.data.sealDay,
     });
   } catch (e) {
     daySeal = {

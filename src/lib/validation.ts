@@ -318,14 +318,18 @@ export const shiftOpenSchema = z.object({
 export const shiftCloseSchema = z.object({
   closingFloat: z.number().int().min(0), // cents
   notes: z.string().max(500).optional().nullable(),
-  // L-228: seal the trading day along with the caisse. DEFAULTS TO TRUE, which
-  // is the operator's decision of 2026-09-20 — closing the till is closing the
-  // day, and a cashier should not have to know there are two things. It is a
-  // flag rather than unconditional because closing the caisse at 15:00 by
-  // mistake would otherwise seal the day and refuse every sale until midnight,
-  // with no override: the SUPER_ADMIN escape covers opening a caisse, never a
-  // sale into a sealed day.
-  sealDay: z.boolean().default(true),
+  // L-228: THERE IS NO `sealDay` FLAG, and its absence is the decision.
+  //
+  // It existed for one evening as a pre-checked switch, against the case of a
+  // caisse closed at 15:00 by mistake — which would seal the day and refuse
+  // every sale until midnight, with no override.
+  //
+  // **THE OPERATOR SETTLED IT ON 2026-09-20, having been shown that case:**
+  // « if he close the tail, that's mean that day is finished ». Closing the
+  // till IS ending the day, in this restaurant, always. So a flag no caller
+  // would ever set to false is surface nobody reads — the shape DD-15 deleted
+  // a `postalCode` column for — and it is gone rather than left defaulting.
+  // The dialog states plainly what the button is about to do instead.
 });
 
 // L-02 (Batch 6.2), removed together with T-08 exactly as both rows instruct.

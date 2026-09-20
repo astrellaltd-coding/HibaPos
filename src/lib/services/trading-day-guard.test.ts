@@ -158,12 +158,35 @@ describe("L-228 — one module, and every caller asks it", () => {
     ).not.toContain('? "Une caisse est déjà ouverte');
   });
 
-  it("THE CLOSE DIALOG SENDS `sealDay`, and defaults it to on", () => {
+  it("THE CLOSE DIALOG OFFERS NO WAY OUT, and says what the button will do", () => {
+    // The operator's decision of 2026-09-20: closing the till IS ending the
+    // day here, so there is no switch. What has to remain is the warning — the
+    // consequence is irreversible and has no override, and a cashier should
+    // read that rather than discover it.
     const view = code("features/shifts/shifts-view.tsx");
-    expect(view, "the close dialog does not send the flag").toContain("sealDay");
-    expect(view, "the box is not checked by default -- the operator asked for automatic").toContain(
-      "useState(true)",
+    expect(view, "the sealDay switch is back").not.toContain("setSealDay");
+    expect(view, "the dialog no longer says the day will be sealed").toContain(
+      "sera clôturée et scellée",
     );
+    expect(view, "the button no longer names both halves").toContain(
+      "Clôturer la caisse et la journée",
+    );
+  });
+
+  it("THE CAISSE SCREEN WARNS ABOUT A STALE TILL BEFORE THE PAYMENT", () => {
+    // « if he forgot to close the tail that day … the first thing he will need
+    // to do is to close the previous day » — so the till says it on the POS,
+    // not at « Encaisser » after the order has been rung.
+    const pos = code("features/catalog/pos-view.tsx");
+    expect(pos, "the POS does not ask the shared rule").toContain("staleShiftDay(");
+    expect(pos, "the POS does not name the day the caisse belongs to").toContain(
+      "Caisse ouverte le {staleDay}",
+    );
+    // AND THE CONDITION THAT DECIDES WHETHER IT RENDERS. Found by a revert:
+    // restoring the old `if (shift) return null` suppressed the banner while
+    // leaving the rule call and the wording in place, so both assertions above
+    // stayed green over a screen that had gone back to saying nothing.
+    expect(pos, "the banner is computed and then never shown").toContain("shift && !staleDay");
   });
 
   it("THE SCREEN SHOWS A FAILED SEAL, which is the one that must not be silent", () => {

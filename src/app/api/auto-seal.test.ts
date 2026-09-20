@@ -166,17 +166,25 @@ describe("L-228 — closing the caisse seals today, which has not ended", () => 
     expect(sale.body.error).toContain("scellée");
   });
 
-  it("DOES NOT SEAL TODAY WHEN THE OPERATOR UNCHECKS IT — the mid-afternoon break", async () => {
-    // Closing the caisse at 15:00 by mistake must not cost an evening. There is
-    // no override for a sale into a sealed day, by design, so the protection
-    // has to be here.
+  it("SEALS UNCONDITIONALLY — there is no flag a caller can send to prevent it", async () => {
+    // REPLACES a test of the `sealDay` switch, which existed for one evening.
+    // The operator settled it on 2026-09-20, having been shown the case it
+    // guarded — a caisse closed at 15:00 by mistake costing the evening:
+    // « if he close the tail, that's mean that day is finished ». So the flag
+    // is gone, and this asserts that it is gone rather than defaulted: a body
+    // still carrying `sealDay: false` is IGNORED, not obeyed.
+    //
+    // **THE OLD TEST WAS NOT WEAKENED, IT WAS INVERTED** — the behaviour it
+    // described was removed by decision, and the opposite behaviour is pinned
+    // here in its place.
     const shiftId = await openAndSell();
+    const today = dayString(new Date());
 
     const res = await closeCaisse(shiftId, { sealDay: false });
 
     expect(res.status, res.body.error ?? "").toBe(200);
-    expect(res.body.daySeal?.sealed).toEqual([]);
-    expect(await db.dailyClose.count()).toBe(0);
+    expect(res.body.daySeal?.sealed, "a stale `sealDay: false` still prevented the seal").toContain(today);
+    expect(await db.dailyClose.count({ where: { period: today } })).toBe(1);
   });
 
   it("DOES NOT SEAL A DAY NOBODY TRADED IN", async () => {

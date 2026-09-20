@@ -18,15 +18,18 @@
  * ── TODAY IS SEALED ONLY IF SOMETHING WAS RUNG, AND ONLY ON REQUEST ─────────
  * Two conditions, and both exist to protect an evening's trade.
  *
- *   * **On request**: the caller passes `includeToday`, which the close screen
- *     offers as a checked box. If the caisse is closed at 15:00 by mistake —
- *     a slip, a break, a second session — sealing today would make guard A
- *     refuse every sale until midnight, and the SUPER_ADMIN escape does NOT
- *     cover that: the escape is on opening a caisse, and a sale into a sealed
- *     day has no override by design. An accidental tap must not be able to cost
- *     a restaurant its evening.
- *   * **If something was rung**: an empty day has nothing to seal, and sealing
- *     it would lock the till out of a day that never traded.
+ * **TODAY IS SEALED UNCONDITIONALLY, and that is the operator's decision.**
+ * For one evening this was a pre-checked switch, so that a caisse closed at
+ * 15:00 by mistake could not seal the day and refuse every sale until midnight.
+ * Shown that case on 2026-09-20 the operator answered that it is not a case:
+ * « if he close the tail, that's mean that day is finished ». One session a
+ * day, closed when the restaurant closes. So the switch is gone and closing the
+ * till closes the day, every time.
+ *
+ * ONE CONDITION SURVIVES: **something must have been rung**. An empty day has
+ * nothing to seal, and sealing it would lock the till out of a day that never
+ * traded — a caisse opened by mistake and closed again must not cost the
+ * evening, and that is the only version of the accident left.
  *
  * ── IT NEVER FAILS THE Z ────────────────────────────────────────────────────
  * The Z is a sealed fiscal document and it has already succeeded by the time
@@ -86,9 +89,8 @@ export async function sealDaysAfterShiftClose(opts: {
   cutoffHour: number;
   userId: string;
   factice: boolean;
-  includeToday: boolean;
 }): Promise<AutoSealResult> {
-  const { now, cutoffHour, userId, factice, includeToday } = opts;
+  const { now, cutoffHour, userId, factice } = opts;
   const sealed: TradingDay[] = [];
 
   // ── the days that have ENDED and are owed ────────────────────────────────
@@ -104,8 +106,6 @@ export async function sealDaysAfterShiftClose(opts: {
   }
 
   // ── and the day in progress, which is the one the operator asked for ─────
-  if (!includeToday) return { sealed, failed: null };
-
   const today = businessDayOf(now, cutoffHour);
   const already = await db.dailyClose.findUnique({ where: { period: today }, select: { period: true } });
   if (already) return { sealed, failed: null };
