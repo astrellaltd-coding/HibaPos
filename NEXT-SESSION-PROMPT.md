@@ -11,8 +11,8 @@ One prompt per session. Paste the block between the rules, and nothing else.
 ## WHAT CHANGED WHILE YOU WERE AWAY, IN ONE PARAGRAPH
 
 **The France till is current.** On 2026-09-20 it went from code dated 2026-09-16 to `81eb2f3`: 20
-migrations, **86 products with the Tacos**, catalogue fingerprint **`b6a76daf0befc587`** identical
-to the development machine's, trading-day cut-off **0**, server answering. It gained the on-screen
+migrations, **86 products with the Tacos**, trading-day cut-off **0**, server answering, and a
+fiscal slate **reset to `0/0/0/0`** the same evening. It gained the on-screen
 keyboard, the `city` column and the bon de livraison, the option ceilings, the trading-day guards
 and the auto-seal — about fifty commits. **The blocker that held it up for four days did not
 exist**: git was already installed on that machine and the repository is public, so the token
@@ -47,21 +47,25 @@ into WAL mode and test there — `PRAGMA journal_mode = WAL`, then a write, then
 
 ---
 
-## SESSION B — the three Tacos have no photograph (L-232)
+## SESSION B — the Tacos photograph, on THIS machine (L-232, half done)
 
 HibaPOS France. Read **L-232** in `docs/audit/FINDINGS.md`.
 
-80 of 86 products carry an image. The six that do not are the three Tacos and the three « sans
-boisson » box variants — and the boxes are `showOnPos = 0`, so **the Tacos are the only tile a
-cashier sees with no photograph**, on both installs. `Tacos.webp` is in version control and reaches
-every install with the code; the médiathèque finds it by walking the uploads directory. Nothing
-points a row at it.
+**The photograph is on the France till and not here**, so the two catalogues genuinely differ —
+exactly as L-232 predicted, within the hour of it being written. The till prints
+**`a38c95977b5e1122`**; this machine still prints `b6a76daf0befc587`, and the only section that
+differs is `Product`.
 
-**It is six operator edits, three per install, and the ORDER matters.** `image` is one of the
-columns `catalogue-fingerprint.ts` compares, so attaching the photo **changes the number** —
-`b6a76daf0befc587` stops being the expected value the moment the first machine is edited. Do both,
-then re-run the fingerprint on both and confirm they still agree. Doing one and stopping leaves the
-two catalogues genuinely different with nothing recording it.
+**The remaining work is three operator edits here**, pointing `Tacos M`, `L` and `XL` at
+`/uploads/Produits/Tacos.webp`. That string is not a guess: setting it on a scratch copy of this
+machine's database reproduced the till's digests exactly — `a389811326c53d5c` / `a38c95977b5e1122`,
+the first of five candidate spellings tried. Afterwards both machines print `a38c95977b5e1122`, and
+**that replaces `b6a76daf0befc587` as the expected value** everywhere it is written.
+
+**It is a live catalogue edit, so it is the operator's** — and reaching Réglages here means running
+the app against `db/custom.db`, which § 5 forbids. If that friction is not wanted, the alternative
+is a small script in the shape of `set-option-quotas.ts`, which also guarantees the path string is
+identical rather than retyped.
 
 ---
 

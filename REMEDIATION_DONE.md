@@ -6403,11 +6403,33 @@ read-only reader always leaves a 0-byte one — is in `81eb2f3` and in the findi
   L-233's second defect — existence, not content — and survived today only through the order the
   commands happened to run in. Fingerprint first and it refuses on a harmless 0-byte log, in a
   refusal whose own text points at `update.ps1 -Apply`, which `CLAUDE.md` forbids.
-- **THE THREE TACOS STILL HAVE NO PHOTOGRAPH**, on either machine (**L-232**). They are now the only
-  products a cashier sees without one. Six edits in the médiathèque, three per install, France only
-  now that `add-tacos.ts` has run — then the fingerprint must be re-taken on BOTH, because `image`
-  is one of the columns it compares and `b6a76daf0befc587` stops being the expected value the
-  moment the first machine is edited.
+- **THE TACOS PHOTOGRAPH IS ON THE TILL AND NOT HERE** (**L-232**, half done), and the drift it was
+  predicted to cause happened **within the hour**. The operator attached it in the médiathèque while
+  checking the update; the next fingerprint read **`a38c95977b5e1122`** with only the `Product`
+  section moved. **Identified without asking**: setting `image = '/uploads/Produits/Tacos.webp'` on
+  the three Tacos in a scratch copy of this machine's database reproduced the till's digests exactly
+  — `a389811326c53d5c` / `a38c95977b5e1122`, first of five candidate spellings. **One operator edit
+  here with that exact string closes it**, after which `a38c95977b5e1122` replaces
+  `b6a76daf0befc587` as the expected value on both.
+
+**AND THE TILL WAS RESET TO ZERO THE SAME EVENING, ON THE OPERATOR'S DECISION.** The caisse found
+open for 48 hours on 2026-09-19 had never been closed — it was still open at **73 hours**, since
+2026-09-17, and the new POS banner fired on it: « Caisse ouverte le 2026-09-17 — cette journée est
+terminée. Clôturez-la avant d'encaisser. » **That is L-228's `264ce37` working on the real till**,
+warning before the payment rather than after the order, which was the gap the operator's own
+scenario exposed. Rather than seal 73 hours rung under semantics that no longer existed, they chose
+a clean slate: `pre-golive-reset.ts` deleted **41 rows** — 6 orders, 6 receipts, 9 lines, 6 payments,
+1 customer, 1 shift, 11 fiscal events, 1 `GrandTotal` — and took the counters from `6/1/0/11` to
+**`0/0/0/0`**. The catalogue, users, settings and audit log were preserved. **This is NOT R6.1
+completed**: FACTICE is still on and the chain key is still unarmed, so the fiscal row stands, and
+the reset runs once more when the owner has finished testing. **The script's own « ETAPES
+SUIVANTES » list was deliberately not followed past step 4** — arming the chain key would make the
+next reset refuse (its guard 1), and FACTICE off would make test sales non-factice under DD-27.
+
+- **`pre-golive-reset.ts` SAID « Catalogue intact » AND COULD NOT HAVE KNOWN** (**L-238**). It
+  compares sixteen row counts. The fingerprint run immediately afterwards showed `Product` had
+  moved while its count had not. The cause was benign and unrelated to the reset — but the line
+  cannot tell that from the other kind, in the one script with no undo.
 - **THE KIOSK QUESTION IS OPEN AND CHEAP TO SETTLE** (**L-237**). `--kiosk` went on with the update;
   the till's previous file is at `%TEMP%\hibapos-kiosk.ps1.till-version`. The owner looks at the
   **physical** screen at the next local log on — over RDP the resolution is not the panel's (L-211).

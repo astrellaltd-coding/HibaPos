@@ -130,15 +130,18 @@ every trading table is at zero.
 > ### ▶ WHAT IS WAITING, AND NONE OF IT IS CODE
 >
 > 1. **THE FRANCE TILL IS CURRENT SINCE 2026-09-20** — a clone at `81eb2f3`, **20 migrations, 86
->    products**, catalogue **`b6a76daf0befc587`**, cut-off **0**, server answering `200`. **The
->    blocker was never there**: git was already installed and the repository is **public**, so no
->    token was needed. Every measured step is in `REMEDIATION_DONE.md`.
+>    products**, cut-off **0**, server answering `200`, and **reset to `0/0/0/0`** the same evening
+>    after the 48-hour caisse was found still open at 73. **The blocker was never there**: git was
+>    already installed and the repository is **public**. Every measured step is in
+>    `REMEDIATION_DONE.md`.
 > 2. **L-234 IS THE NEXT UPDATE'S TRAP, AND BELONGS BEFORE IT.** `apply-migration.ts` refuses a
 >    harmless 0-byte `-wal` — the kind any read-only tool leaves — and its refusal text points at
 >    `update.ps1 -Apply`, which `CLAUDE.md` forbids. Today survived on command ORDER alone.
-> 3. **THE THREE TACOS HAVE NO PHOTOGRAPH** on either install (**L-232**), and are now the only
->    products a cashier sees without one. Six médiathèque edits, then **re-take the fingerprint on
->    both** — `image` is a compared column, so it moves `b6a76daf0befc587`.
+> 3. **THE TACOS PHOTOGRAPH IS ON THE TILL AND NOT HERE** (**L-232**, half done) — so the two
+>    catalogues genuinely differ, exactly as that finding predicted, within the hour. **The till
+>    prints `a38c95977b5e1122`; this machine still prints `b6a76daf0befc587`.** Three médiathèque
+>    edits here with `image = /uploads/Produits/Tacos.webp` — the string measured off the till —
+>    and both read `a38c95977b5e1122`, which then replaces `b6a76daf0befc587` as the expected value.
 
 
 **Phases 0-5 and 7 are COMPLETE**, with all four operator items and all three migrations
@@ -231,8 +234,8 @@ app exports or imports a catalogue today » until 2026-09-20. It was false from 
 nearly produced a whole-database copy onto the restaurant's till.)*
 `FISCAL_CHAIN_KEY` is in `.env`, `factice` is in the database: they do not travel together.
 
-**Last updated:** 2026-09-20 — **THE FRANCE TILL IS CURRENT**: 20 migrations, 86 products,
-`b6a76daf0befc587`, cut-off 0 on both. L-229 … L-237 recorded, L-233 fixed. *(The batch-by-batch recap that stood here from 2026-09-13 — R8.0 … R8.6, R9.2, R9.6
+**Last updated:** 2026-09-20 — **THE FRANCE TILL IS CURRENT** and reset to 0/0/0/0: 20 migrations,
+86 products, cut-off 0 on both. L-229 … L-238 recorded, L-233 fixed. *(The batch-by-batch recap that stood here from 2026-09-13 — R8.0 … R8.6, R9.2, R9.6
 and the audit's phasing — was retired to `REMEDIATION_DONE.md` on 2026-09-19 to make room. Every
 line of it is in that file's own entries, which is where a reader should have been looking: this
 paragraph was a second copy, and the only part of § 1 that was not outstanding work.)*
