@@ -50,7 +50,7 @@
  * Idempotent: a value already at the requested hour writes nothing.
  */
 import { PrismaClient } from "@prisma/client";
-import { copyFileSync, mkdirSync, existsSync, readFileSync } from "fs";
+import { copyFileSync, mkdirSync, existsSync, readFileSync, statSync } from "fs";
 import { createHash } from "crypto";
 import path from "path";
 
@@ -95,6 +95,48 @@ async function main() {
   const file = databaseFile();
   console.log(`\nDatabase    : ${file}`);
 
+  // --- refusal 1: the database is not all in one file ------------------------
+  //
+  // BEFORE THE FIRST QUERY, and that ordering is the whole correctness of it.
+  //
+  // **L-233.** This check used to sit after the `Setting` row was read, and on a
+  // WAL-mode database that read CREATES the `-wal` it then refused on — a guard
+  // firing on its own side effect, so the script could never run at all. It
+  // survived rehearsal because the development database lives inside OneDrive,
+  // where `pragmaDecision` returns CLOUD_SYNC and WAL is never enabled; the
+  // France till was the first WAL database it ever saw, and it refused there on
+  // the first attempt. `apply-migration.ts` escapes the same trap by accident:
+  // its `state()` opens a client, queries and CLOSES, so SQLite has removed the
+  // journal files again by the time it looks.
+  //
+  // AND IT TESTS THE LOG'S CONTENT, NOT ITS EXISTENCE — the second half of
+  // L-233, measured rather than reasoned. A READ-ONLY connection cannot clean up
+  // after itself on close (it has no write lock), so every run of
+  // `catalogue-fingerprint.ts` leaves `custom.db-wal` at **0 bytes** and
+  // `custom.db-shm` at 32 768 behind it. Refusing on existence therefore refuses
+  // after the very tool this procedure runs one step earlier, which is what
+  // happened in France. **A zero-length log holds no pages, so the `.db` IS the
+  // whole database.** What must be refused is a log with CONTENT — someone
+  // else's unflushed writes, or a crashed writer — because then it is not.
+  const walPath = file + "-wal";
+  const walSize = existsSync(walPath) ? statSync(walPath).size : 0;
+  if (walSize > 0) {
+    throw new Error(
+      `${path.basename(walPath)} holds ${walSize} bytes of un-checkpointed pages, so the ` +
+        `.db file is NOT the whole database and a restore point taken from it would be ` +
+        `incomplete. Something else has the database open, or a writer crashed. Stop the ` +
+        `application (on the till: both Scheduled Tasks) and run this again.`,
+    );
+  }
+  // A rollback journal is different: it only exists mid-transaction or after a
+  // crash, and never as a harmless leftover.
+  if (existsSync(file + "-journal")) {
+    throw new Error(
+      `${path.basename(file)}-journal sits beside the database, which means a transaction ` +
+        `is in flight or one crashed. Refusing to touch it.`,
+    );
+  }
+
   // --- what is there now -----------------------------------------------------
   // Read through the row rather than `getSettings()`, because the DEFAULT this
   // reports must be the one actually stored. An absent row means the app is
@@ -113,17 +155,6 @@ async function main() {
     `Cut-off now : ${row ? (current === null ? `UNREADABLE (${row.value})` : current) : "(no row — the app is using its built-in default)"}`,
   );
   console.log(`Requested   : ${want}`);
-
-  // --- refusal 1: the database is not all in one file ------------------------
-  for (const suffix of ["-wal", "-shm", "-journal"]) {
-    if (existsSync(file + suffix)) {
-      throw new Error(
-        `${path.basename(file)}${suffix} sits beside the database, so this file is not the ` +
-          `whole database and a restore point taken from it would be incomplete. ` +
-          `Stop the application (on the till: both Scheduled Tasks) and run this again.`,
-      );
-    }
-  }
 
   // --- refusal 2: raising the hour after a day has been sealed ---------------
   const sealed = await db.dailyClose.count();
@@ -167,6 +198,30 @@ async function main() {
   if (!existsSync(snapshots)) mkdirSync(snapshots, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const restore = path.join(snapshots, `before-cutoff-${stamp}.db`);
+
+  // OUR OWN connection has, by now, created a `-wal` on a WAL-mode database.
+  // Fold it back before copying. Nothing has been written yet, so it should be
+  // empty — but a restore point is the one thing that must be whole without
+  // resting on an argument about what cannot be in it.
+  //
+  // The pragma's return value is NOT trusted: drivers differ on whether a
+  // PRAGMA yields rows at all, and « it returned nothing » would read exactly
+  // like « it succeeded ». The filesystem answers instead — after a TRUNCATE
+  // checkpoint the log is zero bytes or gone.
+  // `$queryRawUnsafe`, not `$executeRawUnsafe`: this PRAGMA RETURNS a row
+  // (busy, log, checkpointed), and Prisma refuses the execute form with
+  // « Execute returned results, which is not allowed in SQLite ». Found by
+  // rehearsing against a WAL copy, which is the only way it could be found.
+  await db.$queryRawUnsafe("PRAGMA wal_checkpoint(TRUNCATE)");
+  const wal = file + "-wal";
+  if (existsSync(wal) && statSync(wal).size > 0) {
+    throw new Error(
+      `The write-ahead log is still ${statSync(wal).size} bytes after a TRUNCATE checkpoint, ` +
+        `so something else is holding the database open. Refusing to take a restore point ` +
+        `that would not be the whole database.`,
+    );
+  }
+
   copyFileSync(file, restore);
   const beforeSha = sha256(file);
   if (sha256(restore) !== beforeSha) {
@@ -197,6 +252,13 @@ async function main() {
         `${want}. Restore point above.`,
     );
   }
+
+  // Fold the write out of the log before reporting the file's hash — otherwise
+  // on a WAL database that number is the hash of a file the change has not
+  // reached yet, and it prints IDENTICAL to the restore point's, which reads as
+  // « nothing happened ». It also leaves the database in one file for whatever
+  // runs next: `apply-migration.ts` and this script both refuse on a stray log.
+  await db.$queryRawUnsafe("PRAGMA wal_checkpoint(TRUNCATE)");
 
   console.log(`\n  ${KEY} = ${readBack}, read back and parsed as a number.`);
   console.log(`  sha256 after : ${sha256(file)}`);
