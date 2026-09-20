@@ -7,6 +7,8 @@ import { audit } from "@/lib/services/audit";
 import { createBackup } from "@/lib/services/backup";
 import { logTechnical } from "@/lib/services/technical-logger";
 import { pruneLogs } from "@/lib/services/log-retention";
+import { getSettings } from "@/lib/services/settings";
+import { sealDaysAfterShiftClose, type AutoSealResult } from "@/lib/services/auto-seal";
 
 export const POST = withAuthParams(async (req, { user, params }) => {
   const shift = await db.shift.findUnique({ where: { id: params.id } });
@@ -36,6 +38,44 @@ export const POST = withAuthParams(async (req, { user, params }) => {
     }
     const message = e instanceof Error ? e.message : "Erreur lors de la génération du rapport Z";
     return NextResponse.json({ error: message }, { status: 400 });
+  }
+
+  // L-228 — SEAL THE TRADING DAY, now that no caisse is open.
+  //
+  // BEFORE the backup, deliberately: the automatic backup below is the one the
+  // restaurant keeps, and a backup taken after the seal contains the sealed
+  // day. Taken before, it would be a copy of the state the operator had just
+  // left behind.
+  //
+  // IT NEVER FAILS THE Z. The Z is already written and sealed; a day that
+  // cannot be sealed is reported here and caught by guard C the next morning,
+  // when the till refuses to open. That is what guard C is for, and it is why
+  // this can afford to be best-effort. Same shape as the backup below.
+  const settings = await getSettings();
+  let daySeal: AutoSealResult = { sealed: [], failed: null };
+  try {
+    daySeal = await sealDaysAfterShiftClose({
+      now: new Date(),
+      cutoffHour: settings.businessDayCutoffHour,
+      userId: user.id,
+      factice: settings.factice ?? false,
+      includeToday: parsed.data.sealDay,
+    });
+  } catch (e) {
+    daySeal = {
+      sealed: [],
+      failed: { day: "", message: e instanceof Error ? e.message : "Échec de la clôture du jour" },
+    };
+  }
+  if (daySeal.failed) {
+    await logTechnical(
+      "ERROR",
+      "day-seal",
+      `Automatic day close after Z report ${z.number} FAILED on ${daySeal.failed.day}: ${daySeal.failed.message}`,
+    );
+  }
+  for (const day of daySeal.sealed) {
+    await audit("DAILY_CLOSE_SEALED", "DailyClose", day, { day, viaShiftClose: shift.id }, user.id);
   }
 
   // Automatic backup after Z report (business rule).
@@ -99,5 +139,10 @@ export const POST = withAuthParams(async (req, { user, params }) => {
     cashVariance,
     backup,
     backupError,
+    // L-228: which days this close sealed, and the one it could not. The
+    // screen reads both — « Journée du 20/09 clôturée » is the confirmation
+    // the operator asked for, and a failure has to be visible rather than
+    // waiting to surface as a refusal at 11:30 tomorrow.
+    daySeal,
   });
 });

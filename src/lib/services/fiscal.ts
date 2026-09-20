@@ -690,6 +690,36 @@ export async function closeDay(
   sealedById: string,
   factice = false,
   now: Date = new Date(),
+  /**
+   * L-228 (2026-09-20) — SEAL THE DAY IN PROGRESS, and nothing else.
+   *
+   * ── WHY THIS IS A FLAG AND NOT A CHANGE TO THE RULE ─────────────────────
+   * The operator asked for the day to be sealed when the caisse is closed. He
+   * closes at 23:30; the trading day ends at midnight; `assertPeriodEnded`
+   * refuses, and rightly — that guard is what stops a day being sealed while
+   * sales could still land in it.
+   *
+   * So the guard is NOT relaxed. It is bypassed at ONE call site, which has
+   * earned it by the two conditions below, and every other caller — including
+   * the « Clôture du jour » button on the Fiscal screen — still meets it
+   * unchanged. `daily-close.test.ts`'s « refuses a day that has not ended » and
+   * L-130's message tests are untouched and still pass, which is the point:
+   * this adds a narrow door rather than widening the wall.
+   *
+   * ── WHAT MAKES THE BYPASS SAFE ──────────────────────────────────────────
+   *   1. `assertNoOpenShift` still runs, below and unconditionally. The day in
+   *      progress may be sealed only when no caisse is open, so the only path
+   *      to it is « the till has just been closed ».
+   *   2. **Guard A exists** (`trading-day-guard.ts`): a sale into a sealed day
+   *      is refused. Before that guard, bypassing this one would have armed
+   *      L-228 — a sale booked into a sealed close, whose hash covers figures
+   *      the day's orders no longer sum to. The order of those two commits is
+   *      not an accident.
+   *
+   * A FUTURE day is still refused: the bypass applies only when `day` is the
+   * trading day `now` falls in.
+   */
+  opts: { sealTheDayInProgress?: boolean } = {},
 ) {
   const settings = await getSettings();
   const cutoffHour = settings.businessDayCutoffHour;
@@ -701,7 +731,10 @@ export async function closeDay(
   // Same order as the month: sequencing and timing before the aggregation, so
   // a refused attempt costs nothing and writes nothing (M-01's convention).
   await assertDaySequence(day, cutoffHour, bounds);
-  assertPeriodEnded(bounds, day, PERIOD_LABELS.day, now);
+  const dayInProgress = businessDayOf(now, cutoffHour) === day;
+  if (!(opts.sealTheDayInProgress && dayInProgress)) {
+    assertPeriodEnded(bounds, day, PERIOD_LABELS.day, now);
+  }
   await assertNoOpenShift(day, PERIOD_LABELS.day.le);
 
   const agg = await aggregatePeriod(bounds.from, bounds.to);

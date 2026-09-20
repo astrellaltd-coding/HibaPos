@@ -125,6 +125,56 @@ describe("L-228 — one module, and every caller asks it", () => {
     expect(route, "forcing an open writes no fiscal event").toContain("FORCE_OPEN_EVENT");
   });
 
+  it("THE SHIFTS SCREEN OFFERS THE SEAL, rather than sending him to another screen", () => {
+    // The whole operational point: the cashier meets the refusal at 11:30 and
+    // resolves it where he is standing. Asserted as source, because this
+    // project keeps no DOM in the test runner -- the behaviour behind these
+    // strings is driven in `trading-day-guard-routes.test.ts` against the real
+    // handlers.
+    const view = code("features/shifts/shifts-view.tsx");
+    expect(view, "the screen does not read which day blocked it").toContain("unsealedDay");
+    expect(view, "no one-tap seal -- the operator is still sent to the Fiscal screen").toContain(
+      '"/api/fiscal/close-day"',
+    );
+    expect(view, "the caisse is not retried after the seal").toContain("openMutation.mutate(retry)");
+  });
+
+  it("THE FORCE BUTTON IS RENDERED ONLY FOR AN ACCOUNT THAT MAY USE IT", () => {
+    // Offering a button that will answer 403 is worse than offering none, and
+    // `canForce` is decided by the server, which is also where it is enforced.
+    const view = code("features/shifts/shifts-view.tsx");
+    expect(view).toContain("blockedBy?.canForce");
+    expect(view).toContain("force: true");
+  });
+
+  it("THE 409 IS NO LONGER ASSUMED TO MEAN « a caisse is already open »", () => {
+    // That sentence was hard-coded for the only 409 this route could answer.
+    // Printing it for an unsealed day would send the operator hunting for a
+    // caisse that is not open.
+    const view = code("features/shifts/shifts-view.tsx");
+    expect(
+      view,
+      "the open-caisse error still hard-codes one meaning for every 409",
+    ).not.toContain('? "Une caisse est déjà ouverte');
+  });
+
+  it("THE CLOSE DIALOG SENDS `sealDay`, and defaults it to on", () => {
+    const view = code("features/shifts/shifts-view.tsx");
+    expect(view, "the close dialog does not send the flag").toContain("sealDay");
+    expect(view, "the box is not checked by default -- the operator asked for automatic").toContain(
+      "useState(true)",
+    );
+  });
+
+  it("THE SCREEN SHOWS A FAILED SEAL, which is the one that must not be silent", () => {
+    // A day that could not be sealed surfaces tomorrow as a refusal to open the
+    // caisse. Meeting it then, with a queue, having never been told, is the
+    // shape this whole feature exists to avoid.
+    const view = code("features/shifts/shifts-view.tsx");
+    expect(view).toContain("daySeal?.failed");
+    expect(view).toContain("n&apos;a pas pu être clôturée");
+  });
+
   it("THE OVERRIDE DOES NOT REACH THE SEALED-DAY RULE", () => {
     // A protects a document that is already sealed. Nothing operational is
     // worth writing a sale into one, so the force must not appear anywhere near

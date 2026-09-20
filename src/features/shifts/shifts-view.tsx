@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -43,6 +44,7 @@ import {
   ArrowRightLeft,
   Loader2,
   DatabaseBackup,
+  AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -79,6 +81,14 @@ function varianceStyle(v: number | null | undefined) {
     badge: "bg-rose-500/15 text-rose-700",
   };
 }
+
+const todayLabel = () => {
+  const d = new Date();
+  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
+};
+
+/** L-228 — what `POST /api/shifts/[id]/close` reports about the day seal. */
+type DaySeal = { sealed: string[]; failed: { day: string; message: string } | null };
 
 export function ShiftsView() {
   const qc = useQueryClient();
@@ -127,11 +137,19 @@ export function ShiftsView() {
     cashVariance: number;
     backup: { filename: string } | null;
     backupError?: string | null;
+    daySeal?: DaySeal;
   } | null>(null);
+
+  // L-228 — what the till refused to open over, and whether this account may
+  // override it. Held rather than toasted: a toast cannot carry the two buttons
+  // the operator needs, and the whole point is that he seals the day with one
+  // tap instead of being sent to another screen.
+  const [blockedBy, setBlockedBy] = useState<{ day: string; canForce: boolean; message: string } | null>(null);
+  const [pendingOpen, setPendingOpen] = useState<{ openingFloat: number; notes?: string } | null>(null);
 
   // --- Open shift mutation ---
   const openMutation = useMutation({
-    mutationFn: (vars: { openingFloat: number; notes?: string }) =>
+    mutationFn: (vars: { openingFloat: number; notes?: string; force?: boolean }) =>
       api.post<ShiftDto>("/api/shifts", vars),
     onSuccess: () => {
       toast.success("Caisse ouverte", {
@@ -143,10 +161,24 @@ export function ShiftsView() {
       // Dashboard's "current shift" indicator depends on shift lifecycle.
       qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
-    onError: (err) => {
+    onError: (err, vars) => {
+      // L-228 — THE 409 NO LONGER MEANS ONE THING.
+      //
+      // This branch used to hard-code « Une caisse est déjà ouverte », which
+      // was the only 409 this route could answer. It now also refuses when a
+      // trading day that recorded sales is unsealed, and printing the old
+      // sentence for that would send the operator to look for a caisse that is
+      // not open. The body says which it is.
+      const body = err instanceof ApiError ? (err.body as { unsealedDay?: string; canForce?: boolean } | null) : null;
+      if (err instanceof ApiError && err.status === 409 && body?.unsealedDay) {
+        setPendingOpen({ openingFloat: vars.openingFloat, notes: vars.notes });
+        setBlockedBy({ day: body.unsealedDay, canForce: Boolean(body.canForce), message: err.message });
+        setOpenDialog(false);
+        return;
+      }
       const msg =
         err instanceof ApiError && err.status === 409
-          ? "Une caisse est déjà ouverte. Clôturez-la d'abord."
+          ? err.message
           : err instanceof ApiError
             ? err.message
             : "Impossible d'ouvrir la caisse.";
@@ -154,10 +186,34 @@ export function ShiftsView() {
     },
   });
 
+  // L-228 — seal the day the till refused over, then open the caisse.
+  //
+  // One tap. The alternative the operator meets today is being told to go to
+  // the Fiscal screen, find the day and seal it there, which is the second
+  // action he was never going to remember in the first place.
+  const sealBlockingDay = useMutation({
+    mutationFn: (day: string) => api.post("/api/fiscal/close-day", { day }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["fiscal"] });
+      toast.success("Journée clôturée");
+      const retry = pendingOpen;
+      setBlockedBy(null);
+      setPendingOpen(null);
+      if (retry) openMutation.mutate(retry);
+    },
+    onError: (err) => {
+      // The seal itself failed. THIS is the case the SUPER_ADMIN escape exists
+      // for, so the dialog stays open and keeps offering it.
+      toast.error("Clôture impossible", {
+        description: err instanceof ApiError ? err.message : "La journée n'a pas pu être scellée.",
+      });
+    },
+  });
+
   // --- Close shift mutation ---
   const closeMutation = useMutation({
-    mutationFn: (vars: { closingFloat: number; notes?: string }) =>
-      api.post<{ zReport: ZReportSummary; cashVariance: number; backup: { filename: string } | null; backupError?: string | null }>(
+    mutationFn: (vars: { closingFloat: number; notes?: string; sealDay: boolean }) =>
+      api.post<{ zReport: ZReportSummary; cashVariance: number; backup: { filename: string } | null; backupError?: string | null; daySeal?: DaySeal }>(
         `/api/shifts/${current?.id}/close`,
         vars,
       ),
@@ -307,6 +363,57 @@ export function ShiftsView() {
         onSubmit={(v) => openMutation.mutate(v)}
         loading={openMutation.isPending}
       />
+
+      {/* ---------------- L-228: the day that blocks the caisse ---------------- */}
+      <Dialog open={blockedBy !== null} onOpenChange={(o) => !o && setBlockedBy(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-600" />
+              Journée non clôturée
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">{blockedBy?.message}</p>
+          <p className="text-sm text-muted-foreground">
+            La caisse ne peut pas être ouverte tant que la journée du{" "}
+            <span className="font-medium text-foreground">{blockedBy?.day}</span> n&apos;est pas
+            scellée. Elle le sera en une fois ici.
+          </p>
+          <DialogFooter className="gap-2 sm:flex-col-reverse">
+            {/* The escape, and it is only rendered for an account that may take
+              * it: offering a button that will answer 403 is worse than not
+              * offering one. `canForce` comes from the server, which is also
+              * where the refusal is enforced. */}
+            {blockedBy?.canForce ? (
+              <Button
+                variant="outline"
+                className="w-full"
+                disabled={openMutation.isPending || sealBlockingDay.isPending}
+                onClick={() => {
+                  const retry = pendingOpen;
+                  setBlockedBy(null);
+                  setPendingOpen(null);
+                  if (retry) openMutation.mutate({ ...retry, force: true });
+                }}
+              >
+                Forcer l&apos;ouverture sans clôturer
+              </Button>
+            ) : null}
+            <Button
+              className="w-full"
+              disabled={sealBlockingDay.isPending || openMutation.isPending}
+              onClick={() => blockedBy && sealBlockingDay.mutate(blockedBy.day)}
+            >
+              {sealBlockingDay.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <LockKeyhole className="h-4 w-4" />
+              )}
+              Clôturer la journée du {blockedBy?.day} et ouvrir la caisse
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ---------------- Close dialog ---------------- */}
       <CloseShiftDialog
@@ -590,7 +697,7 @@ function CloseShiftDialog({
   expectedCash: number;
   openingFloat: number;
   loading: boolean;
-  onSubmit: (v: { closingFloat: number; notes?: string }) => void;
+  onSubmit: (v: { closingFloat: number; notes?: string; sealDay: boolean }) => void;
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -620,9 +727,23 @@ function CloseShiftForm({
   expectedCash: number;
   openingFloat: number;
   loading: boolean;
-  onSubmit: (v: { closingFloat: number; notes?: string }) => void;
+  onSubmit: (v: { closingFloat: number; notes?: string; sealDay: boolean }) => void;
   onCancel: () => void;
 }) {
+  // L-228 (2026-09-20) — CLOSING THE CAISSE CLOSES THE DAY, and it is checked.
+  //
+  // The operator's decision: « once he closed the till, the day is auto
+  // closed ». So the ordinary flow is unchanged — count the cash, press the
+  // button, the day seals — and this box exists for the one case that would
+  // otherwise be expensive.
+  //
+  // WHY IT IS A BOX AND NOT UNCONDITIONAL. Sealing the day makes guard A refuse
+  // every further sale in it, and there is NO override for that: the
+  // SUPER_ADMIN escape covers opening a caisse, never a sale into a sealed day.
+  // A caisse closed at 15:00 by mistake would therefore cost the evening. One
+  // pre-checked box is the cheapest way to make that unreachable by accident.
+  const [sealDay, setSealDay] = useState(true);
+
   // L-132 (R9.10) — EMPTY, not pre-filled with what we already believe.
   //
   // This was `useState((expectedCash / 100).toFixed(2))`, so the default action
@@ -709,6 +830,29 @@ function CloseShiftForm({
           </div>
         </div>
 
+        {/* L-228 — the second half of the close, where the operator can see it. */}
+        <label
+          htmlFor="close-seal-day"
+          className="flex min-h-[44px] cursor-pointer items-start gap-3 rounded-lg border border-border bg-muted/40 p-3"
+        >
+          <Switch
+            id="close-seal-day"
+            checked={sealDay}
+            onCheckedChange={setSealDay}
+            className="mt-0.5 shrink-0"
+          />
+          <span className="text-sm">
+            <span className="font-medium text-foreground">
+              Clôturer aussi la journée du {todayLabel()}
+            </span>
+            <span className="mt-0.5 block text-xs text-muted-foreground">
+              Scelle la clôture du jour en même temps que la caisse.{" "}
+              <span className="font-medium">Plus aucune vente ne sera possible aujourd&apos;hui.</span>{" "}
+              Décochez si vous rouvrez la caisse plus tard dans la journée.
+            </span>
+          </span>
+        </label>
+
         <div className="grid gap-2">
           <Label htmlFor="close-notes">Note de clôture (optionnelle)</Label>
           <Textarea
@@ -727,13 +871,15 @@ function CloseShiftForm({
         </Button>
         <Button
           variant="destructive"
-          onClick={() => onSubmit({ closingFloat: countedCents, notes: notes.trim() || undefined })}
+          onClick={() =>
+            onSubmit({ closingFloat: countedCents, notes: notes.trim() || undefined, sealDay })
+          }
           // L-132 (R9.10): a Z cannot be sealed over a count nobody made.
           disabled={loading || !hasCount}
           title={hasCount ? undefined : "Saisissez les espèces comptées pour clôturer."}
         >
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <LockKeyhole className="h-4 w-4" />}
-          Générer le rapport Z et clôturer
+          {sealDay ? "Clôturer la caisse et la journée" : "Générer le rapport Z et clôturer"}
         </Button>
       </DialogFooter>
     </>
@@ -820,6 +966,7 @@ function ZReportSuccessDialog({
     cashVariance: number;
     backup: { filename: string } | null;
     backupError?: string | null;
+    daySeal?: DaySeal;
   } | null;
 }) {
   if (!result) return null;
@@ -861,6 +1008,46 @@ function ZReportSuccessDialog({
               </span>
             </div>
           </div>
+
+          {/* L-228 — WHAT THE CLOSE SEALED, and what it could not.
+            *
+            * The confirmation half is what the operator asked for: he closed
+            * the till, and he can see that the day went with it. The failure
+            * half matters more — a day that could not be sealed will surface
+            * tomorrow morning as a refusal to open the caisse, and meeting it
+            * then, with a queue, having never been told, is the shape this
+            * whole feature exists to avoid. Same argument as the backup notice
+            * below, which C-06 wrote for the same reason. */}
+          {result.daySeal && result.daySeal.sealed.length > 0 && (
+            <div className="flex items-start gap-2 rounded-xl border border-border bg-primary/5 p-3 text-xs">
+              <LockKeyhole className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+              <div>
+                <p className="font-medium text-foreground">
+                  {result.daySeal.sealed.length > 1
+                    ? `${result.daySeal.sealed.length} journées clôturées`
+                    : "Journée clôturée"}
+                </p>
+                <p className="text-muted-foreground">{result.daySeal.sealed.join(" · ")}</p>
+              </div>
+            </div>
+          )}
+
+          {result.daySeal?.failed && (
+            <div className="flex items-start gap-2 rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-xs">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+              <div>
+                <p className="font-semibold text-destructive">
+                  La journée du {result.daySeal.failed.day} n&apos;a pas pu être clôturée
+                </p>
+                <p className="text-muted-foreground">{result.daySeal.failed.message}</p>
+                <p className="mt-1 text-muted-foreground">
+                  Le rapport Z est valide et la caisse est clôturée. La caisse refusera de
+                  s&apos;ouvrir tant que cette journée n&apos;est pas scellée — prévenez le
+                  responsable.
+                </p>
+              </div>
+            </div>
+          )}
 
           {result.backup && (
             <div className="flex items-start gap-2 rounded-xl border border-border bg-primary/5 p-3 text-xs">

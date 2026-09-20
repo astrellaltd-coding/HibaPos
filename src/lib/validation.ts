@@ -318,6 +318,14 @@ export const shiftOpenSchema = z.object({
 export const shiftCloseSchema = z.object({
   closingFloat: z.number().int().min(0), // cents
   notes: z.string().max(500).optional().nullable(),
+  // L-228: seal the trading day along with the caisse. DEFAULTS TO TRUE, which
+  // is the operator's decision of 2026-09-20 — closing the till is closing the
+  // day, and a cashier should not have to know there are two things. It is a
+  // flag rather than unconditional because closing the caisse at 15:00 by
+  // mistake would otherwise seal the day and refuse every sale until midnight,
+  // with no override: the SUPER_ADMIN escape covers opening a caisse, never a
+  // sale into a sealed day.
+  sealDay: z.boolean().default(true),
 });
 
 // L-02 (Batch 6.2), removed together with T-08 exactly as both rows instruct.
