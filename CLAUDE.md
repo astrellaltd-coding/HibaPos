@@ -61,14 +61,14 @@ still **never traded**: FACTICE is on, the fiscal journal is empty, the chain ke
 armed. **Tauri v2 remains the shipping form** and that migration still has no plan — what
 runs in France is the development build, not a package.
 
-**THAT TILL IS NOW DAYS BEHIND THIS REPOSITORY, AND CANNOT BE UPDATED YET.** Measured
-2026-09-19: **18 migrations**, no `city`, no `ProductOptionQuota`, no on-screen keyboard,
-**83 products and no Tacos** — its code is from the commissioning day. **`C:\HibaPOS-app` is
-not a git clone and no `git.exe` exists on the machine**, so nothing can be pulled until the
-operator installs one. Everything it needs is pushed and the procedure is in
-`REMEDIATION_DONE.md`. **Do not reboot it before its two pending migrations are applied** —
-the launcher refuses to start on a pending migration (L-203) and its refusal points at
-`update.ps1 -Apply`, which carries L-206 and L-207.
+**THAT TILL IS CURRENT SINCE 2026-09-20.** `C:\HibaPOS-app` is a git clone at `81eb2f3`: **20
+migrations**, **86 products with the Tacos**, catalogue fingerprint **`b6a76daf0befc587`**,
+identical to this machine's. **The blocker was never there** — git was already installed and
+the repository is **public**, so the token nobody had was never needed. Every measured step is
+in `REMEDIATION_DONE.md`. **L-203 is dormant, not fixed**: the launcher still refuses to boot
+on a pending migration, and **L-234 must be fixed before the next update** —
+`apply-migration.ts` refuses a harmless 0-byte `-wal` and its refusal points at `update.ps1
+-Apply`, which carries L-206 and L-207.
 
 **THE TRADING DAY IS A RULE THE TILL ENFORCES, since 2026-09-20.** It refuses a sale into a
 sealed day, refuses a sale through a caisse whose trading day has ended, and refuses to open
@@ -76,9 +76,9 @@ a caisse while an ended day with operations is unsealed — a SUPER_ADMIN may fo
 one and it is journalled as `OUVERTURE_FORCEE`. **Closing the caisse seals the day**, which
 needed a narrow flagged bypass of the premature-close guard at one call site rather than
 relaxing it. It came out of a caisse found open for 48 hours in France, during which no day
-could be sealed at all. **The cut-off hour is still 5 and the operator chose 0** — a setting,
-on each install, and raising it after a day has been sealed is one of the two things that
-arm L-228.
+could be sealed at all. **The cut-off hour is 0 on both installs since 2026-09-20**, set with
+`scripts/set-business-day-cutoff.ts`, which refuses to RAISE it after a day has been sealed —
+that being one of the two things that arm L-228.
 
 **A catalogue CAN be exported and imported** (`lib/services/catalogue-transfer.ts`, since
 R9.9) — but the option ceilings do not travel with it (L-225) and the import refuses unless
