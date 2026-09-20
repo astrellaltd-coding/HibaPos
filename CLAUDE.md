@@ -6,7 +6,7 @@ Next.js 16 + React 19 + Prisma/SQLite. **It has never traded. Nothing has shippe
 ## How to work here
 
 1. **Open `REMEDIATION_PLAN.md` and read all of it, then `docs/audit/FINDINGS.md`.** The
-   plan holds the current task, the working loop, the methods and the nine findings that
+   plan holds the current task, the working loop, the methods and the five findings that
    predate the audit. **FINDINGS.md holds the other 94 and is where the remaining work comes
    from** — the plan does not repeat them and cannot, under its 40 960-byte ceiling. The
    invariants are in `docs/INVARIANTS.md`. Finished work is in `REMEDIATION_DONE.md`: read
@@ -14,8 +14,9 @@ Next.js 16 + React 19 + Prisma/SQLite. **It has never traded. Nothing has shippe
 
 2. **Do one item.** Only what is in that item — whether it is a plan row or a FINDINGS.md
    id. Anything else you notice goes into FINDINGS.md's own tables with a new `L-` id
-   continuing from **L-182**; the plan's § 7 is closed to new rows until the operator
-   reopens it. You do not fix it now.
+   continuing the same sequence — the audit ended at **L-182** and the highest today is
+   **L-228**, in the *Found after the audit* section. The plan's § 7 is closed to new rows
+   until the operator reopens it. You do not fix it now.
 
 3. **Then, in this order:** `bun run test` · `bun run typecheck` · `bun run lint` — all three
    green. Commit. Push. Move the item's row into `REMEDIATION_DONE.md` with its commit sha
@@ -59,6 +60,30 @@ Scheduled Tasks as `hibafood`, the server at boot and Brave in `--kiosk` at log 
 still **never traded**: FACTICE is on, the fiscal journal is empty, the chain key is not
 armed. **Tauri v2 remains the shipping form** and that migration still has no plan — what
 runs in France is the development build, not a package.
+
+**THAT TILL IS NOW DAYS BEHIND THIS REPOSITORY, AND CANNOT BE UPDATED YET.** Measured
+2026-09-19: **18 migrations**, no `city`, no `ProductOptionQuota`, no on-screen keyboard,
+**83 products and no Tacos** — its code is from the commissioning day. **`C:\HibaPOS-app` is
+not a git clone and no `git.exe` exists on the machine**, so nothing can be pulled until the
+operator installs one. Everything it needs is pushed and the procedure is in
+`REMEDIATION_DONE.md`. **Do not reboot it before its two pending migrations are applied** —
+the launcher refuses to start on a pending migration (L-203) and its refusal points at
+`update.ps1 -Apply`, which carries L-206 and L-207.
+
+**THE TRADING DAY IS A RULE THE TILL ENFORCES, since 2026-09-20.** It refuses a sale into a
+sealed day, refuses a sale through a caisse whose trading day has ended, and refuses to open
+a caisse while an ended day with operations is unsealed — a SUPER_ADMIN may force that last
+one and it is journalled as `OUVERTURE_FORCEE`. **Closing the caisse seals the day**, which
+needed a narrow flagged bypass of the premature-close guard at one call site rather than
+relaxing it. It came out of a caisse found open for 48 hours in France, during which no day
+could be sealed at all. **The cut-off hour is still 5 and the operator chose 0** — a setting,
+on each install, and raising it after a day has been sealed is one of the two things that
+arm L-228.
+
+**A catalogue CAN be exported and imported** (`lib/services/catalogue-transfer.ts`, since
+R9.9) — but the option ceilings do not travel with it (L-225) and the import refuses unless
+the destination catalogue is empty, which nothing can make it (L-226). Until both are fixed,
+carrying a menu is `scripts/add-tacos.ts`-shaped work: a script per change.
 
 **The audit is DONE, and it is the work list.** On 2026-09-12 six read-only passes swept the
 whole project — money · security · data model · the till in use · build and ops · test

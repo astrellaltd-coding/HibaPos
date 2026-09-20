@@ -112,28 +112,15 @@ every trading table is at zero.
 > PREP-4's startup path, behind a verified backup — what the app does on its own machine, and
 > worth knowing before the next one.
 >
-> **L-215 IS CLOSED — the operator entered the tacos himself**, through the app's own screens.
-> No script was needed. The `Tacos` tile is no longer the dead one.
+> **L-215, L-218, L-221 … L-224 AND L-228 ARE CLOSED** (2026-09-18/20) — six items, and the work
+> moved from the caisse to the fiscal day. The two entries that carry all of it are in
+> `REMEDIATION_DONE.md`: *« The Tacos, carried to France »* and *« L-99 / L-228 »*.
 >
-> **L-218, L-221, L-222, L-223, L-224 AND L-228 ARE ALL CLOSED** (2026-09-19/20), and the work
-> moved from the caisse to the fiscal day. In order: `0155c37` a rehearsal's `DATABASE_URL` must
-> be a Windows path · `f28b6d7` a client has a `city` column with all eleven readers, a town is
-> required for a livraison, and a delivery prints a **non-fiscal bon de livraison** carrying the
-> address so the sealed ticket need not · `9270a00` the telephone number typed into the picker's
-> search reaches the new-client form · `65e6253` **three trading-day guards** · `e5a99a9` + `264ce37`
-> **closing the caisse seals the day**, with the screens that say so.
->
-> **THE 48-HOUR CAISSE IS WHAT CAUSED THE LAST THREE.** Found on the France till 2026-09-19: the
-> owner shut the restaurant and left the till open, and **no day could be sealed at all meanwhile**
-> — `assertNoOpenShift` refuses every close while a caisse is OPEN. That is L-99's other half and
-> nobody had noticed it. The till now refuses a sale into a sealed day, refuses a sale through a
-> caisse whose day has ended, and refuses to open a caisse while an ended day is unsealed; a
-> SUPER_ADMIN may force the last one and it is journalled as `OUVERTURE_FORCEE`.
->
-> **FOUR NEW FINDINGS, L-225 … L-228**, three of them about carrying a catalogue: the option
-> ceilings do not travel with an export, nothing can empty a catalogue though the import tells you
-> to, and **both governing files say the app cannot transfer a catalogue when it can**. L-228 is
-> fixed; the other three are open.
+> **A CAISSE WAS FOUND OPEN FOR 48 HOURS IN FRANCE**, 2026-09-19, and **no day could be sealed at
+> all meanwhile** — `assertNoOpenShift` refuses every close while a caisse is OPEN. That is L-99's
+> other half and nobody had noticed it. The trading day is now a rule the till enforces, and
+> closing the caisse seals the day. **L-225 … L-228 were opened**; L-228 is fixed, the other three
+> are about carrying a catalogue and are open.
 >
 > ### ▶ WHAT IS WAITING, AND NONE OF IT IS CODE
 >
@@ -228,7 +215,11 @@ are pinned by `deployment.test.ts`, and `print-raw.ps1` is live for R6.4. Phase 
 whatever the packaging, and the operator settled **where** on 2026-09-11: **a FRESH install in
 France, retaining this catalogue** — the éditeur is in Tunisia (V-10), the restaurant and its
 printer are in France. So R6.1-R6.3 belong to that install, not to this machine, and
-**nothing in the app exports or imports a catalogue today** — carrying it is unsolved.
+**a catalogue CAN be carried since R9.9** — `catalogue-transfer.ts`, `/api/catalog/export`
+and `/api/catalog/import` — but the option ceilings do not travel (L-225) and the import
+refuses a non-empty catalogue, which nothing can empty (L-226). *(This said « nothing in the
+app exports or imports a catalogue today » until 2026-09-20. It was false from R9.9 and it
+nearly produced a whole-database copy onto the restaurant's till.)*
 `FISCAL_CHAIN_KEY` is in `.env`, `factice` is in the database: they do not travel together.
 
 **Last updated:** 2026-09-19 — L-221, L-222 and L-224 closed; a migration is pending on the
