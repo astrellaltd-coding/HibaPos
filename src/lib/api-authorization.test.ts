@@ -366,7 +366,19 @@ describe("T-03 — every API route declares an authorization gate", () => {
   "setup/secrets:GET": "SUPER_ADMIN",
   "setup/secrets:POST": "SUPER_ADMIN",
   "shifts:GET": "ANY",
-  "shifts:POST": "ANY",
+  // L-228 (2026-09-20): was ANY. Opening a caisse is still ANY authenticated
+  // role and the ordinary path is unchanged -- what is new is the ESCAPE. When
+  // a trading day that recorded operations is unsealed the route refuses, and
+  // only a SUPER_ADMIN may pass `force: true` through it, which writes an
+  // OUVERTURE_FORCEE fiscal event naming who did it and which day was left.
+  //
+  // So INLINE_SA is the truthful classification even though it reads stricter
+  // than the route behaves: the classifier's question is "is there an inline
+  // SUPER_ADMIN refusal in this handler", and now there is. The nuance -- that
+  // the refusal applies to one flag rather than to the whole route -- is
+  // driven in `trading-day-guard-routes.test.ts`, where a MANAGER is refused
+  // 403 for the force and 201 for an ordinary open.
+  "shifts:POST": "INLINE_SA",
   "shifts/[id]/close:POST": "ANY",
   "shifts/current:GET": "ANY",
   "shifts/summary:GET": "ANY",
@@ -697,10 +709,19 @@ describe("T-03 — every API route declares an authorization gate", () => {
     // route `backups/storage:GET`. **BOTH, ANY, INLINE_SA and INLINE_SELF are
     // unmoved, and INLINE_ANY is still absent** — which is this assertion doing
     // its job: a route was added and no existing gate was widened to make room.
+    // AMENDED 2026-09-20 (L-228): ANY 26 -> 25 and INLINE_SA 5 -> 6, one route
+    // moving between them — `shifts:POST`, which gained a SUPER_ADMIN-only
+    // ESCAPE from the unsealed-day refusal. **This is a NARROWING and the only
+    // one in the move**: BOTH, INLINE_SELF and SUPER_ADMIN are unmoved and
+    // INLINE_ANY is still absent. Worth being precise about what narrowed,
+    // because the route did not become SUPER_ADMIN-only: any authenticated
+    // role still opens a caisse, and only `force: true` is gated. The
+    // classifier asks whether an inline SUPER_ADMIN refusal exists, and one now
+    // does.
     expect(counts).toEqual({
       BOTH: 39,
-      ANY: 26,
-      INLINE_SA: 5,
+      ANY: 25,
+      INLINE_SA: 6,
       INLINE_SELF: 1,
       SUPER_ADMIN: 14,
     });

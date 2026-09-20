@@ -482,7 +482,13 @@ export type FiscalEventType =
   | "SESSION_OPEN"
   | "SESSION_CLOSE"
   | "SESSION_LOCK"
-  | "ARCHIVE_GENEREE";
+  | "ARCHIVE_GENEREE"
+  // L-228 (2026-09-20) - a SUPER_ADMIN opened a caisse while a trading day
+  // that recorded operations was still unsealed. The escape exists because
+  // the refusal it bypasses can otherwise stop a restaurant selling when the
+  // seal itself fails; it is journalled because an override nobody can see is
+  // not an override, it is a hole. The payload names the day left unsealed.
+  | "OUVERTURE_FORCEE";
 
 export type FiscalEventDto = {
   id: string;

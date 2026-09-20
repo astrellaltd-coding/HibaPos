@@ -26,6 +26,12 @@ export type FiscalEventType =
   | "SESSION_CLOSE"
   | "SESSION_LOCK"
   | "ARCHIVE_GENEREE"
+  // L-228 (2026-09-20) - a SUPER_ADMIN opened a caisse while a trading day
+  // that recorded operations was still unsealed. The escape exists because
+  // the refusal it bypasses can otherwise stop a restaurant selling when the
+  // seal itself fails; it is journalled because an override nobody can see is
+  // not an override, it is a hole. The payload names the day left unsealed.
+  | "OUVERTURE_FORCEE"
   // C-22 (Batch 2.1): a restore replaces the whole database and a backup
   // deletion destroys a recovery path. Both are journalled, because the
   // attestation claims no path exists to delete or modify sealed records.

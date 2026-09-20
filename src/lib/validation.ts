@@ -309,6 +309,10 @@ export type UserInput = z.infer<typeof userSchema>;
 export const shiftOpenSchema = z.object({
   openingFloat: z.number().int().min(0).default(0), // cents
   notes: z.string().max(500).optional().nullable(),
+  // L-228: the SUPER_ADMIN escape from the unsealed-day refusal. Defaults to
+  // false so a client that has never heard of it behaves exactly as before,
+  // and the route — not this schema — decides who may set it.
+  force: z.boolean().default(false),
 });
 
 export const shiftCloseSchema = z.object({

@@ -5,6 +5,14 @@ import { shiftOpenSchema } from "@/lib/validation";
 import { nextShiftNumber } from "@/lib/services/sequence";
 import { audit } from "@/lib/services/audit";
 import { TX_FISCAL } from "@/lib/tx-options";
+import { getSettings } from "@/lib/services/settings";
+import { appendFiscalEvent } from "@/lib/services/fiscal";
+import {
+  earliestUnsealedDayWithActivity,
+  unsealedDayRefusal,
+  forceNotPermittedRefusal,
+  FORCE_OPEN_EVENT,
+} from "@/lib/services/trading-day-guard";
 
 export const GET = withAuth(async () => {
   const shifts = await db.shift.findMany({
@@ -43,13 +51,61 @@ export const POST = withAuth(async (req, { user }) => {
   // tills, and the restaurant has one operator. It matters slightly more since
   // Batch 5.3, because "the current open till" is now what a refund is
   // attributed to.
+  // L-99 / L-228 — A DAY THAT RECORDED OPERATIONS AND IS NOT SEALED BLOCKS THE
+  // NEXT CAISSE.
+  //
+  // WHAT THIS IS FOR: on 2026-09-19 the France caisse was found open for about
+  // 48 hours, and the half nobody had noticed is that no day could be sealed at
+  // all meanwhile — `assertNoOpenShift` refuses every close while a caisse is
+  // open. The operator's decision of 2026-09-20 is that the till should stop
+  // rather than warn: the cashier meets this at 11:30, seals yesterday with one
+  // tap, and trades.
+  //
+  // A QUIET DAY DOES NOT BLOCK. The rule looks for an order, a cash movement or
+  // a refund — the same three `assertDaySequence` seals in order — so a Monday
+  // the restaurant was closed has nothing to seal and nothing accumulates.
+  //
+  // READ OUTSIDE THE TRANSACTION, deliberately, unlike the already-open check
+  // below. That one is a race (L-45: two opens could both pass it); this one is
+  // not — a day cannot become sealed or unsealed by a concurrent request on a
+  // single-operator till, and the cost of being wrong is a refusal the operator
+  // retries, not two caisses.
+  const settings = await getSettings();
+  const blockingDay = await earliestUnsealedDayWithActivity(
+    new Date(),
+    settings.businessDayCutoffHour,
+    db,
+  );
+
+  if (blockingDay) {
+    // THE ESCAPE, and its two conditions are the whole of its safety.
+    //
+    // B and C can stop a restaurant selling, and if the seal itself fails —
+    // an out-of-sequence day, a crash between the Z and the close — the
+    // alternative to an escape is a till that takes no order until somebody
+    // reaches a developer. The operator chose the escape on 2026-09-20: only a
+    // SUPER_ADMIN may take it, and taking it goes into the fiscal journal.
+    //
+    // `force` from a MANAGER is refused rather than ignored. Silently dropping
+    // it would tell the caller the day was sealed when it was not.
+    if (!parsed.data.force) {
+      return NextResponse.json(
+        { error: unsealedDayRefusal(blockingDay), unsealedDay: blockingDay, canForce: user.role === "SUPER_ADMIN" },
+        { status: 409 },
+      );
+    }
+    if (user.role !== "SUPER_ADMIN") {
+      return NextResponse.json({ error: forceNotPermittedRefusal }, { status: 403 });
+    }
+  }
+
   let shift;
   try {
     shift = await db.$transaction(async (tx) => {
       const open = await tx.shift.findFirst({ where: { status: "OPEN" } });
       if (open) throw new ShiftAlreadyOpenError();
       const number = await nextShiftNumber(tx);
-      return tx.shift.create({
+      const created = await tx.shift.create({
         data: {
           number,
           status: "OPEN",
@@ -59,6 +115,20 @@ export const POST = withAuth(async (req, { user }) => {
         },
         include: { openedBy: { select: { name: true, username: true } } },
       });
+      // Journalled INSIDE the transaction that creates the caisse, so the
+      // journal cannot hold a forced open for a caisse that was never made,
+      // nor a caisse whose forcing left no trace. The same rule
+      // `appendFiscalEvent`'s own header states.
+      if (blockingDay) {
+        await appendFiscalEvent(tx, {
+          type: FORCE_OPEN_EVENT,
+          userId: user.id,
+          factice: settings.factice ?? false,
+          shiftId: created.id,
+          data: { shiftNumber: created.number, unsealedDay: blockingDay },
+        });
+      }
+      return created;
     }, TX_FISCAL);
   } catch (e) {
     if (e instanceof ShiftAlreadyOpenError) {
@@ -71,6 +141,18 @@ export const POST = withAuth(async (req, { user }) => {
     }
     throw e;
   }
-  await audit("SHIFT_OPENED", "Shift", shift.id, { number: shift.number, openingFloat: parsed.data.openingFloat }, user.id);
+  await audit(
+    "SHIFT_OPENED",
+    "Shift",
+    shift.id,
+    {
+      number: shift.number,
+      openingFloat: parsed.data.openingFloat,
+      // L-228: null on every ordinary open, so a forced one is findable in the
+      // audit log by a query rather than by reading every row.
+      forcedOverUnsealedDay: blockingDay ?? null,
+    },
+    user.id,
+  );
   return NextResponse.json(shift, { status: 201 });
 });

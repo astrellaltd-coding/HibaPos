@@ -12,6 +12,12 @@ import { discountNeedsStepUp } from "@/lib/discount-policy";
 import { checkTenderComposition, TENDER_METHODS } from "@/lib/tender-policy";
 import { MAX_ITEM_QUANTITY } from "@/lib/order-limits";
 import {
+  sealedDayForNow,
+  sealedDayRefusal,
+  staleShiftDay,
+  staleShiftRefusal,
+} from "@/lib/services/trading-day-guard";
+import {
   createOrderInTransaction,
   CheckoutError,
   isShiftStillOpen,
@@ -258,6 +264,28 @@ export const POST = withAuth(async (req, { user }) => {
   // supplement's own rate falls back to and the loop needs it per line. It was
   // read after the loop for the discount threshold; one read serves both.
   const settings = await getSettings();
+
+  // L-228 / L-99 — THE TWO TRADING-DAY REFUSALS, before a single price is
+  // computed. Both ask `trading-day-guard`; neither is spelled out here, which
+  // is the shape L-214 established after the delivery rule drifted between the
+  // till and this route.
+  //
+  // ORDER: the sealed day first. It protects a document that is already sealed
+  // and there is no override for it — if today is sealed the answer is the next
+  // day, not a force. The stale caisse second, because its remedy is an action
+  // the cashier takes rather than a wait.
+  const now = new Date();
+  const cutoffHour = settings.businessDayCutoffHour;
+
+  const sealed = await sealedDayForNow(now, cutoffHour, db);
+  if (sealed) {
+    return NextResponse.json({ error: sealedDayRefusal(sealed) }, { status: 409 });
+  }
+
+  const staleDay = staleShiftDay(shift.openedAt, now, cutoffHour);
+  if (staleDay) {
+    return NextResponse.json({ error: staleShiftRefusal(shift.number, staleDay) }, { status: 409 });
+  }
 
   // --- Server-authoritative price computation ---
   let subtotal = 0;
