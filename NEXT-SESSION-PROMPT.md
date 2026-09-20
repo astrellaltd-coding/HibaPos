@@ -1,128 +1,112 @@
-# The next session — L-218, then L-221 + L-222
+# The next session
 
-**Rewritten 2026-09-18.** This file held prompts for *R8.0, R9.6 + R8.1, then Phase 6*. **All
-three of those closed on 2026-09-13**, and the file went on pointing at them for five days —
-which is exactly the failure it exists to prevent. The old prompts are in git history.
+**Rewritten 2026-09-20.** The previous version held prompts for L-218 and L-221 + L-222. **Both
+closed on 2026-09-19**, along with L-223, L-224 and L-228 — that session ran long and did six items.
+The old prompts are in git history.
 
 One prompt per session. Paste the block between the rules, and nothing else.
 
-**Both sessions below are FINDINGS work, not plan rows.** § 6 holds nothing that is a session's
-and § 7 is closed to new rows, so each is done as its own item with its own commit and its own
-entry in `REMEDIATION_DONE.md` — the shape L-191, L-213, L-214, L-216, L-217, L-219 and L-220
-all used.
+---
+
+## WHAT CHANGED WHILE YOU WERE AWAY, IN ONE PARAGRAPH
+
+The restaurant's till was found **open for 48 hours** on 2026-09-19. The half nobody had noticed is
+that **no fiscal day could be sealed at all** meanwhile. So the trading day is now a rule the till
+enforces — it refuses a sale into a sealed day, refuses a sale through a caisse whose day has ended,
+and refuses to open a caisse while an ended day is unsealed — and **closing the caisse now seals the
+day**, which needed a narrow, flagged bypass of the premature-close guard rather than relaxing it.
+Separately, a client gained a `city` column and a delivery now prints a **non-fiscal bon de
+livraison** so the sealed ticket need not carry a home address. **Nothing has reached France.**
 
 ---
 
-## SESSION A — L-218, small, its own commit
+## SESSION A — the France till update, and it is the one that matters
 
-HibaPOS France. Read `CLAUDE.md`, then `REMEDIATION_PLAN.md` § 1 and § 2, then **L-218** in
+HibaPOS France. Read `CLAUDE.md`, then `REMEDIATION_PLAN.md` § 1 and § 2, then the two entries
+**« The Tacos, carried to France »** and **« L-99 / L-228 »** in `REMEDIATION_DONE.md`.
+
+**The restaurant is running code from 2026-09-16 and is four days behind.** Measured, not assumed:
+18 migrations, no `city`, no `ProductOptionQuota`, no on-screen keyboard, no delivery rule, **83
+products and no Tacos at all**. Everything it needs is pushed.
+
+**THE BLOCKER IS NOT CODE.** `C:\HibaPOS-app` **is not a git clone** and **no `git.exe` exists** on
+that machine. The operator has to install git and get a GitHub token with read access to the private
+repo before anything can happen. **Ask whether that is done before writing any procedure.**
+
+**Then, and every step has a check in the done entry:** stop both Scheduled Tasks **by their French
+names** (`HibaPOS Serveur`, `HibaPOS Caisse` — `update.ps1` looks for the English ones, which is
+L-207) · back up and confirm it landed on `D:` · `git init` + remote + fetch + **`git reset`
+without `--hard` first, and read `git status` together before overwriting** · `bun install`,
+`db:generate`, `build` · `bun scripts/apply-migration.ts` dry run, expect **two** pending ·
+`--apply` · `bun scripts/add-tacos.ts --apply` then `bun scripts/set-option-quotas.ts --apply` ·
+restart · re-run the catalogue fingerprint and **expect `2d62a6b83ba006bf` and 86 products**, which
+is the proof it worked.
+
+**Do not use `update.ps1 -Apply`** — L-206 (it applies migrations with the bare command `CLAUDE.md`
+forbids) and L-207. **Do not reboot before the migrations are applied**: the launcher refuses to
+start on a pending migration (L-203, measured: `migrate status` exits 1) and the refusal points at
+the script you must not use.
+
+**The cut-off is still 5 and the operator chose 0.** It is a setting in Réglages, on each install.
+Do it while nothing real is sealed: **raising it after a seal is one of the two things that arm
+L-228.**
+
+---
+
+## SESSION B — L-203, L-206, L-207: the launcher and the update script
+
+HibaPOS France. Read `CLAUDE.md`, then `REMEDIATION_PLAN.md`, then **L-203, L-206, L-207** in
 `docs/audit/FINDINGS.md`.
 
-**A migration rehearsal reported success and applied nothing.** Running
+Three defects in `.zscripts/`, all measured on the France till, all worked around by hand today.
+**L-203** the launcher refuses to boot on a pending migration, for a reason the app stopped
+believing when PREP-4 made it apply them itself — so an update produces a till that will not start.
+**L-206** `update.ps1` applies migrations with `bunx prisma migrate deploy`, the one command
+`CLAUDE.md` forbids and for the reason it gives. **L-207** the Scheduled Task names are a contract
+four references depend on and no document states — the France till's are French and nothing matches.
 
-```
-DATABASE_URL="file:/c/Users/…/db-snapshots/…/custom.db" bunx prisma migrate deploy
-```
-
-from Git Bash printed the migration's folder name and then **« All migrations have been
-successfully applied »** — and afterwards the copy still held 18 migrations and no new table,
-as did production. The same command with `file:C:/Users/…` applied it correctly, and
-`migrate status` had been saying « Following migration have not yet been applied » the whole
-time. It was caught only because the fingerprint diff came out **empty** — every table
-identical, including the one that should have appeared.
-
-**The plan knows both halves and joins them nowhere.** § 2 warns that Git Bash rewrites a
-leading-slash argument and to use `MSYS_NO_PATHCONV=1`, but says it about request bodies and
-shell arguments, not `DATABASE_URL`. `CLAUDE.md` warns that a bare `migrate deploy` prints the
-same green banner whichever migration it ran. This is that banner lying for a third reason
-neither note covers.
-
-**Do this:**
-
-1. **Reproduce it before fixing it.** Copy `db/custom.db` to `../db-snapshots/l218-check/`,
-   run `migrate status` against it with the `/c/…` form and with the `C:/…` form, and record
-   what each says. If the two forms now agree, say so and stop — the finding would be wrong and
-   that is worth more than a fix.
-2. **One line in § 2's rehearsal method**: give `DATABASE_URL` a Windows-form path, `C:/…`,
-   never `/c/…`. It belongs where the method is, beside the `MSYS_NO_PATHCONV=1` note it sits
-   next to.
-3. **Then decide, and bring the decision rather than taking it**: should the REHEARSAL half go
-   through `scripts/apply-migration.ts` too? That script names the migration it actually applied
-   and verifies the result instead of trusting an exit code, which is why `CLAUDE.md` makes it
-   the hand-over command. A rehearsal through the same script would have refused rather than
-   congratulated itself. It is a real change to `scripts/` and to the method, so it is the
-   operator's call.
-
-**Mind the plan's ceiling**: 39 992 of 40 960 bytes, 968 left. A line in § 2 fits; a paragraph
-may not.
-
-Three gates, commit, push, `REMEDIATION_DONE.md` entry, stop.
+**L-203 NEEDS A DECISION BEFORE CODE**: should the launcher stop refusing and let the app apply
+(PREP-4's position), or keep refusing with advice that does not point at a broken script? Bring both
+shapes. **And rehearse whatever you write** — these files had never been executed before 2026-09-17
+and four things in them were wrong the first time they ran.
 
 ---
 
-## SESSION B — L-221 + L-222, one workflow, a decision first
+## SESSION C — the catalogue transfer, half-built
 
-HibaPOS France. Read `CLAUDE.md`, then `REMEDIATION_PLAN.md` in full, then **L-221 and L-222**
-in `docs/audit/FINDINGS.md`.
+HibaPOS France. Read **L-225, L-226, L-227** in `docs/audit/FINDINGS.md`.
 
-**Reported by the restaurant's owner on 2026-09-18**, at the caisse, trying a livraison. Two
-halves of one workflow:
+`catalogue-transfer.ts` exists and is the right way to carry a menu. It cannot be used: the option
+**ceilings do not travel** (`CATALOGUE_TABLES` omits `ProductOptionQuota`, and the test pins the
+list at ten so a missing TABLE is invisible), and the import **refuses unless the catalogue is
+empty** with nothing able to empty one. Fixing both turns Session A's two scripts into « export
+here, import there » for ever after.
 
-- **L-221 — there is no VILLE field anywhere.** A client's whole location is one free-text
-  `address` string, and the only thing saying a town belongs in it is a placeholder.
-- **L-222 — the delivery ticket says « Type : Livraison » and nothing about who or where.**
-  `OrderDto.customer` is `{ name: string }` alone, both order routes select only the name, and
-  `renderReceipt` prints no customer at all. **The driver gets a ticket with no destination.**
-
-**DO NOT START WITH CODE. L-222 needs a decision that is not a layout question.**
-`Receipt.content` is the SEALED document (R9.1 — « the customer's paper IS the sealed
-`Receipt.content` »), the journal is append-only, and `docs/attestation-conformite.md` states
-deletion is impossible. **A name, a telephone number and a home address in it are permanently
-undeletable.** Bring the operator two shapes, in plain language with a worked example, per
-`decision-briefs-plain-language.md`:
-
-- **(a)** the address goes into the sealed receipt — one document, as today;
-- **(b)** a delivery ALSO prints a non-fiscal « bon de livraison » carrying the address, and the
-  sealed ticket is unchanged. More work, and the only shape that keeps a customer's home out of
-  an immutable fiscal record.
-
-**And L-221 has its own fork**: a second box composing into the existing `address` string (no
-migration, cannot be sorted on), or a real `city` column (a migration, and every reader —
-`customerSchema`, `CustomerDto`, both forms, the list, the API — in the same commit).
-
-**READ DD-15's TOMBSTONE FIRST.** `prisma/schema.prisma:462` still carries the comment from the
-`postalCode` column that was DELETED for having « ZERO references in `src/` — not in
-`customerSchema`, not in `CustomerDto`, not in the delivery form ». A location column added
-without its readers is that column again.
-
-**Whatever is decided, it has to reach `missingForDelivery`** (`src/lib/delivery-customer.ts`):
-if a town is required for a delivery it belongs in that rule beside name, phone and address, or
-the till will accept a client the driver cannot find. That function is called by the cart panel,
-the client picker and `POST /api/orders` — L-214 made it the single rule precisely so the three
-cannot drift again.
-
-**No test renders a LIVRAISON ticket and reads it.** Every delivery test asserts the order is
-accepted or refused. Add one, and prove it red first.
-
-If the migration route is chosen: rehearse it on a copy with a fingerprint diff, hand over
-`bun scripts/apply-migration.ts --apply --expect <path>`, and **do not apply it** — except that
-restarting the app applies pending migrations itself (PREP-4), so say so plainly rather than
-being surprised by it as this session was.
-
-Three gates, commit, push, `REMEDIATION_DONE.md` entry, stop.
+**L-227 is the operator's file and needs text brought, not edited.** Both `CLAUDE.md` and the plan's
+§ 6 say « nothing in the app exports or imports a catalogue today ». The replacement must say what
+is true AND what is missing, because the reason the wrong sentence survived is that the feature is
+half-built.
 
 ---
 
 ## What is NOT next, and why
 
-- **Phase 6** — R6.1 reset, R6.2 arm the chain key, R6.3 FACTICE off. All `OPERATOR`, in that
-  order, and the order is not a preference. Nothing a session does.
-- **A category-level default for option counts** — « every sandwich includes 3 sauces » is eight
-  separate edits today. **Declined by the operator on 2026-09-18**; L-220's row records it as a
-  closed question, not an outstanding one.
-- **L-211's measurement** — nobody has read `innerWidth`, `innerHeight` or `devicePixelRatio` on
-  the France till, so « the keyboard is two rows shorter » is an improvement of unknown
-  sufficiency. It needs someone at that machine, not a session.
-- **Tauri v2** — still the shipping form, still without a plan. What runs in France is the
-  development build. Where a fix has two reasonable forms, take the one that survives becoming
-  a Windows native app.
+- **Phase 6** — R6.1 reset, R6.2 arm the chain key, R6.3 FACTICE off. All `OPERATOR`, in that order.
+- **The untested branch in the close route.** Its `try/catch` around the day seal fires only if the
+  walk throws — a database error. **The next step is known**: the print routes solved the identical
+  problem for L-186 by accepting an injected printer; the close route can accept the sealing step
+  the same way. Half an hour, one route, a pattern this codebase already trusts.
+- **Tauri v2** — still the shipping form, still without a plan. Where a fix has two reasonable
+  forms, take the one that survives becoming a Windows native app.
+
+## Two habits this week paid for, keep both
+
+**Reverts find bad tests, not just bad code.** Five reverts proved nothing this week and **four were
+the assertion's fault** — a substring anchor a rename satisfied, a needle matched by the wrong
+occurrence in the same file, a widened flag letting a future day be sealed, a banner suppressed
+while its wording stayed. Pin the **expression that decides**, never a name, a label or a sentence.
+
+**The shell corrupts edits silently here.** Backticks inside a double-quoted bash string are command
+substitution; `\\` in a quoted heredoc collapses to `\`; and `cmd | tail && echo "clean"` tests
+`tail`, which reported a FAILING typecheck as passing for a full round trip. Write the script with
+the Write tool and run it by path.

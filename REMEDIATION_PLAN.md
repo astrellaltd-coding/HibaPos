@@ -115,20 +115,39 @@ every trading table is at zero.
 > **L-215 IS CLOSED — the operator entered the tacos himself**, through the app's own screens.
 > No script was needed. The `Tacos` tile is no longer the dead one.
 >
-> **L-218 IS CLOSED** (2026-09-18): reproduced on a copy first — the Git Bash form makes Prisma
-> CREATE an empty database at `C:\c\…`, migrate THAT, and print success. § 2's rehearsal method
-> now says to give `DATABASE_URL` a Windows-form path. **Its open question is now L-223**, the
-> operator having answered « record it, not now »: the rehearsal half stays a bare command.
+> **L-218, L-221, L-222, L-223, L-224 AND L-228 ARE ALL CLOSED** (2026-09-19/20), and the work
+> moved from the caisse to the fiscal day. In order: `0155c37` a rehearsal's `DATABASE_URL` must
+> be a Windows path · `f28b6d7` a client has a `city` column with all eleven readers, a town is
+> required for a livraison, and a delivery prints a **non-fiscal bon de livraison** carrying the
+> address so the sealed ticket need not · `9270a00` the telephone number typed into the picker's
+> search reaches the new-client form · `65e6253` **three trading-day guards** · `e5a99a9` + `264ce37`
+> **closing the caisse seals the day**, with the screens that say so.
 >
-> **L-221, L-222 AND L-224 ARE CLOSED** (2026-09-19) — the delivery workflow the owner reported
-> from the caisse. `f28b6d7`: a client has a real `city` column with all eleven readers in the
-> one commit, a town is required for a livraison, the sealed ticket names the customer, and a
-> delivery also prints a **non-fiscal bon de livraison** carrying the address — the operator's
-> decision, because `buildAnnualArchive` copies the sealed text verbatim into the archive file.
-> `9270a00`: the telephone number typed into the picker's search is carried into the new-client
-> form. **Two reverts stayed green and both were the test's fault**, a substring anchor and a
-> needle matched by the wrong occurrence; both are bindings now. **A migration is pending on the
-> France till** — see *Awaiting the operator*.
+> **THE 48-HOUR CAISSE IS WHAT CAUSED THE LAST THREE.** Found on the France till 2026-09-19: the
+> owner shut the restaurant and left the till open, and **no day could be sealed at all meanwhile**
+> — `assertNoOpenShift` refuses every close while a caisse is OPEN. That is L-99's other half and
+> nobody had noticed it. The till now refuses a sale into a sealed day, refuses a sale through a
+> caisse whose day has ended, and refuses to open a caisse while an ended day is unsealed; a
+> SUPER_ADMIN may force the last one and it is journalled as `OUVERTURE_FORCEE`.
+>
+> **FOUR NEW FINDINGS, L-225 … L-228**, three of them about carrying a catalogue: the option
+> ceilings do not travel with an export, nothing can empty a catalogue though the import tells you
+> to, and **both governing files say the app cannot transfer a catalogue when it can**. L-228 is
+> fixed; the other three are open.
+>
+> ### ▶ WHAT IS WAITING, AND NONE OF IT IS CODE
+>
+> 1. **THE FRANCE TILL IS FOUR DAYS BEHIND AND CANNOT BE UPDATED YET.** Measured 2026-09-19: **18
+>    migrations**, no `city`, no `ProductOptionQuota`, no on-screen keyboard, **83 products and no
+>    Tacos**, and **`C:\HibaPOS-app` is not a git clone and no `git.exe` exists on it**. Everything
+>    is prepared and pushed; it needs git and a GitHub token installed there. The procedure, the
+>    refusals to expect and the fingerprint that proves it worked are in `REMEDIATION_DONE.md`.
+> 2. **THE CUT-OFF IS STILL 5 AND THE OPERATOR CHOSE 0.** A setting in Réglages, on each install,
+>    no code. Cheapest now, while nothing real is sealed — every sealed close records the hour it
+>    used, and **RAISING it after a seal is one of the two things that arm L-228**.
+> 3. **`CLAUDE.md` AND § 6 BOTH CARRY A FALSE SENTENCE** (L-227) — « nothing in the app exports or
+>    imports a catalogue today ». It has since R9.9. The correction is the operator's to approve.
+
 
 **Phases 0-5 and 7 are COMPLETE**, with all four operator items and all three migrations
 applied. What each did, how it was verified and what it cost is in `REMEDIATION_DONE.md`;
@@ -183,16 +202,13 @@ audit exercised produced screen figures matching the database to the cent.
 ### Awaiting the operator
 
 
-- **`20260918200000_customer_city` IS PENDING ON THE FRANCE TILL** (L-221, 2026-09-19). One
-  `ADD COLUMN`, nullable, in place. Rehearsed on a copy: `city` present, 20 migrations, 86 products
-  intact. **A RESTART IS NOT THE APPLY, AND THE FIRST DRAFT OF THIS BULLET SAID IT WAS.** PREP-4
-  applies pending migrations at startup — but `hibapos-server.ps1`'s refusal 2 runs
-  `prisma migrate status` FIRST and stops the task when it exits non-zero, which it does when
-  anything is pending (**measured 2026-09-19: exit 1 pending, 0 up to date**). So the launcher
-  refuses before the app that would have applied it ever runs. **That is L-203, and it is no longer
-  hypothetical** — it fires on this migration. The refusal points at `update.ps1 -Apply`, which
-  carries **L-206** (the bare `migrate deploy` `CLAUDE.md` forbids) and **L-207** (it stops the task
-  by a name the France till does not use, then continues anyway against a running server).
+- **TWO MIGRATIONS ARE PENDING ON THE FRANCE TILL** — `20260918010000_product_option_quota`
+  (L-217) and `20260918200000_customer_city` (L-221). Both rehearsed on copies. **A RESTART IS NOT
+  THE APPLY**: `hibapos-server.ps1`'s refusal 2 runs `prisma migrate status` and stops the task when
+  it exits non-zero, which it does when anything is pending (**measured 2026-09-19: exit 1 pending,
+  0 up to date**), so the launcher refuses before PREP-4 ever runs. That is **L-203**, live. The
+  refusal points at `update.ps1 -Apply`, which carries **L-206** and **L-207**. Apply them by hand
+  with `bun scripts/apply-migration.ts --apply`.
 *(**No migration is waiting on THIS machine.** L-171's was applied by the operator on 2026-09-14 and
   **verified**: the live fingerprint is identical to the rehearsal's on every key, checksums
   included, `integrity_check` ok, zero FK errors, `migrate status` up to date, and a refund with

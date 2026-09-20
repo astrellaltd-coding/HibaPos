@@ -101,6 +101,8 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - L-218 — the rehearsal that congratulated itself on an empty database it had just created
 - L-221 + L-222 — a delivery client has a town, and the driver gets the address
 - L-224 — the telephone number is typed once, not twice
+- The Tacos, carried to France — the photo, the script, and what the two catalogues actually differ by
+- L-99 / L-228 — the trading day becomes a rule the till enforces
 - Retired from the plan's § 1 on 2026-09-19 — the 2026-09-13 batch recap
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
@@ -5941,6 +5943,156 @@ preview before the commit.**
   already extracted and the change is one `onClick`.
 - **The `autoFocus` still lands on `Nom`**, even when `Nom` is the box that was seeded. Moving it to
   the first empty required field is nicer and was out of this item's scope.
+
+---
+
+### The Tacos, carried to France — the photo, the script, and what the two catalogues actually differ by
+**Done:** 2026-09-19/20 · **Commits:** `82ae938` (the photo) · `606cdf6` (`scripts/add-tacos.ts`)
+**Findings:** L-215's tail, L-225, L-226, L-227. **No plan row.**
+
+**THE TWO CATALOGUES DIFFER BY EXACTLY THE TACOS, AND THAT IS MEASURED RATHER THAN ASSUMED.**
+A digest of every travelling catalogue table was taken on both machines on 2026-09-19 and compared
+section by section. Six of eight are byte-identical — categories (14), products excluding Tacos
+(83), product option groups (10), category add-ons (21), combo slots (25), combo slot choices (9).
+The two that differ are the category option groups (11 here, 8 there) and their choices (61 / 39),
+and excluding the `Tacos` category's three groups from this machine's digest reproduces the till's
+hashes **to the character**: `266847aff89bd501` and `80065ca7a07fb47e`, whole catalogue
+`9b10942b0efa9b56`. **The delta is 3 groups, 22 choices and 3 products.**
+
+**THE FRANCE TILL IS FURTHER BEHIND THAN ANYONE THOUGHT.** Measured the same evening: **18
+migrations**, no `ProductOptionQuota`, no `city`, no `osk.ts`, no `delivery-customer.ts`, no
+`option-quota.ts` — its code is from the commissioning day, 2026-09-16. It holds **83 products and
+no Tacos at all**, 1 customer, 6 orders, 11 fiscal events, all under FACTICE. **And there is no git
+on it**: `C:\HibaPOS-app` is not a clone and no `git.exe` exists in any standard location.
+
+**What was committed here.** `public/uploads/Produits/Tacos.webp` — the operator uploaded it through
+the app on 2026-09-19, **in the scratch-copy preview**, which is a temp folder that is thrown away;
+the live catalogue was never touched (sha256 unchanged) and the only other copy was the Desktop.
+Preserved byte-identically, sha256 `89bf30ec…`, and `public/uploads` is TRACKED, which is how an
+image reaches the till at all. **The database is not**: `.gitignore:58` excludes `/db/`, so
+`Product.image` values do not travel and the three rows stay an operator edit on each machine.
+
+**`scripts/add-tacos.ts`** creates the 31 rows: the three category groups on the existing `Tacos`
+category — `Sauces` (9, free), `Viande` (6, obligatoire, only `Tenders` at +1,00 €), `Extras` (7 at
++1,00 €) — their 22 choices, and the three sizes at 6,90 / 8,90 / 11,90 € with **+1,00 € en
+livraison**. It does NOT set the ceilings (`set-option-quotas.ts` already does, idempotently) and
+does NOT set the photo, which arrives with the code and appears in the médiathèque by itself
+because `api/media/route.ts` **walks the uploads directory** rather than reading a table.
+
+**Why not the catalogue transfer, which is what this should have been.** It exists — `CLAUDE.md`
+and the plan both said it did not, which is **L-227** — and it cannot be used: `CATALOGUE_TABLES`
+does not list `ProductOptionQuota`, so the ceilings would not travel and the tacos would arrive in
+France taking six viandes for 6,90 € (**L-225**); and `importCatalogue` refuses unless the
+destination catalogue is empty, with nothing in the application able to empty it (**L-226**).
+
+**How it was verified:** rehearsed against a RECONSTRUCTION of the till, not a guess. A copy of this
+machine's database with the tacos deleted fingerprints as `9b10942b0efa9b56` / 83 products / 8
+groups / 39 choices — the till's three values exactly. Running `add-tacos.ts --apply` then
+`set-option-quotas.ts --apply` on it produced `2d62a6b83ba006bf`: **byte-identical to this machine
+on all eight sections**, with the Tacos rows and the three quotas matching field for field. The
+three refusals were fired — run twice · no quota table · no `Tacos` category — and each left its
+copy at 83 products and 8 groups. `scripts-docs.test.ts` went RED first, naming `add-tacos.ts` as a
+script with no row in the index.
+
+**Left behind:**
+
+- **The till update is prepared and not performed.** It needs git and a GitHub token on the France
+  machine, then: stop both Scheduled Tasks *by their French names*, pull, `db:generate`, `build`,
+  `apply-migration.ts --apply` for **two** pending migrations, the two scripts, restart, and the
+  fingerprint check — `2d62a6b83ba006bf` / 86 products is the proof it worked.
+- **A RESTART IS NOT THE APPLY**, and `b70edff` corrects an entry that said it was.
+  `hibapos-server.ps1`'s refusal 2 runs `prisma migrate status` and stops the task when it exits
+  non-zero, which it does when anything is pending (**measured: exit 1 pending, 0 up to date**). So
+  the launcher refuses before PREP-4 ever runs. That is **L-203**, no longer hypothetical.
+- **`update.ps1 -Apply` is not safe to use** — **L-206** (the bare `migrate deploy` `CLAUDE.md`
+  forbids) and **L-207** (it stops the task by a name the France till does not use, then carries on
+  against a running server).
+
+---
+
+### L-99 / L-228 — the trading day becomes a rule the till enforces
+**Done:** 2026-09-20 · **Commits:** `40f47ac` (the findings) · `65e6253` (the three guards) ·
+`e5a99a9` (the auto-seal and the UI) · `264ce37` (unconditional, and the POS banner)
+**Findings:** L-99, L-228. **No plan row.**
+
+**WHAT STARTED IT.** On 2026-09-19 the operator found the France caisse had been **open for about
+48 hours** — the owner shut the restaurant and did not close the till. L-99 predicted half of it:
+the Z would have covered two trading days. **The half nobody had noticed is that no day could be
+sealed at all meanwhile**, because `assertNoOpenShift` refuses the daily, monthly and annual close
+while any caisse is OPEN. The software did warn — on the Fiscal screen, which is not where a
+cashier is.
+
+**THE DECISIONS, ALL THE OPERATOR'S, 2026-09-20**, taken in writing with worked examples:
+
+1. **The cut-off moves 5 → 0** (midnight). He confirmed with the owner that nothing is ever sold
+   after midnight. It is a SETTING, not code, and it is NOT YET DONE on either machine.
+2. **The till should stop, not warn.**
+3. **Closing the caisse closes the day** — and after being shown the mid-afternoon case, that this
+   is unconditional: « if he close the tail, that's mean that day is finished ».
+4. **A SUPER_ADMIN may force a caisse open**, and it is journalled.
+
+**THREE GUARDS, one module, every caller asks it** (`lib/services/trading-day-guard.ts`):
+
+| | refuses | where |
+|---|---|---|
+| **A** | a sale into an **already-sealed** day | `POST /api/orders` |
+| **B** | a sale through a caisse whose **trading day has ended** | `POST /api/orders` — the 48-hour case |
+| **C** | **opening** a caisse while an ended day with operations is unsealed | `POST /api/shifts` |
+
+**A DID NOT EXIST, AND IT IS NOT ABOUT THE 48 HOURS.** Nothing had ever refused a sale into a sealed
+day; it was unreachable by arithmetic rather than by design — to book into sealed day `D` you need
+`businessDayOf(now) == D`, so `now < end(D)`, but `D` was sealed only after `assertPeriodEnded`
+passed, so `now >= end(D)`. **Two things arm it**, and one is a setting: relaxing that guard, and
+**raising `businessDayCutoffHour` after a seal** — one number in Réglages, no code. A landed in its
+own commit, BEFORE the relaxation, or the next commit would have armed it by our own hand.
+
+**THE GUARD IS NOT RELAXED.** `assertPeriodEnded` is bypassed at ONE call site, behind an explicit
+`sealTheDayInProgress` flag, only for the day in progress, and only after `assertNoOpenShift` has
+passed. `daily-close.test.ts`'s « refuses a day that has not ended » and L-130's message tests are
+**untouched and still pass** — a door, not a wider wall. A FUTURE day is still refused, which a
+revert proved was untested and now is.
+
+**A quiet day blocks nothing.** The rule looks for an order, a cash movement or a refund — the same
+three `assertDaySequence` seals on — so a day the restaurant was closed accumulates no debt.
+Measured against the sequence guard rather than assumed.
+
+**THE UI, both halves.** The close dialog states, in amber, that the day will be sealed and that it
+cannot be undone, and afterwards names the days sealed — or, in red, the one that failed and what it
+will mean tomorrow. The open-caisse refusal is a **dialog**, not a toast: one button seals the day
+and opens the caisse. The force button renders only for an account the server will accept. And the
+**POS** now carries « Caisse ouverte le … — cette journée est terminée », because the operator's own
+scenario had a gap: a caisse he never closed is still open, so nothing fired until he tried to take
+payment, after the order was rung.
+
+**How it was verified:** **2098 pass / 0 fail / 161 files**, typecheck and lint clean, exit codes
+checked rather than inferred. **27 reverts across the three commits.** And driven END TO END through
+the BUILT server on a scratch copy: sale rung → caisse closed → `daySeal {"sealed":["2026-09-20"]}`
+→ journal `VENTE`, `CLOTURE_Z`, `CLOTURE_J` → a second sale refused « La journée 2026-09-20 est déjà
+clôturée et scellée ». Orders still 1.
+
+**FIVE REVERTS PROVED NOTHING AT FIRST, AND FOUR WERE THE TEST'S FAULT.** A substring anchor that a
+rename satisfied; a needle matched by the wrong occurrence in the same file; a widened flag letting
+a future day be sealed; a banner suppressed while its wording and its rule call stayed in the file.
+Every one is now pinned to the expression that decides, not to a name or a sentence. **That is four
+occurrences in one week of the same lesson** — L-213's `data-osk`, L-214's `c.address`, L-221's two,
+and these.
+
+**Left behind:**
+
+- **THE CUT-OFF IS STILL 5 ON BOTH MACHINES.** Until it is 0, the trading day ends at 05:00 and a
+  caisse closed at 23:30 seals a day that, on the cut-off clock, still has five hours to run. The
+  behaviour is correct either way; the hour is the operator's.
+- **ONE BRANCH IS UNTESTED AND SAID OUT LOUD**: the close route's `try/catch` around the seal. The
+  service catches `closeDay` itself and RETURNS the failure, so that catch fires only if the walk
+  throws — a database error. **The next step is known and cheap**: the print routes solved the
+  identical problem for L-186 by accepting an injected printer; the close route can accept the
+  sealing step the same way.
+- **`auto-seal.test.ts` takes real backups and clears them up after itself.** Driving the real close
+  route leaves `.dbenc` files in the suite's shared `BACKUP_LOCATION`, and `secret-store.test.ts`
+  then unsets `BACKUP_ENCRYPTION_KEY` and L-193's guard rightly refuses to mint a new key while
+  backups exist — fourteen failures, reproduced every time. **The guard is correct and untouched.**
+- **T-03's authorization map** was amended deliberately: `shifts:POST` ANY → INLINE_SA, a narrowing
+  and the only move. The route did not become admin-only; only the force is gated.
 
 ---
 
