@@ -72,11 +72,12 @@ value from here on; `b6a76daf0befc587` was this machine's before the photograph 
 retired. **The blocker was never there** — git was
 already installed and the repository is **public**, so the token nobody had was never needed.
 Every measured step is in `REMEDIATION_DONE.md`. **L-203 is dormant, not fixed**: the launcher
-still refuses to boot on a pending migration, and its refusal is the one that points at
-`update.ps1 -Apply`, which carries L-206 and L-207. **L-234 was closed on 2026-09-25 as NOT a
-defect**: the fix was written, measured before committing, and reverted — `apply-migration.ts`
-refuses on the existence of a `-wal`, which looks wrong and is right, because `state()` closes
-above it and SQLite clears the file first.
+still refuses to boot on a pending migration, and that disagreement with PREP-4 is untouched —
+but since 2026-09-25 its refusal names `bun scripts/apply-migration.ts --apply` instead of the
+forbidden `update.ps1 -Apply`, and `update.ps1` calls the same script. **That was L-206 and it is
+closed.** **L-234 was closed the same day as NOT a defect**: the fix was written, measured before
+committing, and reverted — `apply-migration.ts` refuses on the existence of a `-wal`, which looks
+wrong and is right, because `state()` closes above it and SQLite clears the file first.
 
 **THE OWNER CONFIRMED THE TILL BY TELEPHONE ON 2026-09-25** — the whole menu present, **the
 Tacos with the right configuration**, and **printing working**. That closes the three checks
@@ -95,10 +96,14 @@ could be sealed at all. **The cut-off hour is 0 on both installs since 2026-09-2
 `scripts/set-business-day-cutoff.ts`, which refuses to RAISE it after a day has been sealed —
 that being one of the two things that arm L-228.
 
-**A catalogue CAN be exported and imported** (`lib/services/catalogue-transfer.ts`, since
-R9.9) — but the option ceilings do not travel with it (L-225) and the import refuses unless
-the destination catalogue is empty, which nothing can make it (L-226). Until both are fixed,
-carrying a menu is `scripts/add-tacos.ts`-shaped work: a script per change.
+**A catalogue CAN be exported and imported, and since 2026-09-25 it actually works**
+(`lib/services/catalogue-transfer.ts`, since R9.9). The option ceilings travel now (**L-225**,
+`ProductOptionQuota` was missing from the list), and `scripts/empty-catalogue.ts` gives the
+import the empty destination it insists on (**L-226**) — it refuses on any install that has
+traded. Proved end to end on scratch copies: export → empty → import → `a38c95977b5e1122`,
+identical to the source. **It has never been used against the France till**, so the first real
+menu change is its first real test; the 2026-09-20 tacos went over as `add-tacos.ts`-shaped
+work, a script per change, which is what this replaces.
 
 **The audit is DONE, and it is the work list.** On 2026-09-12 six read-only passes swept the
 whole project — money · security · data model · the till in use · build and ops · test

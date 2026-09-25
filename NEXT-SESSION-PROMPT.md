@@ -1,104 +1,121 @@
 # The next session
 
-**Rewritten 2026-09-20, after the France till was brought current.** The previous version was one
-long Session A for that update. It is done; its record is in `REMEDIATION_DONE.md` under « THE
-FRANCE TILL IS CURRENT ». The old prompt is in git history.
+**Rewritten 2026-09-25.** The previous version queued four sessions against the audit; all but one
+are closed. The old prompts are in git history.
 
 One prompt per session. Paste the block between the rules, and nothing else.
 
 ---
 
-## WHAT CHANGED WHILE YOU WERE AWAY, IN ONE PARAGRAPH
+## WHERE THINGS ACTUALLY STAND
 
-**The France till is current.** On 2026-09-20 it went from code dated 2026-09-16 to `81eb2f3`: 20
-migrations, **86 products with the Tacos**, trading-day cut-off **0**, server answering, and a
-fiscal slate **reset to `0/0/0/0`** the same evening. It gained the on-screen
-keyboard, the `city` column and the bon de livraison, the option ceilings, the trading-day guards
-and the auto-seal — about fifty commits. **The blocker that held it up for four days did not
-exist**: git was already installed on that machine and the repository is public, so the token
-nobody had was never needed. One defect was found on the till and fixed mid-operation (**L-233**),
-and four more were opened (**L-234, L-235, L-236, L-237**) — of which **L-234 was closed again on
-2026-09-25 as not a defect**, after its fix was written, measured and reverted.
+**The France till is current and confirmed working.** It runs `81eb2f3`: 20 migrations, 86 products
+with the Tacos, catalogue fingerprint **`a38c95977b5e1122`**, cut-off 0, and it boots itself
+fullscreen. The owner confirmed by telephone on 2026-09-25 — the whole menu, the Tacos
+configuration, and **printing**. That last one could never have been settled remotely, and it was
+the same standard R6.4 was closed on: a person, in the restaurant, seeing paper.
 
-**Since then: L-232 is closed too.** The Tacos photograph is attached on both installs and they
-print the same catalogue fingerprint again — **`a38c95977b5e1122` at 86 products, and that is the
-expected value from here on.** `b6a76daf0befc587` was this machine's before the photograph.
+**Both installs print the same fingerprint.** `a38c95977b5e1122` at 86 products is the expected
+value; `b6a76daf0befc587` was this machine's before the Tacos photograph and is retired.
 
----
+**The audit queue is down to decisions.** Closed on 2026-09-25: **L-225** (the option ceilings
+travel), **L-226** (a catalogue can be emptied, so it can be imported), **L-232** (the photograph),
+**L-206** (nothing recommends the forbidden command any more), **L-237** (marked disputed in the
+file), and L-207's cheap half. **L-234 was closed as NOT a defect** after its fix was written,
+measured and reverted.
 
-## THE TILL IS CONFIRMED WORKING, AND THE NEXT DECISION IS THE GO-LIVE
-
-**The owner confirmed it by telephone on 2026-09-25**: the whole menu present, the Tacos with the
-right configuration, printing working. That closed the three checks that needed a person in the
-restaurant. It is a verbal report, not a measurement — but it is the standard R6.4 was closed on,
-and the Tacos half comes from the man who reported L-217 in the first place.
-
-**So the till is done as a deployment, and what remains is a business decision, not a defect.**
-Before a first genuine sale: **R6.1 → R6.2 → R6.3 in that order** (the order is not a preference —
-arming the chain key before the reset makes the reset refuse), plus **`VAT-METHOD`** in the plan's
-§ 8 and **a fresh verified backup off this machine**. All of that is the operator's.
-
-**The sessions below do not wait on any of it**, and none of them is urgent. **L-234 was the one
-with a deadline and it turned out not to be a defect at all** — closed 2026-09-25 after the fix was
-written, measured and reverted: `state()` closes above the guard and SQLite clears the journal
-files, so the refusal it predicted cannot happen.
+**Nothing on the till is pending.** No migration, no code, no catalogue difference.
 
 ---
 
-## SESSION A — `.zscripts/`, and it has three open items
+## SESSION A — the go-live, and it is the next real thing
 
-HibaPOS France. Read **L-203, L-206, L-207, L-236, L-237** in `docs/audit/FINDINGS.md`.
+HibaPOS France. Read `CLAUDE.md`, then `REMEDIATION_PLAN.md` § 1 and § 2, then the Phase 6 rows.
 
-*(The catalogue transfer was the session before this one. **L-225 and L-226 are both fixed**, so
-« export here, import there » now works on an install that already has a menu — proved end to end
-on scratch copies, `a38c95977b5e1122` out the far side. **It has never been used against the France
-till**: the first real menu change is the first real test, and it should be treated as one.)*
+**This is the operator's sequence, not a session's**, and it runs on the FRANCE TILL. A session
+prepares each step, verifies it afterwards, and records it. **The order is not a preference** —
+arming the chain key before the reset makes the reset refuse.
 
-**L-203** the launcher refuses to boot on a pending migration, for a reason the app stopped
-believing when PREP-4 made it apply them itself. Dormant on the till today — `migrate status` exits
-0 — and live again the moment a migration is prepared and not applied. **It needs a decision before
-code**: should the launcher stop refusing and let the app apply, or keep refusing with advice that
-does not point at a broken script? Bring both shapes. **L-206** `update.ps1` applies migrations with
-the bare `bunx prisma migrate deploy`. **L-207** the task names are a contract nothing states.
+1. **R6.1 — `pre-golive-reset.ts --apply` on the till.** It has a subject again: the till was reset
+   to `0/0/0/0` on 2026-09-20 and the owner has been testing since, so his test sales are what must
+   go for the first genuine receipt to be **#1**. Take a fresh backup to `D:` first and verify it
+   with `decrypt-backup.ts`. Both Scheduled Tasks stopped.
+2. **R6.2 — arm the chain key.** A button since 2026-09-11 (`POST /api/setup/chain-key`), not a
+   `.env` edit. It refuses unless the journal is empty, and **shows the key once**. **Save it
+   somewhere other than that machine** — lost, the journal can never be verified again.
+3. **R6.3 — FACTICE off**, in Réglages. A MANAGER may do this one (DD-26 keeps it out of the
+   SUPER_ADMIN-only list). **DD-27 applies from here**: once the journal holds a non-factice event,
+   only a SUPER_ADMIN can turn the stamp back on.
 
-**L-237 is cheap and wants the owner's eyes, not code.** The till ran the pre-decision kiosk
-launcher for four days and the operator reported it worked — which contradicts the measurement in
-`c9e3ffd`'s own comment. `--kiosk` has since run for five days and the owner confirmed the till on
-2026-09-25, so the preference is settled; **the contradiction is not**. Resolve the comment or mark
-it disputed.
+**Also open before trading for real, and neither is code**: **`VAT-METHOD`** (§ 8 — the
+accountant's written line on how a menu's forfait divides between rates) and **a fresh verified
+backup off this machine**, which is the oldest open item in the plan.
 
-**L-236** is two orphaned files on the till: `hibapos-server.ps1.ps1`, which nothing executes, and
-`secrets.json.1192.tmp` from commissioning evening, which may hold partial secret material.
+**Do not claim fiscal compliance from any of it.** Not from a passing test, not anywhere.
 
 ---
 
+## SESSION B — L-203, and the obvious fix has a trap in it
+
+HibaPOS France. Read **L-203** in `docs/audit/FINDINGS.md`, then `src/instrumentation.ts:68-120`.
+
+The launcher refuses to boot on a pending migration; PREP-4 would have applied it behind a backup
+it verifies. Two parts of the system hold two positions, written eleven weeks apart, and nothing
+reads both. **Since 2026-09-25 neither recommends a forbidden command** — that was L-206 — but the
+disagreement itself is untouched.
+
+**`DROP REFUSAL 2` IS NOT SUFFICIENT ON ITS OWN, and that is the whole difficulty.**
+`instrumentation.ts` deliberately lets the application start when the gate REFUSES for want of a
+verified backup — « a till that will not open tells the operator nothing ». So removing the
+launcher's check leaves a till that boots and serves **new code against an old schema**, which is
+the mid-sale failure refusal 2 exists to prevent. Closing this properly means deciding whether the
+app should refuse to **serve**, not merely to migrate — a fiscal-behaviour change, so bring the
+shapes and wait.
+
+---
+
+## SESSION C — the leftovers, none of them urgent
+
+- **L-236** — two orphaned files on the till: `hibapos-server.ps1.ps1`, which nothing executes
+  (both tasks were confirmed pointing at the proper paths), and `secrets.json.1192.tmp` from
+  commissioning evening, 202 bytes against the real file's 275. **Read that one before deleting
+  it** — it may hold partial secret material, and it is evidence a secret-store write failed that
+  night.
+- **L-207's other half** — the Scheduled Task names live in four places and no document states
+  them. They are `HibaPOS Server` and `HibaPOS Kiosk`, measured on the till 2026-09-20.
+- **The untested branch in the close route** — its `try/catch` around the day seal fires only if
+  the walk throws. The print routes solved the identical problem for L-186 by accepting an injected
+  printer; the close route can accept the sealing step the same way.
+
+---
 
 ## What is NOT next, and why
 
-- **Phase 6** — R6.1 reset, R6.2 arm the chain key, R6.3 FACTICE off. All `OPERATOR`, in that
-  order, and **this is the next real decision the project has**. The till was reset to `0/0/0/0` on
-  2026-09-20 and the owner has been testing on it since, so **R6.1 has a subject again**: his test
-  sales, which must go before the first genuine receipt can be #1.
+- **The catalogue transfer has never been used against the France till.** It works — proved end to
+  end on scratch copies, `a38c95977b5e1122` out the far side — but the first real menu change is
+  its first real test and should be treated as one, not assumed.
+- **`update.ps1` has never been run with `-Apply`.** Its dry run is rehearsed; its real path is
+  not, and it now calls a script that refuses while any node or bun process is alive. Expect that
+  refusal and know it is correct.
 - **The repository is PUBLIC**, measured 2026-09-20. `.env` is untracked, no database, **no SIRET**
-  — but the audit documents list open unfixed findings for a live POS. The documents call it
-  private. Whether it should be is the operator's decision, not a defect to fix.
-- **The untested branch in the close route.** Its `try/catch` around the day seal fires only if the
-  walk throws. The print routes solved the identical problem for L-186 by accepting an injected
-  printer; the close route can accept the sealing step the same way.
+  — but the audit documents list open findings for a live POS. Whether it should be public is the
+  operator's decision, not a defect.
 - **Tauri v2** — still the shipping form, still without a plan.
 
-## Three habits that paid for themselves this week
+## Four habits that paid for themselves, keep all of them
 
 **A number handed forward as proof is a claim.** `2d62a6b83ba006bf` went into a hand-over as « the
-proof it worked » and could not be reproduced at all — the script was a scratch file, and being
-id-inclusive it could never have matched rows `add-tacos.ts` creates with fresh `cuid()`s. Anything
-that will be re-run on another machine belongs in `scripts/`, with its method in the header.
+proof it worked » and could not be reproduced at all. Anything that will be re-run on another
+machine belongs in `scripts/`, with its method in the header.
 
-**Rehearse on the conditions the target has, not the ones you have.** L-233 passed every rehearsal
-here and failed on the first run in France, because this machine cannot make a WAL database and
-that till always has one.
+**Rehearse on the conditions the TARGET has.** L-233 passed every rehearsal here and failed on its
+first run in France, because this machine cannot make a WAL database — its data lives in OneDrive,
+so `pragmaDecision` returns `CLOUD_SYNC` — and that till always has one.
 
-**The shell corrupts edits silently here.** Backticks inside a double-quoted bash string are command
-substitution; `\\` in a quoted heredoc collapses to `\`; and `cmd | tail && echo "clean"` tests
-`tail`. Write the script with the Write tool and run it by path. **And never put a `<PLACEHOLDER>`
-in a command somebody is going to paste** — one was, and it was pasted verbatim into `Copy-Item`.
+**Measure before changing a guard.** L-234's fix was written, then measured, then reverted: the
+defect did not exist and the change would have weakened a working check. The same discipline that
+forbids a test which cannot fail forbids a fix which cannot be demonstrated.
+
+**Strip the prose before asserting.** Six times now an assertion has matched a comment explaining
+the bug, or a message forbidding a command, rather than the thing itself — L-146, L-191, L-213,
+L-221, and twice on 2026-09-25. Pin the expression that decides, never a name or a sentence.

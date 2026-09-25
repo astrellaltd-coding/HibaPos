@@ -80,15 +80,6 @@ every trading table is at zero.
 > `SEED_MANAGER_PIN` is refused before a row is written. It opened **L-192** (Low), which needs
 > the operator's word first. **§ 7 stays closed** — their call, the plan being near its ceiling.
 >
-> **Two things are waiting, and neither is a batch.**
->
-> 1. **One paragraph for `docs/INVARIANTS.md`**, drafted verbatim in R8.5's done entry and
->    held because that file is the operator's. It records L-134's answer: a size supplies the
->    price sur place and à emporter alike.
-> 2. **Room in this file**, eventually. Applying the migrations retired their operator item and
->    took it back to 39 033 of 40 960 — comfortable for a batch or two, not for a phase. §§ 3
->    and 4 went to `docs/` for this reason and the easy trims here are now spent.
->
 > *(**The two migrations were APPLIED on 2026-09-13** — by the session, at the operator's
 > explicit instruction, they being away from the machine. Verified against the rehearsal and
 > recorded in `REMEDIATION_DONE.md`. `CLAUDE.md`'s rule that this is the operator's action is
@@ -131,16 +122,17 @@ every trading table is at zero.
 >    the order is not a preference: arming the key before the reset makes the reset refuse. Also
 >    still open before trading for real: **`VAT-METHOD`** (§ 8, the accountant's written line) and
 >    **a fresh verified backup off this machine**.
-> 2. **L-234 IS CLOSED AS NOT A DEFECT** (2026-09-25). The fix was written and then **measured
->    before it was committed**: `state()` closes above that guard and SQLite clears the journal
->    files, so the refusal this row predicted cannot happen and the change would have weakened a
->    working guard. Reverted; a comment stays, because the correctness depends on `state()` and
->    nothing said so. **The row was wrong twice** — first about `update.ps1`, then about the
->    defect existing at all.
-> 3. **L-232 IS CLOSED (2026-09-25) AND THE TWO CATALOGUES AGREE AGAIN** — both print
->    **`a38c95977b5e1122`** at 86 products, which is the expected value from here on.
->    `set-tacos-image.ts` wrote the three rows here with the string measured off the till;
->    verified against the restore point, **exactly three rows and one column moved.**
+> 2. **L-203'S DISAGREEMENT IS UNRESOLVED, AND THE OBVIOUS FIX HAS A TRAP IN IT.** The launcher
+>    still refuses to boot what PREP-4 would have applied. « Drop refusal 2 » is **not sufficient
+>    on its own**: `instrumentation.ts` deliberately lets the app start when the gate REFUSES for
+>    want of a verified backup, so the till would boot and serve new code against an old schema —
+>    the mid-sale failure refusal 2 exists to prevent. Closing it properly means deciding whether
+>    the app should refuse to **serve**, which is a fiscal-behaviour change and wants its own item.
+> 3. **TWO ORPHANED FILES ON THE TILL** (**L-236**), needing nobody's decision:
+>    `hibapos-server.ps1.ps1`, which nothing executes, and `secrets.json.1192.tmp` from
+>    commissioning evening — **read it before deleting**, it may hold partial secret material.
+>    Also open: **L-207's other half**, the task names living in four places and stated in no
+>    document.
 
 
 **Phases 0-5 and 7 are COMPLETE**, with all four operator items and all three migrations
@@ -200,9 +192,9 @@ audit exercised produced screen figures matching the database to the cent.
   (L-217) and `20260918200000_customer_city` (L-221) were applied there on 2026-09-20, 18 → 20,
   both named by the script, `schema_version 176 → 181`, restore point verified before a byte moved.
   **L-203 is dormant on that machine, not fixed**: `migrate status` exits 0 so the launcher starts,
-  and it goes live again the moment a migration is prepared and not applied — **and it is this
-  refusal that recommends the forbidden `update.ps1 -Apply`**, which is what L-234 wrongly
-  attributed to the applier before being closed as not a defect.
+  and it goes live again the moment a migration is prepared and not applied. **Its refusal no
+  longer recommends the forbidden `update.ps1 -Apply`** — that was **L-206**, closed 2026-09-25;
+  both it and `update.ps1` now name `apply-migration.ts`.
 - **No migration is waiting on THIS machine** — `20260918200000_customer_city` (L-221) was applied
   by the operator on 2026-09-20 with
   `bun scripts/apply-migration.ts --apply --expect ../db-snapshots/r221-city-rehearsal/fp-after.json`
@@ -226,16 +218,18 @@ are pinned by `deployment.test.ts`, and `print-raw.ps1` is live for R6.4. Phase 
 whatever the packaging, and the operator settled **where** on 2026-09-11: **a FRESH install in
 France, retaining this catalogue** — the éditeur is in Tunisia (V-10), the restaurant and its
 printer are in France. So R6.1-R6.3 belong to that install, not to this machine, and
-**a catalogue CAN be carried since R9.9** — `catalogue-transfer.ts`, `/api/catalog/export`
-and `/api/catalog/import` — but the option ceilings do not travel (L-225) and the import
-refuses a non-empty catalogue, which nothing can empty (L-226). *(This said « nothing in the
-app exports or imports a catalogue today » until 2026-09-20. It was false from R9.9 and it
-nearly produced a whole-database copy onto the restaurant's till.)*
+**a catalogue CAN be carried, and since 2026-09-25 the mechanism works** — `catalogue-transfer.ts`,
+`/api/catalog/export`, `/api/catalog/import`, plus `scripts/empty-catalogue.ts` for the empty
+destination the import insists on. **L-225 and L-226 are both closed**; the ceilings travel and a
+catalogue can be emptied on an install that has not traded. Untested against the France till.
+*(This said « nothing in the app exports or imports a catalogue today » until 2026-09-20. It was
+false from R9.9 and it nearly produced a whole-database copy onto the restaurant's till.)*
 `FISCAL_CHAIN_KEY` is in `.env`, `factice` is in the database: they do not travel together.
 
-**Last updated:** 2026-09-25 — **THE OWNER CONFIRMED THE TILL**: menu, Tacos configuration and
-printing all working. The go-live (R6.1 → R6.2 → R6.3) is the next decision. L-229 … L-238
-recorded, L-233 fixed. *(The batch-by-batch recap that stood here from 2026-09-13 — R8.0 … R8.6, R9.2, R9.6
+**Last updated:** 2026-09-25 — **THE OWNER CONFIRMED THE TILL** (menu, Tacos, printing), and the
+audit queue is down to decisions. Closed that day: **L-225, L-226, L-232, L-206, L-237**, plus
+L-207's cheap half; **L-234 closed as not a defect**. **The go-live (R6.1 → R6.2 → R6.3) is the
+next decision.** *(The batch-by-batch recap that stood here from 2026-09-13 — R8.0 … R8.6, R9.2, R9.6
 and the audit's phasing — was retired to `REMEDIATION_DONE.md` on 2026-09-19 to make room. Every
 line of it is in that file's own entries, which is where a reader should have been looking: this
 paragraph was a second copy, and the only part of § 1 that was not outstanding work.)*

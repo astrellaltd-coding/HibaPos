@@ -111,6 +111,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - L-226 — a catalogue can be emptied, so it can be imported
 - L-207's cheap half, and L-237 marked disputed
 - L-206 closed, and L-203's advice stops recommending the forbidden command
+- Retired from the plan's § 1 on 2026-09-25 — « Two things are waiting »
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -6672,6 +6673,33 @@ byte-identically, sha256 checked. **Rehearsed by running the script**: the dry r
 - **`update.ps1` HAS STILL NEVER BEEN RUN WITH `-Apply`.** Its dry run is rehearsed; its real path
   is not, and it now invokes a script that refuses while any node or bun process is alive. The
   first real use should expect to meet that refusal and know it is correct.
+
+---
+
+### Retired from the plan's § 1 on 2026-09-25 — « Two things are waiting »
+**Done:** 2026-09-25 · **Not a batch** — a removal, because the block had gone stale and the plan
+contradicted itself about it.
+
+It read « **Two things are waiting, and neither is a batch** », and named (1) a paragraph held for
+`docs/INVARIANTS.md` recording L-134's answer, and (2) room in this file.
+
+**Item 1 had landed and the plan said so forty lines earlier.** § 1 already carried «
+`docs/INVARIANTS.md` gained two paragraphs on the operator's instruction the same day — L-134's
+pricing rule and L-129's null-`vatRate` rule ». And it is there: `docs/INVARIANTS.md:69`, « A size
+supplies the price sur place and à emporter alike », with the 2026-09-13 measurement across all 84
+products beneath it. So the plan asserted both that the paragraph was waiting and that it had been
+delivered, which is exactly the shape of staleness L-227 and L-231 were.
+
+**Item 2 is now enforced rather than remembered.** `plan-freshness.test.ts` fails the run when the
+file passes 40 960 bytes, and did so twice this week. A prose reminder of a number a test already
+checks is a second copy that can go out of date — its figure was « 39 033 » against an actual
+40 901 when it was removed.
+
+**Kept:** the parenthetical beneath it, recording that the 2026-09-13 migrations were applied by a
+session at the operator's explicit instruction and that this was a one-off rather than a standing
+waiver. That is provenance about a rule, not outstanding work.
+
+Freed 563 bytes: 40 901 → 40 338.
 
 ---
 
