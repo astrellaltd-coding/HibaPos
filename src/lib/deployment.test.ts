@@ -378,6 +378,46 @@ describe("the update procedure never touches the data (C-05, C-07)", () => {
     expect(commands.some((l) => /Remove-Item|rmdir|del\s|Clear-Content/.test(l))).toBe(false);
   });
 
+  it("REFUSES when it cannot stop the server, rather than warning and carrying on", () => {
+    // **L-207.** The branch below was `Write-Warning` and the script CONTINUED
+    // — replacing code while the server still ran, with `.next` and
+    // `node_modules` locked by it. The Scheduled Task name is a contract four
+    // references depend on and no document states; when it does not match, that
+    // is the thing to find out, not to shrug at.
+    //
+    // Pinned on the EXPRESSION THAT DECIDES, not on wording: the block between
+    // `if ($task)` and the end of its `else` must throw, and must not merely
+    // warn. A rename of the message leaves this green; deleting the `throw`
+    // does not.
+    const start = src.indexOf("if ($task) {");
+    expect(start, "the task-stopping branch is gone or renamed").toBeGreaterThan(-1);
+    const end = src.indexOf("# --- 3.", start);
+    expect(end, "step 3 no longer follows step 2").toBeGreaterThan(start);
+    // COMMENTS STRIPPED FIRST, and that is not tidiness. The branch's own
+    // comment says « This was a Write-Warning », so an assertion over the raw
+    // text matches the explanation of the bug rather than the bug — which is
+    // this repository's single most repeated test defect (L-146, L-191, L-213,
+    // L-221, and this one, caught by it failing on the fixed code).
+    const branch = src
+      .slice(start, end)
+      .split("\n")
+      .filter((l) => !l.trim().startsWith("#"))
+      .join("\n");
+
+    expect(branch, "the task-absent branch no longer refuses").toMatch(/\bthrow\b/);
+    expect(
+      branch,
+      "the task-absent branch warns and carries on again — that is L-207",
+    ).not.toMatch(/Write-Warning/);
+
+    // And the way through is still there, or an install whose server is not run
+    // by a task has no path at all and the refusal becomes an obstruction.
+    expect(src, "the -ServerAlreadyStopped escape hatch is gone").toMatch(
+      /\[switch\]\$ServerAlreadyStopped/,
+    );
+    expect(branch).toMatch(/\$ServerAlreadyStopped/);
+  });
+
   it("runs migrations BEFORE the build, so a failure leaves the old code in place", () => {
     expect(src.indexOf("migrate deploy")).toBeLessThan(src.indexOf("bun run build"));
   });

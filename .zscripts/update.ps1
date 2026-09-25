@@ -25,7 +25,12 @@ param(
     [switch]$Apply,
     # Skip the git step when the code arrives some other way (a zip over remote
     # access, which is likely for a machine with no git).
-    [switch]$NoGit
+    [switch]$NoGit,
+    # L-207. The Scheduled Task is how this script stops the server, and step 2
+    # now REFUSES when it cannot find it rather than warning and carrying on.
+    # This is the way through for an install whose server is not run by a task:
+    # it asserts that you have stopped it yourself.
+    [switch]$ServerAlreadyStopped
 )
 
 $ErrorActionPreference = "Stop"
@@ -68,8 +73,28 @@ if ($Apply) {
 Step "Stopping the server"
 if ($task) {
     Run "Stop-ScheduledTask '$taskName'" { Stop-ScheduledTask -TaskName $taskName }
+} elseif ($ServerAlreadyStopped) {
+    Write-Host "   -ServerAlreadyStopped : tache absente, et vous affirmez l'avoir arrete."
 } else {
-    Write-Warning "   Tache '$taskName' introuvable -- arretez le serveur a la main avant de continuer."
+    # L-207. This was a Write-Warning and the script CARRIED ON -- replacing
+    # code while the server still ran, with .next and node_modules locked by it.
+    # An update that skips "stop the server" in silence is worse than one that
+    # stops and says why. The task name is a contract four references depend on
+    # and no document states; when it does not match, that is the thing to find
+    # out, not to shrug at.
+    Write-Host ""
+    Write-Host "   La tache '$taskName' est introuvable sur cette machine."
+    Write-Host ""
+    Write-Host "   1. Elle porte peut-etre un autre nom. Verifiez :"
+    Write-Host '        Get-ScheduledTask | Where-Object { $_.TaskName -like "HibaPOS*" }'
+    Write-Host "      puis corrigez la variable taskName en haut de ce script."
+    Write-Host ""
+    Write-Host "   2. Ou le serveur n'est pas lance par une tache planifiee. Arretez-le,"
+    Write-Host "      verifiez qu'il ne reste aucun processus node/bun :"
+    Write-Host '        Get-Process node,bun -ErrorAction SilentlyContinue'
+    Write-Host "      puis relancez avec -ServerAlreadyStopped."
+    Write-Host ""
+    throw "Arret : impossible d'arreter le serveur, et continuer remplacerait le code sous lui."
 }
 
 # --- 3. code ----------------------------------------------------------------

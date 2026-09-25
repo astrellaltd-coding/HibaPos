@@ -97,6 +97,22 @@ Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Navigateur : $browser"
 #
 # --app= is DROPPED rather than combined with --kiosk: kiosk mode has no browser
 # UI to remove, so it would add nothing.
+#
+# DISPUTED, 2026-09-25 (L-237). The paragraph above says the old pair was
+# MEASURED not to be fullscreen at 03:36 on 2026-09-17. The till then ran that
+# exact pair for four more days -- the change above was committed and never
+# delivered -- and on 2026-09-20 the operator watched it boot and reported that
+# it worked, fullscreen. Both statements cannot be true as written.
+#
+# The likeliest reconciliation is that a MAXIMISED chromeless window is
+# indistinguishable from fullscreen to someone looking at it, especially over
+# RDP where the session resolution is not the panel's (L-211). That is a
+# hypothesis. Nobody has read innerWidth/outerWidth on that machine.
+#
+# WHAT IS SETTLED is the preference, not the measurement: --kiosk has run on the
+# till since 2026-09-20 and the owner confirmed it working on 2026-09-25, so it
+# stays. This note exists because the measurement above is the kind of sentence
+# a later session would trust, and one of the two is wrong.
 $arguments = @(
     "--kiosk"
     $Url

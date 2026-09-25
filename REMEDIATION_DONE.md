@@ -109,6 +109,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - THE FRANCE TILL IS CURRENT — the update, and the blocker that was not there
 - L-225 — the option ceilings travel, and two pinned lists become derived
 - L-226 — a catalogue can be emptied, so it can be imported
+- L-207's cheap half, and L-237 marked disputed
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -6568,6 +6569,60 @@ install that already has a menu.
   scratch copies here. The first real use will be the first real test.
 - **The import's message is unchanged** and is now true: a catalogue *can* be emptied. Whether the
   screen should offer a button for it is a separate question nobody has asked.
+
+---
+
+### L-207's cheap half, and L-237 marked disputed
+**Done:** 2026-09-25 · **Commit:** *(this one)* · **Findings:** L-207 partly fixed, L-237 closed.
+**L-203 and L-206 are untouched and need a decision** — brought to the operator, not chosen here.
+
+**L-207 — `update.ps1` warned that it could not stop the server, and carried on.** With the
+Scheduled Task absent or under another name, step 2 emitted a `Write-Warning` and continued to
+step 3, **replacing code while the server still ran** with `.next` and `node_modules` locked by it.
+The finding called the fix free and it was: it throws now. It names both causes — a task under
+another name, or a server not started by a task at all — and `-ServerAlreadyStopped` is the way
+through for the second, so a refusal cannot become an obstruction on an install that never had a
+task.
+
+**REHEARSED BY RUNNING IT**, which `CLAUDE.md` demands of that directory and which this machine is
+the right place for, having no `HibaPOS Server` task: the refusal prints both causes and exits
+**1**; with `-ServerAlreadyStopped` it continues into the dry run and the working tree is untouched.
+The dry run also printed `[would] bunx prisma migrate deploy` — **L-206 in plain sight**, and the
+reason it is below rather than fixed.
+
+**THE TEST CAUGHT ITSELF FIRST, which is the part worth recording.** The new assertion in
+`deployment.test.ts` failed on the FIXED file, because the branch's own comment says « This was a
+`Write-Warning` » and the assertion matched the explanation of the bug rather than the bug.
+Comments are stripped before the check now. **That is the fifth time in this repository** —
+L-146, L-191, L-213, L-221 and this one — and the fix is always the same: strip the prose, pin the
+expression that decides. Proved red against the old file afterwards, and restored byte-identically.
+
+**L-237 — the kiosk comment is marked DISPUTED in the file.** `c9e3ffd`'s comment states that
+`--app` + `--start-fullscreen` was *measured* not to be fullscreen at 03:36 on 2026-09-17. The till
+then ran that exact pair for four more days — the change was committed and never delivered — and on
+2026-09-20 the operator watched it boot and reported it working, fullscreen. **Both cannot be true
+as written.** The note records the contradiction, offers the likeliest reconciliation **as a
+hypothesis and labels it one** (a maximised chromeless window is indistinguishable from fullscreen
+to an observer, especially over RDP — L-211), and says what would settle it: nobody has read
+`innerWidth`/`outerWidth` on that machine. The preference is separate and settled — `--kiosk` has
+run since 2026-09-20 and the owner confirmed the till on 2026-09-25 — so it stays.
+
+`2100 pass / 0 fail / 161 files`, typecheck and lint clean. README's pinned count 2099 → 2100.
+
+**Left behind:**
+
+- **L-203 AND L-206 ARE ONE DECISION AND IT IS THE OPERATOR'S.** Both turn on the same question —
+  **who applies a migration on that till** — and today three answers disagree in code. The launcher
+  refuses to boot on a pending migration and points at `update.ps1 -Apply`; `update.ps1` applies it
+  with the bare `bunx prisma migrate deploy`, which `CLAUDE.md` forbids by name; and the app's own
+  PREP-4 gate applies it at startup behind a backup it verifies, which `CLAUDE.md` blesses. Nothing
+  reads all three. **The disagreement is live**: it is what the 2026-09-20 update had to work around
+  by hand, applying before restarting so the launcher would not refuse.
+- **L-207's other half is not done.** The task names still live in four places and no document
+  states them. `deployment.test.ts` now pins the refusal, not the names.
+- **L-236 is two file deletions on the till** and needs nobody's decision — `hibapos-server.ps1.ps1`,
+  which nothing executes, and `secrets.json.1192.tmp` from commissioning evening, which should be
+  read before it is deleted in case it holds partial secret material.
 
 ---
 
