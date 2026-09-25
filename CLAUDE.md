@@ -70,9 +70,10 @@ machine's is still `b6a76daf0befc587`: the Tacos photograph is attached there an
 (**L-232**), and three edits here close the gap. **The blocker was never there** — git was
 already installed and the repository is **public**, so the token nobody had was never needed.
 Every measured step is in `REMEDIATION_DONE.md`. **L-203 is dormant, not fixed**: the launcher
-still refuses to boot on a pending migration, and **L-234 must be fixed before the next
-update** — `apply-migration.ts` refuses a harmless 0-byte `-wal` and its refusal points at
-`update.ps1 -Apply`, which carries L-206 and L-207.
+still refuses to boot on a pending migration, and its refusal is the one that points at
+`update.ps1 -Apply`, which carries L-206 and L-207. **L-234 should be fixed before the next
+update** — `apply-migration.ts` refuses on the mere existence of a `-wal` or `-shm`, and any
+read-only tool leaves both behind.
 
 **THE OWNER CONFIRMED THE TILL BY TELEPHONE ON 2026-09-25** — the whole menu present, **the
 Tacos with the right configuration**, and **printing working**. That closes the three checks

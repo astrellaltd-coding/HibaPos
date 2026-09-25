@@ -43,19 +43,30 @@ because L-234 bites the *next* update rather than the last one.
 HibaPOS France. Read `CLAUDE.md`, then `REMEDIATION_PLAN.md` § 1 and § 2, then **L-233 and L-234**
 in `docs/audit/FINDINGS.md` and the commit `81eb2f3`.
 
-`apply-migration.ts` refuses a `-wal` on its **existence** rather than its content. A **read-only**
-connection cannot clean up on close, so every run of `catalogue-fingerprint.ts` leaves
-`custom.db-wal` at exactly **0 bytes** — a log with no pages, beside a database that is therefore
-whole. The 2026-09-20 update survived only because the commands happened to run in the order
-apply-then-fingerprint; the other way round, which is what a session wanting to know what it is
-about to change would naturally do, it refuses. **And its refusal text points the operator at
-`update.ps1 -Apply`**, the command `CLAUDE.md` forbids (L-206) — so a spurious refusal actively
-recommends the forbidden path.
+`apply-migration.ts` refuses on the **existence** of `-wal`, `-shm` or `-journal` rather than on
+what they contain. A **read-only** connection cannot clean up on close, so every run of
+`catalogue-fingerprint.ts` against a WAL database leaves **both** `custom.db-wal` at exactly
+**0 bytes** and `custom.db-shm` at **32 768**.
 
-`81eb2f3` is the same fix, one file over, already reviewed: check before the first query, refuse a
-`-wal` only when `size > 0` naming the bytes, keep `-journal` on existence, checkpoint before the
-restore-point copy. **Do not simply delete the check** — it is what stands between a restore point
-and half a database.
+**The `-shm` half is the important one and it is not L-233 repeated.** A shared-memory index is
+always there after any reader and is never empty, so **no size test can rescue it — it has to come
+out of the list**. Its presence says nothing about whether the `.db` is the whole database.
+
+The 2026-09-20 update survived only because the commands happened to run in the order
+apply-then-fingerprint. The other way round — what a session wanting to know what it is about to
+change would naturally do — it refuses, and says « Stop whatever is using the database and let it
+close cleanly first » **when nothing is using it**.
+
+`81eb2f3` is most of the fix, one file over, already reviewed: check before the first query, refuse
+a `-wal` only when `size > 0` naming the bytes, keep `-journal` on existence, **ignore `-shm`
+entirely**, checkpoint before the restore-point copy. **Do not simply delete the check** — what
+remains of it is what stands between a restore point and half a database.
+
+*(This section claimed until 2026-09-25 that the refusal points the operator at `update.ps1
+-Apply`. **It does not** — `apply-migration.ts` never names that script. That pointer is
+`hibapos-server.ps1:238` and belongs to L-203. The real hazard is the two composing: a spurious
+refusal here leaves an operator stuck, and the launcher is what recommends the forbidden script
+when they go looking.)*
 
 **REHEARSE IT ON A WAL DATABASE.** This machine cannot produce one: the development database lives
 inside OneDrive, so `pragmaDecision` returns `CLOUD_SYNC` and WAL is never enabled. That is exactly

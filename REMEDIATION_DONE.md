@@ -6156,6 +6156,10 @@ summary somebody wrote at the time says which things they thought belonged toget
 ---
 
 ### The week re-measured before the till update — L-229, L-230, L-231
+*(The plan's § 1 carried a four-line summary of this from 2026-09-20 until 2026-09-25, when it was
+retired to make room under the 40 960-byte ceiling — the guard in `plan-freshness.test.ts` refused
+the commit that broke it. Nothing was lost: it said 2098 pass / 0 fail, `9e57f51` pushed, the live
+database unmoved, and that three claims did not hold — which is this entry, at length.)*
 **Done:** 2026-09-20 · **Commits:** `7c92e08` (the fingerprint script) · this one (the records)
 **Findings:** L-229, L-230, L-231 opened. **No plan row.** The France till update itself is
 **NOT DONE** and the reason is below.
@@ -6401,8 +6405,13 @@ read-only reader always leaves a 0-byte one — is in `81eb2f3` and in the findi
 
 - **L-234 IS THE NEXT UPDATE'S TRAP AND SHOULD BE FIXED BEFORE IT.** `apply-migration.ts` carries
   L-233's second defect — existence, not content — and survived today only through the order the
-  commands happened to run in. Fingerprint first and it refuses on a harmless 0-byte log, in a
-  refusal whose own text points at `update.ps1 -Apply`, which `CLAUDE.md` forbids.
+  commands happened to run in. Fingerprint first and it refuses on a 0-byte log **and on a `-shm`
+  that is always 32 768 bytes**, telling the operator to stop something that is not running.
+  > **CORRECTED 2026-09-25.** This bullet said the refusal « points at `update.ps1 -Apply` ».
+  > **It does not.** `apply-migration.ts` never names that script; the pointer is
+  > `hibapos-server.ps1:238` and belongs to **L-203**. Two refusals were conflated while writing
+  > L-234, and the error reached `CLAUDE.md`, the plan and the hand-over before the operator asked
+  > what L-234 actually was and sent somebody back to the source.
 - **THE TACOS PHOTOGRAPH IS ON THE TILL AND NOT HERE** (**L-232**, half done), and the drift it was
   predicted to cause happened **within the hour**. The operator attached it in the médiathèque while
   checking the update; the next fingerprint read **`a38c95977b5e1122`** with only the `Product`

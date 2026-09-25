@@ -122,10 +122,6 @@ every trading table is at zero.
 > closing the caisse seals the day. **L-225 … L-228 were opened**; L-228 is fixed, the other three
 > are about carrying a catalogue and are open.
 >
-> **2026-09-20 — THE WEEK'S CLAIMS WERE RE-MEASURED BEFORE THE TILL UPDATE, AND MOST HELD.**
-> 2098 pass / 0 fail / 161 files, `9e57f51` pushed, the live database unmoved at 86 products with
-> every trading table at zero. **Three did not hold**: **L-229** (the proof number), **L-230**
-> (who may set the cut-off) and **L-231** (a migration pending here, in the bullet saying none was).
 >
 > ### ▶ WHAT IS WAITING, AND NONE OF IT IS CODE
 >
@@ -135,9 +131,11 @@ every trading table is at zero.
 >    the order is not a preference: arming the key before the reset makes the reset refuse. Also
 >    still open before trading for real: **`VAT-METHOD`** (§ 8, the accountant's written line) and
 >    **a fresh verified backup off this machine**.
-> 2. **L-234 IS THE NEXT UPDATE'S TRAP, AND BELONGS BEFORE IT.** `apply-migration.ts` refuses a
->    harmless 0-byte `-wal` — the kind any read-only tool leaves — and its refusal text points at
->    `update.ps1 -Apply`, which `CLAUDE.md` forbids. Today survived on command ORDER alone.
+> 2. **L-234 IS THE NEXT UPDATE'S TRAP, AND BELONGS BEFORE IT.** `apply-migration.ts` refuses on
+>    the mere EXISTENCE of `-wal` or `-shm`, and any read-only tool leaves both — the `-shm` at
+>    32 768 bytes, so no size test rescues that half: it must leave the list. 2026-09-20 survived
+>    on command ORDER alone. *(This row claimed the refusal points at `update.ps1 -Apply` until
+>    2026-09-25. It does not — that is `hibapos-server.ps1` and L-203.)*
 > 3. **THE TACOS PHOTOGRAPH IS ON THE TILL AND NOT HERE** (**L-232**, half done) — so the two
 >    catalogues genuinely differ, exactly as that finding predicted, within the hour. **The till
 >    prints `a38c95977b5e1122`; this machine still prints `b6a76daf0befc587`.** Three médiathèque
@@ -202,9 +200,10 @@ audit exercised produced screen figures matching the database to the cent.
   (L-217) and `20260918200000_customer_city` (L-221) were applied there on 2026-09-20, 18 → 20,
   both named by the script, `schema_version 176 → 181`, restore point verified before a byte moved.
   **L-203 is dormant on that machine, not fixed**: `migrate status` exits 0 so the launcher starts,
-  and it goes live again the moment a migration is prepared and not applied. **L-234 is the thing
-  to fix before the next update** — the applier refuses a harmless 0-byte `-wal` and its refusal
-  recommends the forbidden `update.ps1 -Apply`.
+  and it goes live again the moment a migration is prepared and not applied — **and it is this
+  refusal, not the applier's, that recommends the forbidden `update.ps1 -Apply`**. **L-234 is the
+  other thing to fix before the next update**: the applier refuses on the existence of `-wal` or
+  `-shm`, which any read-only tool leaves behind.
 - **No migration is waiting on THIS machine** — `20260918200000_customer_city` (L-221) was applied
   by the operator on 2026-09-20 with
   `bun scripts/apply-migration.ts --apply --expect ../db-snapshots/r221-city-rehearsal/fp-after.json`
