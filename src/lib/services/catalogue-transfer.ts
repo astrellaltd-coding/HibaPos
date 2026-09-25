@@ -87,6 +87,16 @@ export const CATALOGUE_TABLES = [
     fields: ["id", "slotId", "productId", "surcharge", "sortOrder"] },
   { model: "comboSlotOptionRule", table: "ComboSlotOptionRule",
     fields: ["id", "slotId", "categoryOptionGroupId", "categoryOptionChoiceId"] },
+  // **L-225.** The option CEILINGS — how many picks from a category group a
+  // size includes before the caisse refuses. Added 2026-09-18 by L-217 and
+  // absent from this list until 2026-09-25, so for a week an export was
+  // silently incomplete in the one way that reproduces the defect it was
+  // raised about: without a quota, `Tacos M` takes all six viandes for 6,90 €.
+  //
+  // LAST, deliberately. It references `Product` and `CategoryOptionGroup`,
+  // both of which are inserted above it, so the FK-safe order holds.
+  { model: "productOptionQuota", table: "ProductOptionQuota",
+    fields: ["id", "productId", "groupId", "included"] },
 ] as const;
 
 type Row = Record<string, unknown>;
@@ -333,6 +343,11 @@ export const CATALOGUE_REFERENCES: { from: string; field: string; to: string; nu
   { from: "comboSlotOptionRule", field: "slotId", to: "comboSlot" },
   { from: "comboSlotOptionRule", field: "categoryOptionGroupId", to: "categoryOptionGroup" },
   { from: "comboSlotOptionRule", field: "categoryOptionChoiceId", to: "categoryOptionChoice", nullable: true },
+  // L-225, and not optional: without these a quota whose product or group is
+  // missing from the file arrives as a Prisma FK error naming no row, at the
+  // end of a transaction that then rolls the whole import back.
+  { from: "productOptionQuota", field: "productId", to: "product" },
+  { from: "productOptionQuota", field: "groupId", to: "categoryOptionGroup" },
 ];
 
 /** Refuse a file whose references do not resolve within itself. */

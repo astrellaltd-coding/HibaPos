@@ -46,11 +46,13 @@ type Ids = {
   regina: string; coca: string; menu: string;
   group: string; choiceA: string; choiceB: string;
   catGroup: string; catChoice: string; addOn: string;
-  slot: string; slotChoice: string; rule: string;
+  slot: string; slotChoice: string; rule: string; quota: string;
 };
 let ids: Ids;
 
 async function wipeCatalogue() {
+  // L-225: before `product` and `categoryOptionGroup`, which it references.
+  await db.productOptionQuota.deleteMany();
   await db.comboSlotOptionRule.deleteMany();
   await db.comboSlotChoice.deleteMany();
   await db.comboSlot.deleteMany();
@@ -138,12 +140,20 @@ async function seedCatalogue(): Promise<Ids> {
     data: { slotId: slot.id, categoryOptionGroupId: catGroup.id, categoryOptionChoiceId: catChoice.id },
   });
 
+  // L-225. A CEILING: how many picks from `Taille` the price of a `Regina`
+  // includes. `included: 2` rather than 1 on purpose — a default-shaped value
+  // could survive a round trip that dropped the row and reinstated a default,
+  // and this has to distinguish « carried » from « happened to look right ».
+  const quota = await db.productOptionQuota.create({
+    data: { productId: regina.id, groupId: catGroup.id, included: 2 },
+  });
+
   return {
     pizzas: pizzas.id, classiques: classiques.id, boissons: boissons.id,
     regina: regina.id, coca: coca.id, menu: menu.id,
     group: group.id, choiceA: choiceA.id, choiceB: choiceB.id,
     catGroup: catGroup.id, catChoice: catChoice.id, addOn: addOn.id,
-    slot: slot.id, slotChoice: slotChoice.id, rule: rule.id,
+    slot: slot.id, slotChoice: slotChoice.id, rule: rule.id, quota: quota.id,
   };
 }
 
@@ -230,8 +240,65 @@ describe("the travelling column lists track the schema", () => {
     }
   });
 
-  it("covers ten tables, in an order no reference points backwards in", () => {
-    expect(CATALOGUE_TABLES).toHaveLength(10);
+  it("carries every table that references a travelling one, or says why not", async () => {
+    // **L-225.** What stood here was `expect(CATALOGUE_TABLES).toHaveLength(10)`
+    // beside the by-name list below, and that pair is exactly what let
+    // `ProductOptionQuota` through: a hand-maintained COUNT cannot notice a
+    // table nobody added to it, and the field-by-field check above only
+    // inspects tables already ON the list. A whole new table was invisible to
+    // the entire file while the suite stayed green — and the data silently did
+    // not travel.
+    //
+    // So this derives the question from the SCHEMA instead: anything with a
+    // foreign key into a travelling table is part of the menu's graph and must
+    // either travel too, or be named here with a reason somebody wrote down.
+    const DOES_NOT_TRAVEL: Record<string, string> = {
+      OrderItem:
+        "trading data. An order line records what was SOLD, not what is on the menu; " +
+        "`pre-golive-reset.ts` deletes it and keeps the catalogue, which is the same distinction.",
+    };
+
+    const travelling = new Set<string>(CATALOGUE_TABLES.map((t) => t.table));
+    const tables = (
+      await db.$queryRawUnsafe<{ name: string }[]>(
+        `SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ` +
+          `AND name != '_prisma_migrations' ORDER BY name`,
+      )
+    ).map((r) => r.name);
+
+    const referencing: string[] = [];
+    const offenders: string[] = [];
+    for (const t of tables) {
+      const fks = await db.$queryRawUnsafe<{ table: string }[]>(
+        `PRAGMA foreign_key_list("${t}")`,
+      );
+      const into = [...new Set(fks.map((f) => f.table).filter((x) => travelling.has(x)))];
+      if (!into.length) continue;
+      referencing.push(t);
+      if (travelling.has(t) || DOES_NOT_TRAVEL[t]) continue;
+      offenders.push(`${t} (references ${into.join(", ")})`);
+    }
+
+    // The vacuous shape this project keeps being bitten by: a sweep that passes
+    // because it swept nothing. If the schema query or the PRAGMA returns
+    // nothing, `offenders` is empty for the wrong reason.
+    expect(tables.length, "no tables read out of sqlite_master").toBeGreaterThan(20);
+    expect(referencing, "the FK sweep found nothing — it is not looking").toContain("OrderItem");
+    expect(referencing).toContain("Product");
+
+    expect(
+      offenders,
+      `these reference a travelling table and neither travel nor say why:\n  ${offenders.join(
+        "\n  ",
+      )}\n\nAdd them to CATALOGUE_TABLES (and to CATALOGUE_REFERENCES, or a dangling row ` +
+        `arrives as a Prisma FK error naming nothing), or add them to DOES_NOT_TRAVEL above ` +
+        `with the reason. L-225 is what happens when neither is done: the export is silently ` +
+        `incomplete and the menu arrives wrong in another country.`,
+    ).toEqual([]);
+  });
+
+  it("covers eleven tables, in an order no reference points backwards in", () => {
+    expect(CATALOGUE_TABLES).toHaveLength(11);
     // Dependency order, asserted as a list rather than trusted: a reordering
     // that put `product` before `category` would fail the round-trip below,
     // but it would fail with an FK error nobody would read as "the order".
@@ -239,6 +306,7 @@ describe("the travelling column lists track the schema", () => {
       "Category", "Product", "OptionGroup", "OptionChoice",
       "CategoryOptionGroup", "CategoryOptionChoice", "CategoryAddOn",
       "ComboSlot", "ComboSlotChoice", "ComboSlotOptionRule",
+      "ProductOptionQuota",
     ]);
   });
 });
@@ -256,6 +324,7 @@ describe("a catalogue survives export and import with its identity intact", () =
       category: 3, product: 3, optionGroup: 1, optionChoice: 2,
       categoryOptionGroup: 1, categoryOptionChoice: 1, categoryAddOn: 1,
       comboSlot: 1, comboSlotChoice: 1, comboSlotOptionRule: 1,
+      productOptionQuota: 1,
     });
 
     // The fresh install: nothing in the catalogue at all.
@@ -264,7 +333,7 @@ describe("a catalogue survives export and import with its identity intact", () =
 
     const res = await importOverHttp(file);
     expect(res.status).toBe(200);
-    expect(res.body.total).toBe(15);
+    expect(res.body.total).toBe(16);
 
     // READ BACK OUT OF THE DATABASE — the claim is what the install holds.
     expect(await db.category.count()).toBe(3);
@@ -274,6 +343,16 @@ describe("a catalogue survives export and import with its identity intact", () =
     expect(await db.categoryAddOn.count()).toBe(1);
     expect(await db.comboSlotChoice.count()).toBe(1);
     expect(await db.comboSlotOptionRule.count()).toBe(1);
+
+    // **L-225, and the count is not the point — the NUMBER is.** A ceiling that
+    // arrives as a row but loses `included` is a `Tacos M` taking all six
+    // viandes for 6,90 €, which is the defect L-217 was raised about. So this
+    // asserts the value, under the id it had.
+    expect(await db.productOptionQuota.count()).toBe(1);
+    const carried = await db.productOptionQuota.findUnique({ where: { id: ids.quota } });
+    expect(carried?.included, "the option ceiling did not survive the round trip").toBe(2);
+    expect(carried?.productId).toBe(ids.regina);
+    expect(carried?.groupId).toBe(ids.catGroup);
   });
 
   it("preserves every id, which is what R2.1 counts things under", async () => {
@@ -475,22 +554,43 @@ describe("import refuses rather than merges", () => {
     expect((await db.category.findUniqueOrThrow({ where: { id: ids.pizzas } })).parentId).toBeNull();
   });
 
-  it("covers every foreign key of every travelling table", () => {
+  it("covers every foreign key of every travelling table", async () => {
     // The map is the catalogue's shape written down once, so it has to be
     // complete: a reference the map does not know about is a reference the
     // pre-flight cannot check, and the first sign of it would be a Prisma
     // error on somebody's install day.
+    //
+    // **L-225.** This compared the map against a HAND-WRITTEN list of fourteen
+    // references, which is the same anti-pattern as the count of ten one
+    // `describe` above: a list nobody updates cannot notice what nobody added.
+    // Derived from the schema now — for every travelling table, every foreign
+    // key pointing at another travelling table must be in the map.
     const covered = new Set(CATALOGUE_REFERENCES.map((r) => `${r.from}.${r.field}`));
-    const expected = new Set([
-      "category.parentId", "product.categoryId", "optionGroup.productId",
-      "optionChoice.groupId", "categoryOptionGroup.categoryId",
-      "categoryOptionChoice.groupId", "categoryAddOn.categoryId",
-      "comboSlot.productId", "comboSlot.sourceCategoryId",
-      "comboSlotChoice.slotId", "comboSlotChoice.productId",
-      "comboSlotOptionRule.slotId", "comboSlotOptionRule.categoryOptionGroupId",
-      "comboSlotOptionRule.categoryOptionChoiceId",
-    ]);
-    expect([...covered].sort()).toEqual([...expected].sort());
+    const travelling = new Set<string>(CATALOGUE_TABLES.map((t) => t.table));
+    const modelOf = new Map(CATALOGUE_TABLES.map((t) => [t.table as string, t.model as string]));
+
+    const expected = new Set<string>();
+    for (const { table, model } of CATALOGUE_TABLES) {
+      const fks = await db.$queryRawUnsafe<{ table: string; from: string }[]>(
+        `PRAGMA foreign_key_list("${table}")`,
+      );
+      for (const fk of fks) {
+        if (!travelling.has(fk.table)) continue;
+        expected.add(`${model}.${fk.from}`);
+      }
+    }
+
+    // Vacuity: if the PRAGMA returned nothing, `expected` is empty and the
+    // comparison below passes over nothing at all.
+    expect(expected.size, "no foreign keys read out of the schema").toBeGreaterThan(10);
+    expect(modelOf.get("ProductOptionQuota"), "the new table is not on the list").toBe(
+      "productOptionQuota",
+    );
+
+    expect(
+      [...covered].sort(),
+      "CATALOGUE_REFERENCES disagrees with the schema's foreign keys",
+    ).toEqual([...expected].sort());
     // And every field named is a field that actually travels, or the check
     // would be reading something the export never wrote.
     const byModel = new Map(CATALOGUE_TABLES.map((t) => [t.model as string, t.fields as readonly string[]]));
@@ -526,7 +626,7 @@ describe("both halves are journalled in the audit log", () => {
 
     const imported = await db.auditLog.findFirstOrThrow({ where: { action: "CATALOGUE_IMPORTED" } });
     const details = JSON.parse(imported.details ?? "{}");
-    expect(details.total).toBe(15);
+    expect(details.total).toBe(16);
     // The provenance of the file that was applied — which install wrote it,
     // when, and against which schema.
     expect(details.from.software).toBe(file.software);

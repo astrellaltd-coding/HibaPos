@@ -107,6 +107,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - The week re-measured before the till update — L-229, L-230, L-231
 - `customer_city` applied here, and the cut-off becomes a script
 - THE FRANCE TILL IS CURRENT — the update, and the blocker that was not there
+- L-225 — the option ceilings travel, and two pinned lists become derived
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -6465,6 +6466,59 @@ next reset refuse (its guard 1), and FACTICE off would make test sales non-facti
 - **`CLAUDE.md` NEEDS THE OPERATOR'S WORD.** Three of its paragraphs are now false: the till is not
   days behind, it is not un-updatable, git exists on it, and the cut-off is not 5. Text brought
   separately; that file is theirs.
+
+---
+
+### L-225 — the option ceilings travel, and two pinned lists become derived
+**Done:** 2026-09-25 · **Commit:** *(this one)* · **Findings:** L-225 fixed. **No plan row.**
+**L-226 is untouched and needs a decision** — see below.
+
+**WHAT WAS BROKEN.** `CATALOGUE_TABLES` named ten models; `ProductOptionQuota` — L-217's option
+ceilings, added 2026-09-18 — was not one of them. So an export was silently incomplete **in the one
+way that reproduces the defect the ceilings were built to stop**: import this catalogue in France
+without them and `Tacos M`, `L` and `XL` each take all six viandes for 6,90 €.
+
+**WHY THE SUITE WAS GREEN.** The file already had a good column-level guard — it compares each
+LISTED table's fields against `PRAGMA table_info`, so a new COLUMN fails a test until somebody
+decides about it. **A whole new TABLE was invisible to it**, because it only inspects tables already
+on the list. What stood in for completeness was `expect(CATALOGUE_TABLES).toHaveLength(10)` beside a
+by-name array — a hand-maintained count, which cannot notice what nobody added to it.
+
+**THE FIX IS THE SECOND HALF, NOT THE FIRST.** Adding the table is four lines. The thing that stops
+the next one is deriving the question from the schema:
+
+| was | is |
+|---|---|
+| `toHaveLength(10)` + a by-name list | every table with an FK **into** a travelling table either travels, or is in `DOES_NOT_TRAVEL` **with a written reason** |
+| fourteen hand-written `"model.field"` strings | read from `PRAGMA foreign_key_list` for each travelling table |
+
+The first flags exactly one legitimate entry today — **`OrderItem`**, whose reason is recorded in
+the test: an order line records what was *sold*, not what is on the menu, the same distinction
+`pre-golive-reset.ts` makes. And it would have caught `ProductOptionQuota` on the day it was
+introduced. **Both derivations carry vacuity guards** — « no tables read out of `sqlite_master` »,
+« the FK sweep found nothing — it is not looking » — because a sweep that passes by sweeping
+nothing is the most repeated test bug in this repository.
+
+**How it was verified.** **Red first, and specifically**: the new check run against the unfixed
+source fails naming `ProductOptionQuota (references CategoryOptionGroup, Product)`. Reverting the
+whole source turns **five** tests red. The round trip seeds a ceiling of **`included: 2`** — not 1,
+which a dropped row reinstated at a default could imitate — and reads it back **under its own id**,
+with its product and group. `2099 pass / 0 fail / 161 files`, typecheck and lint clean.
+
+**One assertion did NOT prove itself, and that is recorded rather than glossed.** Reverting only
+`included` from the field list does not isolate the new value assertion: the column is `NOT NULL`,
+so the import fails outright and the pre-existing column-list guard fires first. The
+`expect(carried?.included).toBe(2)` line is therefore a **backstop against a value corrupted in
+transit**, not a line demonstrated to be load-bearing. Kept, and labelled honestly.
+
+**Left behind:**
+
+- **L-226 IS UNTOUCHED AND IS A DECISION, NOT A FIX.** The import still refuses a non-empty
+  catalogue, and nothing in the application can empty one — so the transfer still works exactly once
+  per installation, on a machine that has never had a catalogue. **That is why the France till got
+  two bespoke scripts instead.** The options were put to the operator rather than chosen here.
+- **The README's pinned test count moved 2098 → 2099**, which `readme-counts.test.ts` enforced by
+  failing the run. Working as intended.
 
 ---
 
