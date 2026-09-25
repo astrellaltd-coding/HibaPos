@@ -71,9 +71,10 @@ machine's is still `b6a76daf0befc587`: the Tacos photograph is attached there an
 already installed and the repository is **public**, so the token nobody had was never needed.
 Every measured step is in `REMEDIATION_DONE.md`. **L-203 is dormant, not fixed**: the launcher
 still refuses to boot on a pending migration, and its refusal is the one that points at
-`update.ps1 -Apply`, which carries L-206 and L-207. **L-234 should be fixed before the next
-update** — `apply-migration.ts` refuses on the mere existence of a `-wal` or `-shm`, and any
-read-only tool leaves both behind.
+`update.ps1 -Apply`, which carries L-206 and L-207. **L-234 was closed on 2026-09-25 as NOT a
+defect**: the fix was written, measured before committing, and reverted — `apply-migration.ts`
+refuses on the existence of a `-wal`, which looks wrong and is right, because `state()` closes
+above it and SQLite clears the file first.
 
 **THE OWNER CONFIRMED THE TILL BY TELEPHONE ON 2026-09-25** — the whole menu present, **the
 Tacos with the right configuration**, and **printing working**. That closes the three checks

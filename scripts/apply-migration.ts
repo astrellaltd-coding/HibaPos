@@ -174,6 +174,27 @@ if (Number.isFinite(running) && running > 0) {
 }
 
 // ── 2. one file must be the whole database ─────────────────────────────────
+//
+// **THIS IS CORRECT ONLY BECAUSE `state()` RAN AND CLOSED ABOVE. L-234.**
+//
+// Testing EXISTENCE rather than content looks wrong, and in a different
+// script it is: a READ-ONLY connection cannot clean up on close, so every run
+// of `catalogue-fingerprint.ts` against a WAL database leaves `-wal` at 0
+// bytes and `-shm` at 32 768 behind a process that has already exited.
+// Refusing on those would refuse after the tool this very procedure runs a
+// step either side of this one.
+//
+// It never happens here. `state()` opens a write-capable client and
+// `$disconnect()`s it in a `finally`, and SQLite then removes both files —
+// MEASURED 2026-09-25: leftovers present before the dry run, gone after it,
+// and gone even while a second process held the database open. So anything
+// still here has appeared since, and refusing is right.
+//
+// **The dependency is invisible and load-bearing.** Remove `state()`, move it
+// below this block, or make it hold its client open, and this guard starts
+// refusing every run on a WAL database. That is not hypothetical: it is
+// exactly what `set-business-day-cutoff.ts` did, where the same check sat
+// after a connection that stays open — L-233, found on the France till.
 for (const suffix of ["-wal", "-shm", "-journal"]) {
   if (existsSync(dbPath + suffix)) {
     console.error(`  REFUSED: ${dbPath}${suffix} exists, so a plain copy would be incomplete.`);

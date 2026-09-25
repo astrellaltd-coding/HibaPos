@@ -131,11 +131,12 @@ every trading table is at zero.
 >    the order is not a preference: arming the key before the reset makes the reset refuse. Also
 >    still open before trading for real: **`VAT-METHOD`** (§ 8, the accountant's written line) and
 >    **a fresh verified backup off this machine**.
-> 2. **L-234 IS THE NEXT UPDATE'S TRAP, AND BELONGS BEFORE IT.** `apply-migration.ts` refuses on
->    the mere EXISTENCE of `-wal` or `-shm`, and any read-only tool leaves both — the `-shm` at
->    32 768 bytes, so no size test rescues that half: it must leave the list. 2026-09-20 survived
->    on command ORDER alone. *(This row claimed the refusal points at `update.ps1 -Apply` until
->    2026-09-25. It does not — that is `hibapos-server.ps1` and L-203.)*
+> 2. **L-234 IS CLOSED AS NOT A DEFECT** (2026-09-25). The fix was written and then **measured
+>    before it was committed**: `state()` closes above that guard and SQLite clears the journal
+>    files, so the refusal this row predicted cannot happen and the change would have weakened a
+>    working guard. Reverted; a comment stays, because the correctness depends on `state()` and
+>    nothing said so. **The row was wrong twice** — first about `update.ps1`, then about the
+>    defect existing at all.
 > 3. **THE TACOS PHOTOGRAPH IS ON THE TILL AND NOT HERE** (**L-232**, half done) — so the two
 >    catalogues genuinely differ, exactly as that finding predicted, within the hour. **The till
 >    prints `a38c95977b5e1122`; this machine still prints `b6a76daf0befc587`.** Three médiathèque
@@ -201,9 +202,8 @@ audit exercised produced screen figures matching the database to the cent.
   both named by the script, `schema_version 176 → 181`, restore point verified before a byte moved.
   **L-203 is dormant on that machine, not fixed**: `migrate status` exits 0 so the launcher starts,
   and it goes live again the moment a migration is prepared and not applied — **and it is this
-  refusal, not the applier's, that recommends the forbidden `update.ps1 -Apply`**. **L-234 is the
-  other thing to fix before the next update**: the applier refuses on the existence of `-wal` or
-  `-shm`, which any read-only tool leaves behind.
+  refusal that recommends the forbidden `update.ps1 -Apply`**, which is what L-234 wrongly
+  attributed to the applier before being closed as not a defect.
 - **No migration is waiting on THIS machine** — `20260918200000_customer_city` (L-221) was applied
   by the operator on 2026-09-20 with
   `bun scripts/apply-migration.ts --apply --expect ../db-snapshots/r221-city-rehearsal/fp-after.json`

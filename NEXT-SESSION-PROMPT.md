@@ -17,7 +17,8 @@ keyboard, the `city` column and the bon de livraison, the option ceilings, the t
 and the auto-seal — about fifty commits. **The blocker that held it up for four days did not
 exist**: git was already installed on that machine and the repository is public, so the token
 nobody had was never needed. One defect was found on the till and fixed mid-operation (**L-233**),
-and four more were opened (**L-234, L-235, L-236, L-237**).
+and four more were opened (**L-234, L-235, L-236, L-237**) — of which **L-234 was closed again on
+2026-09-25 as not a defect**, after its fix was written, measured and reverted.
 
 ---
 
@@ -33,49 +34,14 @@ Before a first genuine sale: **R6.1 → R6.2 → R6.3 in that order** (the order
 arming the chain key before the reset makes the reset refuse), plus **`VAT-METHOD`** in the plan's
 § 8 and **a fresh verified backup off this machine**. All of that is the operator's.
 
-**The sessions below do not wait on any of it.** Take A first — it is the one with a deadline,
-because L-234 bites the *next* update rather than the last one.
+**The sessions below do not wait on any of it**, and none of them is urgent any more. **L-234 was
+the one with a deadline and it turned out not to be a defect at all** — closed 2026-09-25 after the
+fix was written, measured and reverted. See its row; the short version is that `state()` closes
+above the guard and SQLite clears the journal files, so the refusal it predicted cannot happen.
 
 ---
 
-## SESSION A — L-234, and it should come before the next update
-
-HibaPOS France. Read `CLAUDE.md`, then `REMEDIATION_PLAN.md` § 1 and § 2, then **L-233 and L-234**
-in `docs/audit/FINDINGS.md` and the commit `81eb2f3`.
-
-`apply-migration.ts` refuses on the **existence** of `-wal`, `-shm` or `-journal` rather than on
-what they contain. A **read-only** connection cannot clean up on close, so every run of
-`catalogue-fingerprint.ts` against a WAL database leaves **both** `custom.db-wal` at exactly
-**0 bytes** and `custom.db-shm` at **32 768**.
-
-**The `-shm` half is the important one and it is not L-233 repeated.** A shared-memory index is
-always there after any reader and is never empty, so **no size test can rescue it — it has to come
-out of the list**. Its presence says nothing about whether the `.db` is the whole database.
-
-The 2026-09-20 update survived only because the commands happened to run in the order
-apply-then-fingerprint. The other way round — what a session wanting to know what it is about to
-change would naturally do — it refuses, and says « Stop whatever is using the database and let it
-close cleanly first » **when nothing is using it**.
-
-`81eb2f3` is most of the fix, one file over, already reviewed: check before the first query, refuse
-a `-wal` only when `size > 0` naming the bytes, keep `-journal` on existence, **ignore `-shm`
-entirely**, checkpoint before the restore-point copy. **Do not simply delete the check** — what
-remains of it is what stands between a restore point and half a database.
-
-*(This section claimed until 2026-09-25 that the refusal points the operator at `update.ps1
--Apply`. **It does not** — `apply-migration.ts` never names that script. That pointer is
-`hibapos-server.ps1:238` and belongs to L-203. The real hazard is the two composing: a spurious
-refusal here leaves an operator stuck, and the launcher is what recommends the forbidden script
-when they go looking.)*
-
-**REHEARSE IT ON A WAL DATABASE.** This machine cannot produce one: the development database lives
-inside OneDrive, so `pragmaDecision` returns `CLOUD_SYNC` and WAL is never enabled. That is exactly
-why L-233 passed every rehearsal here and failed on the first run in France. Force a scratch copy
-into WAL mode and test there — `PRAGMA journal_mode = WAL`, then a write, then close.
-
----
-
-## SESSION B — the Tacos photograph, on THIS machine (L-232, half done)
+## SESSION A — the Tacos photograph, on THIS machine (L-232, half done)
 
 HibaPOS France. Read **L-232** in `docs/audit/FINDINGS.md`.
 
@@ -97,7 +63,7 @@ identical rather than retyped.
 
 ---
 
-## SESSION C — the catalogue transfer, half-built
+## SESSION B — the catalogue transfer, half-built
 
 HibaPOS France. Read **L-225, L-226** in `docs/audit/FINDINGS.md`.
 
@@ -109,7 +75,7 @@ here, import there » for ever after — which is what the 2026-09-20 update had
 
 ---
 
-## SESSION D — `.zscripts/`, and it has three open items
+## SESSION C — `.zscripts/`, and it has three open items
 
 HibaPOS France. Read **L-203, L-206, L-207, L-236, L-237** in `docs/audit/FINDINGS.md`.
 
