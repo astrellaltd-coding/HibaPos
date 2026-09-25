@@ -56,10 +56,22 @@ machine's database reproduced the till's digests exactly — `a389811326c53d5c` 
 the first of five candidate spellings tried. Afterwards both machines print `a38c95977b5e1122`, and
 **that replaces `b6a76daf0befc587` as the expected value** everywhere it is written.
 
-**It is a live catalogue edit, so it is the operator's** — and reaching Réglages here means running
-the app against `db/custom.db`, which § 5 forbids. If that friction is not wanted, the alternative
-is a small script in the shape of `set-option-quotas.ts`, which also guarantees the path string is
-identical rather than retyped.
+**THE SCRIPT IS WRITTEN AND REHEARSED, 2026-09-25 — ONLY `--apply` IS LEFT**, and that is the
+operator's, being a live catalogue edit:
+
+```
+bun scripts/set-tacos-image.ts            # reports, changes nothing
+bun scripts/set-tacos-image.ts --apply
+```
+
+Run against a scratch copy it produced **`a38c95977b5e1122` / 86** — the till's number exactly. It
+refuses a missing photograph, a missing size, and any row already pointing somewhere else; it is
+idempotent; and it takes a sha-verified restore point. A script rather than the médiathèque because
+reaching Réglages here means running the app against `db/custom.db`, which § 5 forbids, and because
+a path typed twice on two machines can differ by a capital letter.
+
+**Afterwards, re-run `catalogue-fingerprint.ts` on this machine** and expect `a38c95977b5e1122` —
+which then replaces `b6a76daf0befc587` as the expected value everywhere it is written.
 
 ---
 
