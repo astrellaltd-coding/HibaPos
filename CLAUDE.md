@@ -65,9 +65,11 @@ runs in France is the development build, not a package.
 
 **THAT TILL IS CURRENT SINCE 2026-09-20.** `C:\HibaPOS-app` is a git clone at `81eb2f3`: **20
 migrations**, **86 products with the Tacos**, fiscal slate reset to **0/0/0/0** the same
-evening, and it boots itself fullscreen. Its fingerprint is **`a38c95977b5e1122`** and this
-machine's is still `b6a76daf0befc587`: the Tacos photograph is attached there and not here
-(**L-232**), and three edits here close the gap. **The blocker was never there** — git was
+evening, and it boots itself fullscreen. **Both installs now print the same catalogue
+fingerprint, `a38c95977b5e1122` at 86 products** — the Tacos photograph was attached on the
+till on 2026-09-20 and here on 2026-09-25, which closed **L-232**. That number is the expected
+value from here on; `b6a76daf0befc587` was this machine's before the photograph and is
+retired. **The blocker was never there** — git was
 already installed and the repository is **public**, so the token nobody had was never needed.
 Every measured step is in `REMEDIATION_DONE.md`. **L-203 is dormant, not fixed**: the launcher
 still refuses to boot on a pending migration, and its refusal is the one that points at

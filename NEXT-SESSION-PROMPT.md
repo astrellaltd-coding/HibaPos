@@ -20,6 +20,10 @@ nobody had was never needed. One defect was found on the till and fixed mid-oper
 and four more were opened (**L-234, L-235, L-236, L-237**) — of which **L-234 was closed again on
 2026-09-25 as not a defect**, after its fix was written, measured and reverted.
 
+**Since then: L-232 is closed too.** The Tacos photograph is attached on both installs and they
+print the same catalogue fingerprint again — **`a38c95977b5e1122` at 86 products, and that is the
+expected value from here on.** `b6a76daf0befc587` was this machine's before the photograph.
+
 ---
 
 ## THE TILL IS CONFIRMED WORKING, AND THE NEXT DECISION IS THE GO-LIVE
@@ -34,48 +38,14 @@ Before a first genuine sale: **R6.1 → R6.2 → R6.3 in that order** (the order
 arming the chain key before the reset makes the reset refuse), plus **`VAT-METHOD`** in the plan's
 § 8 and **a fresh verified backup off this machine**. All of that is the operator's.
 
-**The sessions below do not wait on any of it**, and none of them is urgent any more. **L-234 was
-the one with a deadline and it turned out not to be a defect at all** — closed 2026-09-25 after the
-fix was written, measured and reverted. See its row; the short version is that `state()` closes
-above the guard and SQLite clears the journal files, so the refusal it predicted cannot happen.
+**The sessions below do not wait on any of it**, and none of them is urgent. **L-234 was the one
+with a deadline and it turned out not to be a defect at all** — closed 2026-09-25 after the fix was
+written, measured and reverted: `state()` closes above the guard and SQLite clears the journal
+files, so the refusal it predicted cannot happen.
 
 ---
 
-## SESSION A — the Tacos photograph, on THIS machine (L-232, half done)
-
-HibaPOS France. Read **L-232** in `docs/audit/FINDINGS.md`.
-
-**The photograph is on the France till and not here**, so the two catalogues genuinely differ —
-exactly as L-232 predicted, within the hour of it being written. The till prints
-**`a38c95977b5e1122`**; this machine still prints `b6a76daf0befc587`, and the only section that
-differs is `Product`.
-
-**The remaining work is three operator edits here**, pointing `Tacos M`, `L` and `XL` at
-`/uploads/Produits/Tacos.webp`. That string is not a guess: setting it on a scratch copy of this
-machine's database reproduced the till's digests exactly — `a389811326c53d5c` / `a38c95977b5e1122`,
-the first of five candidate spellings tried. Afterwards both machines print `a38c95977b5e1122`, and
-**that replaces `b6a76daf0befc587` as the expected value** everywhere it is written.
-
-**THE SCRIPT IS WRITTEN AND REHEARSED, 2026-09-25 — ONLY `--apply` IS LEFT**, and that is the
-operator's, being a live catalogue edit:
-
-```
-bun scripts/set-tacos-image.ts            # reports, changes nothing
-bun scripts/set-tacos-image.ts --apply
-```
-
-Run against a scratch copy it produced **`a38c95977b5e1122` / 86** — the till's number exactly. It
-refuses a missing photograph, a missing size, and any row already pointing somewhere else; it is
-idempotent; and it takes a sha-verified restore point. A script rather than the médiathèque because
-reaching Réglages here means running the app against `db/custom.db`, which § 5 forbids, and because
-a path typed twice on two machines can differ by a capital letter.
-
-**Afterwards, re-run `catalogue-fingerprint.ts` on this machine** and expect `a38c95977b5e1122` —
-which then replaces `b6a76daf0befc587` as the expected value everywhere it is written.
-
----
-
-## SESSION B — the catalogue transfer, half-built
+## SESSION A — the catalogue transfer, half-built
 
 HibaPOS France. Read **L-225, L-226** in `docs/audit/FINDINGS.md`.
 
@@ -87,7 +57,7 @@ here, import there » for ever after — which is what the 2026-09-20 update had
 
 ---
 
-## SESSION C — `.zscripts/`, and it has three open items
+## SESSION B — `.zscripts/`, and it has three open items
 
 HibaPOS France. Read **L-203, L-206, L-207, L-236, L-237** in `docs/audit/FINDINGS.md`.
 

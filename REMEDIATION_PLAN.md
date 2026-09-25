@@ -137,11 +137,10 @@ every trading table is at zero.
 >    working guard. Reverted; a comment stays, because the correctness depends on `state()` and
 >    nothing said so. **The row was wrong twice** — first about `update.ps1`, then about the
 >    defect existing at all.
-> 3. **THE TACOS PHOTOGRAPH IS ON THE TILL AND NOT HERE** (**L-232**, half done) — so the two
->    catalogues genuinely differ, exactly as that finding predicted, within the hour. **The till
->    prints `a38c95977b5e1122`; this machine still prints `b6a76daf0befc587`.** Three médiathèque
->    edits here with `image = /uploads/Produits/Tacos.webp` — the string measured off the till —
->    and both read `a38c95977b5e1122`, which then replaces `b6a76daf0befc587` as the expected value.
+> 3. **L-232 IS CLOSED (2026-09-25) AND THE TWO CATALOGUES AGREE AGAIN** — both print
+>    **`a38c95977b5e1122`** at 86 products, which is the expected value from here on.
+>    `set-tacos-image.ts` wrote the three rows here with the string measured off the till;
+>    verified against the restore point, **exactly three rows and one column moved.**
 
 
 **Phases 0-5 and 7 are COMPLETE**, with all four operator items and all three migrations
