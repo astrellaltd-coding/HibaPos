@@ -227,6 +227,19 @@ $statusCode = $LASTEXITCODE
 $ErrorActionPreference = $prevEap
 Write-Log ("prisma migrate status exit={0}" -f $statusCode)
 
+# L-206, and the operator's decision of 2026-09-25. This refusal used to name
+# `update.ps1 -Apply` as the way forward -- and THAT script applied migrations
+# with the bare prisma command CLAUDE.md forbids, for the reason it gives: the
+# banner is identical whichever migration ran, and it was read as "applied"
+# twice when it was not. So the launcher's own refusal recommended the
+# forbidden path. It now names apply-migration.ts, which is the sanctioned one;
+# update.ps1 step 4 calls the same script.
+#
+# The reasoning lives HERE rather than in the message below on purpose: the
+# guard in deployment.test.ts forbids this file from containing the dangerous
+# command at all, and cannot tell a prohibition from an invocation. It strips
+# comments. Writing the warning into the operator-facing text turned the guard
+# red -- which is the guard working, and is why this paragraph is a comment.
 if ($statusCode -ne 0) {
     Fail @"
 Des migrations sont en attente, ou l'etat du schema n'a pas pu etre lu.
@@ -234,8 +247,12 @@ La caisse refuse de demarrer sur un schema qui ne correspond pas au code :
 elle echouerait en pleine vente plutot qu'ici.
 Sortie de prisma :
 $statusOutput
-Appliquez la mise a jour avec :
-    powershell -ExecutionPolicy Bypass -File .zscripts\update.ps1 -Apply
+Appliquez les migrations avec :
+    bun scripts/apply-migration.ts --apply
+
+C'est la SEULE commande autorisee ici (CLAUDE.md). Elle prend un point de
+restauration verifie, nomme la migration qu'elle a reellement appliquee, et
+relit la base ensuite.
 "@
 }
 

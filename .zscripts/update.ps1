@@ -112,16 +112,25 @@ Run "bunx prisma generate" { bunx prisma generate }
 # --- 4. migrations ----------------------------------------------------------
 # Before the build on purpose: if this fails, the old code is still on disk and
 # the old server is one Start-ScheduledTask away.
+# L-206. This ran `bunx prisma migrate deploy` -- the one command CLAUDE.md
+# forbids, and for the reason it gives: the bare command prints the same green
+# banner whichever migration it applied, and was read as "applied" twice when it
+# was not. apply-migration.ts is the sanctioned path and does the whole
+# operation as one step: it refuses while anything holds the database, refuses
+# on a stray journal file, takes a sha-verified restore point, names the
+# migration it ACTUALLY applied, and re-reads the database afterwards.
+#
+# No --expect here, deliberately. That flag compares against a rehearsal
+# fingerprint taken on the machine the rehearsal ran on; pointing it at a
+# different install compares two different databases and fails on every row
+# count. The script still verifies that the pending list emptied, which is the
+# protection that matters on a till.
 Step "Applying migrations"
 if ($Apply) {
-    Write-Host "   prisma migrate status (before):"
-    & bunx prisma migrate status
-    Write-Host "   prisma migrate deploy:"
-    & bunx prisma migrate deploy
-    if ($LASTEXITCODE -ne 0) { throw "migrate deploy a echoue. La base n'a PAS ete modifiee au-dela de ce que prisma indique. Restaurez la sauvegarde." }
+    Run "bun scripts/apply-migration.ts --apply" { bun scripts/apply-migration.ts --apply }
 } else {
-    Would "bunx prisma migrate status"
-    Would "bunx prisma migrate deploy   <-- the step start.ps1 never ran after first boot"
+    Would "bun scripts/apply-migration.ts            (dry run, reports what is pending)"
+    Would "bun scripts/apply-migration.ts --apply"
 }
 
 # --- 5. build ---------------------------------------------------------------

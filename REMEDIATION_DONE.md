@@ -110,6 +110,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - L-225 — the option ceilings travel, and two pinned lists become derived
 - L-226 — a catalogue can be emptied, so it can be imported
 - L-207's cheap half, and L-237 marked disputed
+- L-206 closed, and L-203's advice stops recommending the forbidden command
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -6611,18 +6612,66 @@ run since 2026-09-20 and the owner confirmed the till on 2026-09-25 — so it st
 
 **Left behind:**
 
-- **L-203 AND L-206 ARE ONE DECISION AND IT IS THE OPERATOR'S.** Both turn on the same question —
-  **who applies a migration on that till** — and today three answers disagree in code. The launcher
-  refuses to boot on a pending migration and points at `update.ps1 -Apply`; `update.ps1` applies it
-  with the bare `bunx prisma migrate deploy`, which `CLAUDE.md` forbids by name; and the app's own
-  PREP-4 gate applies it at startup behind a backup it verifies, which `CLAUDE.md` blesses. Nothing
-  reads all three. **The disagreement is live**: it is what the 2026-09-20 update had to work around
-  by hand, applying before restarting so the launcher would not refuse.
+- **THE OPERATOR CHOSE THE MINIMAL FIX THE SAME DAY, and it is recorded below** — L-206 closed,
+  L-203's advice corrected, L-203's disagreement deliberately left.
 - **L-207's other half is not done.** The task names still live in four places and no document
   states them. `deployment.test.ts` now pins the refusal, not the names.
 - **L-236 is two file deletions on the till** and needs nobody's decision — `hibapos-server.ps1.ps1`,
   which nothing executes, and `secrets.json.1192.tmp` from commissioning evening, which should be
   read before it is deleted in case it holds partial secret material.
+
+---
+
+### L-206 closed, and L-203's advice stops recommending the forbidden command
+**Done:** 2026-09-25 · **Commit:** *(this one)* · **Findings:** L-206 fixed, L-203 partly.
+**The operator chose the minimal fix of four offered**, and what it deliberately does NOT do is
+below.
+
+**THE LAUNCHER'S REFUSAL RECOMMENDED THE ONE COMMAND `CLAUDE.md` FORBIDS.** `hibapos-server.ps1`
+refuses to boot on a pending migration and named `update.ps1 -Apply` as the way forward — and
+`update.ps1` step 4 ran `bunx prisma migrate deploy`, whose green banner is identical whichever
+migration it applied and which was read as « applied » twice when it was not. So a till that would
+not start told its operator to run the forbidden thing, on the morning after an update.
+
+**BOTH ENDS ARE FIXED.** The refusal names `bun scripts/apply-migration.ts --apply`; step 4 calls
+the same script. **No `--expect`, deliberately**: that flag compares against a rehearsal fingerprint
+taken on the machine the rehearsal ran on, so pointing it at another install compares two different
+databases and fails on every row count. The script still verifies the pending list emptied, which
+is the protection that matters on a till.
+
+**AND THE GUARD IS EXTENDED TO THE UPDATER, which is the gap L-206 named.** The identical check has
+existed for `start.ps1` and `hibapos-server.ps1` since Batch 1.4 and was never applied to the one
+script of the three that actually migrates — so the rule was enforced everywhere except where it
+mattered, for eight days, with a green suite.
+
+**WRITING THE WARNING INTO THE OPERATOR'S MESSAGE TURNED THE SUITE RED, and that was correct.**
+Explaining « do not use `migrate deploy` » in the refusal text put the forbidden string into the
+launcher, and the guard forbidding that file from containing it cannot tell a prohibition from an
+invocation. It strips comments, so the reasoning moved into one — and the comment says why it is a
+comment. That is the **sixth** instance in this repository of an assertion meeting prose about the
+thing it forbids.
+
+**How it was verified.** Both changes **proved red against the old files**, separately: reverting
+`update.ps1` fails « update.ps1 migrates with the bare command again », reverting
+`hibapos-server.ps1` fails « the refusal no longer names apply-migration.ts ». Both restored
+byte-identically, sha256 checked. **Rehearsed by running the script**: the dry run now prints
+`[would] bun scripts/apply-migration.ts --apply` where it printed the bare command an hour earlier.
+`2101 pass / 0 fail / 161 files`, typecheck and lint clean.
+
+**Left behind — and this is the part to read before the next update:**
+
+- **L-203'S DISAGREEMENT IS UNTOUCHED, BY CHOICE.** The launcher still refuses what PREP-4 would
+  have applied safely behind a verified backup. Three parts of the system still hold three
+  positions; what changed is only that none of them now recommends a forbidden command.
+- **AND THE OPTION NOT TAKEN HAS A TRAP IN IT, recorded so nobody walks into it later.** « Drop
+  refusal 2 and let the app own it » is **not sufficient on its own**: `instrumentation.ts`
+  deliberately lets the application start when the gate REFUSES — no verified backup — so the till
+  would boot and serve new code against an old schema, which is the mid-sale failure refusal 2
+  exists to prevent. Closing L-203 properly means deciding whether the app should refuse to
+  **serve**, not merely to migrate. That is a fiscal-behaviour change and wants its own item.
+- **`update.ps1` HAS STILL NEVER BEEN RUN WITH `-Apply`.** Its dry run is rehearsed; its real path
+  is not, and it now invokes a script that refuses while any node or bun process is alive. The
+  first real use should expect to meet that refusal and know it is correct.
 
 ---
 

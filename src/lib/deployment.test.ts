@@ -171,7 +171,14 @@ describe("the server launcher refuses a schema it does not match", () => {
     // rehearsed on a copy first.
     const commands = src.split("\n").map((l) => l.trim()).filter((l) => !l.startsWith("#"));
     expect(commands.some((l) => /migrate deploy/.test(l))).toBe(false);
-    expect(src).toContain("update.ps1");
+    // **L-206.** This asserted the refusal names `update.ps1`, which was true
+    // and was the problem: `update.ps1` applied migrations with the bare
+    // `migrate deploy`, so the launcher's own refusal recommended the command
+    // `CLAUDE.md` forbids. The operator settled it on 2026-09-25 — the advice
+    // points at the sanctioned script instead.
+    expect(src, "the refusal no longer names apply-migration.ts").toContain(
+      "apply-migration.ts",
+    );
   });
 
   it("requires SESSION_SECRET and DATABASE_URL before starting anything", () => {
@@ -376,6 +383,25 @@ describe("the update procedure never touches the data (C-05, C-07)", () => {
 
   it("removes nothing at all", () => {
     expect(commands.some((l) => /Remove-Item|rmdir|del\s|Clear-Content/.test(l))).toBe(false);
+  });
+
+  it("applies migrations through apply-migration.ts, never the bare command", () => {
+    // **L-206.** The identical guard has existed for `start.ps1` and
+    // `hibapos-server.ps1` since Batch 1.4 and was never extended to the
+    // UPDATER — which is the one script of the three that actually migrates.
+    // So the rule `CLAUDE.md` states was enforced everywhere except where it
+    // mattered, and `update.ps1` step 4 ran `bunx prisma migrate deploy` for
+    // eight days without a test noticing.
+    expect(
+      commands.some((l) => /migrate\s+deploy|db:deploy/.test(l)),
+      "update.ps1 migrates with the bare command again — that is L-206",
+    ).toBe(false);
+    expect(
+      commands.some((l) => /apply-migration\.ts/.test(l)),
+      "update.ps1 no longer calls apply-migration.ts at all",
+    ).toBe(true);
+    // …and the reasoning survives, rather than only the behaviour.
+    expect(src).toMatch(/L-206/);
   });
 
   it("REFUSES when it cannot stop the server, rather than warning and carrying on", () => {
