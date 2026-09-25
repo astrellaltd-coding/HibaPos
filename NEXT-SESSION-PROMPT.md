@@ -45,21 +45,14 @@ files, so the refusal it predicted cannot happen.
 
 ---
 
-## SESSION A — the catalogue transfer, half-built
-
-HibaPOS France. Read **L-225, L-226** in `docs/audit/FINDINGS.md`.
-
-`catalogue-transfer.ts` exists and is the right way to carry a menu. It cannot be used: the option
-**ceilings do not travel** (`CATALOGUE_TABLES` omits `ProductOptionQuota`, and the test pins the
-list at ten so a missing TABLE is invisible), and the import **refuses unless the catalogue is
-empty** with nothing able to empty one. Fixing both turns « a script per change » into « export
-here, import there » for ever after — which is what the 2026-09-20 update had to do by hand.
-
----
-
-## SESSION B — `.zscripts/`, and it has three open items
+## SESSION A — `.zscripts/`, and it has three open items
 
 HibaPOS France. Read **L-203, L-206, L-207, L-236, L-237** in `docs/audit/FINDINGS.md`.
+
+*(The catalogue transfer was the session before this one. **L-225 and L-226 are both fixed**, so
+« export here, import there » now works on an install that already has a menu — proved end to end
+on scratch copies, `a38c95977b5e1122` out the far side. **It has never been used against the France
+till**: the first real menu change is the first real test, and it should be treated as one.)*
 
 **L-203** the launcher refuses to boot on a pending migration, for a reason the app stopped
 believing when PREP-4 made it apply them itself. Dormant on the till today — `migrate status` exits
@@ -69,21 +62,23 @@ does not point at a broken script? Bring both shapes. **L-206** `update.ps1` app
 the bare `bunx prisma migrate deploy`. **L-207** the task names are a contract nothing states.
 
 **L-237 is cheap and wants the owner's eyes, not code.** The till ran the pre-decision kiosk
-launcher for four days and the operator reports it worked — which contradicts the measurement in
-`c9e3ffd`'s own comment. `--kiosk` went on with the update; the previous file is at
-`%TEMP%\hibapos-kiosk.ps1.till-version`. **Look at the physical screen**, not RDP, where the session
-resolution is not the panel's (L-211). Whichever wins, correct the losing comment.
+launcher for four days and the operator reported it worked — which contradicts the measurement in
+`c9e3ffd`'s own comment. `--kiosk` has since run for five days and the owner confirmed the till on
+2026-09-25, so the preference is settled; **the contradiction is not**. Resolve the comment or mark
+it disputed.
 
 **L-236** is two orphaned files on the till: `hibapos-server.ps1.ps1`, which nothing executes, and
 `secrets.json.1192.tmp` from commissioning evening, which may hold partial secret material.
 
 ---
 
+
 ## What is NOT next, and why
 
 - **Phase 6** — R6.1 reset, R6.2 arm the chain key, R6.3 FACTICE off. All `OPERATOR`, in that
-  order. **R6.1 may no longer have a subject**: the till's trading tables were never reset, but the
-  owner has only ever tested under FACTICE. Measure before assuming it must run.
+  order, and **this is the next real decision the project has**. The till was reset to `0/0/0/0` on
+  2026-09-20 and the owner has been testing on it since, so **R6.1 has a subject again**: his test
+  sales, which must go before the first genuine receipt can be #1.
 - **The repository is PUBLIC**, measured 2026-09-20. `.env` is untracked, no database, **no SIRET**
   — but the audit documents list open unfixed findings for a live POS. The documents call it
   private. Whether it should be is the operator's decision, not a defect to fix.

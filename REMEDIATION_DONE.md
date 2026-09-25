@@ -108,6 +108,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - `customer_city` applied here, and the cut-off becomes a script
 - THE FRANCE TILL IS CURRENT — the update, and the blocker that was not there
 - L-225 — the option ceilings travel, and two pinned lists become derived
+- L-226 — a catalogue can be emptied, so it can be imported
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -6513,12 +6514,60 @@ transit**, not a line demonstrated to be load-bearing. Kept, and labelled honest
 
 **Left behind:**
 
-- **L-226 IS UNTOUCHED AND IS A DECISION, NOT A FIX.** The import still refuses a non-empty
-  catalogue, and nothing in the application can empty one — so the transfer still works exactly once
-  per installation, on a machine that has never had a catalogue. **That is why the France till got
-  two bespoke scripts instead.** The options were put to the operator rather than chosen here.
 - **The README's pinned test count moved 2098 → 2099**, which `readme-counts.test.ts` enforced by
   failing the run. Working as intended.
+
+---
+
+### L-226 — a catalogue can be emptied, so it can be imported
+**Done:** 2026-09-25 · **Commit:** *(this one)* · **Findings:** L-226 fixed. **No plan row.**
+
+**THE REFUSAL NAMED AN ACTION NOTHING COULD PERFORM.** `importCatalogue` refuses unless every
+catalogue table is empty, and told the operator « videz le catalogue ou repartez d'une installation
+neuve ». Nothing in `src/` emptied a catalogue; `pre-golive-reset.ts` deletes the trading data and
+KEEPS the catalogue, by design. So the transfer worked **exactly once per installation**, on a
+machine that had never had a menu — **which is why the France till got `add-tacos.ts` and
+`set-option-quotas.ts` by hand on 2026-09-20 instead of the mechanism built for the job.**
+
+**THE OPERATOR CHOSE TO BUILD THE OTHER HALF**, not to soften the message. `scripts/empty-catalogue.ts`
+follows the folder's conventions — dry run by default, `VIDER` typed at the prompt, its own
+sha-verified restore point, deletion in the reverse of the export's FK-safe order (so L-225's
+`ProductOptionQuota` goes first), every table read back, and a journalled `CATALOGUE_EMPTIED` row
+carrying the per-table counts. **`CATALOGUE_TABLES` is imported rather than copied**, so « what a
+catalogue is » keeps one definition.
+
+**ITS REFUSALS ARE THE POINT, and the finding predicted they would write themselves.** It will not
+run while **any** table `pre-golive-reset.ts` deletes holds a row. The reason is not referential:
+`OrderItem.productId` is nullable and FK-less with `productName` snapshotted beside it, precisely so
+a sale stays readable. Emptying under a history therefore breaks nothing SQLite would notice — it
+makes a sealed fiscal document refer to rows that no longer exist, quietly, which is the worst shape
+of damage available here. On a till that has traded the answer is « no », and it says so and points
+at the reset as the operator's own separate decision.
+
+**How it was verified, on scratch copies throughout — live data untouched at `e88d1a77`:**
+
+| | |
+|---|---|
+| dry run, full catalogue | 296 rows across 11 tables, « aucune donnée d'exploitation » |
+| a database that has traded | **REFUSED**, naming `Customer 1`, **exit 1** |
+| a database whose schema is behind | **REFUSED** naming `ProductOptionQuota` absent, **exit 1** — added after a raw Prisma « no such table » leaked out of the first attempt |
+| wrong answer at the prompt | « Annulé », and the catalogue still had its 86 products |
+| `VIDER` | all 11 tables emptied in reverse FK order, read back at zero |
+| what survived | users 2, settings 18, audit log 619, backups 5 |
+| `scripts-docs.test.ts` | went **RED first** naming `empty-catalogue.ts` as a script with no index row; restored from a pre-revert copy, sha256 verified |
+
+**AND THE FULL CIRCLE, which is the only proof that matters for this finding:** export 296 rows from
+a full catalogue → `empty-catalogue.ts --apply` → import the file → **`a38c95977b5e1122` / 86
+products**, identical to the source, ceilings included. « Export here, import there » now works on an
+install that already has a menu.
+
+**Left behind:**
+
+- **The next menu change should use the transfer, not a script.** That is the whole point of L-225
+  and L-226 together, and it has not been exercised against the France till yet — only against
+  scratch copies here. The first real use will be the first real test.
+- **The import's message is unchanged** and is now true: a catalogue *can* be emptied. Whether the
+  screen should offer a button for it is a separate question nobody has asked.
 
 ---
 
