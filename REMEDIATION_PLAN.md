@@ -116,12 +116,12 @@ every trading table is at zero.
 >
 > ### ▶ WHAT IS WAITING, AND NONE OF IT IS CODE
 >
-> 1. **THE GO-LIVE IS THE NEXT REAL DECISION, AND IT IS THE OPERATOR'S.** The till is current,
->    running, and **confirmed by the owner on 2026-09-25** — menu, Tacos configuration, printing.
->    What stands between it and a first genuine sale is **R6.1 → R6.2 → R6.3, in that order**, and
->    the order is not a preference: arming the key before the reset makes the reset refuse. Also
->    still open before trading for real: **`VAT-METHOD`** (§ 8, the accountant's written line) and
->    **a fresh verified backup off this machine**.
+> 1. **THE GO-LIVE IS POSTPONED** (operator, 2026-09-25) — the owner is still testing and his
+>    feedback is awaited. **Do not start R6.1, do not arm the chain key, do not turn FACTICE off.**
+>    The till is current and **confirmed working by the owner that day** — menu, Tacos, printing.
+>    When it does happen: **R6.1 → R6.2 → R6.3, in that order**, which is a rule and not a
+>    preference — arming the key before the reset makes the reset refuse. Also open before trading
+>    for real: **`VAT-METHOD`** (§ 8) and **a fresh verified backup off this machine**.
 > 2. **L-203'S DISAGREEMENT IS UNRESOLVED, AND THE OBVIOUS FIX HAS A TRAP IN IT.** The launcher
 >    still refuses to boot what PREP-4 would have applied. « Drop refusal 2 » is **not sufficient
 >    on its own**: `instrumentation.ts` deliberately lets the app start when the gate REFUSES for
