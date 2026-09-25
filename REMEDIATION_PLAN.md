@@ -129,12 +129,12 @@ every trading table is at zero.
 >
 > ### ▶ WHAT IS WAITING, AND NONE OF IT IS CODE
 >
-> 1. **THREE CHECKS NEED A PERSON IN THE RESTAURANT, AND NOBODY IS THERE UNTIL 2026-09-22.**
->    **Printing above all** — both print routes and `receipt.ts` changed and nothing has printed
->    since; a drained spooler cannot tell a ticket from an empty paper roll (R6.4's whole lesson).
->    Then **a `Tacos M` refusing a second viande** (L-217), and **one sale rung, paid and printed**.
->    The till is otherwise current and running — `81eb2f3`, 20 migrations, 86 products, cut-off 0,
->    reset to `0/0/0/0`, boots itself fullscreen — but **its output path is unverified**.
+> 1. **THE GO-LIVE IS THE NEXT REAL DECISION, AND IT IS THE OPERATOR'S.** The till is current,
+>    running, and **confirmed by the owner on 2026-09-25** — menu, Tacos configuration, printing.
+>    What stands between it and a first genuine sale is **R6.1 → R6.2 → R6.3, in that order**, and
+>    the order is not a preference: arming the key before the reset makes the reset refuse. Also
+>    still open before trading for real: **`VAT-METHOD`** (§ 8, the accountant's written line) and
+>    **a fresh verified backup off this machine**.
 > 2. **L-234 IS THE NEXT UPDATE'S TRAP, AND BELONGS BEFORE IT.** `apply-migration.ts` refuses a
 >    harmless 0-byte `-wal` — the kind any read-only tool leaves — and its refusal text points at
 >    `update.ps1 -Apply`, which `CLAUDE.md` forbids. Today survived on command ORDER alone.
@@ -235,8 +235,9 @@ app exports or imports a catalogue today » until 2026-09-20. It was false from 
 nearly produced a whole-database copy onto the restaurant's till.)*
 `FISCAL_CHAIN_KEY` is in `.env`, `factice` is in the database: they do not travel together.
 
-**Last updated:** 2026-09-20 — **THE FRANCE TILL IS CURRENT** and reset to 0/0/0/0: 20 migrations,
-86 products, cut-off 0 on both. L-229 … L-238 recorded, L-233 fixed. *(The batch-by-batch recap that stood here from 2026-09-13 — R8.0 … R8.6, R9.2, R9.6
+**Last updated:** 2026-09-25 — **THE OWNER CONFIRMED THE TILL**: menu, Tacos configuration and
+printing all working. The go-live (R6.1 → R6.2 → R6.3) is the next decision. L-229 … L-238
+recorded, L-233 fixed. *(The batch-by-batch recap that stood here from 2026-09-13 — R8.0 … R8.6, R9.2, R9.6
 and the audit's phasing — was retired to `REMEDIATION_DONE.md` on 2026-09-19 to make room. Every
 line of it is in that file's own entries, which is where a reader should have been looking: this
 paragraph was a second copy, and the only part of § 1 that was not outstanding work.)*

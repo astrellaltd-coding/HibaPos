@@ -6438,15 +6438,15 @@ next reset refuse (its guard 1), and FACTICE off would make test sales non-facti
   half is a preference, not a defect**: whether the hard lock is better than the old chromeless
   window is the owner's call, on the physical panel, with the previous file kept at
   `%TEMP%\hibapos-kiosk.ps1.till-version`.
-- **PRINTING IS UNVERIFIED, AND WAITS ON A PERSON — NOBODY IS AT THE RESTAURANT UNTIL 2026-09-22.**
-  Both print routes and `receipt.ts` changed in this update and nothing has printed since. **This
-  cannot be checked remotely and it is not a matter of effort**: a successful test print means the
-  bytes reached the spooler and it drained, and a drained queue cannot tell a printed ticket from an
-  empty paper roll. That distinction is the entire reason R6.4 stayed open from 2026-09-16 until the
-  owner physically found two tickets on 2026-09-17. **Two more want the same visit**: a `Tacos M`
-  refusing a second viande (L-217, the bug the ceilings exist for) and one sale rung, paid and
-  printed end to end. Until then the till is current and running with an **unverified output path**,
-  and the plan's § 1 says so rather than leaving it to be remembered.
+- **CLOSED 2026-09-25 — THE OWNER CONFIRMED IT BY TELEPHONE.** Printing was the one thing that could
+  not be checked remotely: a successful test print means the bytes reached the spooler and it
+  drained, and a drained queue cannot tell a printed ticket from an empty paper roll — which is why
+  R6.4 stayed open from 2026-09-16 until somebody physically found two tickets. The owner reported
+  **the whole menu present, the Tacos with the right configuration, and printing working.** The
+  Tacos half carries real weight: **he is the one who reported L-217**, a `Tacos M` taking all six
+  viandes for 6,90 €, so he is the person on site who knows what the defect looked like. **It is a
+  verbal report and not a measurement**, and it is recorded as one — but it is the same standard
+  R6.4 was closed on, and no better evidence is available from 2 000 km away.
 - **TWO ORPHANED FILES ON THE TILL** (**L-236**): `hibapos-server.ps1.ps1`, which nothing executes,
   and `secrets.json.1192.tmp` from commissioning evening, which may hold partial secret material.
 - **THE REPOSITORY IS PUBLIC.** Measured, not assumed. Nothing catastrophic is in it — `.env` is

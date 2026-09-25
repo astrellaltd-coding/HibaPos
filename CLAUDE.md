@@ -57,8 +57,10 @@ till in France on 2026-09-16 and confirmed working on 2026-09-17** — `C:\HibaP
 from source, printer `SUNSO WTP-801` on `USB001` with two test tickets seen on paper, first
 backup taken to `D:` and verified by decryption. **The till now starts itself**: two
 Scheduled Tasks as `hibafood`, the server at boot and Brave in `--kiosk` at log on. It has
-still **never traded**: FACTICE is on, the fiscal journal is empty, the chain key is not
-armed. **Tauri v2 remains the shipping form** and that migration still has no plan — what
+still **never traded a genuine sale**: FACTICE is on and the chain key is not armed. Its
+journal was reset to `0/0/0/0` on 2026-09-20 and **the owner has been testing since, so it
+holds factice events again — how many is not measured**, and R6.1 is the step that clears
+them. **Tauri v2 remains the shipping form** and that migration still has no plan — what
 runs in France is the development build, not a package.
 
 **THAT TILL IS CURRENT SINCE 2026-09-20.** `C:\HibaPOS-app` is a git clone at `81eb2f3`: **20
@@ -72,12 +74,12 @@ still refuses to boot on a pending migration, and **L-234 must be fixed before t
 update** — `apply-migration.ts` refuses a harmless 0-byte `-wal` and its refusal points at
 `update.ps1 -Apply`, which carries L-206 and L-207.
 
-**THREE THINGS ON THAT TILL NEED A PERSON IN THE RESTAURANT, AND NOBODY IS THERE UNTIL
-2026-09-22.** **Printing above all** — both print routes and `receipt.ts` changed in the update
-and nothing has printed since; a drained spooler cannot tell a ticket from an empty paper roll,
-which is why R6.4 stayed open until somebody found two on paper. Then **a `Tacos M` refusing a
-second viande** (L-217, the bug the ceilings exist for), and **one sale rung, paid and
-printed**. Until then the till is current and running but its output path is unverified.
+**THE OWNER CONFIRMED THE TILL BY TELEPHONE ON 2026-09-25** — the whole menu present, **the
+Tacos with the right configuration**, and **printing working**. That closes the three checks
+that needed a person in the restaurant. The Tacos half carries weight because **he is the one
+who reported L-217** — a `Tacos M` taking all six viandes — so he knows what wrong looked
+like. The printing half is the same standard R6.4 was held to: a person, in the restaurant,
+seeing paper. **It is a verbal report, not a measurement**, and it is recorded as such.
 
 **THE TRADING DAY IS A RULE THE TILL ENFORCES, since 2026-09-20.** It refuses a sale into a
 sealed day, refuses a sale through a caisse whose trading day has ended, and refuses to open

@@ -21,19 +21,20 @@ and four more were opened (**L-234, L-235, L-236, L-237**).
 
 ---
 
-## THE TILL IS PARKED UNTIL 2026-09-22, AND THAT IS NOT A BLOCKER
+## THE TILL IS CONFIRMED WORKING, AND THE NEXT DECISION IS THE GO-LIVE
 
-**Nobody is at the restaurant until 2026-09-22**, so three checks cannot happen and must not be
-quietly dropped: **printing** (both print routes and `receipt.ts` changed and nothing has printed
-since — and a drained spooler cannot tell a ticket from an empty paper roll, which is why R6.4
-stayed open until somebody found two on paper), **a `Tacos M` refusing a second viande** (L-217),
-and **one sale rung, paid and printed**. The till is current and running meanwhile; its **output
-path is unverified**.
+**The owner confirmed it by telephone on 2026-09-25**: the whole menu present, the Tacos with the
+right configuration, printing working. That closed the three checks that needed a person in the
+restaurant. It is a verbal report, not a measurement — but it is the standard R6.4 was closed on,
+and the Tacos half comes from the man who reported L-217 in the first place.
 
-**None of the sessions below needs that visit.** They are code and documents on this machine, and
-the operator's intention is to keep optimising while the restaurant is empty. Take them in order —
-A is the one with a deadline attached to it, because it bites the *next* update rather than this
-one.
+**So the till is done as a deployment, and what remains is a business decision, not a defect.**
+Before a first genuine sale: **R6.1 → R6.2 → R6.3 in that order** (the order is not a preference —
+arming the chain key before the reset makes the reset refuse), plus **`VAT-METHOD`** in the plan's
+§ 8 and **a fresh verified backup off this machine**. All of that is the operator's.
+
+**The sessions below do not wait on any of it.** Take A first — it is the one with a deadline,
+because L-234 bites the *next* update rather than the last one.
 
 ---
 
