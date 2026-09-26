@@ -107,12 +107,6 @@ every trading table is at zero.
 > moved from the caisse to the fiscal day. The two entries that carry all of it are in
 > `REMEDIATION_DONE.md`: *« The Tacos, carried to France »* and *« L-99 / L-228 »*.
 >
-> **A CAISSE WAS FOUND OPEN FOR 48 HOURS IN FRANCE**, 2026-09-19, and **no day could be sealed at
-> all meanwhile** — `assertNoOpenShift` refuses every close while a caisse is OPEN. That is L-99's
-> other half and nobody had noticed it. The trading day is now a rule the till enforces, and
-> closing the caisse seals the day. **L-225 … L-228 were opened**; L-228 is fixed, the other three
-> are about carrying a catalogue and are open.
->
 >
 > ### ▶ WHAT IS WAITING, AND NONE OF IT IS CODE
 >
@@ -210,9 +204,20 @@ audit exercised produced screen figures matching the database to the cent.
 - **The accountant's written line on the VAT allocation method** (§ 8, `VAT-METHOD`). The
   rates are settled and live; the division of a menu's forfait between them is the open claim.
 
-### Deployment is deferred
+### Deployment — the operator opened it on 2026-09-26
 
-Tauri v2, and that migration's plan does not exist yet. The Windows-till install was retired
+**Tauri v2 is the next direction**, and its plan still does not exist. **The first question is
+architectural and nothing has answered it**: this is not a static site a shell can wrap — **68
+`route.ts` files** under `src/app/api`, all server-rendered, no `output: "export"` or
+`"standalone"`, Prisma and SQLite behind `next start -H 127.0.0.1`. A Tauri build must host a real
+server, as a sidecar or equivalent, and **which shape is intended decides the cost of everything
+else**. **Group E — L-180, L-181, L-182 — is the readiness checklist**, written by the audit for
+exactly this moment. Also packaging-sensitive, measured 2026-09-26: `process.cwd()` is load-bearing
+in six runtime paths, and `printer-transport.ts` spawns `appRoot()/.zscripts/print-raw.ps1`, so
+that file must ship and stay resolvable or **R6.4 silently regresses**. The brief is in
+`NEXT-SESSION-PROMPT.md`.
+
+The Windows-till install was retired
 2026-09-10 — **the model is retired, the files are not**: `.zscripts/`'s eight `.ps1` files
 are pinned by `deployment.test.ts`, and `print-raw.ps1` is live for R6.4. Phase 6 is fiscal
 whatever the packaging, and the operator settled **where** on 2026-09-11: **a FRESH install in

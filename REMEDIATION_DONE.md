@@ -112,6 +112,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - L-207's cheap half, and L-237 marked disputed
 - L-206 closed, and L-203's advice stops recommending the forbidden command
 - Retired from the plan's § 1 on 2026-09-25 — « Two things are waiting »
+- Retired from the plan's § 1 on 2026-09-26 — the 48-hour caisse paragraph
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -6700,6 +6701,30 @@ session at the operator's explicit instruction and that this was a one-off rathe
 waiver. That is provenance about a rule, not outstanding work.
 
 Freed 563 bytes: 40 901 → 40 338.
+
+---
+
+### Retired from the plan's § 1 on 2026-09-26 — the 48-hour caisse paragraph
+**Done:** 2026-09-26 · **Not a batch** — a removal, to make room for the Tauri brief, and because
+the paragraph had gone stale in its last sentence.
+
+It read, verbatim:
+
+> **A CAISSE WAS FOUND OPEN FOR 48 HOURS IN FRANCE**, 2026-09-19, and **no day could be sealed at
+> all meanwhile** — `assertNoOpenShift` refuses every close while a caisse is OPEN. That is L-99's
+> other half and nobody had noticed it. The trading day is now a rule the till enforces, and
+> closing the caisse seals the day. **L-225 … L-228 were opened**; L-228 is fixed, the other three
+> are about carrying a catalogue and are open.
+
+**The last sentence was false by 2026-09-25**: L-225, L-226 and L-227 are all closed, so « the
+other three … are open » named nothing. **Nothing else in it is lost.** The 48-hour caisse and its
+consequence are in `CLAUDE.md`'s trading-day paragraph — « It came out of a caisse found open for
+48 hours in France, during which no day could be sealed at all » — and at length in this file under
+*« L-99 / L-228 — the trading day becomes a rule the till enforces »*, including the sequel: the
+caisse was still open at **73 hours** on 2026-09-25 and was cleared by the reset rather than sealed.
+
+`plan-freshness.test.ts` failed the commit that pushed the file to 41 232 bytes, which is how this
+came to be looked at. Back to 40 826.
 
 ---
 
