@@ -204,19 +204,12 @@ audit exercised produced screen figures matching the database to the cent.
 - **The accountant's written line on the VAT allocation method** (§ 8, `VAT-METHOD`). The
   rates are settled and live; the division of a menu's forfait between them is the open claim.
 
-### Deployment — the operator opened it on 2026-09-26
+### Deployment is deferred
 
-**Tauri v2 is the next direction**, and its plan still does not exist. **The first question is
-architectural and nothing has answered it**: this is not a static site a shell can wrap — **68
-`route.ts` files** under `src/app/api`, all server-rendered, no `output: "export"` or
-`"standalone"`, Prisma and SQLite behind `next start -H 127.0.0.1`. A Tauri build must host a real
-server, as a sidecar or equivalent, and **which shape is intended decides the cost of everything
-else**. **Group E — L-180, L-181, L-182 — is the readiness checklist**, written by the audit for
-exactly this moment. Also packaging-sensitive, measured 2026-09-26: `process.cwd()` is load-bearing
-in six runtime paths, and `printer-transport.ts` spawns `appRoot()/.zscripts/print-raw.ps1`, so
-that file must ship and stay resolvable or **R6.4 silently regresses**. The brief is in
-`NEXT-SESSION-PROMPT.md`.
-
+Tauri v2, and that migration's plan does not exist yet. *(It was the next direction for part of
+2026-09-26 and the operator withdrew it the same day — the work follows the owner's feedback
+instead, starting with the printed paper. The survey taken while it was open is in
+`REMEDIATION_DONE.md`, including the finding that **this is not a static site a shell can wrap**.)*
 The Windows-till install was retired
 2026-09-10 — **the model is retired, the files are not**: `.zscripts/`'s eight `.ps1` files
 are pinned by `deployment.test.ts`, and `print-raw.ps1` is live for R6.4. Phase 6 is fiscal

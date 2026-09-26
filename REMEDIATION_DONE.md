@@ -113,6 +113,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - L-206 closed, and L-203's advice stops recommending the forbidden command
 - Retired from the plan's § 1 on 2026-09-25 — « Two things are waiting »
 - Retired from the plan's § 1 on 2026-09-26 — the 48-hour caisse paragraph
+- The Tauri survey, taken on 2026-09-26 and kept after the idea was withdrawn
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -6725,6 +6726,54 @@ caisse was still open at **73 hours** on 2026-09-25 and was cleared by the reset
 
 `plan-freshness.test.ts` failed the commit that pushed the file to 41 232 bytes, which is how this
 came to be looked at. Back to 40 826.
+
+---
+
+### The Tauri survey, taken on 2026-09-26 and kept after the idea was withdrawn
+**Done:** 2026-09-26 · **Not a batch** — a measurement. Tauri v2 was the next direction for part of
+that day; the operator withdrew it the same day in favour of the owner's feedback, starting with
+the printed paper. **The measurements are kept because they were made and are true**, and because
+Tauri remains the shipping form whenever it comes back.
+
+**THE FIRST QUESTION IS ARCHITECTURAL, AND NOTHING IN THE REPOSITORY HAD ANSWERED IT.** This is
+**not a static site a shell can wrap**:
+
+| measured 2026-09-26 | |
+|---|---|
+| `route.ts` files under `src/app/api` | **68**, all server-rendered on demand |
+| `next.config.ts` | no `output: "export"`, no `"standalone"` |
+| how it runs | `next start -p 3000 -H 127.0.0.1` (DD-06), Prisma + SQLite behind it |
+
+So a Tauri build has to **host a real server** — a sidecar or equivalent — and which shape is
+intended decides the cost of everything else. Three plausible ones were named and none chosen: ship
+Bun and the Next server as a sidecar; move the 68 routes into Rust and keep only the UI; or keep
+the Scheduled-Task model and drop Tauri.
+
+**GROUP E IS THE READINESS CHECKLIST**, and re-measuring it was worth the hour:
+
+- **L-180** — `startup-migration.ts:217` spawns `bunx prisma migrate deploy` at startup; in a
+  bundle without the CLI, `bunx` **fetches it**. **`prisma` and `@prisma/client` are both in
+  `dependencies` (^6.11.1), not `devDependencies`** — so it resolves locally *while `node_modules`
+  is present*, and whether a bundle ships `node_modules` is the open question.
+- **L-181** — the startup lock's `wx` flag is not atomic over SMB/CIFS and sits inside OneDrive.
+- **L-182** — `auth.ts:428` sets `secure: !isPlainHttp`, and **`APP_URL` is absent from `.env`**,
+  confirmed. Fine on loopback; a `tauri://` origin is not what that logic was reasoned about.
+
+**AND TWO THINGS NOBODY HAD ON A LIST:**
+
+- **`process.cwd()` is load-bearing in six runtime paths** — `paths.ts:43` (data dir default),
+  `:174` (uploads), `:222` (app root fallback), `catalogue-transfer.ts:127` (image files),
+  `api/logs/route.ts:15`. A packaged app's working directory is not its install directory. The
+  hooks already exist — `HIBAPOS_APP_DIR`, `HIBAPOS_DATA_DIR` — and the question is whether every
+  path goes through them.
+- **The printer runs PowerShell.** `printer-transport.ts:254` spawns
+  `appRoot()/.zscripts/print-raw.ps1`. **That file must ship inside any bundle and stay
+  resolvable, or R6.4 silently regresses** — the row that took two days and a person looking at
+  paper. The most expensive thing on the list to get wrong.
+
+**And a warning worth keeping whatever happens:** packaging would retire the whole Scheduled-Task
+model, but `hibapos-server.ps1` and `hibapos-kiosk.ps1` are **live on the France till today**.
+**Nothing retires them on the strength of a plan** — they go when a build actually replaces them.
 
 ---
 
