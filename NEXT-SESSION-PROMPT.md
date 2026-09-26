@@ -1,10 +1,8 @@
 # The next session
 
-**Rewritten 2026-09-26.** Two things changed that day and this file is the second attempt at them.
-The go-live is **postponed** — the owner is still testing. And **Tauri is off the table for now**:
-it was briefly the next direction and the operator withdrew it the same day, so nothing below
-mentions it. The work is **the owner's feedback**, starting with the printed paper. The old prompts
-are in git history.
+**Rewritten 2026-09-26.** The go-live is **postponed** — the owner is still testing. **The work
+follows his feedback from here**, starting with the printed paper. Before that, one session to
+check where the plan actually stands. The old prompts are in git history.
 
 One prompt per session. Paste the block between the rules, and nothing else.
 
