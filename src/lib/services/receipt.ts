@@ -8,7 +8,6 @@ import {
   type VatBreakdown,
 } from "@/lib/money";
 import { PAYMENT_LABELS_FULL } from "@/lib/order-labels";
-import { SOFTWARE_IDENTITY } from "@/lib/version";
 // L-21 (Batch 1.3b) / L-63 (Batch 1.3c) — the column layout of a printed
 // ticket, shared with `day-close-ticket.ts` and `printer.ts`. Every line this
 // renderer emits goes through one of these, so "no line exceeds the paper" is
@@ -309,13 +308,28 @@ export function renderReceipt(order: OrderDto, settings?: Partial<SettingsDto>):
   lines.push("-".repeat(w));
   pushCentred(`${order.itemCount} article${order.itemCount > 1 ? "s" : ""}`);
   pushCentred(s.footerNote ?? "Merci de votre visite !");
-  // L-53 (Batch 3.7): the software identifies itself on every ticket. Until
-  // this line the ticket named the restaurant and never the software — the
-  // "HibaPOS France" above is only a fallback for a MISSING restaurant name —
-  // while the attestation regime is version-matched and a control compares
-  // the version in use with the attestations held. Last line, after the
-  // footer, so the operator's own closing words keep their place.
-  pushCentred(SOFTWARE_IDENTITY);
+  // ── THE SOFTWARE LINE IS NOT ON THE CUSTOMER'S TICKET (2026-09-27) ────────
+  //
+  // L-53 (Batch 3.7) put `HibaPOS France v0.2.1` here, last line after the
+  // footer, because the attestation regime is version-matched: the assujetti
+  // holds the attestation « correspondant à la version … qu'il utilise »
+  // (BOI-LETTRE-000242) and a control compares the versions in use with the
+  // attestations held (BOI-CF-COM-20-60).
+  //
+  // REMOVED FROM THIS SURFACE ONLY, on the operator's instruction, after
+  // measuring where else it prints. The software still identifies itself, at
+  // the same version, on every document a control would actually examine:
+  //
+  //   `day-close-ticket.ts:240`  the Z slip, centred, same string
+  //   `fiscal.ts:1099`           the annual archive — « Logiciel : HibaPOS
+  //                              France, version 0.2.1 »
+  //   `api/fiscal/verify`        `software: { name, version }`
+  //   `catalogue-transfer.ts`    the export's metadata
+  //
+  // So what left is the line on the paper handed to a customer, which no text
+  // requires — § 8's V-03 records that the law names no further ticket mention.
+  // **If the version ever has to come back to the ticket, this is the place and
+  // `SOFTWARE_IDENTITY` is still the string.**
 
   return lines.join("\n");
 }

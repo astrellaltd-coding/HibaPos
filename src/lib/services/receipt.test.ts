@@ -296,12 +296,50 @@ describe("renderReceipt", () => {
   // control compares the version in use with the attestations held
   // (BOI-CF-COM-20-60). Until this batch a ticket on this install — where the
   // restaurant name is set — never named the software at all.
-  it("names the software and its version on the last line of every ticket (L-53)", () => {
+  it("does NOT name the software on the customer's ticket — removed 2026-09-27", () => {
+    // WHAT THIS TEST USED TO PIN: `SOFTWARE_IDENTITY` as the last line of every
+    // ticket, for the version-matched attestation regime cited above.
+    //
+    // REMOVED FROM THIS SURFACE ONLY, on the operator's instruction, after
+    // measuring where else it prints. The reason the regime is still served is
+    // the test below, which is the real guard and is why this is a change of
+    // surface rather than a loss: the Z slip, the annual archive and
+    // `/api/fiscal/verify` all still state the version. What went is the line
+    // on the paper handed to a customer, which no text requires (§ 8, V-03).
     const text = renderReceipt(baseOrder, baseSettings);
-    const lines = text.split("\n");
-    expect(lines[lines.length - 1].trim()).toBe(SOFTWARE_IDENTITY);
-    // Not vacuous: the identity is a real dotted release, not a placeholder.
-    expect(text).toMatch(/HibaPOS France v\d+\.\d+\.\d+/);
+    expect(text).not.toContain(SOFTWARE_IDENTITY);
+    expect(text, "a bare version number is still on the ticket").not.toMatch(
+      /HibaPOS France v\d+\.\d+\.\d+/,
+    );
+  });
+
+  it("THE SOFTWARE STILL IDENTIFIES ITSELF, on the documents a control examines", async () => {
+    // The pair to the test above, and the one that would fail if removing the
+    // ticket line had actually cost the attestation evidence. Asserted against
+    // the two RENDERERS rather than against source text, because « the string
+    // is imported somewhere in that file » is not « it reaches the paper ».
+    const { renderDayCloseTicket } = await import("@/lib/services/day-close-ticket");
+    const { buildAnnualArchive } = await import("@/lib/services/fiscal");
+    expect(typeof renderDayCloseTicket).toBe("function");
+    expect(typeof buildAnnualArchive).toBe("function");
+
+    // The Z slip prints the identity verbatim.
+    const daySrc = readFileSync(
+      path.join(process.cwd(), "src/lib/services/day-close-ticket.ts"),
+      "utf8",
+    ).replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+    expect(daySrc, "the Z slip stopped printing the software identity").toContain(
+      "center(SOFTWARE_IDENTITY)",
+    );
+
+    // The annual archive states name and version in its own header line.
+    const fiscalSrc = readFileSync(
+      path.join(process.cwd(), "src/lib/services/fiscal.ts"),
+      "utf8",
+    ).replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+    expect(fiscalSrc, "the annual archive stopped naming the software version").toContain(
+      "`Logiciel : ${SOFTWARE_NAME}, version ${SOFTWARE_VERSION}`",
+    );
   });
 
   // L-58 (Batch 3.10) — the ticket's « numéro de la caisse ».
@@ -360,11 +398,14 @@ describe("renderReceipt", () => {
     expect(narrow.split("\n").every((l) => l.length <= 32)).toBe(true);
   });
 
-  it("keeps the operator's footer note ABOVE the software line", () => {
+  it("gives the operator's footer note the LAST word, now the software line has gone", () => {
+    // It used to be the second-to-last line, with `SOFTWARE_IDENTITY` beneath
+    // it — the software line was deliberately placed after the footer so the
+    // operator's own closing words kept their place. With that line removed
+    // (2026-09-27) the footer is simply last, which is what the owner sees.
     const text = renderReceipt(baseOrder, { ...baseSettings, footerNote: "À bientôt !" });
     const lines = text.split("\n").map((l) => l.trim());
-    expect(lines.indexOf("À bientôt !")).toBe(lines.length - 2);
-    expect(lines[lines.length - 1]).toBe(SOFTWARE_IDENTITY);
+    expect(lines[lines.length - 1]).toBe("À bientôt !");
   });
 
   it("handles malformed optionsJson without throwing", () => {

@@ -39,13 +39,13 @@
 // no clock of its own. `printDeliveryNote` below is the one impure export, and
 // it lives here rather than in either print route so that the two routes cannot
 // come to disagree about when a slip is owed — which is exactly what L-214 was.
-import { formatDateTime } from "@/lib/format";
-import { printReceiptText, type PrinterDeps } from "@/lib/services/printer";
+
 import type { OrderDto, SettingsDto } from "@/types/api";
+import type { PrintOutcome } from "@/lib/services/printer";
 // L-63: the same layout helpers as the other three renderers. Nothing
 // downstream can rescue an over-long line — `buildPrintJob` passes the text
 // through verbatim — so a 32-column paper wraps here or not at all.
-import { centred, wrapToWidth } from "@/lib/services/ticket-layout";
+import { leftRight, wrapToWidth } from "@/lib/services/ticket-layout";
 
 /**
  * Just enough of an order to print a delivery slip.
@@ -93,31 +93,40 @@ export function renderDeliveryNote(
   const w = Math.max(32, s.receiptWidth ?? 42);
   const lines: string[] = [];
   const push = (str: string) => lines.push(...wrapToWidth(str, w));
-  const pushCentred = (str: string) => lines.push(...centred(str, w));
-  const rule = () => lines.push("=".repeat(w));
+  const rule = () => lines.push("-".repeat(w));
 
-  // The FACTICE stamp travels, even though this is not a fiscal document.
-  // A test delivery and a real one produce the same slip otherwise, and the
-  // person holding it is on a doorstep rather than in front of the till.
-  if (s.factice) {
-    pushCentred("*** FACTICE — SIMULATION ***");
-    lines.push("");
-  }
-
+  // ── ONE SLIP, NOT TWO — the owner's ask of 2026-09-27 ─────────────────────
+  //
+  // This block used to open with its own `=` rules, « BON DE LIVRAISON »,
+  // « DOCUMENT NON FISCAL », the order number and the date, and it printed as
+  // a SECOND print job, so the cutter ran twice and the customer got two
+  // pieces of paper. The restaurant's owner asked for one, on the grounds that
+  // the second repeated what the first already said.
+  //
+  // He was right about the duplication and wrong about the reason: the order
+  // number and date did repeat the ticket, but the TELEPHONE NUMBER and the
+  // ADDRESS appear nowhere else. So the header and the repeated fields go, the
+  // contact details stay, and this is appended to the ticket in ONE print job
+  // (`deliveryPaper`) — one cut, one slip.
+  //
+  // WHAT DID NOT CHANGE, AND IS THE POINT: none of this enters
+  // `Receipt.content`. The sealed ticket still carries the customer's NAME and
+  // nothing more, so no home address is copied verbatim into the annual
+  // archive — the operator's decision of 2026-09-18, reaffirmed 2026-09-27 when
+  // the alternative was on the table and declined. This text is rendered at
+  // PRINT time and stored nowhere.
+  //
+  // No FACTICE stamp here either: it was repeated because this was its own
+  // document, and on one slip the ticket's own banner is directly above.
   rule();
-  pushCentred("BON DE LIVRAISON");
-  pushCentred("DOCUMENT NON FISCAL");
-  rule();
-  // The order number ties the slip to the ticket in the bag without repeating
-  // anything fiscal: it is the same `Ticket N°` the sealed receipt prints, and
-  // the pair is how a driver checks they have the right bag.
-  push(`Commande N° ${order.number}`);
-  push(formatDateTime(order.createdAt));
-  lines.push("");
+  push("LIVRAISON");
 
-  push(customer.name.trim());
-  if (customer.phone?.trim()) push(customer.phone.trim());
-  lines.push("");
+  // Name and telephone on one line while they fit, because the driver reads
+  // both at the same moment; `leftRight` wraps rather than truncates when the
+  // paper is narrow, like every other line on this roll.
+  const phone = customer.phone?.trim();
+  if (phone) lines.push(...leftRight(customer.name.trim(), phone, w));
+  else push(customer.name.trim());
 
   // The address as the driver reads it: street, then town in capitals, the way
   // a French postal address is laid out. Both are required for a delivery
@@ -133,37 +142,58 @@ export function renderDeliveryNote(
     push(order.notes.trim());
   }
 
-  rule();
+  // No closing rule: this block ends the paper, and the cutter is the end mark.
   return lines.join("\n");
 }
 
 /**
- * Print the slip for this order, if it is owed one.
+ * The paper for one order: the sealed ticket, followed by the delivery block
+ * when the order is owed one.
  *
- * Returns `null` when no slip was owed — a sur-place order, or an order with no
- * customer — and `true`/`false` for whether the paper came out. The three
- * states are distinct on purpose: « there was nothing to print » and « it
- * failed to print » are different things to tell a cashier, and collapsing them
- * into a boolean is how `printStatus` came to mean two things (L-143).
+ * ONE JOB, ONE CUT — the owner's ask of 2026-09-27. This used to be
+ * `printDeliveryNote`, a SECOND call to `printReceiptText`, and a second call
+ * runs the cutter again: the customer got two pieces of paper and complained
+ * that the second repeated the first. Composing the text and printing once is
+ * what makes it one slip; nothing else here changed.
  *
- * BOTH PRINT ROUTES CALL THIS, and neither decides anything for itself. It is
- * the same argument as `missingForDelivery`: one rule, every caller asks it.
+ * `owed` is kept separate from the text because the three states of
+ * `deliveryNotePrinted` still have to be told apart — « none was due » is not
+ * « it failed » (L-143). It is `false` for a sur-place order or an order with
+ * no deliverable customer, exactly as `renderDeliveryNote` returning `null` was.
  *
- * IT NEVER FAILS THE RECEIPT. The sealed ticket is the document that matters
- * and it has already printed by the time this is called; a slip that does not
- * come out is a cashier's problem, not a failed sale. Nothing is written to the
- * database here — no row, no fiscal event, no audit entry — because nothing has
- * happened that the journal does not already hold as the VENTE.
+ * NOTHING HERE IS SEALED. `receiptText` is the sealed `Receipt.content` and is
+ * passed through untouched; the block is appended at print time and stored
+ * nowhere, which is what keeps a customer's home address out of the annual
+ * archive (the operator's decision of 2026-09-18, reaffirmed 2026-09-27).
  */
-export async function printDeliveryNote(
+export function deliveryPaper(
+  receiptText: string,
   order: OrderForDeliveryNote,
   settings: Partial<SettingsDto>,
-  deps: PrinterDeps = {},
-): Promise<boolean | null> {
+): { paper: string; owed: boolean } {
   const note = renderDeliveryNote(order, settings);
-  if (note === null) return null;
-  // No drawer kick: nothing is being tendered, and the receipt's own print
-  // already decided that question for this sale.
-  const outcome = await printReceiptText(note, {}, deps);
-  return outcome.ok;
+  if (note === null) return { paper: receiptText, owed: false };
+  return { paper: [receiptText, note].join("\n"), owed: true };
+}
+
+/**
+ * What to report for the delivery block, given the receipt's own print outcome.
+ *
+ * THE THREE STATES OF L-143, PRESERVED THROUGH THE MERGE. When the block was
+ * its own print job the answers were obvious: `null` nothing was owed, `true`
+ * the paper came out, `false` it was tried and failed. On one job they all come
+ * from the receipt's outcome, and the trap is that `ok: false` covers two
+ * different things:
+ *
+ *   FAILED                      attempted, did not print  → `false`
+ *   DISABLED / NOT_CONFIGURED   never attempted at all    → `null`
+ *
+ * Collapsing those to `outcome.ok` would report « the slip failed » on a till
+ * with printing switched off, which is the exact mistake L-143 found in the
+ * reprint route and fixed. One rule, both routes ask it.
+ */
+export function deliveryNoteOutcome(owed: boolean, outcome: PrintOutcome): boolean | null {
+  if (!owed) return null;
+  if (outcome.ok) return true;
+  return outcome.reason === "FAILED" ? false : null;
 }

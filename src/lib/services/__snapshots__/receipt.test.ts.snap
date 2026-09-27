@@ -28,8 +28,7 @@ Espèces                            22,50 €
   Reçu 25,00 € — Rendu 2,50 €
 ------------------------------------------
                 4 articles
-         Merci de votre visite !
-          HibaPOS France v0.2.1"
+         Merci de votre visite !"
 `;
 
 exports[`renderReceipt wraps over-long settings fields (L-21) produces a consistent snapshot at the production width and address 1`] = `
@@ -61,6 +60,5 @@ Espèces                                  22,50 €
   Reçu 25,00 € — Rendu 2,50 €
 ------------------------------------------------
                    4 articles
-            Merci de votre visite !
-             HibaPOS France v0.2.1"
+            Merci de votre visite !"
 `;

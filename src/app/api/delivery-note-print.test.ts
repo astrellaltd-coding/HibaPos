@@ -171,19 +171,35 @@ describe("L-222 — a LIVRAISON print puts the destination on paper", () => {
     expect(res.body.printed).toBe(true);
     expect(res.body.deliveryNote, "the route did not report a slip").toBe(true);
 
-    expect(printer.jobs.length, "the delivery got one job, as it did before").toBe(2);
+    // ONE PIECE OF PAPER — the owner's ask of 2026-09-27, and the property
+    // that carries it. Each `printReceiptText` runs the cutter, so a second
+    // job IS a second slip: counting jobs is counting pieces of paper, and
+    // this number is the test. It was 2 until 2026-09-27.
+    expect(printer.jobs.length, "the delivery was cut into two pieces of paper again").toBe(1);
     const paper = printed(printer.jobs);
     expect(paper, "the driver's destination is still not on any paper").toContain("12 rue des Lilas");
     expect(paper).toContain("VILLEURBANNE");
     expect(paper).toContain("0612131415");
-    expect(paper).toContain("BON DE LIVRAISON");
+    // The second title block went with the second cut: on one slip it read as
+    // a second document, which is what the owner was objecting to.
+    expect(paper, "the slip is announcing itself as a separate document again").not.toContain(
+      "BON DE LIVRAISON",
+    );
+    expect(paper).toContain("LIVRAISON");
   });
 
-  it("KEEPS THE HOME ADDRESS OUT OF THE SEALED TICKET, and in the slip only", async () => {
-    // The operator's decision, and the half that is not layout: the sealed
-    // receipt is copied verbatim into the annual fiscal archive, so the address
-    // must be on the second document and only there. Asserted per JOB, because
-    // « it is on the paper somewhere » is exactly what must not be enough here.
+  it("KEEPS THE HOME ADDRESS OUT OF THE SEALED TICKET, which is now the DATABASE's copy", async () => {
+    // The operator's decision of 2026-09-18, reaffirmed 2026-09-27 with the
+    // alternative in writing: `Receipt.content` is copied VERBATIM into the
+    // annual fiscal archive, so a customer's home must never reach it.
+    //
+    // THIS TEST CHANGED ITS EVIDENCE AND KEPT ITS CLAIM. It used to read job 0
+    // and job 1 — « the ticket » and « the slip » — because they were two print
+    // jobs. They are one now, and the paper legitimately holds both, so reading
+    // the paper could no longer tell the two apart. It reads the SEALED ROW
+    // instead, which is the document the decision is actually about and the one
+    // the archive copies. Asserting on the paper would have been the weaker
+    // test all along.
     const { orderId } = await sale({ customer: JEAN });
     const printer = capturing();
     await signInAs(manager);
@@ -193,17 +209,26 @@ describe("L-222 — a LIVRAISON print puts the destination on paper", () => {
       params: { id: orderId },
     });
 
-    const [ticket, slip] = printer.jobs.map(text);
-    expect(ticket, "the sealed ticket is not the first job").toContain("TOTAL");
-    expect(ticket, "the home address reached the SEALED, archived ticket").not.toContain(
+    const sealed = await db.receipt.findFirst({ where: { orderId } });
+    expect(sealed?.content, "no sealed receipt was stored").toContain("TOTAL");
+    expect(sealed?.content, "the home address reached the SEALED, archived ticket").not.toContain(
       "12 rue des Lilas",
     );
-    expect(ticket, "the telephone number reached the SEALED, archived ticket").not.toContain(
+    expect(sealed?.content, "the telephone number reached the SEALED, archived ticket").not.toContain(
       "0612131415",
     );
-    expect(ticket, "the sealed ticket does not name the customer").toContain("Client : Jean Dupont");
-    expect(slip).toContain("12 rue des Lilas");
-    expect(slip, "the slip does not say it is non-fiscal").toContain("DOCUMENT NON FISCAL");
+    expect(sealed?.content, "the sealed ticket does not name the customer").toContain(
+      "Client : Jean Dupont",
+    );
+
+    // And the other half: the driver still gets them, on the paper only.
+    const paper = printed(printer.jobs);
+    expect(paper).toContain("12 rue des Lilas");
+    expect(paper).toContain("0612131415");
+    expect(
+      paper.length,
+      "the paper is not longer than the sealed ticket, so nothing was appended",
+    ).toBeGreaterThan(sealed!.content.length);
   });
 
   it("prints the order's note on the slip, which is where a door code goes", async () => {
@@ -264,10 +289,16 @@ describe("L-222 — a LIVRAISON print puts the destination on paper", () => {
     expect(res.body.deliveryNote).toBeNull();
   });
 
-  it("DOES NOT TRY THE SLIP WHEN THE TICKET ITSELF FAILED TO PRINT", async () => {
-    // A printer that is jammed or off will not print the second document
-    // either, and a slip is not worth a second error. The receipt is the
-    // document that matters and its outcome is what the cashier is told.
+  it("REPORTS THE BLOCK AS FAILED WHEN THE ONE JOB FAILED — not as « never attempted »", async () => {
+    // WHAT THIS TEST USED TO SAY, and why the answer flipped. It expected
+    // `null`, « no slip was attempted », because the slip was a SECOND print
+    // job that the route skipped once the ticket had failed. There is no second
+    // job now: the block goes to the printer inside the ticket's job, so when
+    // that job fails the block was attempted and did fail. `false` is the
+    // truthful answer and `null` would now be a lie.
+    //
+    // The distinction itself is L-143's and is intact — see the test below,
+    // where printing is merely switched off and the answer is `null` again.
     const { orderId } = await sale({ customer: JEAN });
     const printer = failing();
     await signInAs(manager);
@@ -276,8 +307,31 @@ describe("L-222 — a LIVRAISON print puts the destination on paper", () => {
       { method: "POST", url: "http://localhost/api/orders/x/print", params: { id: orderId } },
     );
     expect(res.body.printed).toBe(false);
-    expect(res.body.deliveryNote, "a slip was attempted after the ticket failed").toBeNull();
-    expect(printer.jobs.length, "more than the ticket was sent to a dead printer").toBe(1);
+    expect(res.body.deliveryNote, "a failed job reported the block as never attempted").toBe(false);
+    expect(printer.jobs.length, "a dead printer was given more than one job").toBe(1);
+  });
+
+  it("REPORTS NULL — not false — WHEN PRINTING IS SWITCHED OFF", async () => {
+    // The other side of the test above, and the reason the merge needed
+    // `deliveryNoteOutcome` rather than a bare `outcome.ok`. A till with the
+    // printer disabled has not FAILED to print a delivery block; nothing was
+    // attempted. Reporting that as a failure is precisely the defect L-143
+    // found in the reprint route and fixed, and collapsing the two states is
+    // the easiest thing to get wrong when two jobs become one.
+    //
+    // No transport is injected, so `resolvePrinter` reads the settings and
+    // answers DISABLED — `printerEnabled` is false on a fresh database.
+    const { orderId } = await sale({ customer: JEAN });
+    await signInAs(manager);
+    const res = await callJson<{ printed: boolean; deliveryNote: boolean | null }>(
+      createPrintHandler({}),
+      { method: "POST", url: "http://localhost/api/orders/x/print", params: { id: orderId } },
+    );
+    expect(res.body.printed).toBe(false);
+    expect(
+      res.body.deliveryNote,
+      "a till with printing switched off was told its delivery block FAILED",
+    ).toBeNull();
   });
 
   it("NEVER LETS THE SLIP CHANGE THE RECEIPT'S OWN printStatus", async () => {
@@ -301,7 +355,7 @@ describe("L-222 — a REPRINT owes the driver the same two documents", () => {
   it("prints the copy AND the slip", async () => {
     // A reprint is what a cashier reaches for when the paper jammed. Leaving it
     // out would be the drift L-214 was about: one route knowing a rule the
-    // other does not. Both call `printDeliveryNote` and neither decides.
+    // other does not. Both call `deliveryPaper` and neither decides.
     const { orderId } = await sale({ customer: JEAN });
     const printer = capturing();
     await signInAs(manager);
@@ -312,7 +366,9 @@ describe("L-222 — a REPRINT owes the driver the same two documents", () => {
 
     expect(res.status).toBe(201);
     expect(res.body.deliveryNote).toBe(true);
-    expect(printer.jobs.length).toBe(2);
+    // One slip on a reprint too, for the same reason and by the same route:
+    // a second job would cut the paper again. Was 2 until 2026-09-27.
+    expect(printer.jobs.length, "the reprint was cut into two pieces of paper").toBe(1);
     const paper = printed(printer.jobs);
     expect(paper).toContain("[COPIE");
     expect(paper).toContain("12 rue des Lilas");
@@ -327,8 +383,20 @@ describe("L-222 — a REPRINT owes the driver the same two documents", () => {
       url: "http://localhost/api/orders/x/reprint",
       params: { id: orderId },
     });
-    const slip = text(printer.jobs[1]);
-    expect(slip).toContain("BON DE LIVRAISON");
-    expect(slip, "the slip carries a [COPIE] mark it has no counter for").not.toContain("COPIE");
+    // The block used to be job 1 and could be read on its own. On one slip it
+    // has to be cut out of the paper, and the cut is unambiguous: the block
+    // opens with a line that is exactly « LIVRAISON », where the ticket's own
+    // wording is « Type : Livraison ».
+    const lines = text(printer.jobs[0]).split("\n");
+    const start = lines.findIndex((l) => l.trim() === "LIVRAISON");
+    expect(start, "the delivery block is not on the paper at all").toBeGreaterThan(-1);
+    const block = lines.slice(start).join("\n");
+
+    expect(block).toContain("12 rue des Lilas");
+    expect(block, "the block carries a [COPIE] mark it has no counter for").not.toContain("COPIE");
+    // And the mark IS on the fiscal part above it, which is the half that has
+    // a tirage counter — otherwise this test would pass on a paper with no
+    // copy mark anywhere.
+    expect(lines.slice(0, start).join("\n")).toContain("[COPIE");
   });
 });

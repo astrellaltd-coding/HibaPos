@@ -4,7 +4,7 @@ import { withAuthParams } from "@/lib/api-handler";
 import { appendFiscalEvent } from "@/lib/services/fiscal";
 import { getSettings } from "@/lib/services/settings";
 import { printReceiptText, type PrinterDeps } from "@/lib/services/printer";
-import { printDeliveryNote } from "@/lib/services/delivery-note";
+import { deliveryPaper, deliveryNoteOutcome } from "@/lib/services/delivery-note";
 
 /**
  * L-186 — the handler is built rather than declared, so the printer can be
@@ -87,14 +87,16 @@ export function createReprintHandler(deps: PrinterDeps = {}) {
       // on a reprint: nothing is being tendered, so there is no reason to open
       // the till — a reprint that opened the drawer would be a way around the
       // traced manual-open path.
-      const outcome = await printReceiptText(copieContent, {}, deps);
+      // ONE JOB, ONE CUT (2026-09-27), as on the first print: the delivery
+      // block is composed onto the copy before printing, because a second
+      // `printReceiptText` runs the cutter again.
+      const { paper, owed: deliveryNoteOwed } = deliveryPaper(copieContent, order, settings);
+      const outcome = await printReceiptText(paper, {}, deps);
 
-      // L-222 — the slip goes with the copy. It carries no « [COPIE] » mark of
-      // its own: it is not a fiscal document, nothing counts its tirages, and
-      // the address on it is the same address it was the first time.
-      const deliveryNotePrinted = outcome.ok
-        ? await printDeliveryNote(order, settings, deps)
-        : null;
+      // L-222 — the delivery details go with the copy. They carry no « [COPIE] »
+      // mark of their own: they are not a fiscal document, nothing counts their
+      // tirages, and the address is the same address it was the first time.
+      const deliveryNotePrinted = deliveryNoteOutcome(deliveryNoteOwed, outcome);
       // L-143 (R9.1): FAILED means ATTEMPTED AND FAILED. This wrote it for any
       // non-ok outcome, so a reprint with printing switched off in the settings
       // marked the receipt failed — when nothing had been tried and nothing was

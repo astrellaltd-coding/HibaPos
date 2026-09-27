@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { withAuthParams } from "@/lib/api-handler";
 import { getSettings } from "@/lib/services/settings";
 import { printReceiptText, type PrinterDeps } from "@/lib/services/printer";
-import { printDeliveryNote } from "@/lib/services/delivery-note";
+import { deliveryPaper, deliveryNoteOutcome } from "@/lib/services/delivery-note";
 
 /**
  * POST /api/orders/[id]/print — print the ticket for a completed sale.
@@ -64,23 +64,28 @@ export function createPrintHandler(deps: PrinterDeps = {}) {
     const paidWithCash = order.payments.some((p) => p.method === "CASH");
     const openDrawer = paidWithCash && settings.openDrawerOnCash !== false;
 
-    const outcome = await printReceiptText(order.receipt.content, { openDrawer }, deps);
+    // ONE JOB, ONE CUT (2026-09-27). The delivery block is composed onto the
+    // sealed ticket BEFORE printing, because a second `printReceiptText` runs
+    // the cutter a second time and hands the customer two pieces of paper —
+    // which is what the owner asked to stop. `order.receipt.content` is passed
+    // through untouched; nothing appended here is stored.
+    const { paper, owed: deliveryNoteOwed } = deliveryPaper(order.receipt.content, order, settings);
+    const outcome = await printReceiptText(paper, { openDrawer }, deps);
 
-    // L-222 — THE BON DE LIVRAISON, a second piece of paper on a delivery.
+    // L-222 — THE DELIVERY DETAILS, now the foot of the same slip.
     //
-    // AFTER the receipt and never instead of it: the sealed ticket is the
-    // document that matters, and it carries the customer's NAME. This slip
-    // carries the telephone number and the address, and is not stored anywhere
-    // — the operator's decision of 2026-09-18, so that a customer's home never
-    // enters `Receipt.content` and, through it, the annual fiscal archive.
+    // The sealed ticket carries the customer's NAME. The telephone number and
+    // the address are appended at print time and stored nowhere — the
+    // operator's decision of 2026-09-18, so that a customer's home never enters
+    // `Receipt.content` and, through it, the annual fiscal archive. That was
+    // put to them again on 2026-09-27, with the owner asking for one piece of
+    // paper, and it was reaffirmed: one slip, and the address still unsealed.
     //
-    // `printDeliveryNote` answers `null` when no slip is owed, so the rule
-    // « which orders get one » lives in one place and both print routes ask it.
-    // Nothing here can fail the receipt or move `printStatus`: a slip that does
-    // not come out is a reprint away and the sale is already journalled.
-    const deliveryNotePrinted = outcome.ok
-      ? await printDeliveryNote(order, settings, deps)
-      : null;
+    // `deliveryPaper` decides « which orders get one », so the rule lives in
+    // one place and both print routes ask it. There is no longer a second job
+    // that could fail on its own: the block rides the receipt's outcome, which
+    // is why this is now a read of `owed` rather than a second await.
+    const deliveryNotePrinted = deliveryNoteOutcome(deliveryNoteOwed, outcome);
 
     // Record what actually happened — L-143 (R9.1) settled which of the two
     // routes was right, because they disagreed.

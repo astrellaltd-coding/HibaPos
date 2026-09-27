@@ -1,7 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import path from "path";
-import { renderDeliveryNote, type OrderForDeliveryNote } from "@/lib/services/delivery-note";
+import {
+  renderDeliveryNote,
+  deliveryPaper,
+  deliveryNoteOutcome,
+  type OrderForDeliveryNote,
+} from "@/lib/services/delivery-note";
 import type { SettingsDto } from "@/types/api";
 
 // L-222 — THE DOCUMENT THE DRIVER ACTUALLY NEEDS.
@@ -60,11 +65,24 @@ describe("L-222 — the bon de livraison", () => {
     expect(town, "the town is printed above the street").toBe(street + 1);
   });
 
-  it("SAYS IT IS NOT A FISCAL DOCUMENT, in its own title block", () => {
-    // The half that keeps this slip from ever being handed over as a receipt.
+  it("NO LONGER CLAIMS TO BE A DOCUMENT OF ITS OWN — one slip since 2026-09-27", () => {
+    // WHAT THIS TEST USED TO PIN, and why the replacement is not a weakening.
+    // It asserted « BON DE LIVRAISON » and « DOCUMENT NON FISCAL », a title
+    // block whose job was to stop the slip being handed over AS A RECEIPT.
+    //
+    // The owner asked for one piece of paper, so the block is now composed onto
+    // the ticket and the cutter runs once (`deliveryPaper`). It cannot be
+    // handed over as a receipt because it cannot be separated from one — which
+    // is a stronger guarantee than a title saying so, and it is pinned by
+    // « ONE PRINT JOB » in `delivery-note-print.test.ts`.
+    //
+    // What must still hold is that nothing here reads as fiscal, and that is
+    // the test below: no money, no VAT, no SIRET.
     const note = renderDeliveryNote(delivery, baseSettings)!;
-    expect(note).toContain("BON DE LIVRAISON");
-    expect(note).toContain("DOCUMENT NON FISCAL");
+    expect(note).not.toContain("BON DE LIVRAISON");
+    expect(note).not.toContain("DOCUMENT NON FISCAL");
+    // It still says what it is, in one word, so the driver can find it.
+    expect(note).toContain("LIVRAISON");
   });
 
   it("CARRIES NO MONEY, NO VAT AND NO FISCAL IDENTITY", () => {
@@ -80,12 +98,23 @@ describe("L-222 — the bon de livraison", () => {
     }
   });
 
-  it("ties itself to the ticket by the order number, and nothing else", () => {
+  it("REPEATS NOTHING THE TICKET ABOVE IT ALREADY SAYS", () => {
+    // The owner's actual complaint on 2026-09-27 — « the second one is useless,
+    // it has the same information ». He was right about the order number and
+    // the date, which did repeat the ticket, and wrong about the telephone and
+    // the address, which appear nowhere else and are still here.
+    //
+    // The order number tied the two documents together when they were two. On
+    // one slip there is nothing to tie.
     const note = renderDeliveryNote(delivery, baseSettings)!;
-    expect(note).toContain("Commande N° 42");
-    // `Ticket N°` is the sealed receipt's own wording. Two documents saying
-    // « Ticket N° 42 » would be two tickets.
+    expect(note).not.toContain("Commande N° 42");
+    expect(note).not.toContain("18/09/2026");
+    // `Ticket N°` is the sealed receipt's own wording, and printing it twice
+    // would read as two tickets.
     expect(note).not.toContain("Ticket N°");
+    // What is NOT a repetition, and is the whole reason the block survives:
+    expect(note).toContain("06 12 13 14 15");
+    expect(note).toContain("12 rue des Lilas");
   });
 
   it("prints the order's note, which is where a door code goes", () => {
@@ -96,11 +125,25 @@ describe("L-222 — the bon de livraison", () => {
     expect(note).toContain("Code 34B2, 3e étage, sonner chez Martin");
   });
 
-  it("carries the FACTICE stamp when the caisse is in simulation", () => {
-    // The person holding this is on a doorstep, not in front of the till, so a
-    // test delivery says so on the paper like every other document here.
+  it("does NOT repeat the FACTICE stamp — the ticket above it carries it once", () => {
+    // This block used to stamp itself, because it was its own document printed
+    // on its own paper and the person holding it was on a doorstep rather than
+    // in front of the till. On one slip the ticket's banner is a few lines up,
+    // and stamping twice on one piece of paper reads as two documents again.
     const note = renderDeliveryNote(delivery, { ...baseSettings, factice: true })!;
-    expect(note).toContain("FACTICE");
+    expect(note).not.toContain("FACTICE");
+  });
+
+  it("the composed paper still carries the stamp — exactly once", () => {
+    // The pair to the test above: the stamp did not disappear, it stopped being
+    // duplicated. Counted rather than merely found, because « contains » would
+    // pass on two.
+    const paper = deliveryPaper(
+      "*** FACTICE — SIMULATION ***\nTicket N° 42\nTOTAL 12,00 €",
+      delivery,
+      { ...baseSettings, factice: true },
+    ).paper;
+    expect(paper.match(/FACTICE/g)).toHaveLength(1);
   });
 
   describe("when NO slip is owed, it returns null rather than an empty one", () => {
@@ -159,6 +202,73 @@ describe("L-222 — the bon de livraison", () => {
       .replace(/^\s*\/\/.*$/gm, "");
     for (const forbidden of ["db.", "prisma", "appendFiscalEvent", "auditLog", "audit("]) {
       expect(src, `the slip module reaches for « ${forbidden} »`).not.toContain(forbidden);
+    }
+  });
+});
+
+describe("deliveryPaper — one slip, and the sealed ticket untouched", () => {
+  const TICKET = "Ticket N° 42\nTOTAL                12,00 €\nMerci de votre visite !";
+
+  it("puts the ticket FIRST and the delivery block under it", () => {
+    const { paper, owed } = deliveryPaper(TICKET, delivery, baseSettings);
+    expect(owed).toBe(true);
+    expect(paper.startsWith(TICKET), "the sealed ticket is not at the top of the paper").toBe(true);
+    expect(paper.indexOf("12 rue des Lilas")).toBeGreaterThan(paper.indexOf("TOTAL"));
+  });
+
+  it("PASSES THE SEALED TICKET THROUGH BYTE FOR BYTE", () => {
+    // The decision of 2026-09-18, reaffirmed 2026-09-27: the address is
+    // appended at PRINT time and never enters `Receipt.content`. If this
+    // function ever rewrote the ticket it was handed, the paper and the
+    // archived document would part company silently.
+    const { paper } = deliveryPaper(TICKET, delivery, baseSettings);
+    expect(paper.slice(0, TICKET.length)).toBe(TICKET);
+  });
+
+  it("returns the ticket unchanged, and owes nothing, when there is no delivery", () => {
+    for (const orderType of ["DINE_IN", "TAKEAWAY"] as const) {
+      const { paper, owed } = deliveryPaper(TICKET, { ...delivery, orderType }, baseSettings);
+      expect(owed, `${orderType} was given a delivery block`).toBe(false);
+      expect(paper).toBe(TICKET);
+    }
+  });
+
+  it("owes nothing when the delivery has no deliverable customer", () => {
+    const { paper, owed } = deliveryPaper(TICKET, { ...delivery, customer: null }, baseSettings);
+    expect(owed).toBe(false);
+    expect(paper).toBe(TICKET);
+  });
+});
+
+describe("deliveryNoteOutcome — L-143's three states survive the merge", () => {
+  // The trap the merge created: on one print job there is no separate outcome
+  // for the block, and `ok: false` covers both « it failed » and « it was never
+  // attempted ». Reporting the second as a failure is the exact mistake L-143
+  // found in the reprint route.
+  it("reports nothing when no block was owed, whatever the printer did", () => {
+    expect(deliveryNoteOutcome(false, { ok: true, target: "usb" })).toBeNull();
+    expect(
+      deliveryNoteOutcome(false, { ok: false, reason: "FAILED", code: "E", message: "m", target: "usb" }),
+    ).toBeNull();
+  });
+
+  it("reports TRUE when the paper came out", () => {
+    expect(deliveryNoteOutcome(true, { ok: true, target: "usb" })).toBe(true);
+  });
+
+  it("reports FALSE only when it was attempted and failed", () => {
+    expect(
+      deliveryNoteOutcome(true, { ok: false, reason: "FAILED", code: "E", message: "m", target: "usb" }),
+    ).toBe(false);
+  });
+
+  it("reports NULL — not false — when printing is off or unconfigured", () => {
+    // A till with the printer switched off has not failed to print a slip.
+    for (const reason of ["DISABLED", "NOT_CONFIGURED"] as const) {
+      expect(
+        deliveryNoteOutcome(true, { ok: false, reason, message: "m" }),
+        `${reason} was reported as a failure`,
+      ).toBeNull();
     }
   });
 });

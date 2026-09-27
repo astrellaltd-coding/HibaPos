@@ -245,8 +245,12 @@ describe("L-125 — POST /api/orders/[id]/reprint, driven", () => {
       path.join(process.cwd(), "src/app/api/orders/[id]/reprint/route.ts"),
       "utf8",
     );
+    // The literal moved on 2026-09-27 and the guard is what noticed: the copy
+    // is now composed with its delivery block before printing (one slip, one
+    // cut), so the first argument is `paper` rather than `copieContent`. The
+    // options object is still `{}`, which is the half this asserts.
     expect(src, "the print call changed shape — check it still passes no options").toContain(
-      "printReceiptText(copieContent, {}, deps)",
+      "printReceiptText(paper, {}, deps)",
     );
     expect(src, "a reprint can open the till").not.toContain("openDrawer");
   });

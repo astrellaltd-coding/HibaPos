@@ -116,6 +116,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - The Tauri survey, taken on 2026-09-26 and kept after the idea was withdrawn
 - Retired from the plan's § 1 on 2026-09-27 — the Phase 8/9/10 completion history
 - L-238 — the reset stops calling a row count « aucun changement »
+- L-241 + L-242 — one piece of paper, and the version line leaves the ticket
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -2054,7 +2055,8 @@ text and neither survives that:
 `checkout-index` alone, and not by reasoning about it.
 
 - **Red, from an actual `git clone`** of HEAD (`2905897`) into the scratchpad. Byte-counted,
-  because `grep -c $''` lies here (see *Left behind*): 1 142 CRLF pairs in `backup.ts`,
+  because `grep -c $'
+'` lies here (see *Left behind*): 1 142 CRLF pairs in `backup.ts`,
   202 in `app-store.ts`, 211 and 238 in the two test files. `bun run test` there:
   **1 381 pass, 1 fail** — and the one fail is `restore-swap.test.ts:202`,
   `Expected: > 0 / Received: -1`.
@@ -2086,7 +2088,8 @@ no tracked `.bat` or `.cmd` files, which are the file types that genuinely need 
 
 - **A harness trap, and it is the reason this entry counts bytes instead of lines.** A literal
   CR inside a Bash tool command string is **stripped before the shell sees it**, so
-  `grep -c $'' <file>` silently becomes `grep -c ''`, which matches every line and returns
+  `grep -c $'
+' <file>` silently becomes `grep -c ''`, which matches every line and returns
   the **line count**. On an LF file that is indistinguishable from a correct CRLF count — it
   reported 1 142/202/211/238 for a tree that was pure LF, i.e. it produced a plausible wrong
   answer in the direction that would have been believed. Count bytes with a script, or use
@@ -6999,6 +7002,102 @@ script now proves; the pinned test count moved with it.
 `a38c95977b5e1122`; it names the command instead. Reusing `catalogue-fingerprint.ts` would mean
 extracting its natural-key logic into a shared module, which is a refactor of a script that has
 run against production, and L-238 does not need it.
+
+---
+
+### L-241 + L-242 — one piece of paper, and the version line leaves the ticket
+**Done:** 2026-09-27 · **Not a batch** — the owner's first feedback on the printed paper, which
+is the work the operator postponed the go-live for.
+
+**What he said**, with the ticket in his hand: make it one piece of paper, the second is useless
+because it repeats the first, and put the address under `Client`. **What the developer added**:
+take `HibaPOS France v0.2.1` off it.
+
+**IT WAS NOT A LAYOUT PROBLEM.** The receipt and the bon de livraison were two
+`printReceiptText` calls, and **every call runs the cutter** (`escpos.ts`, `GS V`). Two jobs are
+two pieces of paper however the text is arranged. So the fix is composition, not layout:
+`deliveryPaper()` appends the block to the ticket and the routes print once.
+
+**HIS PREMISE WAS HALF WRONG, AND IT MATTERED.** « The same information » was true of the order
+number, the date and the FACTICE banner — all three now gone — and false of the **telephone
+number**, which appears on no other document. Taking him literally would have left the driver
+with no way to ring the customer at the door.
+
+**THE ADDRESS WAS THE HARD HALF, AND THE ANSWER WAS NO.** He asked for it under `Client` on the
+ticket. That reverses the operator's decision of 2026-09-18, recorded at `receipt.ts:185`:
+`Receipt.content` is sealed and `buildAnnualArchive` copies it **verbatim** into the exercice's
+archive, so a home address put there is permanent, unremovable and serves no fiscal purpose. Both
+shapes went to the operator in writing, with the consequence stated, and **the 2026-09-18 decision
+was reaffirmed**. The owner still gets one slip with the address on it; the address is appended at
+PRINT time and stored nowhere. Nobody had to lose.
+
+**What the paper looks like now** (the block, under the ticket's own footer):
+
+```
+------------------------------------------
+LIVRAISON
+sb                              0631966048
+2 rue simon bajard
+FERIERRES
+```
+
+**L-242, measured before it was removed.** `HibaPOS France v0.2.1` was on the ticket for L-53's
+reason: the attestation regime is version-matched (BOI-LETTRE-000242) and a control compares the
+versions in use with the attestations held (BOI-CF-COM-20-60). Before touching it, every other
+place it prints was found: the **Z slip**, the **annual archive** (« Logiciel : HibaPOS France,
+version 0.2.1 »), `GET /api/fiscal/verify` and the catalogue export. So what left is the line on
+the customer's paper, which no text requires — § 8's **V-03** records that the law names no
+further ticket mention, and it stays open. `SOFTWARE_IDENTITY` is still the string and
+`receipt.ts` carries a comment at the exact place the line would go back.
+
+**THE TRAP THE MERGE CREATED, AND THE ONE RULE THAT CAME OUT OF IT.** With two jobs, the slip had
+its own outcome. With one, there is no separate outcome and `ok: false` covers two different
+things: `FAILED` (attempted, did not print) and `DISABLED` / `NOT_CONFIGURED` (never attempted).
+Reporting the second as a failure is **exactly the defect L-143 found in the reprint route**, so
+`deliveryNoteOutcome()` holds the rule and both routes ask it.
+
+**TESTS: 2120 → 2131, and three existing ones changed their evidence rather than their claim.**
+
+| the test | why it changed |
+|---|---|
+| « SAYS IT IS NOT A FISCAL DOCUMENT, in its own title block » | The title block is gone. The protection is stronger, not weaker: the block cannot be handed over as a receipt because it can no longer be SEPARATED from one, and that is pinned by the job count. The no-money/no-VAT/no-SIRET test that actually enforces « non-fiscal » is untouched. |
+| « ties itself to the ticket by the order number » | There is nothing to tie. It now asserts the block repeats NOTHING the ticket says, and still carries the phone and address — the reason it survives. |
+| « carries the FACTICE stamp » | It stopped stamping itself; the ticket above does it. Paired with a new test counting the stamp on the composed paper as **exactly once**, because `toContain` passes on two. |
+
+**AND THE ONE THAT MATTERED MOST.** « KEEPS THE HOME ADDRESS OUT OF THE SEALED TICKET » read print
+job 0 against job 1. With one job the paper legitimately holds both, so that evidence stopped
+working — and the easy fix, flipping the assertion, would have **destroyed the guard**. It now
+reads `Receipt.content` **from the database**: the document the decision is about and the one the
+archive copies. That was the stronger test all along.
+
+**A SOURCE GUARD CAUGHT THE CHANGE**, which is the system working: `journal-before-paper.test.ts`
+pinned `printReceiptText(copieContent, {}, deps)` and failed with « the print call changed shape —
+check it still passes no options ». The options object is still `{}`; only the first argument
+moved.
+
+**RED FIRST — FIVE REVERTS, restored from copies taken before each and byte-compared afterwards:**
+
+| reverted | what went red |
+|---|---|
+| a SECOND print job for the slip — **the old code** | 1: the job count. Only the print route was reverted, so the reprint's own count test stayed green and is noted as such rather than counted |
+| `deliveryNoteOutcome` collapsed to `outcome.ok` | 2, both the unit test and the route driving a genuinely disabled printer |
+| the software line back on the ticket | 4, including **both snapshots** |
+| the block announcing `BON DE LIVRAISON` again | 3 |
+| `deliveryPaper` not appending the block at all | 6, including the sealed-ticket guard — which is what shows that test is not vacuous |
+
+**One patch did not apply on the first attempt and was reported as a no-op rather than read as
+evidence**, then redone by line anchor.
+
+**The snapshot moved by exactly two lines** — `HibaPOS France v0.2.1`, once in each of the two
+snapshots, nothing else. The diff was read before it was accepted.
+
+**Gates:** 2131 pass / 0 fail / 162 files, typecheck 0, lint 0. `readme-counts.test.ts` failed
+first at 2120 against 2131, which is the guard working; README moved with it.
+
+**NOT VERIFIED, AND IT IS THE ONLY THING LEFT: nobody has seen this paper.** The tests prove the
+bytes that reach the transport. R6.4's standard was a person in the restaurant looking at paper,
+and this changes what the customer is handed. **It wants one delivery printed on the SUNSO
+WTP-801 after the till pulls** (L-240), before it is called done on that machine.
 
 ---
 
