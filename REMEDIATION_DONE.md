@@ -114,6 +114,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - Retired from the plan's § 1 on 2026-09-25 — « Two things are waiting »
 - Retired from the plan's § 1 on 2026-09-26 — the 48-hour caisse paragraph
 - The Tauri survey, taken on 2026-09-26 and kept after the idea was withdrawn
+- Retired from the plan's § 1 on 2026-09-27 — the Phase 8/9/10 completion history
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -6774,6 +6775,135 @@ the Scheduled-Task model and drop Tauri.
 **And a warning worth keeping whatever happens:** packaging would retire the whole Scheduled-Task
 model, but `hibapos-server.ps1` and `hibapos-kiosk.ps1` are **live on the France till today**.
 **Nothing retires them on the strength of a plan** — they go when a build actually replaces them.
+
+---
+
+### Retired from the plan's § 1 on 2026-09-27 — the Phase 8/9/10 completion history
+**Done:** 2026-09-27 · **Not a batch** — a removal, made by the Session A state audit, to make
+room in a file with 711 bytes of headroom and because none of it was outstanding work. **The
+operator approved the move and asked that it be kept word for word.**
+
+**What it was.** The `▶ CURRENT TASK` callout at the top of § 1, which had accumulated, batch by
+batch, from 2026-09-13 to 2026-09-20: Phase 8's seven batches, Phase 9's eight, R10.1 and R10.2,
+L-191 and L-192, R6.4 and R6.5 leaving the file, the owner's seven items of 2026-09-17/18, and the
+six closed on 2026-09-18/20. Every one of those has its own full entry in this file, which is
+where a reader should have been looking; the callout was a second, shorter copy that had to be
+re-edited every time one of them moved. **Nothing in it was outstanding**, which is the test § 1
+is supposed to meet.
+
+**Why it is quoted rather than summarised.** `CLAUDE.md` and the session prompt both say history
+is retired verbatim and never summarised away. The lines below are exactly as they stood in
+`REMEDIATION_PLAN.md`, `>` prefixes and all — that prefix is the callout's own formatting, and
+keeping it is what makes this a transcription rather than a paraphrase.
+
+**Kept in § 1, deliberately:** the parenthetical recording that the two 2026-09-13 migrations were
+applied by a session at the operator's explicit instruction, and that this was a one-off and not a
+standing waiver. It sat inside the retired block, at plan lines 83-86. It is provenance about a
+**rule** — `CLAUDE.md`'s « only the operator applies a migration » — rather than a record of
+completed work, and the 2026-09-26 retirement of the paragraph above it kept it for the same
+reason. Retiring it would leave that rule's one exception recorded nowhere a reader of the rule
+would look.
+
+It read, verbatim:
+
+> ### ▶ CURRENT TASK — **none of § 6 is mine any more**
+>
+> **§ 6 opens with the execution order. Follow that, not the order the tables print in.**
+>
+> **The execution order is finished** and Phase 8 is running in its own order. R8.0
+> (`f68dcf6`), R9.6 (`f918578`), R8.1 (`622411c`), R9.2 (`1d010b8`) and R8.2 (`67d0347`) are
+> done.
+>
+> **R8.2's MIGRATION IS APPLIED** — `Order.idempotencyKey`. This block said « rehearsed and not
+> applied » until 2026-09-14, when it was measured read-only against a copy of the live
+> database: `_prisma_migrations` holds it, finished **2026-09-13**. Recorded as **L-195**,
+> because § 1 had been telling every session otherwise.
+>
+> **PHASE 8 IS COMPLETE** (2026-09-13) — seven batches, R8.0 through R8.6, and every
+> group-A finding the audit raised. **PHASE 9 IS OPEN** on the operator's word. **R9.1 is
+> done** (`d634faf`): the printer refuses to call a print a print when the helper was never
+> there, the customer's paper IS the sealed `Receipt.content`, and the day's closing slip
+> both prints and carries what was given away — **R6.4's software blocker is cleared.**
+> **R9.3 is done** (`a08afbe`): no failure leaves a readable copy of the database behind,
+> the retention prune journals before it deletes, a missing media directory is no longer
+> reported as « no images », and a backup missing a unique index is refused. **R9.4 is done**
+> (2026-09-13): a malformed secret says so in French instead of answering an empty 500,
+> `approvals.ts` no longer throws at import on an install with no `.env`, and a deleted
+> secret store cannot silently orphan the backups. **L-115 is closed, so R6.2 is unblocked.**
+> **R9.5 is done** (2026-09-14): a locked-out operator can get back in, the published PINs are
+> refused where a PIN is set, and the login screen says why it will not open. **The operator
+> settled the bootstrap on 2026-09-13** — admin stays `123456`, the manager's is chosen or
+> generated and shown once. **R9.7 is done** (2026-09-14): eleven findings, and the three
+> High ones were all « a test that cannot fail against the bug it names ». The fiscal-journal
+> guard, the WAL guard and the payment check now all go red when broken. **R9.8 is done**
+> (2026-09-14): a null `OrderItem.vatRate` is no longer silently 10 % — the aggregation
+> refuses it and the ticket says the rate is unknown — and every FK-less id column explains
+> itself. **L-185 closed with it**: the four CRLF files were re-checked out. **R9.9 is done**
+> (2026-09-14): the catalogue import refuses a file exported under an older schema instead of
+> filling the new columns with defaults — the mechanism that carries this catalogue to France.
+> **R9.10 is done** (2026-09-14) and **PHASE 9 IS COMPLETE** — all eight batches, and every
+> group-B finding the audit raised. The three touch targets under 44 px are fixed and the guard
+> that could not see them is widened, the step-up PIN has a keypad, the topbar's stopwatch
+> measures the caisse instead of nothing, and zod stops printing TypeScript at the operator.
+> **L-132 was settled by the operator on 2026-09-14**: the Z-close cash field starts empty and
+> the seal waits for a figure.
+>
+> **`docs/INVARIANTS.md` gained two paragraphs** on the operator's instruction the same day —
+> L-134's pricing rule and L-129's null-`vatRate` rule. Both had been drafted and held since
+> R8.5 and R9.8, because that file is theirs.
+>
+> **R10.1 is done** (2026-09-14). The client bundle no longer carries Prisma — largest chunk
+> **501.7 KB → 376 KB**, total client JS **2.68 MB → 2.3 MB**, measured in the built artifact —
+> `bun run build` runs in the fast CI job, two dead devDependencies are gone, and `db.ts` stops
+> claiming the `DATABASE_URL` query string sets its pragmas.
+>
+> **R10.2 is done** (2026-09-14), and with it **every row in § 6 that was a session's to do**.
+> The index names all fifteen scripts, `apply-migration.ts` **fails** a run whose `--expect`
+> fingerprint it cannot read instead of printing « skipped » under a tick, the README's
+> first-boot note no longer collides with § 5's safety register, and `pre-golive-reset.ts`
+> states a true reason for the one ordering it can never take back. **Both operator files were
+> brought and approved the same day** — `CLAUDE.md`'s hand-over command now reads `--expect
+> <path to the rehearsal's fingerprint JSON>`, and `docs/INVARIANTS.md` names the three
+> `/api/tables` routes a cleanup would otherwise have deleted out from under a test.
+>
+> **WHAT IS LEFT IN § 6 IS ALL `OPERATOR`** — R6.1 … R6.5 before the first real sale, and
+> R10.3, which belongs in the accountant's envelope. **That is not the same as finished.**
+> R10.2 opened **L-191** (Medium, `prisma/seed.ts:19`): the CLI seed path still falls back to
+> `111111`, the PIN `POST /api/seed` has refused since R9.5, and `scripts/README.md` is what
+> points a first boot at it. **L-191 IS FIXED** (2026-09-14, its own item — no row to attach it
+> to): that PIN is now generated, re-checked and shown once, and a published default in
+> `SEED_MANAGER_PIN` is refused before a row is written. It opened **L-192** (Low), which needs
+> the operator's word first. **§ 7 stays closed** — their call, the plan being near its ceiling.
+>
+>
+> *(… the parenthetical kept in § 1 stood here …)*
+>
+> **R6.4 and R6.5 are both done, and both have left this file.** They were carried out on
+> the till on 2026-09-16, and R6.4's last unknown was answered on 2026-09-17 when the
+> restaurant's owner found the two test tickets on the printer. **R6.3 is unblocked** — R8.1
+> cleared the settings 403 — and is still an `OPERATOR` row that has not been done; being
+> reachable is not being finished.
+>
+> **THE OWNER IS USING THE TILL, AND EVERYTHING HE HAS FOUND SO FAR IS DONE.** Seven items,
+> 2026-09-17/18, each its own commit and each with a full record in `REMEDIATION_DONE.md` —
+> § 6 holds nothing that is a session's and § 7 is closed, so they were done as their own items
+> as L-191 was. **L-213** the on-screen keyboard, without which the day could not be sealed ·
+> **L-214** the delivery client the till offered and the server refused after the cash ·
+> **L-216** the keyboard refined, and the accent that closed the dialog being typed into ·
+> **L-217** a Tacos M taking all six viandes for 6,90 €, now M=1 L=2 XL=3 and SET on the live
+> catalogue at the operator's explicit instruction · **L-219** and **L-220**, which came out of
+> reading that back. **L-217's migration went in by itself**: restarting the server triggered
+> PREP-4's startup path, behind a verified backup — what the app does on its own machine, and
+> worth knowing before the next one.
+>
+> **L-215, L-218, L-221 … L-224 AND L-228 ARE CLOSED** (2026-09-18/20) — six items, and the work
+> moved from the caisse to the fiscal day. The two entries that carry all of it are in
+> `REMEDIATION_DONE.md`: *« The Tacos, carried to France »* and *« L-99 / L-228 »*.
+
+**Freed 6 949 bytes of a 40 960-byte ceiling**, before the corrections made in the same commit
+put some of it back. The audit that did this found the plan at **40 249** — 711 bytes of
+headroom, the third time this week the file has come within a kilobyte of failing
+`plan-freshness.test.ts`.
 
 ---
 

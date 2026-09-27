@@ -8,111 +8,36 @@ Completed work lives in **`REMEDIATION_DONE.md`**. This file only ever shows out
 
 ## 1. CURRENT STATUS
 
-**Overall:** NOT READY FOR PRODUCTION, and **not trading** — the fiscal journal is empty and
-every trading table is at zero.
+**Overall:** NOT READY FOR PRODUCTION, and **not trading** — no genuine sale has been rung on
+either install. **On THIS machine** the fiscal journal is empty and every trading table is at
+zero, re-measured 2026-09-27. **On the FRANCE TILL it is not**: FACTICE is on and the owner has
+been testing since the 2026-09-20 reset, so its journal holds factice events. **How many is not
+measured**, and R6.1 is the step that clears them.
 
-> ### ▶ CURRENT TASK — **none of § 6 is mine any more**
+> ### ▶ CURRENT TASK — **none. The next work comes from the owner.**
 >
-> **§ 6 opens with the execution order. Follow that, not the order the tables print in.**
->
-> **The execution order is finished** and Phase 8 is running in its own order. R8.0
-> (`f68dcf6`), R9.6 (`f918578`), R8.1 (`622411c`), R9.2 (`1d010b8`) and R8.2 (`67d0347`) are
-> done.
->
-> **R8.2's MIGRATION IS APPLIED** — `Order.idempotencyKey`. This block said « rehearsed and not
-> applied » until 2026-09-14, when it was measured read-only against a copy of the live
-> database: `_prisma_migrations` holds it, finished **2026-09-13**. Recorded as **L-195**,
-> because § 1 had been telling every session otherwise.
->
-> **PHASE 8 IS COMPLETE** (2026-09-13) — seven batches, R8.0 through R8.6, and every
-> group-A finding the audit raised. **PHASE 9 IS OPEN** on the operator's word. **R9.1 is
-> done** (`d634faf`): the printer refuses to call a print a print when the helper was never
-> there, the customer's paper IS the sealed `Receipt.content`, and the day's closing slip
-> both prints and carries what was given away — **R6.4's software blocker is cleared.**
-> **R9.3 is done** (`a08afbe`): no failure leaves a readable copy of the database behind,
-> the retention prune journals before it deletes, a missing media directory is no longer
-> reported as « no images », and a backup missing a unique index is refused. **R9.4 is done**
-> (2026-09-13): a malformed secret says so in French instead of answering an empty 500,
-> `approvals.ts` no longer throws at import on an install with no `.env`, and a deleted
-> secret store cannot silently orphan the backups. **L-115 is closed, so R6.2 is unblocked.**
-> **R9.5 is done** (2026-09-14): a locked-out operator can get back in, the published PINs are
-> refused where a PIN is set, and the login screen says why it will not open. **The operator
-> settled the bootstrap on 2026-09-13** — admin stays `123456`, the manager's is chosen or
-> generated and shown once. **R9.7 is done** (2026-09-14): eleven findings, and the three
-> High ones were all « a test that cannot fail against the bug it names ». The fiscal-journal
-> guard, the WAL guard and the payment check now all go red when broken. **R9.8 is done**
-> (2026-09-14): a null `OrderItem.vatRate` is no longer silently 10 % — the aggregation
-> refuses it and the ticket says the rate is unknown — and every FK-less id column explains
-> itself. **L-185 closed with it**: the four CRLF files were re-checked out. **R9.9 is done**
-> (2026-09-14): the catalogue import refuses a file exported under an older schema instead of
-> filling the new columns with defaults — the mechanism that carries this catalogue to France.
-> **R9.10 is done** (2026-09-14) and **PHASE 9 IS COMPLETE** — all eight batches, and every
-> group-B finding the audit raised. The three touch targets under 44 px are fixed and the guard
-> that could not see them is widened, the step-up PIN has a keypad, the topbar's stopwatch
-> measures the caisse instead of nothing, and zod stops printing TypeScript at the operator.
-> **L-132 was settled by the operator on 2026-09-14**: the Z-close cash field starts empty and
-> the seal waits for a figure.
->
-> **`docs/INVARIANTS.md` gained two paragraphs** on the operator's instruction the same day —
-> L-134's pricing rule and L-129's null-`vatRate` rule. Both had been drafted and held since
-> R8.5 and R9.8, because that file is theirs.
->
-> **R10.1 is done** (2026-09-14). The client bundle no longer carries Prisma — largest chunk
-> **501.7 KB → 376 KB**, total client JS **2.68 MB → 2.3 MB**, measured in the built artifact —
-> `bun run build` runs in the fast CI job, two dead devDependencies are gone, and `db.ts` stops
-> claiming the `DATABASE_URL` query string sets its pragmas.
->
-> **R10.2 is done** (2026-09-14), and with it **every row in § 6 that was a session's to do**.
-> The index names all fifteen scripts, `apply-migration.ts` **fails** a run whose `--expect`
-> fingerprint it cannot read instead of printing « skipped » under a tick, the README's
-> first-boot note no longer collides with § 5's safety register, and `pre-golive-reset.ts`
-> states a true reason for the one ordering it can never take back. **Both operator files were
-> brought and approved the same day** — `CLAUDE.md`'s hand-over command now reads `--expect
-> <path to the rehearsal's fingerprint JSON>`, and `docs/INVARIANTS.md` names the three
-> `/api/tables` routes a cleanup would otherwise have deleted out from under a test.
->
-> **WHAT IS LEFT IN § 6 IS ALL `OPERATOR`** — R6.1 … R6.5 before the first real sale, and
-> R10.3, which belongs in the accountant's envelope. **That is not the same as finished.**
-> R10.2 opened **L-191** (Medium, `prisma/seed.ts:19`): the CLI seed path still falls back to
-> `111111`, the PIN `POST /api/seed` has refused since R9.5, and `scripts/README.md` is what
-> points a first boot at it. **L-191 IS FIXED** (2026-09-14, its own item — no row to attach it
-> to): that PIN is now generated, re-checked and shown once, and a published default in
-> `SEED_MANAGER_PIN` is refused before a row is written. It opened **L-192** (Low), which needs
-> the operator's word first. **§ 7 stays closed** — their call, the plan being near its ceiling.
->
+> **A state audit ran on 2026-09-27** and this section is its output: the plan and
+> `docs/audit/FINDINGS.md` measured against the code and the database, what no longer matched
+> corrected, and the Phase 8/9/10 completion history retired to `REMEDIATION_DONE.md`. **No
+> source file and no test changed**; gates green before and after (**2101 / 0 / 161**).
+> **Every batch of Phases 8, 9 and 10 is finished** — read them in `REMEDIATION_DONE.md`, not
+> from a second copy here. The only § 6 row that is not the operator's is R10.3.
+
 > *(**The two migrations were APPLIED on 2026-09-13** — by the session, at the operator's
 > explicit instruction, they being away from the machine. Verified against the rehearsal and
 > recorded in `REMEDIATION_DONE.md`. `CLAUDE.md`'s rule that this is the operator's action is
 > unchanged; that was a one-off, not a standing waiver.)*
 >
-> **R6.4 and R6.5 are both done, and both have left this file.** They were carried out on
-> the till on 2026-09-16, and R6.4's last unknown was answered on 2026-09-17 when the
-> restaurant's owner found the two test tickets on the printer. **R6.3 is unblocked** — R8.1
-> cleared the settings 403 — and is still an `OPERATOR` row that has not been done; being
-> reachable is not being finished.
 >
-> **THE OWNER IS USING THE TILL, AND EVERYTHING HE HAS FOUND SO FAR IS DONE.** Seven items,
-> 2026-09-17/18, each its own commit and each with a full record in `REMEDIATION_DONE.md` —
-> § 6 holds nothing that is a session's and § 7 is closed, so they were done as their own items
-> as L-191 was. **L-213** the on-screen keyboard, without which the day could not be sealed ·
-> **L-214** the delivery client the till offered and the server refused after the cash ·
-> **L-216** the keyboard refined, and the accent that closed the dialog being typed into ·
-> **L-217** a Tacos M taking all six viandes for 6,90 €, now M=1 L=2 XL=3 and SET on the live
-> catalogue at the operator's explicit instruction · **L-219** and **L-220**, which came out of
-> reading that back. **L-217's migration went in by itself**: restarting the server triggered
-> PREP-4's startup path, behind a verified backup — what the app does on its own machine, and
-> worth knowing before the next one.
+> ### ▶ WHAT IS WAITING — FOUR ITEMS FOR THE OPERATOR, AND EIGHT OPEN FINDINGS
 >
-> **L-215, L-218, L-221 … L-224 AND L-228 ARE CLOSED** (2026-09-18/20) — six items, and the work
-> moved from the caisse to the fiscal day. The two entries that carry all of it are in
-> `REMEDIATION_DONE.md`: *« The Tacos, carried to France »* and *« L-99 / L-228 »*.
->
->
-> ### ▶ WHAT IS WAITING, AND NONE OF IT IS CODE
+> *(Read « AND NONE OF IT IS CODE » until 2026-09-27, and was already false when written:
+> L-204, L-208 … L-211 and L-223 were open, and none of them is a decision.)*
 >
 > 1. **THE GO-LIVE IS POSTPONED** (operator, 2026-09-25) — the owner is still testing and his
 >    feedback is awaited. **Do not start R6.1, do not arm the chain key, do not turn FACTICE off.**
->    The till is current and **confirmed working by the owner that day** — menu, Tacos, printing.
+>    The till's **data** is current and the owner **confirmed it working that day** — menu, Tacos,
+>    printing. Its **code** is four commits behind; see item 4.
 >    When it does happen: **R6.1 → R6.2 → R6.3, in that order**, which is a rule and not a
 >    preference — arming the key before the reset makes the reset refuse. Also open before trading
 >    for real: **`VAT-METHOD`** (§ 8) and **a fresh verified backup off this machine**.
@@ -125,29 +50,64 @@ every trading table is at zero.
 > 3. **TWO ORPHANED FILES ON THE TILL** (**L-236**), needing nobody's decision:
 >    `hibapos-server.ps1.ps1`, which nothing executes, and `secrets.json.1192.tmp` from
 >    commissioning evening — **read it before deleting**, it may hold partial secret material.
->    Also open: **L-207's other half**, the task names living in four places and stated in no
->    document.
+>    Also open: **L-207's other half**, the task names hard-coded in **five** files and stated in
+>    neither this file nor `CLAUDE.md`. *(The row said « four places ». Measured 2026-09-27 with
+>    `git grep -c`: `HibaPOS Server` appears **six times in five operational files** — two of them
+>    `scripts/pre-golive-reset.ts` and `scripts/rotate-secrets.ts`, outside `.zscripts/` — plus a
+>    pin in `deployment.test.ts`. `HibaPOS Kiosk` appears once, in `install-windows.ps1`.
+>    Corrected in FINDINGS.md.)*
+> 4. **THE FRANCE TILL IS FOUR COMMITS BEHIND THIS REPOSITORY** (**L-240**, 2026-09-27). Schema
+>    and menu match — `git diff 81eb2f3..HEAD -- prisma/` is empty, both print `a38c95977b5e1122`
+>    — **the code does not**. Missing: `e9ba5ce` (L-225, so the till's export still drops the
+>    option ceilings), `891f39d` (L-226), `c9e84e8` (L-206), `cb43261` (L-207's cheap half).
+>    **So the till's launcher still names the forbidden `update.ps1 -Apply`, and its `update.ps1`
+>    still applies with the bare `prisma migrate deploy`** — what L-206 closed *here*. A `git
+>    pull` on the till closes it: the operator's act, no migration. **« Both installs are
+>    current » is true of data and false of code**, and the working catalogue transfer is this
+>    machine's, not the till's.
+
+**THE EIGHT THAT ARE NOT DECISIONS**, each confirmed open against the code on 2026-09-27:
+**L-211** (High — the category strip scrolls sideways with
+nothing to show it does), **L-204** (High — the launcher's third refusal never reads
+`secrets.json`), **L-238** (Medium — `pre-golive-reset.ts` prints « Catalogue intact » after
+comparing sixteen row counts and nothing else, **in the script R6.1 runs**), **L-208 · L-209 ·
+L-210** (Medium — a stale baselines file, a build script that never checks an exit code, and
+`dev.ps1`'s uncovered seed path), **L-223** (Low-Med) and **L-239** (Medium — the e2e server takes
+every key `e2eServerEnv()` omits from the real `.env`, `BACKUP_LOCATION` among them). **None of
+them is phased**, which is the operator's decision and the same one § 7 is waiting on. Their
+detail is in `docs/audit/FINDINGS.md` and is not repeated here.
 
 
 **Phases 0-5 and 7 are COMPLETE**, with all four operator items and all three migrations
 applied. What each did, how it was verified and what it cost is in `REMEDIATION_DONE.md`;
 **nothing from them is outstanding**, and this file does not repeat them.
 
-**Three phases are open.** Phase 8 closed on 2026-09-13.
+**Two phases are open** — 6 and 10, and neither has a row that is a session's. Phase 8 closed on
+2026-09-13 and Phase 9 on 2026-09-14. *(This said « three » until 2026-09-27, while the list
+directly beneath it marked two of the four COMPLETE.)*
 
-- **Phase 6** — the fiscal go-live, five `OPERATOR` rows. **R8.1 unblocked R6.3** (2026-09-13,
-  `622411c`) and **R9.1 unblocked R6.4** (2026-09-13). Row-by-row status below.
+- **Phase 6** — the fiscal go-live, **three** `OPERATOR` rows: R6.1, R6.2, R6.3. **R8.1 unblocked
+  R6.3** (2026-09-13, `622411c`) and **R9.1 unblocked R6.4** (2026-09-13). R6.4 and R6.5 are done
+  and have left this file. Row-by-row status below. *(This said « five » until 2026-09-27.)*
 - **Phase 8** — money and the fiscal record. **COMPLETE 2026-09-13**, all seven batches.
 - **Phase 9** — fix before the app is called complete. **COMPLETE 2026-09-14**, all eight batches.
-- **Phase 10** — the leftovers no other batch owns. Three rows (group C).
+- **Phase 10** — the leftovers no other batch owns. Three rows (group C), **of which R10.1 and
+  R10.2 are done** (both 2026-09-14) and have left this file. **R10.3 is the one that is left**,
+  and it is `OPERATOR`.
 
 **Phases 8-10 come from the audit.** Six read-only passes and a seventh that consolidated
 them, 2026-09-12: **`docs/audit/FINDINGS.md` holds 94 findings, L-89 … L-182**, in two views —
 by severity, and by the file the work lands in. Groups **A** (7) · **B** (39) · **C** (36) ·
 **D** record and leave (9) · **E** undecidable until packaging (3). § 6 carries the ids;
-**the detail is in FINDINGS.md and is not repeated here.** § 7 is unchanged at the nine
-findings that predate the audit. Nothing found stops a sale being *rung*: every money path the
-audit exercised produced screen figures matching the database to the cent.
+**the detail is in FINDINGS.md and is not repeated here.** § 7 stands at the **five** findings
+that predate the audit and outlived it. Nothing found stops a sale being *rung*: every money path
+the audit exercised produced screen figures matching the database to the cent.
+
+**EVERY GROUP A, B AND C FINDING IS CLOSED EXCEPT L-170** (= R10.3) — verified 2026-09-27
+against `REMEDIATION_DONE.md` and spot-checked in the code. **But FINDINGS.md's View A still
+reads as open defects**, present tense, no row marked fixed, because it is the audit's own
+document and is left as written. **Do not take a View A row as work without checking
+`REMEDIATION_DONE.md` first.** What is open there is the *Found after the audit* section.
 
 ### Phase 6 — where each row stands
 
@@ -155,9 +115,13 @@ audit exercised produced screen figures matching the database to the cent.
 `../HibaPOS-docs-archive/README.md` maps `runbook-complet.md`; **its § 6a/6b/6c are stale**
 (scheduled tasks, `C:\HibaPOS-secrets-backup\`, and a claim the backups are unrestorable).*
 
-- **R6.1** reset (§ 6d) — **would delete 0 rows**: all sixteen tables on the script's
-  `DELETION_ORDER` are empty and the counter is already `0/0/0/0`. **A decision, not a step.**
-  Irreversible; runs once, never after a genuine sale.
+- **R6.1** reset (§ 6d) — **ON THIS MACHINE it would delete 0 rows**: all sixteen tables on the
+  script's `DELETION_ORDER` empty, counter `0/0/0/0`, re-measured 2026-09-27. **THAT IS NOT THE
+  MACHINE THE ROW IS ABOUT.** R6.1 runs on the FRANCE TILL, whose journal has held factice events
+  since the owner began testing after its 2026-09-20 reset — **nobody has counted them**. So the
+  zero says nothing about the run that matters. **A decision, not a step.** Irreversible; runs
+  once, never after a genuine sale. *(Asserted the zero without naming a machine until
+  2026-09-27.)*
 - **R6.2** arm the key (§ 6e) — `FISCAL_CHAIN_KEY` absent, so the reset's guard 1 passes.
   An empty journal is armable at any time, so arming EARLY buys nothing and creates a secret
   to transport. Follows R6.1. **A BUTTON since 2026-09-11** (`POST /api/setup/chain-key`), not
@@ -194,7 +158,9 @@ audit exercised produced screen figures matching the database to the cent.
   `bun scripts/apply-migration.ts --apply --expect ../db-snapshots/r221-city-rehearsal/fp-after.json`
   and **verified**: zero differences from the rehearsal's post-migration fingerprint, `city`
   appended as the last column with the first nine byte-identical, catalogue still
-  `b6a76daf0befc587` / 86 products, every trading table at zero, `migrate status` exit 0. Both
+  `b6a76daf0befc587` / 86 products — **that fingerprint is retired**; it became
+  `a38c95977b5e1122` when the Tacos photograph was attached here on 2026-09-25 (L-232), and that
+  is the expected value now — every trading table at zero, `migrate status` exit 0. Both
   restore points in `../db-snapshots/` hold the pre-migration file. *(This bullet asserted the same
   sentence throughout 2026-09-19/20 while the migration was in fact pending — **L-231**. It is true
   again because it was counted, not because it was left alone.)*
@@ -224,10 +190,14 @@ catalogue can be emptied on an install that has not traded. Untested against the
 false from R9.9 and it nearly produced a whole-database copy onto the restaurant's till.)*
 `FISCAL_CHAIN_KEY` is in `.env`, `factice` is in the database: they do not travel together.
 
-**Last updated:** 2026-09-25 — **THE OWNER CONFIRMED THE TILL** (menu, Tacos, printing), and the
-audit queue is down to decisions. Closed that day: **L-225, L-226, L-232, L-206, L-237**, plus
-L-207's cheap half; **L-234 closed as not a defect**. **The go-live (R6.1 → R6.2 → R6.3) is the
-next decision.** *(The batch-by-batch recap that stood here from 2026-09-13 — R8.0 … R8.6, R9.2, R9.6
+**Last updated:** 2026-09-27 — **a state audit, and the queue is NOT down to decisions.** Eight
+open findings are not decisions (see *What is waiting*); the till is four commits behind
+(**L-240**); the e2e server writes into the real backup folder (**L-239**); **the go-live is
+postponed, not next.** *(This said « the go-live is the next decision » under the date
+2026-09-25, while item 1 above recorded the operator postponing it that same day — the plan
+asserting both halves of a contradiction, again.)* Closed 2026-09-25: **L-225, L-226, L-232,
+L-206, L-237**, plus L-207's cheap half; **L-234 not a defect** — **all in this repository, none
+of them on the till.** *(The batch-by-batch recap that stood here from 2026-09-13 — R8.0 … R8.6, R9.2, R9.6
 and the audit's phasing — was retired to `REMEDIATION_DONE.md` on 2026-09-19 to make room. Every
 line of it is in that file's own entries, which is where a reader should have been looking: this
 paragraph was a second copy, and the only part of § 1 that was not outstanding work.)*
@@ -395,7 +365,7 @@ of trusting an exit code.**
 |---|---|
 | `scripts/apply-migration.ts` | ✅ **How a migration is applied here from now on.** Refuses if any node/bun process is running or a `-wal`/`-shm`/`-journal` sits beside the database; **names the migration it actually applied**; ends `✅ APPLIED AND VERIFIED` or `❌`. It exists because `prisma migrate deploy` prints the same green banner whichever migration it ran, and that was misread twice. `--expect <fingerprint.json>` diffs the result against a rehearsal. |
 | `scripts/trim-catalogue-names.ts` · `scripts/build-box-menus.ts` | ✅ **Both applied** (R4.4, R3.3) and idempotent — re-running prints `NOTHING TO TRIM` / « déjà un menu composé ». `REMEDIATION_DONE.md` has what each checks first. |
-| `scripts/delete-product.ts` | ✅ **Hard-deletes ONE product row.** Exists since 2026-09-09 and **has run four times** (four `PRODUCT_HARD_DELETED` rows in the live audit log); 2026-09-11 added `--id` and three refusals. Refuses unless the product is uniquely identified, already inactive, has **no** FK reference (`OrderItem` is `SET NULL`, `ComboSlot` `CASCADE` — SQLite would have allowed the damage), is in **no sealed payload** — the guard no schema can express — and the restore point verifies. Each refusal exercised on a copy. |
+| `scripts/delete-product.ts` | ✅ **Hard-deletes ONE product row.** Exists since 2026-09-09 and **has run five times** (five `PRODUCT_HARD_DELETED` rows in the live audit log, counted read-only 2026-09-27 — the fifth was `5 nuggets test` on 2026-09-16, which closed L-81; this said « four » until then); 2026-09-11 added `--id` and three refusals. Refuses unless the product is uniquely identified, already inactive, has **no** FK reference (`OrderItem` is `SET NULL`, `ComboSlot` `CASCADE` — SQLite would have allowed the damage), is in **no sealed payload** — the guard no schema can express — and the restore point verifies. Each refusal exercised on a copy. |
 | `scripts/pre-golive-reset.ts` | ⚠ **R6.1. Runs ONCE, and never after a genuine sale.** The operator's, not Claude's. |
 
 ---
@@ -406,23 +376,26 @@ Status values: `TODO` · `IN PROGRESS` · `DONE` · `BLOCKED` · `OPERATOR` · `
 A `DONE` row leaves this file for `REMEDIATION_DONE.md`.
 
 *Phases 0-5 and 7 are complete; their records are in `REMEDIATION_DONE.md`. Nothing from
-them is outstanding except the three items under § 1 « Awaiting the operator ».*
+them is outstanding except the **four** items under § 1 « Awaiting the operator ».*
 
-> **Three phases are open**, and they are not independent. Phase 6 is the fiscal go-live.
-> **Phases 9 and 10 are what is left of the 2026-09 audit, phased 2026-09-12** from
+> **Two phases are open.** Phase 6 is the fiscal go-live.
+> **Phase 10 is what is left of the 2026-09 audit, phased 2026-09-12** from
 > `docs/audit/FINDINGS.md`'s *View B — by area*, because the file a fix lands in is what a
 > batch is here. Every row below names its `L-` ids and nothing else: **the detail is in
 > FINDINGS.md and is not repeated here**, which is what keeps this file inside its ceiling.
 > Groups D and E got no rows.
 
 **ORDER.** Every dependency that reordered this list is discharged — the four steps and why
-each existed are recorded in `REMEDIATION_DONE.md`. What is left is **Phase 9, then Phase 10,
-in the order the tables print**, and **Phase 6** alongside them: **R6.3 is reachable** since R8.1, and **R6.4 and R6.5 are both done** -- 2026-09-16, with
-R6.4 confirmed on paper on 2026-09-17.
+each existed are recorded in `REMEDIATION_DONE.md`. **Nothing here is ordered against anything
+else any more**: Phase 9 completed on 2026-09-14 and its table below is empty, Phase 10 is down
+to R10.3, and Phase 6 is three fiscal rows whose own order is fixed — R6.1 → R6.2 → R6.3.
+**R6.3 is reachable** since R8.1, and **R6.4 and R6.5 are both done** — 2026-09-16, with R6.4
+confirmed on paper on 2026-09-17. *(This said « Phase 9, then Phase 10 » until 2026-09-27.)*
 
 ### Phase 6 — Before the first real sale
 
-*Not deployment — deployment is the Tauri phase and has its own plan. These apply whatever
+*Not deployment — deployment is the Tauri phase, and **that plan does not exist yet**; the
+heading above § 2 says so and this line claimed the opposite until 2026-09-27. These apply whatever
 the app is packaged as. **R6.1, R6.2 and R6.3 are fiscal and their order is not a
 preference** — arming the chain key before the reset makes the reset refuse. **R6.4 and R6.5
 were the two technical ones and both are done**: carried out on the till on 2026-09-16, R6.4
@@ -463,15 +436,20 @@ says for each what would move it into a fix group.
 Anything found outside the current item goes here with an ID, not fixed in place (safety
 rule 1). Audit IDs are never renamed.
 
-**These nine are the register as it stood before the audit, and the audit did not close any of
-them.** The 2026-09 audit's own 94 findings (**L-89 … L-182**) are in `docs/audit/FINDINGS.md`
-and are deliberately **not** listed here: ninety-four rows at this table's density is roughly
-37 KB against the 7 KB this file has left under its 40 960-byte ceiling, so placing them all
-would break the thing the ceiling protects. FINDINGS.md proposes **seven** rows — its group A —
-plus one pointer row, ready to paste. **Placing any of them means editing
-`plan-freshness.test.ts`'s pinned count of nine in the same commit**, which is the design.
-Five of the nine below were rediscovered by the audit and four gained a new facet, each with
-its own new id; FINDINGS.md's « Already known » section maps them.
+**These five are what is left of the register as it stood before the audit, and the audit did
+not close any of them.** *(This said « these nine » until 2026-09-27; the table has held five
+rows since Phase 8, and `plan-freshness.test.ts` pins five.)* The 2026-09 audit's own 94 findings
+(**L-89 … L-182**) are in `docs/audit/FINDINGS.md` and are deliberately **not** listed here:
+ninety-four rows at this table's density is roughly 37 KB, against a **40 960-byte ceiling this
+file spent the week within a kilobyte of** — it stood at 40 249 on 2026-09-27, before the Phase
+8/9/10 history came out of § 1. Placing them would break the thing the ceiling protects.
+FINDINGS.md proposes **seven** rows — its group A — plus one pointer row, ready to paste.
+**Placing any of them means editing `plan-freshness.test.ts`'s pinned count of five in the same
+commit**, which is the design.
+Of the **nine** this register held when the audit ran, five were rediscovered by it and four
+gained a new facet, each with its own new id; FINDINGS.md's « Already known » section maps them.
+**Four have closed since, leaving the five below**: L-88 (R9.1, 2026-09-13), L-84 and L-11
+(2026-09-15), and L-81 (2026-09-16, the operator running `delete-product.ts`).
 
 | ID | Severity | Finding | Owner |
 |---|---|---|---|
