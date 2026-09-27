@@ -159,5 +159,7 @@ run reads as « aucun changement » — in the one script with no undo.
 `bun run test:e2e` is safe **for the database** — it builds its own under the OS temp directory
 and refuses to start otherwise. The plan's § 5 says what makes it so. **It is not hermetic**
 (**L-239**, 2026-09-27): `next start` fills every key `e2eServerEnv()` leaves unset from the real
-`.env`, so the suite has been writing backups into the operator's real `BACKUP_LOCATION` and
-running with the real secrets.
+`.env`, so the suite has been writing backups into the operator's real `BACKUP_LOCATION`.
+**Not the real secrets** — a key `e2eServerEnv()` sets keeps its test fallback; only the keys it
+omits are drawn from `.env`. Proved 2026-09-27: those files open with the published e2e key and
+not with the real one, and hold `e2e-admin` and one product.
