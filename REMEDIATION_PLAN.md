@@ -66,16 +66,17 @@ measured**, and R6.1 is the step that clears them.
 >    current » is true of data and false of code**, and the working catalogue transfer is this
 >    machine's, not the till's.
 
-**THE EIGHT THAT ARE NOT DECISIONS**, each confirmed open against the code on 2026-09-27:
+**SEVEN THAT ARE NOT DECISIONS**, each confirmed open against the code on 2026-09-27:
 **L-211** (High — the category strip scrolls sideways with
 nothing to show it does), **L-204** (High — the launcher's third refusal never reads
-`secrets.json`), **L-238** (Medium — `pre-golive-reset.ts` prints « Catalogue intact » after
-comparing sixteen row counts and nothing else, **in the script R6.1 runs**), **L-208 · L-209 ·
-L-210** (Medium — a stale baselines file, a build script that never checks an exit code, and
-`dev.ps1`'s uncovered seed path), **L-223** (Low-Med) and **L-239** (Medium — the e2e server takes
-every key `e2eServerEnv()` omits from the real `.env`, `BACKUP_LOCATION` among them). **None of
-them is phased**, which is the operator's decision and the same one § 7 is waiting on. Their
-detail is in `docs/audit/FINDINGS.md` and is not repeated here.
+`secrets.json`), **L-208 · L-209 · L-210** (Medium — a stale baselines file, a build script that
+never checks an exit code, and `dev.ps1`'s uncovered seed path), **L-223** (Low-Med) and
+**L-239** (Medium — the e2e server takes every key `e2eServerEnv()` omits from the real `.env`,
+`BACKUP_LOCATION` among them). **None of them is phased**, which is the operator's decision and
+the same one § 7 is waiting on. Their detail is in `docs/audit/FINDINGS.md` and is not repeated
+here. *(It was eight until 2026-09-27, when the operator took **L-238** — the reset's « Catalogue
+intact » resting on row counts, in the script R6.1 runs. Fixed and recorded in
+`REMEDIATION_DONE.md`.)*
 
 
 **Phases 0-5 and 7 are COMPLETE**, with all four operator items and all three migrations
@@ -190,8 +191,8 @@ catalogue can be emptied on an install that has not traded. Untested against the
 false from R9.9 and it nearly produced a whole-database copy onto the restaurant's till.)*
 `FISCAL_CHAIN_KEY` is in `.env`, `factice` is in the database: they do not travel together.
 
-**Last updated:** 2026-09-27 — **a state audit, and the queue is NOT down to decisions.** Eight
-open findings are not decisions (see *What is waiting*); the till is four commits behind
+**Last updated:** 2026-09-27 — **a state audit, then L-238 fixed.** **The queue is NOT down to
+decisions**: seven open findings are not (see *What is waiting*); the till is four commits behind
 (**L-240**); the e2e server writes into the real backup folder (**L-239**); **the go-live is
 postponed, not next.** *(This said « the go-live is the next decision » under the date
 2026-09-25, while item 1 above recorded the operator postponing it that same day — the plan

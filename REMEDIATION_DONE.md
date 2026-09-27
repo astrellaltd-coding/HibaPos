@@ -115,6 +115,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - Retired from the plan's § 1 on 2026-09-26 — the 48-hour caisse paragraph
 - The Tauri survey, taken on 2026-09-26 and kept after the idea was withdrawn
 - Retired from the plan's § 1 on 2026-09-27 — the Phase 8/9/10 completion history
+- L-238 — the reset stops calling a row count « aucun changement »
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -6904,6 +6905,100 @@ It read, verbatim:
 put some of it back. The audit that did this found the plan at **40 249** — 711 bytes of
 headroom, the third time this week the file has come within a kilobyte of failing
 `plan-freshness.test.ts`.
+
+---
+
+### L-238 — the reset stops calling a row count « aucun changement »
+**Done:** 2026-09-27 · **Not a batch** — one finding, taken by the operator out of the seven the
+state audit left open, and chosen from its two options: « make it true », not « narrow the
+sentence ».
+
+**What was wrong.** `pre-golive-reset.ts` ended:
+
+> `Catalogue intact (16 tables verifiees, aucun changement)`
+
+and what it had compared was sixteen row **counts** — `preservedBefore[t] !== preservedAfter[t]`,
+sixteen integers. A product whose price, VAT rate, image or availability changed during the run
+was reported as « aucun changement », **in the one script in this repository with no undo**, at
+the one moment that cannot be repeated. It was demonstrated on the France till on 2026-09-20: the
+reset printed that line and `catalogue-fingerprint.ts`, run immediately afterwards, showed the
+`Product` digest had moved — `49c19fa9482a4c22` → `a389811326c53d5c` — with the count at 86
+throughout. The cause was benign, the operator having attached the Tacos photograph minutes
+earlier, **and that is the finding**: the line cannot tell a benign change from the other kind.
+
+**AND THE LIST WAS SHORT, WHICH NOBODY KNEW.** Measured while fixing it: **`ProductOptionQuota`
+appeared nowhere in that file** — not in `DELETION_ORDER`, not in `PRESERVED`. So L-217's option
+ceilings, the difference between a `Tacos M` that includes one viande and one that includes six,
+were never deleted and **never verified either**. That is **L-72 for the third time** (the three
+`ComboSlot*` tables, missing from both lists, fixed by making the list longer) and **L-225's
+lesson for the second** (`ProductOptionQuota` missing from `CATALOGUE_TABLES`, fixed by deriving
+the list). So this fix derives it too, and a hand-written list can no longer cost a check.
+
+**What was built.** `src/lib/services/preserved-digest.ts`, a pure module with no database in it:
+
+- `verifiedTables()` asks the **schema** — every table SQLite reports, minus what the reset
+  empties, minus the counter it rewrites. A table added tomorrow is covered the day it is added.
+  It **throws** if an exclusion names a table the schema lacks (a typo there would silently
+  excuse a table from all verification) and **throws if it would verify nothing**, which is how a
+  sweep passes by sweeping nothing.
+- `digestRows()` hashes content with type prefixes, so `10` and `"10"` are different and `null`
+  is not `""`. **Ids are included, deliberately unlike `catalogue-fingerprint.ts`** — that script
+  compares two INSTALLS, where the same menu carries different `cuid()`s, and this one compares
+  one database with itself minutes later, where an id that moved is a change worth shouting
+  about. **Row order is deliberately NOT covered** (lines are sorted before hashing): a false
+  alarm here is a red line at the moment nothing can be undone, and physical order is not
+  something the reset promises anything about.
+- `PRESERVED` became `PRESERVED_ORDER`, a **display hint only**. A name missing from it now costs
+  a tidy report, never a check.
+
+**The script now ends** `Catalogue intact (17 tables, contenu inchange, empreinte …)` — seventeen,
+not sixteen — and prints `dont ProductOptionQuota — absente de la liste de lecture, verifiee quand
+meme`. When something does move it prints both counts and both digests, and the line « un effectif
+identique ne prouve rien : c'est le contenu qui a bouge ».
+
+**RED FIRST, SEVEN REVERTS, EACH ISOLATED.** Restored from a copy taken before each, never
+`git checkout`:
+
+| reverted | what went red |
+|---|---|
+| the digest becomes the row count — **the old semantics** | **7 tests**, led by « MOVES when a price changes and the row count does not » and « MOVES when only an image is attached — the change measured on the till » |
+| the verified list is whatever somebody wrote | 3, including « covers a table that is in NEITHER of the reset's lists » |
+| rows not sorted before hashing | 1 — « does NOT move when only row order differs », the false-alarm guard |
+| type prefixes dropped | 2 — a VAT rate turning from `5.5` into `"5.5"` |
+| `null` encoded as the empty string | 1 |
+| the column list not folded into the hash | 1 — visible only on an empty table |
+| bigint encoded differently from number | 1 — Prisma's raw reader returns either for an INTEGER |
+
+**One revert proved nothing and was replaced rather than counted.** The first attempt at the
+`null` revert encoded it as `""`, which still differs from `"s:"` for the empty string, so the
+suite stayed green at 19/19 — the test passes because of the *string* prefix. Re-run as
+`null → "s:"`, it goes red, which is what shows the null branch is load-bearing. Two other
+patches did not apply at all and were reported as no-ops instead of being read as evidence.
+
+**PROVED IT APPLIES, on scratch copies, never the live database.** The module is unit-tested, but
+a unit test on an extracted rule proves the rule and not that anything calls it, and this script
+cannot be imported — `main()` runs at module scope. So the real script was run, with **both**
+`DATABASE_URL` (Windows-form, L-218) and `HIBAPOS_DATA_DIR` pointed at a copy:
+
+1. dry run on a pristine copy → `empreinte de contenu avant : 53cb0357a4bf6e27 (17 tables,
+   derivees du schema)`, and `ProductOptionQuota 3` in the report for the first time;
+2. an image attached to one product on the copy, **count held at 86** → `e34e5c7e1408d5e0`. **The
+   till's 2026-09-20 observation, reproduced and now detected;**
+3. `--apply --yes` on a fresh copy → `Catalogue intact (17 tables, contenu inchange, empreinte
+   53cb0357a4bf6e27)` — **the same number as the pristine before-digest**, so the reset
+   demonstrably left content identical, and the number is reproducible rather than handed forward.
+
+`db/custom.db` sha256 `e88d1a77…` before and after, no `-wal`/`-shm` beside it, the scratch copies
+deleted.
+
+**Gates:** 2120 pass / 0 fail / 162 files, typecheck 0, lint 0 — **+19 tests and +1 file, all
+mine**, no other count moved and no new `prisma:error`. `scripts/README.md`'s row says what the
+script now proves; the pinned test count moved with it.
+
+**Not done, deliberately.** The closing line does not print the cross-install fingerprint
+`a38c95977b5e1122`; it names the command instead. Reusing `catalogue-fingerprint.ts` would mean
+extracting its natural-key logic into a shared module, which is a refactor of a script that has
+run against production, and L-238 does not need it.
 
 ---
 

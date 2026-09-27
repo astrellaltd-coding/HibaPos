@@ -54,6 +54,14 @@
 import { db } from "@/lib/db";
 import { fiscalArchivesDir } from "@/lib/paths";
 import { fiscalChainKey } from "@/lib/fiscal-key";
+import {
+  verifiedTables,
+  digestTables,
+  overallDigest,
+  changedTables,
+  type TableSnapshotReader,
+  type Digests,
+} from "@/lib/services/preserved-digest";
 import { promises as fs, existsSync } from "fs";
 import path from "path";
 
@@ -109,8 +117,20 @@ const DELETION_ORDER = [
   "Table",
 ] as const;
 
-/** Named so the report can prove they were left alone. */
-const PRESERVED = [
+/**
+ * The order the « A CONSERVER » report reads in — **a display hint, and since
+ * L-238 nothing more.**
+ *
+ * It used to BE the list that was checked, and that is why it was a defect
+ * twice: L-72 found the three `ComboSlot*` tables missing from it, and on
+ * 2026-09-27 `ProductOptionQuota` — L-217's option ceilings, the difference
+ * between a `Tacos M` that includes one viande and one that includes six — was
+ * found to appear NOWHERE in this file. Nothing deleted it; nothing verified it
+ * either. The tables actually verified are now derived from the schema by
+ * `verifiedTables()`, so a name missing here costs a tidy report and never
+ * costs a check.
+ */
+const PRESERVED_ORDER = [
   "User",
   "Category",
   "Product",
@@ -145,6 +165,26 @@ async function countAll(tables: readonly string[]): Promise<Counts> {
   }
   return out;
 }
+
+/** `FiscalCounter` is neither emptied nor left alone: it is rewritten to zero. */
+const REWRITTEN = ["FiscalCounter"] as const;
+
+/** The live database, behind the narrow interface `preserved-digest.ts` needs. */
+const snapshotReader: TableSnapshotReader = {
+  async tableNames() {
+    const rows = await db.$queryRawUnsafe<{ name: string }[]>(
+      `SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name`,
+    );
+    return rows.map((r) => r.name);
+  },
+  async columns(t) {
+    const rows = await db.$queryRawUnsafe<{ name: string }[]>(`PRAGMA table_info("${t}")`);
+    return rows.map((r) => r.name);
+  },
+  async rows(t) {
+    return db.$queryRawUnsafe<Record<string, unknown>[]>(`SELECT * FROM "${t}"`);
+  },
+};
 
 function table(counts: Counts, indent = "    "): string {
   const width = Math.max(...Object.keys(counts).map((k) => k.length));
@@ -227,7 +267,16 @@ async function main() {
 
   // ---- the before picture -------------------------------------------------
   const before = await countAll(DELETION_ORDER);
-  const preservedBefore = await countAll(PRESERVED);
+  // L-238. Derived from the schema, so a table nobody listed is still checked.
+  const toVerify = verifiedTables(
+    await snapshotReader.tableNames(),
+    DELETION_ORDER,
+    REWRITTEN,
+    PRESERVED_ORDER,
+  );
+  const unlisted = toVerify.filter((t) => !PRESERVED_ORDER.includes(t as never));
+  const preservedBefore = await countAll(toVerify);
+  const digestsBefore: Digests = await digestTables(snapshotReader, toVerify);
   const counterBefore = await db.fiscalCounter.findFirst();
 
   const archiveDir = fiscalArchivesDir();
@@ -241,6 +290,17 @@ async function main() {
   if (archiveFiles.length) console.log(archiveFiles.map((f) => `      ${f}`).join("\n"));
   console.log(`\n  ${GRN}A CONSERVER${OFF}`);
   console.log(table(preservedBefore));
+  console.log(
+    `\n    ${DIM}empreinte de contenu avant : ${overallDigest(digestsBefore)} ` +
+      `(${toVerify.length} tables, derivees du schema)${OFF}`,
+  );
+  if (unlisted.length) {
+    // Not a warning: the derivation working. A table absent from
+    // PRESERVED_ORDER is exactly what L-72 and L-238 were about.
+    console.log(
+      `    ${DIM}dont ${unlisted.join(", ")} — absente(s) de la liste de lecture, verifiee(s) quand meme${OFF}`,
+    );
+  }
   console.log(
     `\n  FiscalCounter avant : recu ${counterBefore?.lastReceiptNumber ?? "-"} / ` +
       `caisse ${counterBefore?.lastShiftNumber ?? "-"} / Z ${counterBefore?.lastZReportNumber ?? "-"} / ` +
@@ -320,11 +380,14 @@ async function main() {
 
   // ---- the after picture, for the record (hard constraint 4) --------------
   const after = await countAll(DELETION_ORDER);
-  const preservedAfter = await countAll(PRESERVED);
+  const preservedAfter = await countAll(toVerify);
+  const digestsAfter: Digests = await digestTables(snapshotReader, toVerify);
   const counterAfter = await db.fiscalCounter.findFirst();
 
   const leftovers = Object.entries(after).filter(([, n]) => n > 0);
-  const catalogueChanged = PRESERVED.filter((t) => preservedBefore[t] !== preservedAfter[t]);
+  // L-238. This compared row COUNTS — sixteen integers — and the line below
+  // called the result « aucun changement ». It now compares content.
+  const catalogueChanged = changedTables(digestsBefore, digestsAfter);
 
   console.log(`\n${"=".repeat(74)}`);
   console.log(`  APRES`);
@@ -341,10 +404,24 @@ async function main() {
   if (catalogueChanged.length) {
     console.log(`\n  ${RED}LE CATALOGUE A CHANGE : ${catalogueChanged.join(", ")} — ceci est un defaut.${OFF}`);
     for (const t of catalogueChanged) {
-      console.log(`    ${t}: ${preservedBefore[t]} -> ${preservedAfter[t]}`);
+      console.log(
+        `    ${t}: ${preservedBefore[t] ?? "?"} -> ${preservedAfter[t] ?? "?"} ligne(s), ` +
+          `empreinte ${digestsBefore[t] ?? "absente"} -> ${digestsAfter[t] ?? "absente"}`,
+      );
     }
+    console.log(
+      `    ${DIM}un effectif identique ne prouve rien : c'est le contenu qui a bouge.${OFF}`,
+    );
   } else {
-    console.log(`\n  ${GRN}Catalogue intact${OFF} (${PRESERVED.length} tables verifiees, aucun changement).`);
+    // L-238. This said « aucun changement » on the strength of row counts. It
+    // now says what it checked and prints the number that says it.
+    console.log(
+      `\n  ${GRN}Catalogue intact${OFF} (${toVerify.length} tables, contenu inchange, ` +
+        `empreinte ${overallDigest(digestsAfter)}).`,
+    );
+    console.log(
+      `    ${DIM}Empreinte comparable entre installations : bun scripts/catalogue-fingerprint.ts${OFF}`,
+    );
   }
 
   console.log(`\n  ${YEL}ETAPES SUIVANTES, DANS CET ORDRE (P-04) :${OFF}`);
