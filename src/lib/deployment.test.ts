@@ -217,16 +217,54 @@ describe("the server launcher refuses a bun it cannot see (Batch 1.4b)", () => {
     const guard = firstIndex(/Get-Command\s+bun\b/);
     expect(guard, "no Get-Command bun guard at all").toBeGreaterThanOrEqual(0);
 
-    // Both uses. `bunx` for the migration check, `bun` to start the server.
-    const bunxUse = firstIndex(/&\s*bunx\b/);
+    // Both uses. `bun` for the migration check since L-243, `bun run` to start
+    // the server. This pinned `& bunx` for the first until 2026-09-27 and went
+    // red when it moved, which is the check doing its job.
+    const prismaUse = firstIndex(/&\s*bun\s+\$PrismaCli\b/);
     const bunUse = firstIndex(/&\s*bun\s+run\b/);
-    expect(bunxUse, "nothing calls bunx any more — has this script changed shape?").toBeGreaterThanOrEqual(0);
+    expect(prismaUse, "nothing runs the migration check any more — has this script changed shape?").toBeGreaterThanOrEqual(0);
     expect(bunUse, "nothing starts the server any more — has this script changed shape?").toBeGreaterThanOrEqual(0);
 
     // The ordering is the test. A guard placed after the call is no guard: the
     // throw happens first and the guard's message is never reached.
-    expect(guard, "the bun guard sits AFTER the bunx call — it will never run").toBeLessThan(bunxUse);
+    expect(guard, "the bun guard sits AFTER the migration check — it will never run").toBeLessThan(prismaUse);
     expect(guard, "the bun guard sits AFTER `bun run start`").toBeLessThan(bunUse);
+  });
+
+  it("THE BOOT PATH NEVER INVOKES bunx, because bunx means the network (L-243)", () => {
+    // MEASURED ON THE FRANCE TILL, 2026-09-27, not reasoned about:
+    // `bunx prisma migrate status` ran 698 s and was still DOWNLOADING when it
+    // was interrupted; the same check against the prisma installed in the tree
+    // took 5.1 s with CHECKPOINT_DISABLE set. The server log shows the same
+    // call at 159 s on 2026-09-26 and 77 s on 2026-09-22 — the spread is the
+    // restaurant's broadband.
+    //
+    // Three defects in one line, and the slow boot was the smallest: the till
+    // could not start without Internet; the gate ran whatever version npm
+    // served rather than the version this tree pins; and the variance
+    // straddled the kiosk's 90 s wait, so a cold morning opened on a browser
+    // error in front of the owner.
+    //
+    // Asserted on COMMANDS, never on the file's text: this script now carries
+    // several paragraphs explaining why bunx is gone, and a naive
+    // `not.toContain("bunx")` would match the explanation and fail. That is
+    // the self-matching trap this repository has hit six times.
+    const commands = read("hibapos-server.ps1")
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0 && !l.startsWith("#"));
+
+    const invokesBunx = commands.filter((l) => /(^|[&|;(]\s*)bunx\b/.test(l));
+    expect(
+      invokesBunx,
+      `the boot path calls bunx again, which resolves from npm: ${invokesBunx.join(" · ")}`,
+    ).toEqual([]);
+
+    // Not vacuous: the parser sees real commands, and the one that replaced it.
+    expect(commands.length).toBeGreaterThan(20);
+    expect(commands.some((l) => /&\s*bun\s+\$PrismaCli\s+migrate\s+status/.test(l))).toBe(true);
+    // And the update check is off, which was 65 of the 70 seconds.
+    expect(commands.some((l) => /CHECKPOINT_DISABLE/.test(l))).toBe(true);
   });
 
   it("refuses rather than warning, so the task cannot go green over a dead till", () => {
@@ -270,7 +308,12 @@ describe("the server launcher refuses a bun it cannot see (Batch 1.4b)", () => {
     // path under a user profile is the answer to "why did the till not start"
     // before anyone has to ask.
     expect(src).toMatch(/Write-Log \("bun found/);
-    expect(src).toMatch(/Write-Log \("bunx found/);
+    // The `bunx found` line went with L-243 (2026-09-27): nothing invokes bunx
+    // any more, so logging where it lives would be evidence about a tool this
+    // script does not use. What replaced it is the line below — the prisma the
+    // migration check actually runs, which is the new "why did the till not
+    // start" answer.
+    expect(src).toMatch(/Write-Log \("prisma CLI present/);
   });
 });
 

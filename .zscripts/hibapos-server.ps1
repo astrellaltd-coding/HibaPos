@@ -125,17 +125,21 @@ if (-not $env:DATABASE_URL)   { Fail "DATABASE_URL absente." }
 # without it, and because this is the failure the commissioning runbook calls
 # the most likely one. The same three ways
 # out are printed by `install-windows.ps1`'s dry run.
+# **bunx IS NO LONGER REQUIRED, L-243 (2026-09-27).** It was required because
+# the migration check below ran `& bunx prisma`, and `bunx` RESOLVES THE PACKAGE
+# FROM NPM: measured on the France till, that call took 698 s and was still
+# downloading when it was interrupted, 159 s on 2026-09-26 and 77 s on
+# 2026-09-22. The check now runs the prisma installed in this tree, so nothing
+# here invokes bunx -- and refusing to start the till over a tool it never uses
+# would be a new way to fail for no reason.
 $bunCmd  = Get-Command bun  -ErrorAction SilentlyContinue
-$bunxCmd = Get-Command bunx -ErrorAction SilentlyContinue
-if (-not $bunCmd -or -not $bunxCmd) {
+if (-not $bunCmd) {
     $whoami   = [Security.Principal.WindowsIdentity]::GetCurrent().Name
-    $bunWhere  = if ($bunCmd)  { $bunCmd.Source }  else { "INTROUVABLE" }
-    $bunxWhere = if ($bunxCmd) { $bunxCmd.Source } else { "INTROUVABLE" }
+    $bunWhere  = "INTROUVABLE"
     Fail @"
 bun est introuvable dans le PATH du compte qui execute cette tache.
     compte : $whoami
     bun    : $bunWhere
-    bunx   : $bunxWhere
 La caisse NE PEUT PAS demarrer sans bun, et un bun installe SOUS UN PROFIL
 UTILISATEUR est invisible pour SYSTEM. Trois options, au choix :
   a) installer bun pour toute la machine, hors profil utilisateur ;
@@ -145,7 +149,27 @@ Voir .zscripts\install-windows.ps1 et REMEDIATION_PLAN.md.
 "@
 }
 Write-Log ("bun found: {0}" -f $bunCmd.Source)
-Write-Log ("bunx found: {0}" -f $bunxCmd.Source)
+
+# --- refusal 4b: the prisma CLI must be INSTALLED IN THIS TREE (L-243) -------
+# The migration check runs this file rather than `bunx prisma`. If it is
+# missing the install is half-finished, and saying so here is the difference
+# between a named refusal and a PowerShell exception whose last log line is
+# "Checking migration status..." with no cause -- the failure shape refusal 4
+# exists to prevent, measured on this very script on 2026-09-07.
+$PrismaCli = Join-Path $ProjectDir "node_modules\prisma\build\index.js"
+if (-not (Test-Path $PrismaCli)) {
+    Fail @"
+Le CLI prisma local est introuvable : $PrismaCli
+L'installation est incomplete. Depuis $ProjectDir :
+    bun install
+    bun run db:generate
+Puis relancez la tache : Start-ScheduledTask -TaskName "HibaPOS Server"
+NE PAS utiliser "bunx prisma" : bunx resout le paquet depuis npm et la caisse
+demarrerait alors sur une version non testee, seulement si Internet repond
+(L-243).
+"@
+}
+Write-Log ("prisma CLI present: {0}" -f $PrismaCli)
 
 # --- refusal 5: a production build must exist -------------------------------
 # Grouped with refusal 4 because both are 'is this install finished?', both
@@ -158,7 +182,7 @@ Aucune version de production compilee : $BuildId est absent.
 pas demarrer sur un depot qui n'a jamais ete compile.
 Depuis le dossier d'installation ($ProjectDir) :
     bun install
-    bunx prisma generate
+    bun run db:generate
     bun run build
 ou, tout en un :
     powershell -ExecutionPolicy Bypass -File .zscripts\build.ps1
@@ -220,9 +244,29 @@ Write-Log "Checking migration status..."
 # "At line:1 char:...") rather than as clean text. $statusOutput is only ever
 # shown inside the refusal message below, which already dumps prisma's output,
 # so it is noisier and not wrong.
+# -- L-243: THE BOOT PATH MUST NOT TOUCH THE NETWORK -------------------------
+#
+# This read `& bunx prisma migrate status`, and `bunx` RESOLVES FROM NPM.
+# Measured on the France till, 2026-09-27:
+#
+#   bunx prisma migrate status            698 s, INTERRUPTED, still downloading
+#   node_modules prisma, as below          70.2 s
+#   the same, with CHECKPOINT_DISABLE       5.1 s
+#
+# and in the server log, 159 s on 2026-09-26 against 77 s on 2026-09-22 -- the
+# variance is the restaurant's broadband, not the till. Three things were wrong
+# with it, and the slow boot was the least of them: the caisse could not START
+# without Internet; the gate ran whatever version npm served that day rather
+# than the 6.19.2 this tree pins; and the spread straddled the kiosk's 90 s
+# wait, so a cold morning opened on a browser error in front of the owner.
+#
+# CHECKPOINT_DISABLE is the other 65 s: the prisma CLI calls home to advertise
+# upgrades -- it offered 8.0.0-rc.17 on the till, a release candidate of a major
+# version, on a production caisse. It is set on THIS PROCESS only.
+$env:CHECKPOINT_DISABLE = "1"
 $prevEap = $ErrorActionPreference
 $ErrorActionPreference = "Continue"
-$statusOutput = & bunx prisma migrate status 2>&1 | Out-String
+$statusOutput = & bun $PrismaCli migrate status 2>&1 | Out-String
 $statusCode = $LASTEXITCODE
 $ErrorActionPreference = $prevEap
 Write-Log ("prisma migrate status exit={0}" -f $statusCode)
