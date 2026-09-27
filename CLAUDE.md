@@ -7,15 +7,18 @@ Next.js 16 + React 19 + Prisma/SQLite. **It has never traded. Nothing has shippe
 
 1. **Open `REMEDIATION_PLAN.md` and read all of it, then `docs/audit/FINDINGS.md`.** The
    plan holds the current task, the working loop, the methods and the five findings that
-   predate the audit. **FINDINGS.md holds the other 94 and is where the remaining work comes
-   from** — the plan does not repeat them and cannot, under its 40 960-byte ceiling. The
-   invariants are in `docs/INVARIANTS.md`. Finished work is in `REMEDIATION_DONE.md`: read
+   predate the audit. **FINDINGS.md holds the audit's 94 and everything found since** — but
+   **the 94 are done save L-170**, and View A still reads as open defects because it is the
+   audit's own document, left as written. **The live work is its *Found after the audit*
+   section**; check `REMEDIATION_DONE.md` before taking any View A row as a task. The plan does
+   not repeat them and cannot, under its 40 960-byte ceiling. The invariants are in
+   `docs/INVARIANTS.md`. Finished work is in `REMEDIATION_DONE.md`: read
    it to learn *how* something was done, never to find out what to do next.
 
 2. **Do one item.** Only what is in that item — whether it is a plan row or a FINDINGS.md
    id. Anything else you notice goes into FINDINGS.md's own tables with a new `L-` id
    continuing the same sequence — the audit ended at **L-182** and the highest today is
-   **L-228**, in the *Found after the audit* section. The plan's § 7 is closed to new rows
+   **L-240**, in the *Found after the audit* section. The plan's § 7 is closed to new rows
    until the operator reopens it. You do not fix it now.
 
 3. **Then, in this order:** `bun run test` · `bun run typecheck` · `bun run lint` — all three
@@ -63,9 +66,14 @@ holds factice events again — how many is not measured**, and R6.1 is the step 
 them. **Tauri v2 remains the shipping form** and that migration still has no plan — what
 runs in France is the development build, not a package.
 
-**THAT TILL IS CURRENT SINCE 2026-09-20.** `C:\HibaPOS-app` is a git clone at `81eb2f3`: **20
-migrations**, **86 products with the Tacos**, fiscal slate reset to **0/0/0/0** the same
-evening, and it boots itself fullscreen. **Both installs now print the same catalogue
+**THAT TILL'S DATA IS CURRENT SINCE 2026-09-20; ITS CODE IS FOUR COMMITS BEHIND** (**L-240**,
+found 2026-09-27). `C:\HibaPOS-app` is a git clone **still at `81eb2f3`**: **20 migrations**,
+**86 products with the Tacos**, fiscal slate reset to **0/0/0/0** the same evening, and it boots
+itself fullscreen. `git diff 81eb2f3..HEAD -- prisma/` is empty, so the schema needs nothing —
+but `e9ba5ce` (L-225), `891f39d` (L-226), `c9e84e8` (L-206) and `cb43261` (L-207) are not there.
+**So the till's own launcher still names the forbidden `update.ps1 -Apply`, and its `update.ps1`
+still applies with the bare `prisma migrate deploy`.** A `git pull` closes it, the operator's
+act, no migration involved. **Both installs now print the same catalogue
 fingerprint, `a38c95977b5e1122` at 86 products** — the Tacos photograph was attached on the
 till on 2026-09-20 and here on 2026-09-25, which closed **L-232**. That number is the expected
 value from here on; `b6a76daf0befc587` was this machine's before the photograph and is
@@ -74,9 +82,11 @@ already installed and the repository is **public**, so the token nobody had was 
 Every measured step is in `REMEDIATION_DONE.md`. **L-203 is dormant, not fixed**: the launcher
 still refuses to boot on a pending migration, and that disagreement with PREP-4 is untouched —
 but since 2026-09-25 its refusal names `bun scripts/apply-migration.ts --apply` instead of the
-forbidden `update.ps1 -Apply`, and `update.ps1` calls the same script. **That was L-206 and it is
-closed.** **L-234 was closed the same day as NOT a defect**: the fix was written, measured before
-committing, and reverted — `apply-migration.ts` refuses on the existence of a `-wal`, which looks
+forbidden `update.ps1 -Apply`, and `update.ps1` calls the same script. **That was L-206, closed
+IN THIS REPOSITORY and not yet on the till** — see L-240 above, and do not read this sentence as
+a statement about what is running in France. **L-234 was closed the same day as NOT a defect**:
+the fix was written, measured before committing, and reverted — `apply-migration.ts` refuses on
+the existence of a `-wal`, which looks
 wrong and is right, because `state()` closes above it and SQLite clears the file first.
 
 **THE OWNER CONFIRMED THE TILL BY TELEPHONE ON 2026-09-25** — the whole menu present, **the
@@ -137,10 +147,17 @@ closed **L-101** on 2026-09-13, so the MANAGER — the only account at the till 
 half the same week.
 
 `scripts/pre-golive-reset.ts` empties the fiscal journal; it runs **once**, after testing and
-before the first genuine sale, and the operator runs it. **It already ran on 2026-09-10**, so
-R6.1's target is an empty database today — every trading table is at zero and the counters
-are 0/0/0/0. Whether it needs to run again is a decision, not a step.
+before the first genuine sale, and the operator runs it. **It has already run twice** — here on
+2026-09-10, and on the France till on 2026-09-20. **Neither makes R6.1's target an empty database
+today.** THIS machine is at zero and `0/0/0/0`, re-measured 2026-09-27; **the TILL is not**, the
+owner having tested since its reset — and the till is the machine R6.1 is about. Whether it runs
+again is a decision, not a step, and it is the till's journal it would clear. **L-238 is open
+against this script**: its closing « Catalogue intact (16 tables verifiees, aucun changement) »
+compares sixteen row counts and nothing else, so a price, VAT rate or image that moved during the
+run reads as « aucun changement » — in the one script with no undo.
 
-`bun run test:e2e` is safe — it builds its own disposable database under the OS temp
-directory and refuses to start otherwise. The plan's § 5 says what makes it safe and what
-would make it dangerous again.
+`bun run test:e2e` is safe **for the database** — it builds its own under the OS temp directory
+and refuses to start otherwise. The plan's § 5 says what makes it so. **It is not hermetic**
+(**L-239**, 2026-09-27): `next start` fills every key `e2eServerEnv()` leaves unset from the real
+`.env`, so the suite has been writing backups into the operator's real `BACKUP_LOCATION` and
+running with the real secrets.
