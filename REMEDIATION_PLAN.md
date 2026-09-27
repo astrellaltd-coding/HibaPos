@@ -34,20 +34,25 @@ measured**, and R6.1 is the step that clears them.
 > *(Read « AND NONE OF IT IS CODE » until 2026-09-27, and was already false when written:
 > L-204, L-208 … L-211 and L-223 were open, and none of them is a decision.)*
 >
-> 1. **THE GO-LIVE IS POSTPONED** (operator, 2026-09-25) — the owner is still testing and his
+> 1. **NOBODY HAS SEEN THE NEW TICKET ON PAPER** -- the only unverified part of 2026-09-27.
+>    L-241/L-242 changed what the customer is handed, and the tests prove the bytes, not ink.
+>    The owner checks it in the morning; **R6.4's standard is a person looking at paper.**
+>    *(The rest of that evening IS verified: a remote reboot brought the till up on the caisse,
+>    fullscreen, no error page -- L-243.)*
+> 2. **THE GO-LIVE IS POSTPONED** (operator, 2026-09-25) — the owner is still testing and his
 >    feedback is awaited. **Do not start R6.1, do not arm the chain key, do not turn FACTICE off.**
->    The till's **data** is current and the owner **confirmed it working that day** — menu, Tacos,
->    printing. Its **code** is four commits behind; see item 4.
+>    The till is current in **data and code** since 2026-09-27, and the owner **confirmed it
+>    working** on 2026-09-25 — menu, Tacos, printing.
 >    When it does happen: **R6.1 → R6.2 → R6.3, in that order**, which is a rule and not a
 >    preference — arming the key before the reset makes the reset refuse. Also open before trading
 >    for real: **`VAT-METHOD`** (§ 8) and **a fresh verified backup off this machine**.
-> 2. **L-203'S DISAGREEMENT IS UNRESOLVED, AND THE OBVIOUS FIX HAS A TRAP IN IT.** The launcher
+> 3. **L-203'S DISAGREEMENT IS UNRESOLVED, AND THE OBVIOUS FIX HAS A TRAP IN IT.** The launcher
 >    still refuses to boot what PREP-4 would have applied. « Drop refusal 2 » is **not sufficient
 >    on its own**: `instrumentation.ts` deliberately lets the app start when the gate REFUSES for
 >    want of a verified backup, so the till would boot and serve new code against an old schema —
 >    the mid-sale failure refusal 2 exists to prevent. Closing it properly means deciding whether
 >    the app should refuse to **serve**, which is a fiscal-behaviour change and wants its own item.
-> 3. **TWO ORPHANED FILES ON THE TILL** (**L-236**), needing nobody's decision:
+> 4. **TWO ORPHANED FILES ON THE TILL** (**L-236**), needing nobody's decision:
 >    `hibapos-server.ps1.ps1`, which nothing executes, and `secrets.json.1192.tmp` from
 >    commissioning evening — **read it before deleting**, it may hold partial secret material.
 >    Also open: **L-207's other half**, the task names hard-coded in **five** files and stated in
@@ -56,16 +61,6 @@ measured**, and R6.1 is the step that clears them.
 >    `scripts/pre-golive-reset.ts` and `scripts/rotate-secrets.ts`, outside `.zscripts/` — plus a
 >    pin in `deployment.test.ts`. `HibaPOS Kiosk` appears once, in `install-windows.ps1`.
 >    Corrected in FINDINGS.md.)*
-> 4. **~~THE FRANCE TILL IS FOUR COMMITS BEHIND~~ — L-240 IS CLOSED, 2026-09-27 the same
->    evening it was opened.** The till pulled `b28215e`, rebuilt and restarted; it is current in
->    code as well as data. **It took three attempts and the first two are the point**: a `git
->    pull` that fetched and merged NOTHING because the clone sat on a branch `master` tracking
->    nothing — printing enough output to look successful, with `bun install`, `db:generate` and a
->    clean build running happily against the old code behind it — and then a `prisma generate`
->    that failed `EPERM` because the server was still holding the query engine. **Nobody had ever
->    pulled on that machine since it was commissioned**, so neither had been exercised. The
->    branch now tracks `origin/main`. **Both installs are current in code and data**, and the
->    catalogue transfer that works is now the till's too.
 
 **EIGHT THAT ARE NOT DECISIONS**, each confirmed open against the code on 2026-09-27:
 **L-244** (Medium — a second log-on launches a second kiosk that silently loses `--kiosk`, so

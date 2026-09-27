@@ -7168,7 +7168,9 @@ failure shape refusal 4 was written for after it happened for real on 2026-09-07
 ```
 
 **Seven seconds against 159, and deterministically**, because nothing in the path resolves a
-package any more.
+package any more. **AND THE SYMPTOM IS GONE**: a remote reboot later the same evening brought the
+till up **on the caisse, in fullscreen**, with no connection-error page. That is what the owner
+meets on a cold morning, and it is the only part of this the log timings merely implied.
 
 **PINNED ON COMMANDS, NOT ON THE FILE'S TEXT.** The guard fails if anything in the boot path
 invokes `bunx` again, and it strips comments first: the script now carries several paragraphs
