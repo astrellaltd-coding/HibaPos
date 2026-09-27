@@ -56,17 +56,22 @@ measured**, and R6.1 is the step that clears them.
 >    `scripts/pre-golive-reset.ts` and `scripts/rotate-secrets.ts`, outside `.zscripts/` — plus a
 >    pin in `deployment.test.ts`. `HibaPOS Kiosk` appears once, in `install-windows.ps1`.
 >    Corrected in FINDINGS.md.)*
-> 4. **THE FRANCE TILL IS FOUR COMMITS BEHIND THIS REPOSITORY** (**L-240**, 2026-09-27). Schema
->    and menu match — `git diff 81eb2f3..HEAD -- prisma/` is empty, both print `a38c95977b5e1122`
->    — **the code does not**. Missing: `e9ba5ce` (L-225, so the till's export still drops the
->    option ceilings), `891f39d` (L-226), `c9e84e8` (L-206), `cb43261` (L-207's cheap half).
->    **So the till's launcher still names the forbidden `update.ps1 -Apply`, and its `update.ps1`
->    still applies with the bare `prisma migrate deploy`** — what L-206 closed *here*. A `git
->    pull` on the till closes it: the operator's act, no migration. **« Both installs are
->    current » is true of data and false of code**, and the working catalogue transfer is this
->    machine's, not the till's.
+> 4. **~~THE FRANCE TILL IS FOUR COMMITS BEHIND~~ — L-240 IS CLOSED, 2026-09-27 the same
+>    evening it was opened.** The till pulled `b28215e`, rebuilt and restarted; it is current in
+>    code as well as data. **It took three attempts and the first two are the point**: a `git
+>    pull` that fetched and merged NOTHING because the clone sat on a branch `master` tracking
+>    nothing — printing enough output to look successful, with `bun install`, `db:generate` and a
+>    clean build running happily against the old code behind it — and then a `prisma generate`
+>    that failed `EPERM` because the server was still holding the query engine. **Nobody had ever
+>    pulled on that machine since it was commissioned**, so neither had been exercised. The
+>    branch now tracks `origin/main`. **Both installs are current in code and data**, and the
+>    catalogue transfer that works is now the till's too.
 
-**SEVEN THAT ARE NOT DECISIONS**, each confirmed open against the code on 2026-09-27:
+**EIGHT THAT ARE NOT DECISIONS**, each confirmed open against the code on 2026-09-27:
+**L-244** (Medium — a second log-on launches a second kiosk that silently loses `--kiosk`, so
+anyone who remote-accesses the till leaves a window over it that is not fullscreen; confirmed on
+the till 2026-09-27 and **left unfixed deliberately**, it wants a decision between refusing the
+second launch and giving the kiosk its own `--user-data-dir`),
 **L-211** (High — the category strip scrolls sideways with
 nothing to show it does), **L-204** (High — the launcher's third refusal never reads
 `secrets.json`), **L-208 · L-209 · L-210** (Medium — a stale baselines file, a build script that
@@ -74,9 +79,10 @@ never checks an exit code, and `dev.ps1`'s uncovered seed path), **L-223** (Low-
 **L-239** (Medium — the e2e server takes every key `e2eServerEnv()` omits from the real `.env`,
 `BACKUP_LOCATION` among them). **None of them is phased**, which is the operator's decision and
 the same one § 7 is waiting on. Their detail is in `docs/audit/FINDINGS.md` and is not repeated
-here. *(It was eight until 2026-09-27, when the operator took **L-238** — the reset's « Catalogue
-intact » resting on row counts, in the script R6.1 runs. Fixed and recorded in
-`REMEDIATION_DONE.md`.)*
+here. *(**L-238** and **L-243** were both taken on 2026-09-27 and are in `REMEDIATION_DONE.md`;
+L-244 arrived the same evening, so the count is where it started. L-243 is the one worth knowing
+about: **the till could not boot without the Internet**, and had not been able to since it was
+commissioned.)*
 
 
 **Phases 0-5 and 7 are COMPLETE**, with all four operator items and all three migrations
@@ -191,10 +197,12 @@ catalogue can be emptied on an install that has not traded. Untested against the
 false from R9.9 and it nearly produced a whole-database copy onto the restaurant's till.)*
 `FISCAL_CHAIN_KEY` is in `.env`, `factice` is in the database: they do not travel together.
 
-**Last updated:** 2026-09-27 — **a state audit, then L-238 fixed.** **The queue is NOT down to
-decisions**: seven open findings are not (see *What is waiting*); the till is four commits behind
-(**L-240**); the e2e server writes into the real backup folder (**L-239**); **the go-live is
-postponed, not next.** *(This said « the go-live is the next decision » under the date
+**Last updated:** 2026-09-27 — **a state audit, then four items in one day.** **The queue is NOT
+down to decisions**: eight open findings are not (see *What is waiting*). Closed that day: the
+state audit, **L-238** (the reset verifies content, not row counts), **L-241 + L-242** (the owner's
+ticket: one slip, no version line), **L-243** (**the till could not boot without the Internet**, and
+had not been able to since commissioning) and **L-240** (the till is now current in code). Opened:
+**L-239**, **L-244**. **The go-live is postponed, not next.** *(This said « the go-live is the next decision » under the date
 2026-09-25, while item 1 above recorded the operator postponing it that same day — the plan
 asserting both halves of a contradiction, again.)* Closed 2026-09-25: **L-225, L-226, L-232,
 L-206, L-237**, plus L-207's cheap half; **L-234 not a defect** — **all in this repository, none

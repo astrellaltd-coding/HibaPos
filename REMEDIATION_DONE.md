@@ -117,6 +117,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - Retired from the plan's § 1 on 2026-09-27 — the Phase 8/9/10 completion history
 - L-238 — the reset stops calling a row count « aucun changement »
 - L-241 + L-242 — one piece of paper, and the version line leaves the ticket
+- L-243 — the till was fetching Prisma from npm before it would boot
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -7098,6 +7099,105 @@ first at 2120 against 2131, which is the guard working; README moved with it.
 bytes that reach the transport. R6.4's standard was a person in the restaurant looking at paper,
 and this changes what the customer is handed. **It wants one delivery printed on the SUNSO
 WTP-801 after the till pulls** (L-240), before it is called done on that machine.
+
+---
+
+### L-243 — the till was fetching Prisma from npm before it would boot
+**Done:** 2026-09-27 · **Not a batch** — an incident, found by rebooting the France till and
+read out of its own log. **L-244 was opened beside it and deliberately left alone.**
+
+**How it surfaced.** The operator rebooted the till and remote-accessed it. Two kiosk windows,
+both showing `ERR_CONNECTION_REFUSED` in French; one recovered about two minutes later. The
+launcher's timestamped log was the whole diagnosis:
+
+```
+20:51:32  Checking migration status...
+20:54:11  prisma migrate status exit=0      <- 159 seconds
+```
+
+Every other check in that file took **two seconds between them**. One command was the boot.
+
+**THE CAUSE.** The gate ran `& bunx prisma migrate status`, and **`bunx` resolves the package
+from npm.** Measured at the till's keyboard:
+
+| | |
+|---|---|
+| `bunx prisma migrate status` | **698 s, interrupted, still downloading** (`🚚 hono [1366/1366]` on screen) |
+| `node_modules\prisma\build\index.js` | 70.2 s |
+| the same, `CHECKPOINT_DISABLE=1` | **5.1 s** |
+
+and in the server log: 159 s on 26/09, 77 s on 22/09, and **9 s at 21:33 that night — which was
+fast only because the 698 s run had just warmed bunx's cache by hand.** That reading is the one
+worth keeping: it is what a « it's fine now » measurement looks like when nothing is fixed.
+
+**THE SLOW BOOT WAS THE SMALLEST OF THREE DEFECTS.**
+
+1. **No Internet, no boot.** The launcher refuses to start the server unless the check returns
+   cleanly. A restaurant's broadband could stop the till opening.
+2. **It ran whatever npm served that day.** The CLI announced **`8.0.0-rc.17`** — a release
+   candidate of a major version — on a production caisse, against a schema tested with the
+   **6.19.2** both installs hold.
+3. **The variance straddled the kiosk's 90 s wait**, so a cold morning opened Brave on a
+   connection error in front of the owner. That wait loop exists precisely to prevent it.
+
+**A boot that takes 9 s or 698 s depending on npm and a cache is not a boot anyone can reason
+about.** That is the argument for taking the network out of the path rather than for making it
+faster, and it is why the fix is not « raise the kiosk timeout ».
+
+**THE FIX.** `& bun $PrismaCli migrate status` against the prisma installed in the tree, with
+`CHECKPOINT_DISABLE` set on the launcher's own process — that variable is the other 65 of the
+70 seconds, the CLI calling home to advertise upgrades.
+
+**AND THE SCRIPT WAS GIVING THE OPERATOR THE SAME BAD ADVICE.** Refusal 5's message told them to
+run `bunx prisma generate` — the 698-second command — and it now says `bun run db:generate`.
+**`bun run db:generate` and `bunx prisma generate` are not equivalent**: the first resolves from
+`node_modules`, the second from npm. That cost the operator a ten-minute hang on the night, from
+an instruction that came out of this very file.
+
+Refusal 4 stops requiring `bunx`, since nothing invokes it and refusing a boot over an unused
+tool is a new way to fail. A new refusal names a missing local CLI rather than dying with a
+PowerShell exception whose last log line is `Checking migration status...` and no cause — the
+failure shape refusal 4 was written for after it happened for real on 2026-09-07.
+
+**VERIFIED ON THE TILL THE SAME EVENING**, which is the only machine the defect existed on:
+
+```
+21:42:31  prisma CLI present: ...\node_modules\prisma\build\index.js   <- and no `bunx found:`
+21:42:31  Checking migration status...
+21:42:38  prisma migrate status exit=0                                 <- 7 seconds
+```
+
+**Seven seconds against 159, and deterministically**, because nothing in the path resolves a
+package any more.
+
+**PINNED ON COMMANDS, NOT ON THE FILE'S TEXT.** The guard fails if anything in the boot path
+invokes `bunx` again, and it strips comments first: the script now carries several paragraphs
+explaining why bunx is gone, and a naive `not.toContain("bunx")` would match the explanation —
+the self-matching trap this repository has hit six times. **Red first**: reverting the one line
+turns two tests red, one of them naming the offending line.
+
+**TWO TESTS CAUGHT ME WHILE WRITING IT**, both correctly. The ASCII guard — my comments used
+em-dashes, which Windows PowerShell 5.1 mangles, and that is why the French in these scripts
+carries no accents. And the bun-logging guard, whose `bunx found:` line went with the call and
+is replaced by `prisma CLI present:`.
+
+**THREE THINGS FOUND ON THE WAY, worth more than the fix.**
+
+- **The till's clone was on a branch `master` that tracked nothing**, so `git pull` fetched and
+  merged nothing while printing enough output to look successful — the build that followed ran
+  happily against the old code. Now on `main` tracking `origin/main`. **Nobody had pulled on that
+  machine since it was commissioned**, so this had never been exercised.
+- **`prisma generate` fails with `EPERM` while the server is running**, holding
+  `query_engine-windows.dll.node`. The update sequence must stop the task first.
+- **L-244**, recorded and deliberately not fixed: a second log-on launches a second kiosk that
+  silently loses `--kiosk`, because there is no `--user-data-dir` and Chromium hands the URL to
+  the browser already running. Confirmed on the till — the second window was not fullscreen. It
+  needs a decision between two shapes, and **this launcher has had four things wrong in it that
+  only running it revealed**, so it does not get changed at speed, at night, on the machine that
+  opens the restaurant.
+
+**Gates:** 2132 pass / 0 fail / 162 files, typecheck 0, lint 0. `readme-counts.test.ts` failed
+first at 2131 against 2132. `db/custom.db` unchanged, `e88d1a77…`.
 
 ---
 
