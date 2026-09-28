@@ -14,14 +14,13 @@ zero, re-measured 2026-09-27. **On the FRANCE TILL it is not**: FACTICE is on an
 been testing since the 2026-09-20 reset, so its journal holds factice events. **How many is not
 measured**, and R6.1 is the step that clears them.
 
-> ### ▶ CURRENT TASK — **none. The next work comes from the owner.**
+> ### ▶ CURRENT TASK — **carry the till's catalogue back to this machine.** See item 0.
 >
-> **A state audit ran on 2026-09-27** and this section is its output: the plan and
-> `docs/audit/FINDINGS.md` measured against the code and the database, what no longer matched
-> corrected, and the Phase 8/9/10 completion history retired to `REMEDIATION_DONE.md`. **No
-> source file and no test changed**; gates green before and after (**2101 / 0 / 161**).
 > **Every batch of Phases 8, 9 and 10 is finished** — read them in `REMEDIATION_DONE.md`, not
-> from a second copy here. The only § 6 row that is not the operator's is R10.3.
+> from a second copy here. The only § 6 row that is not the operator's is R10.3. The work now
+> comes from the owner, through the operator, and **2026-09-27/28 was four days' worth of it in
+> two**: the state audit, the ticket, and three defects that had been on the till since it was
+> commissioned. All of it is in `REMEDIATION_DONE.md` under its own entries.
 
 > *(**The two migrations were APPLIED on 2026-09-13** — by the session, at the operator's
 > explicit instruction, they being away from the machine. Verified against the rehearsal and
@@ -31,9 +30,14 @@ measured**, and R6.1 is the step that clears them.
 >
 > ### ▶ WHAT IS WAITING — FOUR ITEMS FOR THE OPERATOR, AND EIGHT OPEN FINDINGS
 >
-> *(Read « AND NONE OF IT IS CODE » until 2026-09-27, and was already false when written:
-> L-204, L-208 … L-211 and L-223 were open, and none of them is a decision.)*
->
+> 0. **THE CATALOGUES HAVE DIVERGED, DELIBERATELY. THE EXPORT IS THE NEXT ACTION.** The owner's
+>    menu was finished ON THE TILL, 2026-09-28: Kebab on the Tacos `Viande` group, the **Panini**
+>    category with options and products, a saumon fume add-on, two creme fraiche pizzas **with no
+>    photographs yet**. The till therefore holds more than 86 products and **no longer prints
+>    `a38c95977b5e1122`**; this machine still does. **`CLAUDE.md`'s « Both installs now print the
+>    same catalogue fingerprint » is FALSE — the correction is drafted and waiting**, that file
+>    being the operator's. **Export from the till, import here**: the only direction that works,
+>    this machine never having traded and the till holding factice events.
 > 1. **NOBODY HAS SEEN THE NEW TICKET ON PAPER** -- the only unverified part of 2026-09-27.
 >    L-241/L-242 changed what the customer is handed, and the tests prove the bytes, not ink.
 >    The owner checks it in the morning; **R6.4's standard is a person looking at paper.**
@@ -192,19 +196,16 @@ catalogue can be emptied on an install that has not traded. Untested against the
 false from R9.9 and it nearly produced a whole-database copy onto the restaurant's till.)*
 `FISCAL_CHAIN_KEY` is in `.env`, `factice` is in the database: they do not travel together.
 
-**Last updated:** 2026-09-27 — **a state audit, then four items in one day.** **The queue is NOT
-down to decisions**: eight open findings are not (see *What is waiting*). Closed that day: the
-state audit, **L-238** (the reset verifies content, not row counts), **L-241 + L-242** (the owner's
-ticket: one slip, no version line), **L-243** (**the till could not boot without the Internet**, and
-had not been able to since commissioning) and **L-240** (the till is now current in code). Opened:
-**L-239**, **L-244**. **The go-live is postponed, not next.** *(This said « the go-live is the next decision » under the date
+**Last updated:** 2026-09-28. **The queue is NOT down to decisions.** Closed 2026-09-27/28:
+the state audit · **L-238** the reset verifies content not row counts · **L-241 + L-242** the
+owner's ticket, one slip and no version line · **L-243 the till could not boot without the
+Internet**, true since commissioning · **L-240** the till is current in code · **L-246 an
+uploaded image was served by nobody**, also true since commissioning. Opened: **L-239**,
+**L-244**, **L-245**, **L-247**. **The go-live is postponed, not next.** *(This said « the go-live is the next decision » under the date
 2026-09-25, while item 1 above recorded the operator postponing it that same day — the plan
 asserting both halves of a contradiction, again.)* Closed 2026-09-25: **L-225, L-226, L-232,
 L-206, L-237**, plus L-207's cheap half; **L-234 not a defect** — **all in this repository, none
-of them on the till.** *(The batch-by-batch recap that stood here from 2026-09-13 — R8.0 … R8.6, R9.2, R9.6
-and the audit's phasing — was retired to `REMEDIATION_DONE.md` on 2026-09-19 to make room. Every
-line of it is in that file's own entries, which is where a reader should have been looking: this
-paragraph was a second copy, and the only part of § 1 that was not outstanding work.)*
+of them on the till.**
 
 ## 2. HOW TO WORK HERE
 
