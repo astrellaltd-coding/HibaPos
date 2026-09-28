@@ -118,6 +118,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - L-238 — the reset stops calling a row count « aucun changement »
 - L-241 + L-242 — one piece of paper, and the version line leaves the ticket
 - L-243 — the till was fetching Prisma from npm before it would boot
+- L-246 — an uploaded image was served by nobody
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -7200,6 +7201,63 @@ is replaced by `prisma CLI present:`.
 
 **Gates:** 2132 pass / 0 fail / 162 files, typecheck 0, lint 0. `readme-counts.test.ts` failed
 first at 2131 against 2132. `db/custom.db` unchanged, `e88d1a77…`.
+
+---
+
+### L-246 — an uploaded image was served by nobody
+**Done:** 2026-09-28 · **Not a batch** — found while the operator was adding the Panini category
+the owner had asked for, which it was blocking.
+
+**What was seen.** Three images uploaded on the till through the médiathèque: a category icon and
+two photographs. The médiathèque listed them, **with their real size and dimensions** — so the
+bytes were on disk and something had read them — and the browser showed broken images.
+
+**What it was diagnosed from: which ones worked.** Eight images in that folder displayed and two
+did not, and the eight were **exactly the eight tracked in git** — the ones present when
+`next build` last ran. That is the whole finding:
+
+1. `HIBAPOS_DATA_DIR` is unset on the till, so `uploadsDir()` is `public/uploads`.
+2. **Next serves only what was in `public/` at build time.**
+3. This route — which exists precisely to serve uploads — began
+   `if (!usingExternalDataDir()) return 404`, on the reasoning that « Next's static handler owns
+   this URL in the legacy layout ». **True of build-time files, false of every file uploaded
+   since.**
+
+So the médiathèque accepted the file, wrote it correctly, listed it correctly, and produced an
+image the application would not serve until somebody ran a build. **True since the till was
+commissioned**; nobody met it because every catalogue image shipped in the repository, and the
+Tacos photograph went on by script followed by a rebuild.
+
+**IT WAS READ AS A WEBP FAULT AND IT IS NOT.** 113 webp files in this repository display
+correctly, the Options addons among them. The broken pair were simply the newest. The operator's
+source file was checked byte by byte and is a valid `RIFF/WEBP` `VP8X` at 1524×934, complete,
+its declared length matching its length — **so the file was never the problem, and an hour spent
+on image formats would have found nothing.** The thing that identified it was asking which
+images DID work and noticing the answer was « the ones in git ».
+
+**The fix** is the deletion of four lines. Static serving still wins for build-time files, the
+path-traversal guard is untouched, and an upload is visible without a rebuild.
+
+**THIS ROUTE HAD NEVER HAD A TEST.** The defect sat in its first four lines for as long as the
+file has existed. It now has six, and they are the first:
+
+| | |
+|---|---|
+| a file created **at runtime** is served, legacy layout | the finding itself |
+| the same from a **subfolder**, as `.webp` | the till's case, `/uploads/categories/paninic.webp` |
+| the external layout still serves | DD-02's case, the one the route was written for |
+| traversal is refused | three attempts, including `../../db/custom.db` |
+| a non-media file is refused | asserted against a file that **exists** |
+| a missing file 404s rather than throws | |
+
+**RED FIRST:** restoring the guard turns the two legacy tests red. **One test is not isolated by
+that revert and is recorded rather than counted** — « refuses a file that is not media » passes
+under it too, because the old guard 404s everything; what isolates it is its own `existsSync`
+assertion.
+
+**Gates:** 2138 pass / 0 fail / 163 files, typecheck 0, lint 0. `db/custom.db` unchanged.
+
+**The till needs one more rebuild to take this**, after which uploads no longer need one.
 
 ---
 

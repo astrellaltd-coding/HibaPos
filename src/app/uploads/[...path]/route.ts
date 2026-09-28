@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createReadStream, statSync } from "fs";
 import path from "path";
 import { Readable } from "stream";
-import { uploadsDir, usingExternalDataDir } from "@/lib/paths";
+import { uploadsDir } from "@/lib/paths";
 
 /**
  * GET /uploads/<...> — serve uploaded media from the data directory.
@@ -34,12 +34,28 @@ export async function GET(
   _req: NextRequest,
   ctx: { params: Promise<{ path: string[] }> },
 ) {
-  // In the legacy layout Next's static handler owns this URL; if a request
-  // reaches here anyway the file is not ours to serve.
-  if (!usingExternalDataDir()) {
-    return new NextResponse("Not found", { status: 404 });
-  }
-
+  // ── THIS ROUTE SERVES IN BOTH LAYOUTS SINCE L-246 (2026-09-28) ───────────
+  //
+  // It used to begin « if (!usingExternalDataDir()) return 404 », on the
+  // reasoning that Next's static handler owns this URL in the legacy layout
+  // and « if a request reaches here anyway the file is not ours to serve ».
+  //
+  // THAT IS TRUE OF FILES THAT EXISTED AT BUILD TIME AND FALSE OF EVERY FILE
+  // UPLOADED SINCE. **Next only serves what was in `public/` when `next build`
+  // ran.** On the France till, where `HIBAPOS_DATA_DIR` is unset, the
+  // médiathèque writes to `public/uploads/` and the image was then served by
+  // nobody: this route stood aside, and Next had never heard of the file.
+  //
+  // MEASURED 2026-09-28, on the till: eight category images displayed and two
+  // did not, and the eight were EXACTLY the eight tracked in git — present
+  // when the build ran. The two were uploaded afterwards. The operator read it
+  // as a webp fault; 113 webp files in this repository display correctly, and
+  // the broken pair were simply the newest.
+  //
+  // So the guard is gone and the route is the fallback. Static serving still
+  // wins for build-time files, the traversal guard below is untouched, and an
+  // image uploaded through the médiathèque is visible without a rebuild —
+  // which is what the médiathèque is for.
   const { path: segments } = await ctx.params;
   const root = path.resolve(uploadsDir());
   const target = path.resolve(root, ...segments);
