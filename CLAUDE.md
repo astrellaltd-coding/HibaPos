@@ -1,165 +1,228 @@
 # HibaPOS France — read this first
 
 A point-of-sale system for a French restaurant, under fiscal record-keeping obligations.
-Next.js 16 + React 19 + Prisma/SQLite. **It has never traded. Nothing has shipped.**
+Next.js 16 + React 19 + Prisma/SQLite, running on one till in Ferrières-en-Gâtinais.
+
+**This file has two halves and they age differently.** *The rules* below were each bought with
+an incident and do not expire. *Where things stand* is a snapshot with a date on it, and it rots
+— **when it disagrees with `REMEDIATION_PLAN.md` § 1, the plan wins and this file is what needs
+correcting.** That precedence exists because four contradictions between these two files were
+found in one week, and a reader had no way to know which side to believe.
+
+---
+
+# PART ONE — THE RULES
 
 ## How to work here
 
-1. **Open `REMEDIATION_PLAN.md` and read all of it, then `docs/audit/FINDINGS.md`.** The
-   plan holds the current task, the working loop, the methods and the five findings that
-   predate the audit. **FINDINGS.md holds the audit's 94 and everything found since** — but
-   **the 94 are done save L-170**, and View A still reads as open defects because it is the
-   audit's own document, left as written. **The live work is its *Found after the audit*
-   section**; check `REMEDIATION_DONE.md` before taking any View A row as a task. The plan does
-   not repeat them and cannot, under its 40 960-byte ceiling. The invariants are in
-   `docs/INVARIANTS.md`. Finished work is in `REMEDIATION_DONE.md`: read
-   it to learn *how* something was done, never to find out what to do next.
+1. **Open `REMEDIATION_PLAN.md` and read all of it, then `docs/audit/FINDINGS.md`.** The plan
+   holds the current task, the working loop, the methods and the five findings that predate the
+   audit. **FINDINGS.md holds the audit's 94 and everything found since** — but **the 94 are done
+   save L-170**, and its View A still reads as open defects because it is the audit's own
+   document, left as written. **The live work is its *Found after the audit* section**; check
+   `REMEDIATION_DONE.md` before taking any View A row as a task. The invariants are in
+   `docs/INVARIANTS.md`. Finished work is in `REMEDIATION_DONE.md`: read it to learn *how*
+   something was done, never to find out what to do next.
 
-2. **Do one item.** Only what is in that item — whether it is a plan row or a FINDINGS.md
-   id. Anything else you notice goes into FINDINGS.md's own tables with a new `L-` id
-   continuing the same sequence — the audit ended at **L-182** and the highest today is
-   **L-240**, in the *Found after the audit* section. The plan's § 7 is closed to new rows
-   until the operator reopens it. You do not fix it now.
+2. **Do one item.** Only what is in that item. Anything else you notice goes into FINDINGS.md's
+   own tables with a new `L-` id continuing the same sequence — the audit ended at **L-182** and
+   the highest today is **L-247**. The plan's § 7 is closed to new rows until the operator
+   reopens it. You do not fix it now.
 
 3. **Then, in this order:** `bun run test` · `bun run typecheck` · `bun run lint` — all three
-   green. Commit. Push. Move the item's row into `REMEDIATION_DONE.md` with its commit sha
-   and how you verified it. Update *Current task* at the top of the plan. Stop and report.
+   green. Commit. Push. Move the item's row into `REMEDIATION_DONE.md` with its commit sha and
+   how you verified it. Update *Current task* at the top of the plan. Stop and report.
 
-## The five things you must not do
+4. **Prove the new test fails against the old code.** Revert the fix, one property at a time, in
+   both directions, and say in the commit what went red. A revert that everything survives is a
+   question, not a verdict — and when a revert proves nothing, **say so instead of counting it.**
 
-- **Never write to `db/custom.db` or to real menu data.** Work on a scratch copy with
-  **both** `DATABASE_URL` and `HIBAPOS_DATA_DIR` overridden, and prove which database the
-  server has open before the first write (plan § 2, *Scratch copy*).
+5. **Measure before changing a guard.** L-234's fix was written, measured and reverted because
+   the defect did not exist. L-247's was designed and never written for the same reason. A
+   plausible mechanism that fits the symptom is not a diagnosis.
+
+## The things you must not do
+
+- **Never write to `db/custom.db` or to real menu data.** Work on a scratch copy with **both**
+  `DATABASE_URL` and `HIBAPOS_DATA_DIR` overridden, and prove which database the server has open
+  before the first write (plan § 2, *Scratch copy*). **From the first real sale this file is an
+  append-only fiscal record and the rule hardens rather than relaxes.**
 - **Never run `bunx vitest`, `npx vitest`, or `git clean`.** `bun run test` is the runner.
-- **Never delete or weaken a test to make something pass.** If a pinned number fails, the
-  number is what to check.
-- **Never claim French fiscal or legal compliance.** Not from a passing test, not anywhere.
-- **Never edit this file without asking the operator first.** It changes whenever the
-  project needs it to, but the operator decides what it says. Bring the exact text and wait.
+- **Never delete or weaken a test to make something pass.** If a pinned number fails, the number
+  is what to check.
+- **Never claim French fiscal or legal compliance.** Not from a passing test, not anywhere. The
+  attestation regime is the operator's and `docs/attestation-conformite.md` cites art. 441-1 of
+  the code pénal.
+- **Never change a RULE in this file without asking.** *(Relaxed 2026-09-30: you may correct
+  **Part Two** — dates, numbers, state — without asking, because that is where staleness lives
+  and the asking was costing more than it protected. **Part One is still the operator's**: bring
+  the exact text and wait.)*
 
 ## Two things only the operator does
 
-Applying a migration to production, and edits to the live catalogue. Prepare the change,
+**Applying a migration to production, and edits to the live catalogue.** Prepare the change,
 rehearse it on a copy, verify it, then hand over the exact command — which is **`bun
-scripts/apply-migration.ts --apply --expect <path to the rehearsal's fingerprint JSON>`**,
-**not** `bunx prisma migrate deploy`. The bare command prints the same green banner whichever
-migration it ran, and was misread as applied twice when it was not.
+scripts/apply-migration.ts --apply --expect <path to the rehearsal's fingerprint JSON>`**, **not**
+`bunx prisma migrate deploy`. The bare command prints the same green banner whichever migration it
+ran, and was misread as applied twice when it was not. **`--expect` takes a PATH**, never a
+migration name; since R10.2 a path the script cannot read **fails** the run instead of printing
+« skipped » under a tick (L-166).
 
-**`--expect` takes a PATH**, e.g. `../db-snapshots/r31-acceptance/fp-r31-after.json` — never a
-migration name. Since R10.2 a path the script cannot read **fails** the run, instead of
-printing « skipped » under a tick (L-166).
+Since 2026-09-11 the **application** also applies pending migrations at startup, behind a backup
+it creates and re-opens to verify (PREP-4). That is the app on its own machine; the rule above is
+about you.
 
-Since 2026-09-11 the **application** also applies pending migrations itself at startup,
-behind a backup it creates and then re-opens to verify (PREP-4). That is the app on its own
-machine; the rule above is about you.
+## Updating the France till
 
-## Where things stand
+Learned by getting it wrong, 2026-09-27/28. In this order, and the first step is not optional:
 
-The software is essentially complete. **It was installed on the restaurant's production
-till in France on 2026-09-16 and confirmed working on 2026-09-17** — `C:\HibaPOS-app`, run
-from source, printer `SUNSO WTP-801` on `USB001` with two test tickets seen on paper, first
-backup taken to `D:` and verified by decryption. **The till now starts itself**: two
-Scheduled Tasks as `hibafood`, the server at boot and Brave in `--kiosk` at log on. It has
-still **never traded a genuine sale**: FACTICE is on and the chain key is not armed. Its
-journal was reset to `0/0/0/0` on 2026-09-20 and **the owner has been testing since, so it
-holds factice events again — how many is not measured**, and R6.1 is the step that clears
-them. **Tauri v2 remains the shipping form** and that migration still has no plan — what
-runs in France is the development build, not a package.
+```
+Stop-ScheduledTask -TaskName 'HibaPOS Server'
+cd C:\HibaPOS-app; git pull; bun install; bun run db:generate; bun run build
+Start-ScheduledTask -TaskName 'HibaPOS Server'
+```
 
-**THAT TILL'S DATA IS CURRENT SINCE 2026-09-20; ITS CODE IS FOUR COMMITS BEHIND** (**L-240**,
-found 2026-09-27). `C:\HibaPOS-app` is a git clone **still at `81eb2f3`**: **20 migrations**,
-**86 products with the Tacos**, fiscal slate reset to **0/0/0/0** the same evening, and it boots
-itself fullscreen. `git diff 81eb2f3..HEAD -- prisma/` is empty, so the schema needs nothing —
-but `e9ba5ce` (L-225), `891f39d` (L-226), `c9e84e8` (L-206) and `cb43261` (L-207) are not there.
-**So the till's own launcher still names the forbidden `update.ps1 -Apply`, and its `update.ps1`
-still applies with the bare `prisma migrate deploy`.** A `git pull` closes it, the operator's
-act, no migration involved. **Both installs now print the same catalogue
-fingerprint, `a38c95977b5e1122` at 86 products** — the Tacos photograph was attached on the
-till on 2026-09-20 and here on 2026-09-25, which closed **L-232**. That number is the expected
-value from here on; `b6a76daf0befc587` was this machine's before the photograph and is
-retired. **The blocker was never there** — git was
-already installed and the repository is **public**, so the token nobody had was never needed.
-Every measured step is in `REMEDIATION_DONE.md`. **L-203 is dormant, not fixed**: the launcher
-still refuses to boot on a pending migration, and that disagreement with PREP-4 is untouched —
-but since 2026-09-25 its refusal names `bun scripts/apply-migration.ts --apply` instead of the
-forbidden `update.ps1 -Apply`, and `update.ps1` calls the same script. **That was L-206, closed
-IN THIS REPOSITORY and not yet on the till** — see L-240 above, and do not read this sentence as
-a statement about what is running in France. **L-234 was closed the same day as NOT a defect**:
-the fix was written, measured before committing, and reverted — `apply-migration.ts` refuses on
-the existence of a `-wal`, which looks
-wrong and is right, because `state()` closes above it and SQLite clears the file first.
+- **Stop the task first** or `prisma generate` fails `EPERM` — the running server holds
+  `query_engine-windows.dll.node`.
+- **`bun run build` is required after a pull.** `bun run start` is `next start`, which serves the
+  COMPILED output; refusal 5 only checks that `.next/BUILD_ID` exists, so a till that pulled and
+  did not rebuild comes up green serving the old code.
+- **`bun run db:generate`, never `bunx prisma generate`.** They are not equivalent: the first
+  resolves from `node_modules`, the second from npm. That distinction cost ten minutes of hang
+  and was the shape of L-243.
+- Then read `C:\HibaPOS-app\logs\server.log`. It timestamps every step and every refusal.
 
-**THE OWNER CONFIRMED THE TILL BY TELEPHONE ON 2026-09-25** — the whole menu present, **the
-Tacos with the right configuration**, and **printing working**. That closes the three checks
-that needed a person in the restaurant. The Tacos half carries weight because **he is the one
-who reported L-217** — a `Tacos M` taking all six viandes — so he knows what wrong looked
-like. The printing half is the same standard R6.4 was held to: a person, in the restaurant,
-seeing paper. **It is a verbal report, not a measurement**, and it is recorded as such.
+## When something looks like it worked
 
-**THE TRADING DAY IS A RULE THE TILL ENFORCES, since 2026-09-20.** It refuses a sale into a
-sealed day, refuses a sale through a caisse whose trading day has ended, and refuses to open
-a caisse while an ended day with operations is unsealed — a SUPER_ADMIN may force that last
-one and it is journalled as `OUVERTURE_FORCEE`. **Closing the caisse seals the day**, which
-needed a narrow flagged bypass of the premature-close guard at one call site rather than
-relaxing it. It came out of a caisse found open for 48 hours in France, during which no day
-could be sealed at all. **The cut-off hour is 0 on both installs since 2026-09-20**, set with
-`scripts/set-business-day-cutoff.ts`, which refuses to RAISE it after a day has been sealed —
-that being one of the two things that arm L-228.
+Three times in one evening a command printed enough success to look finished while doing nothing:
+a `git pull` that fetched and merged nothing because the clone tracked no branch, a build that ran
+happily on the old code behind it, and a 9-second boot that was fast only because a 698-second run
+had just warmed a cache by hand. **Ask for raw output rather than a summary, and read the whole of
+it.** Every one of those was caught that way and none would have been caught otherwise.
 
-**A catalogue CAN be exported and imported, and since 2026-09-25 it actually works**
-(`lib/services/catalogue-transfer.ts`, since R9.9). The option ceilings travel now (**L-225**,
-`ProductOptionQuota` was missing from the list), and `scripts/empty-catalogue.ts` gives the
-import the empty destination it insists on (**L-226**) — it refuses on any install that has
-traded. Proved end to end on scratch copies: export → empty → import → `a38c95977b5e1122`,
-identical to the source. **It has never been used against the France till**, so the first real
-menu change is its first real test; the 2026-09-20 tacos went over as `add-tacos.ts`-shaped
-work, a script per change, which is what this replaces.
+---
 
-**The audit is DONE, and it is the work list.** On 2026-09-12 six read-only passes swept the
-whole project — money · security · data model · the till in use · build and ops · test
-quality — and a seventh consolidated them into **`docs/audit/FINDINGS.md`: 94 findings,
-L-89 … L-182**, in two views — by severity (what to do first) and by file (what to do
-together). Groups **A** money and the fiscal record (7) · **B** fix before the app is called
-complete (39) · **C** fix with the batch that owns the file (36) · **D** record and leave (9) ·
-**E** undecidable until packaging (3). **None of it is phased into the plan's § 6 or placed in
-its § 7** — that is the operator's decision, and it is the next one to make. The order is:
-finish and fix the app, *then* plan the packaging against a complete app. The six pass files
-were written believing packaging came next and say so throughout — they are left as written
-because they are evidence, with one PIN caviardé and flagged. **Tauri still shapes the work**:
-where a fix has two reasonable forms, the one that survives becoming a Windows native app is
-the one to choose. It is a constraint on how things are fixed, not a phase in the list.
+# PART TWO — WHERE THINGS STAND
 
-**The model was retired; the files are not, and three of them are now live.** `.zscripts/`
-holds eight tracked `.ps1` files that `deployment.test.ts` pins. `print-raw.ps1` drives the
-printer, and since 2026-09-17 `hibapos-server.ps1` and `hibapos-kiosk.ps1` run the France
-till as two Scheduled Tasks — the server at boot, Brave in `--kiosk` at log on. **They had
-never been executed before that day and four things in them were wrong** (L-203, L-204,
-L-205, and a `--start-fullscreen` that does nothing in `--app` mode); two are fixed and two
-are open decisions. Treat a comment in that directory as an intention, not as evidence.
+*Snapshot: **2026-09-30**. Perishable. If this disagrees with `REMEDIATION_PLAN.md` § 1, believe
+the plan.*
 
-What still has to happen before the restaurant's first real sale is **fiscal**: R6.1, R6.2
-and R6.3, in that order, and the order is not a preference — arming the chain key before the
-reset makes the reset refuse. **R6.4 (the printer) and R6.5 (a backup volume) were the
-technical two and both are done** — 2026-09-16, R6.4 confirmed on paper on 2026-09-17, both
-now in `REMEDIATION_DONE.md`. The software that had blocked them was fixed first: R8.1
-closed **L-101** on 2026-09-13, so the MANAGER — the only account at the till — can write
-`factice` and the printer queue without touching the SIRET, and R9.1 cleared R6.4's other
-half the same week.
+## THE GO-LIVE IS IMMINENT, AND ITS ORDER IS NOT A PREFERENCE
 
-`scripts/pre-golive-reset.ts` empties the fiscal journal; it runs **once**, after testing and
-before the first genuine sale, and the operator runs it. **It has already run twice** — here on
-2026-09-10, and on the France till on 2026-09-20. **Neither makes R6.1's target an empty database
-today.** THIS machine is at zero and `0/0/0/0`, re-measured 2026-09-27; **the TILL is not**, the
-owner having tested since its reset — and the till is the machine R6.1 is about. Whether it runs
-again is a decision, not a step, and it is the till's journal it would clear. **L-238 is open
-against this script**: its closing « Catalogue intact (16 tables verifiees, aucun changement) »
-compares sixteen row counts and nothing else, so a price, VAT rate or image that moved during the
-run reads as « aucun changement » — in the one script with no undo.
+**The restaurant's owner intends to begin real trading on 2026-10-01** and has said he will turn
+FACTICE off himself. **He must not.** The order is **R6.1 reset → R6.2 arm the chain key → R6.3
+FACTICE off**, and both halves were verified in the code on 2026-09-30:
 
-`bun run test:e2e` is safe **for the database** — it builds its own under the OS temp directory
-and refuses to start otherwise. The plan's § 5 says what makes it so. **It is not hermetic**
-(**L-239**, 2026-09-27): `next start` fills every key `e2eServerEnv()` leaves unset from the real
-`.env`, so the suite has been writing backups into the operator's real `BACKUP_LOCATION`.
-**Not the real secrets** — a key `e2eServerEnv()` sets keeps its test fallback; only the keys it
-omits are drawn from `.env`. Proved 2026-09-27: those files open with the published e2e key and
-not with the real one, and hold `e2e-admin` and one product.
+- `POST /api/setup/chain-key` counts `FiscalEvent` rows and answers **409** if there are any. The
+  till's journal holds his test sales, so **arming the key is impossible until the reset clears
+  them** — not difficult, impossible.
+- `scripts/pre-golive-reset.ts` refuses while `FISCAL_CHAIN_KEY` is armed (guard 1), and must
+  never run after a genuine sale.
+
+So FACTICE off first, followed by one real sale, leaves the restaurant permanently trading on a
+journal containing test events, with an **unkeyed** chain and receipt numbers continuing from the
+factice ones instead of starting at #1. Neither door reopens.
+
+**`FISCAL_CHAIN_KEY` must be copied off the till the moment it is armed.** Lose it and the journal
+can never be verified again. The same is true of `BACKUP_ENCRYPTION_KEY`, which is what makes the
+backups readable.
+
+## THE SIRET AND TVA ON THE TICKET ARE PLACEHOLDERS
+
+Measured 2026-09-30: `restaurantSiret` is `812 345 678 00021` and `restaurantTva` is
+`FR 12 345678901` — the sequential dummies — and the owner's printed ticket shows the till carries
+the same. **They are fiscal identifiers on a customer document and must be the restaurant's real
+ones before the first real sale.** Both are `SUPER_ADMIN`-only (`settings-authz.ts`), and the
+till's only operational account is MANAGER, so the owner cannot correct them himself.
+
+## The two installs
+
+**The till is current in code and data.** `C:\HibaPOS-app`, 20 migrations, boots itself fullscreen,
+tracks `origin/main`. It has **never traded a genuine sale**: FACTICE is on, the chain key is not
+armed, and its journal holds an unmeasured number of factice events from the owner's testing since
+the 2026-09-20 reset. `bun scripts/pre-golive-reset.ts` **without** `--apply` is a dry run and
+prints exactly how many.
+
+**The catalogues diverged on 2026-09-28, deliberately.** The owner's menu was completed ON THE TILL
+— Kebab on the Tacos « Viande » group, the **Panini** category with its options and products, a
+saumon fumé add-on, two crème fraîche pizzas still without photographs. The till therefore holds
+more than 86 products and a fingerprint nobody has measured. **This machine is still
+`a38c95977b5e1122` at 86 products.** They are reconciled by **exporting from the till and importing
+here** — the only direction that works, this machine having never traded (so `empty-catalogue.ts`
+will run on it) and the till holding factice events (so it cannot receive an import).
+`scripts/catalogue-fingerprint.ts` is read-only and is how the two are compared.
+
+## The printed paper
+
+**The owner confirmed on 2026-09-30 that the ticket prints correctly and that he wants it
+changed**, and is sending the ticket his website produces as the model. Two things to know before
+touching it: a sealed `Receipt.content` is **never re-rendered** — `buildAnnualArchive` copies it
+verbatim — so a layout change applies to future tickets only and the first real ones should
+already be right. And `services/ticket-layout.ts` is shared by all three renderers; change it
+there or not at all.
+
+Since 2026-09-27 a delivery prints as **one slip**: the ticket, a rule, then `LIVRAISON` with the
+name, telephone and address (L-241). The address is appended at PRINT time and **never enters
+`Receipt.content`**, so no customer's home reaches the annual archive — the operator's decision of
+2026-09-18, reaffirmed on 2026-09-27 when the alternative was on the table. The software version
+line was removed from the customer's ticket (L-242); the Z slip, the annual archive and
+`/api/fiscal/verify` still state it.
+
+## Operations
+
+**Backups are automatic on every caisse close**, plus manual from Réglages and one before any
+startup migration. They go to `D:\HibaPOS-Sauvegardes` on the till — a second volume, but the same
+machine, so an off-site copy is worth having now that real money is involved.
+
+**The trading day is a rule the till enforces** since 2026-09-20: it refuses a sale into a sealed
+day, refuses a sale through a caisse whose day has ended, and refuses to open a caisse while an
+ended day with operations is unsealed — a SUPER_ADMIN may force that last one, journalled as
+`OUVERTURE_FORCEE`. **Closing the caisse seals the day.** The cut-off hour is **0** on both
+installs, set with `scripts/set-business-day-cutoff.ts`, which refuses to RAISE it after a day has
+been sealed.
+
+**`.zscripts/` holds eight tracked `.ps1` files** that `deployment.test.ts` pins. `print-raw.ps1`
+drives the printer; `hibapos-server.ps1` and `hibapos-kiosk.ps1` run the till as two Scheduled
+Tasks — `HibaPOS Server` at boot, `HibaPOS Kiosk` at log on. **They had never been executed before
+2026-09-17 and six things in them were wrong**: L-203, L-204, L-205, a `--start-fullscreen` that
+does nothing in `--app` mode, L-243 and L-244. **L-243 is the one to know**: the boot ran
+`bunx prisma migrate status`, and `bunx` resolves from npm — 698 s and still downloading when it
+was interrupted, against 5.1 s for the prisma installed in the tree. **The till could not boot
+without the Internet**, and had not been able to since commissioning; fixed and verified on the
+till at seven seconds. **Treat a comment in that directory as an intention, not as evidence.**
+
+**`pre-golive-reset.ts`** empties the fiscal journal, keeps the catalogue, users, settings and
+audit log, and runs **once**. It has already run twice — here 2026-09-10, on the till 2026-09-20 —
+and neither makes R6.1's target empty today, because the till has been tested on since. Since
+2026-09-27 it proves what it kept **by content**, not by row count: it digests every table the
+schema has except the ones it empties, and ends « 17 tables, contenu inchange, empreinte … ».
+Seventeen because the list is derived from the schema, and `ProductOptionQuota` was in neither of
+its two hand-written lists (L-238).
+
+**`bun run test:e2e` is safe for the database** — it builds its own under the OS temp directory and
+refuses to start otherwise. **It is not hermetic** (L-239): `next start` fills every key
+`e2eServerEnv()` leaves unset from the real `.env`, so the suite has been writing backups into the
+operator's real `BACKUP_LOCATION`. **Not the real secrets** — a key it sets keeps its test
+fallback; only omitted keys come from `.env`.
+
+## The audit, and what is open
+
+On 2026-09-12 six read-only passes swept the project and a seventh consolidated them into
+`docs/audit/FINDINGS.md`: **94 findings, L-89 … L-182**, groups A (7) · B (39) · C (36) · D record
+and leave (9) · E undecidable until packaging (3). **All of A, B and C are closed except L-170**,
+which is R10.3 and belongs in the accountant's envelope. The six pass files are left as written
+because they are evidence, with one PIN caviardé and flagged.
+
+Open today, none of it phased: **L-211** (High — the category strip scrolls with nothing to show
+it does, and the owner meets it daily) · **L-204** (High — the launcher's third refusal never reads
+`secrets.json`) · **L-203** (the launcher refuses a pending migration where PREP-4 would apply it;
+« drop refusal 2 » is **not** sufficient on its own) · L-208 · L-209 · L-210 · L-223 · L-236 ·
+L-239 · L-244 · L-245 · L-247 · and L-207's other half.
+
+**`VAT-METHOD` is the one that matters from the first real sale** (§ 8 of the plan): how a fixed
+menu price divides between 10 % and 5,5 %. The rates are settled; the division is the open claim,
+and the accountant should confirm the basis in writing.
+
+**Tauri v2 remains the shipping form** and that migration has no plan — what runs in France is the
+development build, not a package. Where a fix has two reasonable forms, prefer the one that
+survives becoming a Windows native app. It is a constraint on how things are fixed, not a phase.
