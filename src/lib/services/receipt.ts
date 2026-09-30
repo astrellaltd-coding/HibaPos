@@ -1,6 +1,6 @@
 // Receipt rendering — pure text snapshot for fiscal immutability.
 import type { OrderDto, SettingsDto } from "@/types/api";
-import { formatDateTime, formatEuro } from "@/lib/format";
+import { formatDateTime, formatDateTimeLong, formatEuro } from "@/lib/format";
 import {
   addToVatBreakdown,
   apportion,
@@ -13,7 +13,7 @@ import { PAYMENT_LABELS_FULL } from "@/lib/order-labels";
 // renderer emits goes through one of these, so "no line exceeds the paper" is
 // an invariant of the construction rather than a list of the fields somebody
 // remembered. Each returns a line that already fits BYTE-IDENTICALLY.
-import { centred, leftRight, marked } from "@/lib/services/ticket-layout";
+import { box, centred, field, leftRight, letterSpaced, marked } from "@/lib/services/ticket-layout";
 
 /**
  * M-06 (Batch 3.6) — the per-rate VAT block.
@@ -148,54 +148,59 @@ export function renderReceipt(order: OrderDto, settings?: Partial<SettingsDto>):
     lines.push("");
   }
 
-  pushCentred(s.restaurantName ?? "HibaPOS France");
-  if (s.restaurantAddress) pushCentred(s.restaurantAddress);
-  if (s.restaurantPhone) pushCentred(`Tél : ${s.restaurantPhone}`);
-  if (s.restaurantSiret) pushCentred(`SIRET : ${s.restaurantSiret}`);
+  // ── THE FRAMED HEADER (2026-09-30) ────────────────────────────────────────
+  // The owner asked for the shape his web-ordering printer produces: the
+  // establishment in a frame, then a titled frame per section. `box()` lives in
+  // `ticket-layout.ts` because all three renderers share that module.
+  //
+  // The name is letter-spaced — `H I B A   F O O D` — which is the only
+  // emphasis available: `escpos.ts` has no bold and no double-height.
+  const headerLines: string[] = [letterSpaced(s.restaurantName ?? "HibaPOS France", w - 4)];
+  if (s.restaurantAddress) headerLines.push(s.restaurantAddress);
+  if (s.restaurantPhone) headerLines.push(`Tél : ${s.restaurantPhone}`);
+  if (s.restaurantSiret) headerLines.push(`SIRET : ${s.restaurantSiret}`);
   // M-06: the TVA number was a stored setting that no document ever printed.
-  if (s.restaurantTva) pushCentred(`TVA : ${s.restaurantTva}`);
-  // L-58 (Batch 3.10): the till identifies itself, in the block that identifies
-  // the establishment. Centred, so it collides with nothing at any column count
-  // — which is why it goes here rather than onto the cashier line below, where
-  // it would have competed with the cashier's name for the width.
+  // Empty on this installation since 2026-09-30 — the operator cleared it, and
+  // an empty field prints no line rather than a dangling label.
+  if (s.restaurantTva) headerLines.push(`TVA : ${s.restaurantTva}`);
+  lines.push(...box(headerLines, w));
+  lines.push("");
+  // ── DÉTAILS DE LA COMMANDE (2026-09-30) ───────────────────────────────────
+  // L-58 (Batch 3.10): the till identifies itself. It used to be a centred line
+  // under the establishment; the owner moved it in here beside `Service`, which
+  // reads better — two numbers that describe the till and the session, together
+  // — and is where his own web ticket puts it.
   //
-  // That reasoning cited L-21 — "this renderer centres but never wraps" — which
-  // was true when 3.10 wrote it and stopped being true in Batch 1.3b. The
-  // placement stands on its own merits: a centred line has the whole width.
-  pushCentred(`Caisse N° ${CAISSE_NUMBER}`);
-  lines.push("-".repeat(w));
-  pushLeftRight(`Ticket N° ${order.number}`, formatDateTime(order.createdAt));
-  // L-58 (Batch 3.10): this field used to read `Caisse #${shift.number}`, which
-  // is the SHIFT counter — 3 on production, on a single-till install, so a
-  // reader of the ticket saw a third till whose two siblings have no data
-  // anywhere. The number is worth keeping (it ties the ticket to the Z report
-  // that rolls it up); only its name was wrong. `Service N` is exactly as wide
-  // as the `Caisse #N` it replaces, so no ticket gets closer to overflowing
-  // than it already was.
-  pushLeftRight(`Caissier : ${order.cashier?.name ?? "-"}`, `Service ${order.shift?.number ?? "-"}`);
+  // `Caisse N°` is the TILL and never changes; `Service` is the cash session
+  // and increments. L-58 exists because the ticket once printed the session
+  // counter under the till's name and announced a third till that never existed.
+  lines.push(...box(["DÉTAILS DE LA COMMANDE"], w));
+  pushLeftRight(`Caisse N° ${CAISSE_NUMBER}`, `Service ${order.shift?.number ?? "-"}`);
+  // The long date — « Mer. 1 octobre 2026 — 20:42 » — reads as a date rather
+  // than as a serial number. **It falls back to the short form when the pair
+  // will not fit**: `Ticket N° 1` is eleven columns today and `Ticket N° 1247`
+  // is fourteen, and a wrapped date would be worse than a terse one.
+  const ticketLabel = `Ticket N° ${order.number}`;
+  const longStamp = formatDateTimeLong(order.createdAt);
+  const stamp =
+    ticketLabel.length + 1 + longStamp.length <= w ? longStamp : formatDateTime(order.createdAt);
+  pushLeftRight(ticketLabel, stamp);
+  lines.push(...field("Caissier", order.cashier?.name ?? "-", w));
   const typeLabel = order.orderType === "DINE_IN" ? "Sur place" : order.orderType === "TAKEAWAY" ? "À emporter" : "Livraison";
-  pushLeftRight(`Type : ${typeLabel}`, order.tableLabel ? `Table : ${order.tableLabel}` : "");
-  // L-222 — WHO THE DELIVERY IS FOR, and only that.
+  lines.push(...field("Type", order.tableLabel ? `${typeLabel} — Table ${order.tableLabel}` : typeLabel, w));
+
+  // **NO CUSTOMER DATA IS SEALED — L-248, the operator's decision of
+  // 2026-09-30.** `Client : <nom>` stood here from 2026-09-18 and is gone: the
+  // name, telephone, address and note are now printed by `delivery-note.ts`,
+  // inserted into the PAPER after this section and stored nowhere.
   //
-  // THE FINDING, from the restaurant's owner at the caisse on 2026-09-18: this
-  // ticket said « Type : Livraison » and nothing whatever about who or where,
-  // so the driver was handed a ticket with no destination on it. A search of
-  // this file for « customer » found only comments.
-  //
-  // THE NAME AND NOT THE ADDRESS is the operator's decision of the same day,
-  // and the reason is what this text IS. `Receipt.content` is sealed: nothing
-  // in the application rewrites it, and `buildAnnualArchive` copies it verbatim
-  // into the archive file for the exercice. A name identifies the bag; a
-  // telephone number and a home address in an archived fiscal document are
-  // permanent and serve no fiscal purpose. Those go on the BON DE LIVRAISON
-  // (`delivery-note.ts`), which is printed for the driver and never stored.
-  //
-  // Delivery only. No sur-place or à-emporter ticket moves, which is what keeps
-  // this to one line on one kind of document.
-  if (order.orderType === "LIVRAISON" && order.customer?.name) {
-    lines.push(...marked("", `Client : ${order.customer.name}`, w));
-  }
-  lines.push("-".repeat(w));
+  // `Receipt.content` is copied verbatim into the annual archive by
+  // `buildAnnualArchive`, so anything left here is unerasable for the retention
+  // period. With the block out, a deletion request genuinely erases a customer:
+  // the ticket keeps the transaction and loses the person. The `VENTE` fiscal
+  // payload never carried customer data either (`sale-journal.ts:52`), so this
+  // was the last route in.
+  lines.push("");
 
   // The chosen options of one article, as indented price-less lines. Extracted
   // in Batch 5.9f because a menu's components need them one level deeper.
@@ -246,9 +251,23 @@ export function renderReceipt(order: OrderDto, settings?: Partial<SettingsDto>):
     }
   };
 
+  lines.push(...box(["ARTICLES"], w));
+  // The unit price, under an article bought more than once (2026-09-30). A
+  // customer buying two of something could read the line total and nothing
+  // else, and had no way to check what one cost. Only when the quantity is
+  // greater than one: `1 × 8,40 €` under `1× Tacos M` would be noise.
+  const pushUnitPrice = (quantity: number, unit: number) => {
+    if (quantity > 1) pushMarked("     ", `${quantity} × ${formatEuro(unit)}`);
+  };
+
   for (const block of articleBlocks(order.items)) {
     if (block.kind === "item") {
       pushLeftRight(`${block.item.quantity}× ${block.item.productName}`, formatEuro(block.item.lineTotal));
+      // The UNIT price is the line total over the quantity rather than
+      // `unitPrice`: a line carrying supplements costs more than its product's
+      // catalogue price, and the figure a customer reconciles against is the
+      // one that divides into the total beside it.
+      pushUnitPrice(block.item.quantity, Math.round(block.item.lineTotal / block.item.quantity));
       pushOptions(block.item, "  · ");
       pushAddOns(block.item, "  + ");
       continue;
@@ -259,6 +278,7 @@ export function renderReceipt(order: OrderDto, settings?: Partial<SettingsDto>):
     // The forfait is the price beside the menu's name; the `Détail TVA` block
     // below carries the rates the components were booked at.
     pushLeftRight(`${block.quantity}× ${block.name}`, formatEuro(block.price * block.quantity));
+    pushUnitPrice(block.quantity, block.price);
     for (const part of block.parts) {
       pushMarked("  · ", part.productName);
       // The component's own choices — « Senior », « Sans Crudités ». One level
@@ -268,7 +288,8 @@ export function renderReceipt(order: OrderDto, settings?: Partial<SettingsDto>):
     }
   }
 
-  lines.push("-".repeat(w));
+  lines.push("");
+  lines.push(...box(["TOTAUX"], w));
   pushLeftRight("Sous-total", formatEuro(order.subtotal));
   if (order.discountTotal > 0) pushLeftRight("Remise", `-${formatEuro(order.discountTotal)}`);
 
@@ -282,7 +303,9 @@ export function renderReceipt(order: OrderDto, settings?: Partial<SettingsDto>):
     lines.push("Détail TVA");
     for (const key of rateKeys) {
       const row = breakdown[key];
-      pushLeftRight(`TVA ${rateLabel(key)} (HT ${formatEuro(row.ht)})`, formatEuro(row.vat));
+      // Indented under « Détail TVA » so the rates read as a group rather than
+      // as peers of the subtotal above them.
+      pushLeftRight(`  TVA ${rateLabel(key)} (HT ${formatEuro(row.ht)})`, formatEuro(row.vat));
     }
   }
 
@@ -290,10 +313,15 @@ export function renderReceipt(order: OrderDto, settings?: Partial<SettingsDto>):
   // sealed figure; the rows above are recomputed. They agree — both run the
   // same apportionment over the same snapshotted rates — but the ticket shows
   // the stored one, because that is the number the fiscal record holds.
-  pushLeftRight("dont TVA", formatEuro(order.vatTotal));
-  pushLeftRight("TOTAL", formatEuro(order.total));
-  lines.push("-".repeat(w));
-  lines.push("Paiements");
+  pushLeftRight("  dont TVA", formatEuro(order.vatTotal));
+  // `=` above and below the total. With no bold and no double-height in
+  // `escpos.ts`, a doubled rule is the strongest emphasis this printer has, and
+  // the total is the figure a customer looks for first.
+  lines.push("=".repeat(w));
+  pushLeftRight("TOTAL À PAYER", formatEuro(order.total));
+  lines.push("=".repeat(w));
+  lines.push("");
+  lines.push(...box(["PAIEMENT"], w));
   for (const p of order.payments) {
     // DD-14 (Batch 5.7b). This was a two-branch ternary whose ELSE meant
     // "Bon / Ticket", so a new tender would have been printed under the wrong
@@ -305,9 +333,13 @@ export function renderReceipt(order: OrderDto, settings?: Partial<SettingsDto>):
       pushMarked("  ", `Reçu ${formatEuro(p.tendered ?? 0)} — Rendu ${formatEuro(p.change ?? 0)}`);
     }
   }
+  // The article count was removed on 2026-09-30 at the owner's request: the
+  // articles are listed above and counting them again told nobody anything.
   lines.push("-".repeat(w));
-  pushCentred(`${order.itemCount} article${order.itemCount > 1 ? "s" : ""}`);
   pushCentred(s.footerNote ?? "Merci de votre visite !");
+  // The restaurant's own address on the web, under its closing words. Prints
+  // nothing when the setting is empty, like the telephone and the SIRET.
+  if (s.restaurantWebsite) pushCentred(s.restaurantWebsite);
   // ── THE SOFTWARE LINE IS NOT ON THE CUSTOMER'S TICKET (2026-09-27) ────────
   //
   // L-53 (Batch 3.7) put `HibaPOS France v0.2.1` here, last line after the

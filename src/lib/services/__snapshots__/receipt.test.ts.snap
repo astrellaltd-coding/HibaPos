@@ -1,64 +1,94 @@
 // Bun Snapshot v1, https://bun.sh/docs/test/snapshots
 
 exports[`renderReceipt produces a consistent snapshot for a standard order 1`] = `
-"               HibaPOS Test
-         12 Rue Test, 75001 Paris
-           Tél : 01 23 45 67 89
-            SIRET : TEST-SIRET
-              TVA : TEST-TVA
-               Caisse N° 1
-------------------------------------------
-Ticket N° 42              14/08/2026 12:30
-Caissier : Admin                 Service 7
-Type : Sur place                Table : T1
-------------------------------------------
+"+----------------------------------------+
+|        H i b a P O S   T e s t         |
+|        12 Rue Test, 75001 Paris        |
+|          Tél : 01 23 45 67 89          |
+|           SIRET : TEST-SIRET           |
+|             TVA : TEST-TVA             |
++----------------------------------------+
+
++----------------------------------------+
+|         DÉTAILS DE LA COMMANDE         |
++----------------------------------------+
+Caisse N° 1                      Service 7
+Ticket N° 42     Ven. 14 août 2026 — 12:30
+Caissier  : Admin
+Type      : Sur place — Table T1
+
++----------------------------------------+
+|                ARTICLES                |
++----------------------------------------+
 2× Double Cheese                   19,80 €
+     2 × 9,90 €
   · À point
   + Bacon (1,50 €)
 1× Coca-Cola                        2,70 €
-------------------------------------------
+
++----------------------------------------+
+|                 TOTAUX                 |
++----------------------------------------+
 Sous-total                         22,50 €
 Détail TVA
-TVA 10 % (HT 20,45 €)               2,05 €
-dont TVA                            2,05 €
-TOTAL                              22,50 €
-------------------------------------------
-Paiements
+  TVA 10 % (HT 20,45 €)             2,05 €
+  dont TVA                          2,05 €
+==========================================
+TOTAL À PAYER                      22,50 €
+==========================================
+
++----------------------------------------+
+|                PAIEMENT                |
++----------------------------------------+
 Espèces                            22,50 €
   Reçu 25,00 € — Rendu 2,50 €
 ------------------------------------------
-                4 articles
          Merci de votre visite !"
 `;
 
 exports[`renderReceipt wraps over-long settings fields (L-21) produces a consistent snapshot at the production width and address 1`] = `
-"                  HibaPOS Test
-  23 Grande Rue, 45210 Ferrières-en-Gâtinais,
-                     France
-              Tél : 01 23 45 67 89
-               SIRET : TEST-SIRET
-                 TVA : TEST-TVA
-                  Caisse N° 1
-------------------------------------------------
-Ticket N° 42                    14/08/2026 12:30
-Caissier : Admin                       Service 7
-Type : Sur place                      Table : T1
-------------------------------------------------
+"+----------------------------------------------+
+|           H i b a P O S   T e s t            |
+| 23 Grande Rue, 45210 Ferrières-en-Gâtinais,  |
+|                    France                    |
+|             Tél : 01 23 45 67 89             |
+|              SIRET : TEST-SIRET              |
+|                TVA : TEST-TVA                |
++----------------------------------------------+
+
++----------------------------------------------+
+|            DÉTAILS DE LA COMMANDE            |
++----------------------------------------------+
+Caisse N° 1                            Service 7
+Ticket N° 42           Ven. 14 août 2026 — 12:30
+Caissier  : Admin
+Type      : Sur place — Table T1
+
++----------------------------------------------+
+|                   ARTICLES                   |
++----------------------------------------------+
 2× Double Cheese                         19,80 €
+     2 × 9,90 €
   · À point
   + Bacon (1,50 €)
 1× Coca-Cola                              2,70 €
-------------------------------------------------
+
++----------------------------------------------+
+|                    TOTAUX                    |
++----------------------------------------------+
 Sous-total                               22,50 €
 Détail TVA
-TVA 10 % (HT 20,45 €)                     2,05 €
-dont TVA                                  2,05 €
-TOTAL                                    22,50 €
-------------------------------------------------
-Paiements
+  TVA 10 % (HT 20,45 €)                   2,05 €
+  dont TVA                                2,05 €
+================================================
+TOTAL À PAYER                            22,50 €
+================================================
+
++----------------------------------------------+
+|                   PAIEMENT                   |
++----------------------------------------------+
 Espèces                                  22,50 €
   Reçu 25,00 € — Rendu 2,50 €
 ------------------------------------------------
-                   4 articles
             Merci de votre visite !"
 `;

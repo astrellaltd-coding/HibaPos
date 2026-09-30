@@ -45,7 +45,7 @@ import type { PrintOutcome } from "@/lib/services/printer";
 // L-63: the same layout helpers as the other three renderers. Nothing
 // downstream can rescue an over-long line — `buildPrintJob` passes the text
 // through verbatim — so a 32-column paper wraps here or not at all.
-import { leftRight, wrapToWidth } from "@/lib/services/ticket-layout";
+import { box, field } from "@/lib/services/ticket-layout";
 
 /**
  * Just enough of an order to print a delivery slip.
@@ -92,57 +92,49 @@ export function renderDeliveryNote(
   const s = settings ?? {};
   const w = Math.max(32, s.receiptWidth ?? 42);
   const lines: string[] = [];
-  const push = (str: string) => lines.push(...wrapToWidth(str, w));
-  const rule = () => lines.push("-".repeat(w));
 
-  // ── ONE SLIP, NOT TWO — the owner's ask of 2026-09-27 ─────────────────────
+  // -- ONE SLIP, AND NOTHING HERE IS SEALED ---------------------------------
   //
-  // This block used to open with its own `=` rules, « BON DE LIVRAISON »,
-  // « DOCUMENT NON FISCAL », the order number and the date, and it printed as
-  // a SECOND print job, so the cutter ran twice and the customer got two
-  // pieces of paper. The restaurant's owner asked for one, on the grounds that
-  // the second repeated what the first already said.
+  // 2026-09-27: this was its own print job with its own « BON DE LIVRAISON /
+  // DOCUMENT NON FISCAL » header, so the cutter ran twice and the customer got
+  // two pieces of paper. The owner asked for one.
   //
-  // He was right about the duplication and wrong about the reason: the order
-  // number and date did repeat the ticket, but the TELEPHONE NUMBER and the
-  // ADDRESS appear nowhere else. So the header and the repeated fields go, the
-  // contact details stay, and this is appended to the ticket in ONE print job
-  // (`deliveryPaper`) — one cut, one slip.
+  // 2026-09-30, **L-248**: the operator researched the personal-data question
+  // and the answer went further than the layout. The fiscal obligation can
+  // justify keeping data already necessary to a retained document, but it does
+  // not make delivery data fiscal -- an address and a telephone are needed to
+  // execute the delivery, not to evidence the transaction. So **the NAME came
+  // out of `Receipt.content` too**, and this block now carries every piece of
+  // customer data that appears on the ticket.
   //
-  // WHAT DID NOT CHANGE, AND IS THE POINT: none of this enters
-  // `Receipt.content`. The sealed ticket still carries the customer's NAME and
-  // nothing more, so no home address is copied verbatim into the annual
-  // archive — the operator's decision of 2026-09-18, reaffirmed 2026-09-27 when
-  // the alternative was on the table and declined. This text is rendered at
-  // PRINT time and stored nowhere.
+  // **NONE OF IT IS STORED.** `deliveryPaper()` inserts these lines into the
+  // PRINTED paper; `buildAnnualArchive` copies `Receipt.content`, which no
+  // longer mentions the customer at all. The consequence worth knowing: a
+  // deletion request now genuinely erases someone -- the ticket keeps the
+  // transaction and loses the person -- where before their name was frozen for
+  // the whole retention period.
   //
-  // No FACTICE stamp here either: it was repeated because this was its own
-  // document, and on one slip the ticket's own banner is directly above.
-  rule();
-  push("LIVRAISON");
+  // No FACTICE stamp: the ticket's own banner is a few lines above.
+  lines.push(...box(["INFORMATIONS CLIENT"], w));
+  lines.push(...field("Nom", customer.name.trim(), w));
 
-  // Name and telephone on one line while they fit, because the driver reads
-  // both at the same moment; `leftRight` wraps rather than truncates when the
-  // paper is narrow, like every other line on this roll.
   const phone = customer.phone?.trim();
-  if (phone) lines.push(...leftRight(customer.name.trim(), phone, w));
-  else push(customer.name.trim());
+  if (phone) lines.push(...field("Téléphone", phone, w));
 
-  // The address as the driver reads it: street, then town in capitals, the way
-  // a French postal address is laid out. Both are required for a delivery
-  // (`DELIVERY_REQUIRED_FIELDS`), so in practice both are here — the guards are
-  // for the same reason the customer guard above is.
-  if (customer.address?.trim()) push(customer.address.trim());
-  if (customer.city?.trim()) push(customer.city.trim().toUpperCase());
+  // Street and town in one field, the town in capitals the way a French postal
+  // address is laid out. `field()` hangs the continuation under the value, so a
+  // long address cannot wrap back to the margin and read as a new label.
+  const street = customer.address?.trim();
+  const town = customer.city?.trim().toUpperCase();
+  const postal = [street, town].filter(Boolean).join(", ");
+  if (postal) lines.push(...field("Adresse", postal, w));
 
-  // The order's own note, which is where « code 34B2, 3e étage » goes. It is
-  // on no other printed document: the sealed ticket does not carry it either.
-  if (order.notes?.trim()) {
-    lines.push("");
-    push(order.notes.trim());
-  }
+  // The order's own note -- « code 34B2, 3e étage ». It is on NO other printed
+  // document, which is why dropping this block would cost the driver every door
+  // code in the restaurant.
+  const note = order.notes?.trim();
+  if (note) lines.push(...field("Note", note, w));
 
-  // No closing rule: this block ends the paper, and the cutter is the end mark.
   return lines.join("\n");
 }
 
@@ -166,6 +158,14 @@ export function renderDeliveryNote(
  * nowhere, which is what keeps a customer's home address out of the annual
  * archive (the operator's decision of 2026-09-18, reaffirmed 2026-09-27).
  */
+/**
+ * The ARTICLES frame's title line, which is what the client block is inserted
+ * above. Anchored on the WORD between the frame's bars and not on the whole
+ * line: the bars are padding, and the padding changes with `receiptWidth`,
+ * which the operator may set to 32, 42 or 48.
+ */
+const ARTICLES_TITLE = /^\|\s*ARTICLES\s*\|$/;
+
 export function deliveryPaper(
   receiptText: string,
   order: OrderForDeliveryNote,
@@ -173,7 +173,33 @@ export function deliveryPaper(
 ): { paper: string; owed: boolean } {
   const note = renderDeliveryNote(order, settings);
   if (note === null) return { paper: receiptText, owed: false };
-  return { paper: [receiptText, note].join("\n"), owed: true };
+
+  // -- WHERE THE BLOCK GOES, AND WHY IT IS FOUND RATHER THAN COUNTED --------
+  //
+  // The owner wants the client details high on the ticket, under the order's
+  // own details -- not at the foot, where they sat until 2026-09-30. So the
+  // block is INSERTED rather than appended, immediately above the ARTICLES
+  // frame.
+  //
+  // The insertion point is SEARCHED FOR in the sealed text, because a reprint
+  // has nothing else to go on: it is handed `Receipt.content` out of the
+  // database and no render-time position survives in there.
+  //
+  // **A TICKET SEALED BEFORE THIS CHANGE HAS NO SUCH FRAME.** Every receipt
+  // issued up to 2026-09-30 is the older flat layout, so the search answers -1
+  // and the block is appended at the end as it used to be. That is not a
+  // degraded case to tidy up later: a reprint of an old order must not lose the
+  // driver's address because the layout moved on.
+  const lines = receiptText.split("\n");
+  const titleAt = lines.findIndex((l) => ARTICLES_TITLE.test(l));
+  if (titleAt <= 0) return { paper: [receiptText, note].join("\n"), owed: true };
+
+  // `titleAt - 1` is the frame's top edge; the block and one blank line go in
+  // front of it, so the paper reads ... Type, blank, CLIENT frame, blank,
+  // ARTICLES frame ...
+  const insertAt = titleAt - 1;
+  const paper = [...lines.slice(0, insertAt), ...note.split("\n"), "", ...lines.slice(insertAt)];
+  return { paper: paper.join("\n"), owed: true };
 }
 
 /**

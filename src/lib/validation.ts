@@ -393,6 +393,7 @@ export const settingsSchema = z.object({
   restaurantAddress: z.string().max(200).optional().nullable(),
   restaurantPhone: z.string().max(30).optional().nullable(),
   restaurantSiret: z.string().max(40).optional().nullable(),
+  restaurantWebsite: z.string().max(60).optional().nullable(),
   restaurantTva: z.string().max(40).optional().nullable(),
   footerNote: z.string().max(200).optional().nullable(),
   defaultVatRate: z.number().min(0).max(100),

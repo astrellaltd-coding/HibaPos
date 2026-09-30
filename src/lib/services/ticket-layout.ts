@@ -170,3 +170,64 @@ export function marked(indent: string, text: string, width: number): string[] {
   const lines = wrapToWidth(text, Math.max(1, width - indent.length));
   return lines.map((line, i) => (i === 0 ? indent : continuation) + line);
 }
+
+/**
+ * A framed section, drawn in ASCII.
+ *
+ * ── WHY ASCII AND NOT BOX-DRAWING ───────────────────────────────────────────
+ * The printer is driven in code page Windows-1252 (`escpos.ts`
+ * `CODE_PAGE_WPC1252`), which has no `─ │ ┌` glyphs: they would print as
+ * whatever byte the mapping fell back to. `+ - |` are in every code page and
+ * are what the restaurant's own web-ordering printer uses for the same job.
+ *
+ * Added 2026-09-30 for the ticket the owner asked for, and put HERE rather
+ * than in `receipt.ts` because `docs/INVARIANTS.md` gives this module all
+ * three renderers: a frame drawn in one of them would drift from the others.
+ *
+ * Every line comes back exactly `width` columns wide, padded, so the right
+ * edge is straight — `centred()` pads only the left, which is correct for a
+ * free line and wrong inside a frame.
+ */
+export function box(lines: readonly string[], width: number): string[] {
+  const edge = "+" + "-".repeat(Math.max(0, width - 2)) + "+";
+  const inner = Math.max(1, width - 4);
+  const out = [edge];
+  for (const line of lines) {
+    // NFC first: `é` as e+U+0301 is two units to `padEnd` and one glyph on
+    // paper, which would tear the right edge on exactly the accented French
+    // this ticket is full of.
+    for (const c of centred(line.normalize("NFC"), inner)) {
+      out.push("| " + c.padEnd(inner) + " |");
+    }
+  }
+  out.push(edge);
+  return out;
+}
+
+/**
+ * A labelled line — `Adresse   : 2 rue …` — whose continuations hang under the
+ * VALUE rather than returning to the margin.
+ *
+ * Without the hang, a long address wraps to column 0 and reads as a new field
+ * with a missing label. Measured on the owner's own address, which is what
+ * put this here.
+ */
+export function field(label: string, value: string, width: number, labelWidth = 12): string[] {
+  const head = (label + " ").padEnd(Math.max(2, labelWidth - 2)) + ": ";
+  const wrapped = wrapToWidth(value, Math.max(1, width - head.length));
+  return wrapped.map((line, i) => (i === 0 ? head : " ".repeat(head.length)) + line);
+}
+
+/**
+ * The restaurant's name, letter-spaced — `H I B A   F O O D`.
+ *
+ * The owner's web-ordering ticket does this and it is the only typographic
+ * emphasis a thermal printer gives us: `escpos.ts` has no bold and no
+ * double-height, so the header would otherwise be the same weight as a VAT
+ * line. **Falls back to the plain name when the spaced form will not fit**,
+ * because a wrapped restaurant name is worse than an unspaced one.
+ */
+export function letterSpaced(name: string, width: number): string {
+  const spaced = name.normalize("NFC").split("").join(" ");
+  return spaced.length <= width ? spaced : name;
+}

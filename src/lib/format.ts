@@ -89,3 +89,25 @@ export function formatRelativeDateTime(date: Date | string): string {
   if (isYesterday) return `Hier ${time}`;
   return formatDateTime(d);
 }
+
+/**
+ * A date a customer reads rather than decodes — « Mer. 1 octobre 2026 — 20:42 ».
+ *
+ * Added 2026-09-30 for the ticket. `formatDateTime` stays and is still used:
+ * the receipt falls back to it when the long form would not fit beside the
+ * ticket number, and every screen that wants a compact stamp keeps it.
+ *
+ * The weekday is abbreviated and the month is not, because « Mer. 1 sept. »
+ * reads as an abbreviation of nothing in particular while « Mer. 1 septembre »
+ * reads as a date. Locale is pinned to `fr-FR` like every other formatter here.
+ */
+export function formatDateTimeLong(date: Date | string): string {
+  const d = typeof date === "string" ? new Date(date) : date;
+  const day = d.toLocaleDateString("fr-FR", { weekday: "short" });
+  const rest = d.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+  const time = d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  // `toLocaleDateString` gives « mer. » — capitalised here so the line opens
+  // like a sentence rather than mid-word.
+  const weekday = day.charAt(0).toUpperCase() + day.slice(1);
+  return `${weekday} ${rest} — ${time}`;
+}

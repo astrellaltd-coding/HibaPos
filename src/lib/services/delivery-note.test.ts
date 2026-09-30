@@ -47,6 +47,27 @@ const delivery: OrderForDeliveryNote = {
   },
 };
 
+/**
+ * One labelled field, with its wrapped continuations joined back together.
+ *
+ * `field()` hangs continuation lines under the value, so a long address or note
+ * is several printed lines and one logical value. A test reading only the first
+ * line would pass on a truncation, which is the one thing the paper must never
+ * do (BOFiP § 50 — nothing is truncated, it wraps).
+ */
+function unwrapField(block: string, label: string): string {
+  const lines = block.split("\n");
+  const start = lines.findIndex((l) => l.startsWith(label));
+  if (start < 0) return "";
+  const head = lines[start].slice(lines[start].indexOf(":") + 1).trim();
+  const rest: string[] = [];
+  for (const line of lines.slice(start + 1)) {
+    if (!/^ {6,}\S/.test(line)) break;
+    rest.push(line.trim());
+  }
+  return [head, ...rest].join(" ");
+}
+
 describe("L-222 — the bon de livraison", () => {
   it("TELLS THE DRIVER WHERE TO GO, which no printed document did", () => {
     const note = renderDeliveryNote(delivery, baseSettings);
@@ -56,13 +77,14 @@ describe("L-222 — the bon de livraison", () => {
     expect(note).toContain("12 rue des Lilas");
   });
 
-  it("puts the town in capitals, under the street, as an address is written", () => {
+  it("puts the town in capitals, after the street, on one ADRESSE field", () => {
+    // The street and the town were two bare lines until 2026-09-30, the town
+    // beneath the street. They are now one labelled field — « Adresse : 12 rue
+    // des Lilas, VILLEURBANNE » — which wraps under its label rather than back
+    // to the margin. The town is still in capitals, as a French postal address
+    // is written.
     const note = renderDeliveryNote(delivery, baseSettings)!;
-    const lines = note.split("\n");
-    const street = lines.findIndex((l) => l.includes("12 rue des Lilas"));
-    const town = lines.findIndex((l) => l.includes("VILLEURBANNE"));
-    expect(town, "the town is not on the slip in capitals").toBeGreaterThan(-1);
-    expect(town, "the town is printed above the street").toBe(street + 1);
+    expect(unwrapField(note, "Adresse")).toBe("12 rue des Lilas, VILLEURBANNE");
   });
 
   it("NO LONGER CLAIMS TO BE A DOCUMENT OF ITS OWN — one slip since 2026-09-27", () => {
@@ -81,8 +103,9 @@ describe("L-222 — the bon de livraison", () => {
     const note = renderDeliveryNote(delivery, baseSettings)!;
     expect(note).not.toContain("BON DE LIVRAISON");
     expect(note).not.toContain("DOCUMENT NON FISCAL");
-    // It still says what it is, in one word, so the driver can find it.
-    expect(note).toContain("LIVRAISON");
+    // Since 2026-09-30 it announces itself as a framed section of the ticket,
+    // in the owner's own wording, rather than as a document of its own.
+    expect(note).toContain("INFORMATIONS CLIENT");
   });
 
   it("CARRIES NO MONEY, NO VAT AND NO FISCAL IDENTITY", () => {
@@ -122,7 +145,11 @@ describe("L-222 — the bon de livraison", () => {
       { ...delivery, notes: "Code 34B2, 3e étage, sonner chez Martin" },
       baseSettings,
     )!;
-    expect(note).toContain("Code 34B2, 3e étage, sonner chez Martin");
+    // Asserted UNWRAPPED. A long note hangs under its label across two printed
+    // lines, so `toContain` on the whole string would fail — and would report a
+    // missing note when it is merely wrapped. Nothing is ever truncated, so the
+    // rejoined value must be exact.
+    expect(unwrapField(note, "Note")).toBe("Code 34B2, 3e étage, sonner chez Martin");
   });
 
   it("does NOT repeat the FACTICE stamp — the ticket above it carries it once", () => {

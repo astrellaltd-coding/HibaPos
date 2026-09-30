@@ -221,18 +221,39 @@ describe("renderReceipt", () => {
       customer: { name: "Jean Dupont", phone: "0612131415", address: "12 rue des Lilas", city: "Villeurbanne" },
     };
 
-    it("NAMES THE CUSTOMER, which it did not", () => {
+    it("NAMES NOBODY — L-248, the operator's decision of 2026-09-30", () => {
+      // THIS TEST ASSERTED THE OPPOSITE until 2026-09-30, and the reversal is
+      // the whole finding. `Client : <nom>` was put into the sealed text on
+      // 2026-09-18 so a delivery ticket said who it was for. The operator then
+      // researched the personal-data question and the answer went further than
+      // the layout: the fiscal obligation can justify keeping data necessary to
+      // a retained document, but delivery data is not fiscal, and the NAME had
+      // to justify itself like any other field.
+      //
+      // It does not. The name is printed on the paper by `delivery-note.ts`,
+      // where it is stored nowhere, and `Order.customerId` still ties the
+      // transaction to the customer in ordinary, deletable data.
       const text = renderReceipt(delivery, baseSettings);
-      expect(text, "the sealed delivery ticket still says nothing about who").toContain("Client : Jean Dupont");
+      expect(text, "the customer's name is back in the sealed, archived receipt").not.toContain(
+        "Jean Dupont",
+      );
     });
 
-    it("KEEPS THE ADDRESS AND THE TELEPHONE OFF THE SEALED TICKET", () => {
-      // The half that is a decision rather than a layout. This text is archived
-      // for the exercice; a customer's home has no business in it.
-      const text = renderReceipt(delivery, baseSettings);
+    it("KEEPS EVERY PIECE OF CUSTOMER DATA OFF THE SEALED TICKET", () => {
+      // The decision rather than the layout. This text is copied verbatim into
+      // the annual archive by `buildAnnualArchive`, so anything here is
+      // unerasable for the retention period — no deletion request can reach it.
+      // With all four out, a deletion genuinely erases someone: the ticket keeps
+      // the transaction and loses the person.
+      //
+      // The `VENTE` fiscal payload never carried customer data either
+      // (`sale-journal.ts`), so this text was the last route into the archive.
+      const text = renderReceipt({ ...delivery, notes: "Code 34B2, 3e étage" }, baseSettings);
+      expect(text, "the name reached the sealed, archived receipt").not.toContain("Jean Dupont");
       expect(text, "a home address reached the sealed, archived receipt").not.toContain("12 rue des Lilas");
       expect(text, "the town reached the sealed, archived receipt").not.toContain("Villeurbanne");
       expect(text, "a telephone number reached the sealed, archived receipt").not.toContain("0612131415");
+      expect(text, "the order note reached the sealed, archived receipt").not.toContain("34B2");
     });
 
     it("says nothing about a customer on a SUR PLACE or A EMPORTER ticket", () => {
@@ -287,7 +308,12 @@ describe("renderReceipt", () => {
     // the last line those words appear on EVERY ticket — so the fallback for a
     // missing restaurant name could be deleted and this would still pass.
     // Demonstrated under revert before the line was pinned to the header.
-    expect(text.split("\n")[0]).toContain("HibaPOS France");
+    // Since 2026-09-30 the name sits INSIDE the framed header, so line 0 is the
+    // frame's top edge and line 1 carries the name — letter-spaced, which is
+    // why the spacing and the frame's bars are stripped before comparing rather
+    // than the spaced form being pinned.
+    const nameLine = text.split("\n")[1].replace(/[|]/g, "").replace(/\s+/g, "");
+    expect(nameLine).toContain("HibaPOSFrance");
   });
 
   // L-53 (Batch 3.7) — the ticket names the software and its version.
@@ -365,24 +391,34 @@ describe("renderReceipt", () => {
     const text = renderReceipt(baseOrder, baseSettings);
     expect(text).toContain("Service 7");
     const shiftLine = text.split("\n").find((l) => l.includes("Service 7"))!;
-    expect(shiftLine).toContain("Caissier : Admin");
-    // The till number belongs to the establishment block, above the separator
-    // that opens the transaction — not on this line.
-    expect(shiftLine).not.toContain("Caisse");
+    // MOVED 2026-09-30: `Service` used to share its line with the cashier and
+    // now shares it with `Caisse N°`, which is where the owner asked for the
+    // till number. The pairing is deliberate — the till and the session are
+    // both numbers about WHERE the sale was rung, and the cashier is a name.
+    expect(shiftLine).toContain("Caisse N° 1");
+    expect(shiftLine, "the cashier is back on the session line").not.toContain("Caissier");
+    // And the cashier still appears, on a labelled line of its own.
+    expect(text).toContain("Caissier  : Admin");
   });
 
-  it("puts the till number in the establishment block, and centred", () => {
+  it("puts the till number beside the SERVICE, in the order's own section", () => {
+    // MOVED 2026-09-30. It was a centred line in the establishment block, which
+    // is where L-58 put it; the owner moved it in beside `Service`, where his
+    // own web-ordering ticket carries it. Two numbers that describe the till
+    // and the session, on one line, above the ticket number.
+    //
+    // The pairing is the point and is what this pins: `Caisse N°` is the TILL
+    // and is a literal, `Service` is the session and increments. L-58 exists
+    // because the ticket once printed the session counter as the till's number.
     const lines = renderReceipt(baseOrder, baseSettings).split("\n");
     const caisse = lines.findIndex((l) => l.includes("Caisse N° 1"));
     const tva = lines.findIndex((l) => l.includes("TVA : TEST-TVA"));
     const ticket = lines.findIndex((l) => l.includes("Ticket N°"));
-    expect(tva).toBeLessThan(caisse);
-    expect(caisse).toBeLessThan(ticket);
-    // Centred, so it cannot collide with anything at any column count — which
-    // is why it is here and not on the cashier line (L-21: this renderer
-    // centres but never wraps).
-    expect(lines[caisse].startsWith(" ")).toBe(true);
-    expect(lines[caisse].trim()).toBe("Caisse N° 1");
+    expect(caisse, "the till number is not on the ticket").toBeGreaterThan(-1);
+    expect(tva, "the till number is no longer below the establishment block").toBeLessThan(caisse);
+    expect(caisse, "the till number is no longer above the ticket number").toBeLessThan(ticket);
+    expect(lines[caisse]).toContain("Service 7");
+    expect(lines[caisse].startsWith("Caisse N° 1"), "the till number is not the line's own left edge").toBe(true);
   });
 
   it("does not make the cashier line wider than it already was (L-21)", () => {
@@ -392,9 +428,14 @@ describe("renderReceipt", () => {
     expect("Service 7".length).toBe("Caisse #7".length);
     const narrow = renderReceipt(baseOrder, { ...baseSettings, receiptWidth: 32 });
     const shiftLine = narrow.split("\n").find((l) => l.includes("Service 7"))!;
-    expect(shiftLine).toBe("Caissier : Admin" + " ".repeat(7) + "Service 7");
+    // `Service` shares its line with `Caisse N° 1` since 2026-09-30, and the
+    // pair is NARROWER than the cashier line it replaced — so the width this
+    // test was written to protect is not at risk from the move.
+    expect(shiftLine).toBe("Caisse N° 1" + " ".repeat(12) + "Service 7");
     expect(shiftLine.length).toBe(32);
-    // And the new centred line fits at the same width.
+    // THE REAL CHECK, and the one the frames made necessary: every line of the
+    // new layout fits the narrowest paper the settings allow. A frame is drawn
+    // to a width rather than wrapped to one, so it would overflow silently.
     expect(narrow.split("\n").every((l) => l.length <= 32)).toBe(true);
   });
 
@@ -512,7 +553,14 @@ describe("renderReceipt wraps over-long settings fields (L-21)", () => {
     // « France » to it matched the software identity line « HibaPOS France
     // v0.2.1 » as well. The property does not need a filter: the address is on
     // the ticket, in order, across however many lines the wrap takes.
-    const joined = lines.map((l) => l.trim()).join(" ");
+    // AMENDED AGAIN 2026-09-30, for the frames. The establishment block is now
+    // drawn inside a box, so a wrapped address has `|` between its halves and
+    // the bars are stripped before joining. The property is untouched: the
+    // address is on the ticket, in order, across however many lines it takes.
+    const joined = lines
+      .map((l) => l.replace(/^\|/, "").replace(/\|$/, "").trim())
+      .join(" ")
+      .replace(/\s+/g, " ");
     expect(joined, "the address is not on the ticket in full").toContain(LIVE_ADDRESS);
     // …and it really did wrap, rather than fitting on one line and making the
     // assertion above true for the wrong reason.
@@ -563,7 +611,13 @@ describe("renderReceipt wraps over-long settings fields (L-21)", () => {
     const lines = renderReceipt(baseOrder, long).split("\n");
     expect(lines.every((l) => l.length <= 32)).toBe(true);
     // …and each value survives whole rather than being cut off at the margin.
-    const flat = lines.map((l) => l.trim()).join(" ");
+    // The frame's bars are stripped first: these lines live inside the boxed
+    // establishment block since 2026-09-30, so a wrapped value has a `|` in
+    // the middle of it and only the printed text is the value.
+    const flat = lines
+      .map((l) => l.replace(/^[|]/, "").replace(/[|]$/, "").trim())
+      .join(" ")
+      .replace(/\s+/g, " ");
     expect(flat).toContain("+33 2 38 87 44 09 poste 1234");
     expect(flat).toContain("812 345 678 00021 812 345 678");
     expect(flat).toContain("FR 12 345678901 FR 12 3456789");
@@ -575,7 +629,10 @@ describe("renderReceipt wraps over-long settings fields (L-21)", () => {
     const lines = renderReceipt(baseOrder, baseSettings).split("\n");
     expect(lines.filter((l) => l.includes("12 Rue Test, 75001 Paris"))).toHaveLength(1);
     expect(lines.filter((l) => l.includes("Merci de votre visite !"))).toHaveLength(1);
-    expect(lines.filter((l) => l.trim() === "HibaPOS Test")).toHaveLength(1);
+    // Letter-spaced inside the frame since 2026-09-30, so the name is matched
+    // with the spacing and the bars removed rather than as a bare string.
+    const bare = (l: string) => l.replace(/[|]/g, "").replace(/\s+/g, "");
+    expect(lines.filter((l) => bare(l) === "HibaPOSTest")).toHaveLength(1);
   });
 });
 
@@ -662,12 +719,19 @@ describe("renderReceipt lays out every line, not only the centred ones (L-63)", 
   });
 
   it("wraps the cashier line without losing the name or the service number", () => {
+    // The cashier is its own labelled field since 2026-09-30 — `Caissier  : `,
+    // padded to the label column — and `Service` moved to the line above, with
+    // the till number. So the long name is checked on its own field (which
+    // hangs its continuations under the value) and the service number where it
+    // now lives. The property is unchanged: neither is lost and no line
+    // overflows.
     const lines = renderReceipt(heavy, { ...baseSettings, receiptWidth: 48 }).split("\n");
-    const start = lines.findIndex((l) => l.startsWith("Caissier : "));
-    const block = lines.slice(start, start + 2).join(" ");
+    const start = lines.findIndex((l) => l.startsWith("Caissier"));
+    expect(start, "the cashier line is gone entirely").toBeGreaterThan(-1);
+    const block = lines.slice(start, start + 3).join(" ").replace(/\s+/g, " ");
     expect(block).toContain(LONG_OPERATOR_NAME);
-    expect(block).toContain("Service 7");
-    expect(lines.slice(start, start + 2).every((l) => l.length <= 48)).toBe(true);
+    expect(lines.join("\n")).toContain("Service 7");
+    expect(lines.every((l) => l.length <= 48)).toBe(true);
   });
 
   it("wraps the change line, which was a raw push too", () => {

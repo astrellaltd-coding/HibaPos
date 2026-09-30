@@ -110,7 +110,11 @@ describe("L-129 — the receipt prints, and says what it does not know", () => {
   it("still prints the sale — printing must never lose one", () => {
     const text = renderReceipt(orderWith([null]), settings as SettingsDto);
     expect(text).toContain("Ligne 1");
-    expect(text).toContain("HIBA FOOD");
+    // The establishment's name is letter-spaced inside the framed header since
+    // 2026-09-30 — `H I B A   F O O D` — so the spacing and the frame's bars
+    // come off before comparing. What this asserts is unchanged: a sale with an
+    // unknown VAT rate still produces a whole ticket rather than a stub.
+    expect(text.replace(/[|]/g, "").replace(/\s+/g, "")).toContain("HIBAFOOD");
     expect(text.length).toBeGreaterThan(100);
   });
 

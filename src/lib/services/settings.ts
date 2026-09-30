@@ -8,6 +8,9 @@ export const DEFAULT_SETTINGS: SettingsInput = {
   restaurantAddress: "12 Rue de la Paix, 75002 Paris",
   restaurantPhone: "01 23 45 67 89",
   restaurantSiret: "",
+  // Empty, deliberately: this is one restaurant's address on the web and has no
+  // sensible product-wide default. Empty prints no line at all.
+  restaurantWebsite: "",
   restaurantTva: "",
   footerNote: "Merci de votre visite !",
   defaultVatRate: 10,

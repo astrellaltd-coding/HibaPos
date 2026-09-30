@@ -185,7 +185,9 @@ describe("L-222 — a LIVRAISON print puts the destination on paper", () => {
     expect(paper, "the slip is announcing itself as a separate document again").not.toContain(
       "BON DE LIVRAISON",
     );
-    expect(paper).toContain("LIVRAISON");
+    // Since 2026-09-30 the block is a framed section titled in the owner's
+    // wording, sitting above the ARTICLES frame rather than at the foot.
+    expect(paper).toContain("INFORMATIONS CLIENT");
   });
 
   it("KEEPS THE HOME ADDRESS OUT OF THE SEALED TICKET, which is now the DATABASE's copy", async () => {
@@ -385,10 +387,10 @@ describe("L-222 — a REPRINT owes the driver the same two documents", () => {
     });
     // The block used to be job 1 and could be read on its own. On one slip it
     // has to be cut out of the paper, and the cut is unambiguous: the block
-    // opens with a line that is exactly « LIVRAISON », where the ticket's own
-    // wording is « Type : Livraison ».
+    // opens with the framed title « INFORMATIONS CLIENT », which appears
+    // nowhere else on the ticket.
     const lines = text(printer.jobs[0]).split("\n");
-    const start = lines.findIndex((l) => l.trim() === "LIVRAISON");
+    const start = lines.findIndex((l) => /\|\s*INFORMATIONS CLIENT\s*\|/.test(l)) - 1;
     expect(start, "the delivery block is not on the paper at all").toBeGreaterThan(-1);
     const block = lines.slice(start).join("\n");
 

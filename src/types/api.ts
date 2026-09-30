@@ -387,6 +387,8 @@ export type SettingsDto = {
   restaurantAddress: string | null;
   restaurantPhone: string | null;
   restaurantSiret: string | null;
+  /** L-249: the restaurant's own web address, printed under the footer note. */
+  restaurantWebsite: string | null;
   restaurantTva: string | null;
   footerNote: string | null;
   defaultVatRate: number;

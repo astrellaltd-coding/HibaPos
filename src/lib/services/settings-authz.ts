@@ -48,6 +48,7 @@ export const SUPER_ADMIN_ONLY_SETTINGS = [
   "restaurantPhone",
   "restaurantSiret",
   "restaurantTva",
+  "restaurantWebsite",
   "footerNote",
   "currency",
   "defaultVatRate",
