@@ -14,7 +14,9 @@ zero, re-measured 2026-09-27. **On the FRANCE TILL it is not**: FACTICE is on an
 been testing since the 2026-09-20 reset, so its journal holds factice events. **How many is not
 measured**, and R6.1 is the step that clears them.
 
-> ### ▶ CURRENT TASK — **carry the till's catalogue back to this machine.** See item 0.
+> ### ▶ CURRENT TASK — **the go-live sequence, item 2 below, starting with the pull.** L-251
+> (Chicago could not be sold) was fixed and pushed on 2026-10-01 and travels with that pull.
+> Item 0, carrying the till's catalogue back, waits until after the go-live.
 >
 > **Every batch of Phases 8, 9 and 10 is finished** — read them in `REMEDIATION_DONE.md`, not
 > from a second copy here. The only § 6 row that is not the operator's is R10.3. The work now

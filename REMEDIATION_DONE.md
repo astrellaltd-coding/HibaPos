@@ -119,6 +119,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - L-241 + L-242 — one piece of paper, and the version line leaves the ticket
 - L-243 — the till was fetching Prisma from npm before it would boot
 - L-246 — an uploaded image was served by nobody
+- L-251 — Chicago could be rung up and not sold, and a new product could store a group it inherits
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -7258,6 +7259,54 @@ assertion.
 **Gates:** 2138 pass / 0 fail / 163 files, typecheck 0, lint 0. `db/custom.db` unchanged.
 
 **The till needs one more rebuild to take this**, after which uploads no longer need one.
+
+---
+
+### L-251 — Chicago could be rung up and not sold, and a new product could store a group it inherits
+**Done:** 2026-10-01 · **Commit:** `22dee64` · **Finding:** L-251
+
+**The report.** The owner could not sell the two pizzas added on 2026-09-28 — « Option
+obligatoire manquante : Taille ». **Measured from the till's own catalogue export
+(2026-10-01T02:29:45Z), read-only, through the real `computeLinePricing` and `toCartOptions`:**
+Chicago as exported was refused in 6/6 size × mode combinations; **Algérienne sold in 6/6 and
+was never affected** — it has no group of its own. Chicago carried a required `Taille`
+(Petite · Moyenne · Grande, −8,90 € modifiers) beside the `Pizzas` one it inherits; the POS
+dialog shows the first group of a name and hides the rest, and the server checks every group.
+
+**The data was repaired by the operator before the code was touched**, by re-saving Chicago on
+the till (PUT's L-67 guard drops the duplicate); the sale then went through. Re-measured on the
+re-saved shape: 6/6.
+
+**What changed.** `POST /api/catalog/products` applies `inheritedGroupNames` +
+`splitOwnFromInherited`, as `PUT` has since Batch 5.8 — the guard had only ever been on half the
+write path. New `src/lib/product-sizes.ts`: `ownSizeGroup` ignores inherited groups and
+`categoryProvidesSizes` says when the category already has sizes. `products-view.tsx` uses them:
+a pizza opens with « Tailles de « Pizzas » » locked OFF and its prices editable, where it used to
+open with the switch ON, the price fields greyed and the saved price derived from the inherited
+sizes — which is how Chicago's delivery price of 0 € could survive a save.
+
+**How it was verified.** Four POST tests beside the six PUT ones in
+`products-inherited-options.test.ts`, seven in `product-sizes.test.ts`. **Red first, one
+property at a time, both directions:** POST guard removed → 3 red (the duplicate is stored, and
+« still stores a group the category does not provide » sees both); guard ignoring
+`inheritCategoryGlobals: false` → the opt-out test red; `ownSizeGroup` counting inherited → 2
+red; `categoryProvidesSizes` ignoring the opt-out → 1 red; a one-size group accepted → 1 red.
+**The editor wiring has no DOM test, so it was walked** on a scratch copy with both
+`DATABASE_URL` and `HIBAPOS_DATA_DIR` overridden and the marker read back from
+`/api/auth/profiles` before the first write: a pizza opens locked with 8,90 / 9,90 editable;
+inheritance off unlocks it and back on locks it; switching sizes ON and *then* choosing Pizzas
+locks it and drops the size rows; a pizza created through the editor, and the old editor's
+Chicago body POSTed directly, each come back with one inherited `Taille`. `db/custom.db`
+sha256 `e88d1a77…` and mtime unchanged, no `-wal`/`-shm`.
+
+**Gates:** 2149 pass / 0 fail / 164 files, typecheck 0, lint 0. README count 2138 → 2149.
+
+**Left behind.** The POS dialog still keys selections by group NAME
+(`product-options-dialog-v2.tsx:82-83`), which is why a duplicate was invisible rather than
+visible. With both write paths guarded it cannot recur through the app; an import or a direct
+database edit could still produce one. Not fixed here; it is a change to how every sale is
+built, and wants its own item. **Chicago's delivery price** was 0 € in the export — the operator
+should confirm it reads 9,90 € on the till.
 
 ---
 
