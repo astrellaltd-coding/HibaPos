@@ -50,9 +50,10 @@ measured**, and R6.1 is the step that clears them.
 >    2026-10-01.** The till is unchanged: FACTICE on, the journal holding factice events, the key
 >    unarmed, the four identity settings unset, and two commits behind (`c464032`, `847fb95`).
 >    **The sequence, in this order, and the order is a rule** (written out in full in `CLAUDE.md`
->    Part Two): **(1)** the four settings as SUPER_ADMIN — SIRET `93789365900014`, phone
->    `0238874409`, `restaurantTva` **cleared**, `restaurantWebsite` set; **(2)** pull and rebuild
->    — stop the task, `bun run db:generate`, `bun run build`; **(3)** print one factice delivery
+>    Part Two): **(1)** pull and rebuild — stop the task, `bun run db:generate`, `bun run
+>    build` — first, because `restaurantWebsite` only exists on the till once `847fb95` is in;
+>    **(2)** the four settings as SUPER_ADMIN — SIRET `93789365900014`, phone `0238874409`,
+>    `restaurantTva` **cleared**, `restaurantWebsite` set; **(3)** print one factice delivery
 >    and look at the paper — the last free look; **(4)** a backup, **copied off the till** —
 >    `pre-golive-reset.ts` asks whether one exists and trusts the answer; **(5)** R6.1, dry run
 >    first; **(6)** R6.2, the key leaving the till before that screen closes; **(7)** R6.3,

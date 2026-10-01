@@ -26,7 +26,7 @@ found in one week, and a reader had no way to know which side to believe.
 
 2. **Do one item.** Only what is in that item. Anything else you notice goes into FINDINGS.md's
    own tables with a new `L-` id continuing the same sequence — the audit ended at **L-182** and
-   the highest today is **L-250**. The plan's § 7 is closed to new rows until the operator
+   the highest today is **L-251**. The plan's § 7 is closed to new rows until the operator
    reopens it. You do not fix it now.
 
 3. **Then, in this order:** `bun run test` · `bun run typecheck` · `bun run lint` — all three
@@ -134,11 +134,12 @@ it the journal can never be verified. The same goes for `BACKUP_ENCRYPTION_KEY`.
 because the reset erases the evidence; after FACTICE goes off there is no such thing as a test
 sale.
 
-1. **Four settings, as SUPER_ADMIN** — SIRET `93789365900014`, telephone `0238874409`,
-   `restaurantTva` **cleared**, `restaurantWebsite` set. The till's MANAGER account cannot.
-2. **Pull and rebuild**, per *Updating the France till* above: stop the Scheduled Task first,
+1. **Pull and rebuild**, per *Updating the France till* above: stop the Scheduled Task first,
    `bun run db:generate` and never `bunx prisma generate`, and `bun run build` or the till
-   serves the old code.
+   serves the old code. **This comes first because `restaurantWebsite` arrives with `847fb95`**
+   — before the pull, the till has no such setting to fill.
+2. **Four settings, as SUPER_ADMIN** — SIRET `93789365900014`, telephone `0238874409`,
+   `restaurantTva` **cleared**, `restaurantWebsite` set. The till's MANAGER account cannot.
 3. **Print one factice delivery and look at the paper.** L-249 rebuilt the ticket and L-248 took
    every piece of customer data out of the sealed text; both are verified through the real
    renderers, which proves the bytes and not the ink. R6.4's standard is a person in the
