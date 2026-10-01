@@ -38,6 +38,7 @@ import {
 import { formatEuro } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { quotaGroupsFor, quotaPayload } from "@/lib/option-quota";
+import { SIZE_GROUP_NAME, ownSizeGroup, categoryProvidesSizes } from "@/lib/product-sizes";
 import { toast } from "sonner";
 import {
   Package,
@@ -60,7 +61,6 @@ type ChoiceForm = { name: string; priceModifier: number; pickupPriceModifier?: n
 type GroupForm = { name: string; required: boolean; multiple: boolean; choices: ChoiceForm[] };
 type SizeForm = { name: string; pickupPrice: number; deliveryPrice: number };
 
-const SIZE_GROUP_NAME = "Taille";
 const DEFAULT_SIZES: SizeForm[] = [
   { name: "Petite", pickupPrice: 0, deliveryPrice: 0 },
   { name: "Moyenne", pickupPrice: 0, deliveryPrice: 0 },
@@ -70,9 +70,10 @@ const DEFAULT_SIZES: SizeForm[] = [
 // VAT is generally 10% (handled via settings), except for bottled drinks (5.5%)
 
 function productToSizes(product: ProductDto): SizeForm[] | null {
-  const opts = product.options;
-  const tg = opts.find((g) => g.name === SIZE_GROUP_NAME);
-  if (!tg || tg.choices.length < 2) return null;
+  // L-251: the product's OWN size group only. Reading the merged list made
+  // every pizza open as if Junior · Senior · Mega were its own.
+  const tg = ownSizeGroup(product.options);
+  if (!tg) return null;
   const pickupBase = product.pickupPrice ?? 0;
   const deliveryBase = product.deliveryPrice ?? 0;
   return tg.choices.map((c) => ({ 
@@ -451,6 +452,11 @@ function ProductFormDialog({
   // Size mode
   const [sizesEnabled, setSizesEnabled] = useState(!!existingSizes);
   const [sizes, setSizes] = useState<SizeForm[]>(existingSizes ?? DEFAULT_SIZES.map((s) => ({ ...s })));
+  // L-251 — sizes the category already provides are not offered again here.
+  // Derived rather than forced into `sizesEnabled`, so choosing a category
+  // AFTER flipping the switch still lands on « no sizes of its own ».
+  const sizesFromCategory = categoryProvidesSizes(inheritCategoryGlobals, globalsCategoryDetail?.optionGroups);
+  const sizesOn = sizesEnabled && !sizesFromCategory;
 
   // Single price (used when sizes are OFF)
   const [pickupPrice, setPickupPrice] = useState(product?.pickupPrice != null ? product.pickupPrice / 100 : 0);
@@ -498,7 +504,7 @@ function ProductFormDialog({
   const removeSize = (i: number) => setSizes((ss) => ss.filter((_, idx) => idx !== i));
 
   const valid = name.trim() && categoryId && (
-    sizesEnabled
+    sizesOn
       ? sizes.filter((s) => s.name.trim()).length >= 2
       : pickupPrice >= 0 && deliveryPrice >= 0
   );
@@ -508,14 +514,14 @@ function ProductFormDialog({
   // single price when they are off. A menu turns the sizes off (see the switch
   // below), so in practice this is the single price; deriving it rather than
   // assuming keeps the message honest if that ever changes.
-  const forfaitCents = sizesEnabled
+  const forfaitCents = sizesOn
     ? sizesToGroupAndPrice(sizes).pickupPrice
     : Math.round(Number(pickupPrice) * 100);
   const comboErrors = slotFormErrors({ isCombo, priceCents: forfaitCents, slots: comboSlots });
 
   const handleSave = async () => {
     if (!valid) {
-      toast.error(sizesEnabled ? "Ajoutez au moins 2 tailles avec un nom" : "Veuillez remplir le nom et la catégorie");
+      toast.error(sizesOn ? "Ajoutez au moins 2 tailles avec un nom" : "Veuillez remplir le nom et la catégorie");
       return;
     }
     // Batch 5.10: the same validator the server runs, so the operator is never
@@ -547,7 +553,7 @@ function ProductFormDialog({
     let finalDeliveryPrice: number;
     let finalOptions: typeof cleanGroups;
 
-    if (sizesEnabled) {
+    if (sizesOn) {
       const { pickupPrice: basePickup, deliveryPrice: baseDelivery, group: sizeGroup } = sizesToGroupAndPrice(sizes);
       finalPrice = basePickup;
       finalPickupPrice = basePickup;
@@ -791,7 +797,7 @@ function ProductFormDialog({
                         min="0"
                         value={pickupPrice}
                         onChange={(e) => setPickupPrice(Number(e.target.value))}
-                        disabled={sizesEnabled}
+                        disabled={sizesOn}
                         className="tabular-nums"
                       />
                     </div>
@@ -803,15 +809,19 @@ function ProductFormDialog({
                         min="0"
                         value={deliveryPrice}
                         onChange={(e) => setDeliveryPrice(Number(e.target.value))}
-                        disabled={sizesEnabled}
+                        disabled={sizesOn}
                         className="tabular-nums"
                       />
                     </div>
                   </div>
                   <div className="flex shrink-0 flex-col items-center justify-end pb-2 gap-1.5">
-                    <Label htmlFor="products-tailles-multiples" className="text-[10px] text-muted-foreground">Tailles multiples</Label>
+                    <Label htmlFor="products-tailles-multiples" className="text-[10px] text-muted-foreground">
+                      {/* L-251: a title is invisible on a touch screen, so the label says it. */}
+                      {sizesFromCategory ? `Tailles de « ${globalsCategory?.name ?? ""} »` : "Tailles multiples"}
+                    </Label>
                     <Switch id="products-tailles-multiples"
-                      checked={sizesEnabled}
+                      checked={sizesOn}
+                      disabled={sizesFromCategory}
                       onCheckedChange={(v) => {
                         setSizesEnabled(v);
                         if (v && sizes.every((s) => s.pickupPrice === 0 && s.deliveryPrice === 0)) {
@@ -879,7 +889,7 @@ function ProductFormDialog({
               }}
             />
 
-            {sizesEnabled && (
+            {sizesOn && (
               <>
                 <Separator />
                 {/* ── 3. Tailles ── */}

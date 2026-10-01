@@ -9,6 +9,7 @@ import { Prisma } from "@prisma/client";
 import { resolveVatRate } from "@/lib/services/pricing";
 import { quotaFor } from "@/lib/option-quota";
 import { replaceOptionQuotas } from "@/lib/services/product-quotas";
+import { inheritedGroupNames, splitOwnFromInherited } from "@/lib/services/product-options";
 
 type ProductWithRelations = Prisma.ProductGetPayload<{
   include: {
@@ -323,7 +324,21 @@ export const POST = withAuth(async (req, { user }) => {
     // `options` is optional since C-24 (Batch 4.6) so that a PUT omitting it
     // cannot wipe a product's groups. On create there is nothing to preserve,
     // so absent simply means "no product-specific groups".
-    const groups = options ?? [];
+    //
+    // L-251 — THE L-67 GUARD, ON THE PATH L-67 MISSED. Batch 5.8 refused to
+    // store a group the product already inherits, but only in `PUT`; this
+    // handler stored whatever it was sent. On 2026-09-28 the operator created
+    // « Chicago » under `Pizzas` with « Tailles multiples » on, and it got its
+    // own required `Taille` beside the one it inherits. The POS shows the first
+    // group of a name and hides the rest, the server checks every group, and
+    // the pizza could not be sold — « Option obligatoire manquante : Taille ».
+    // Same rule, same module, same silence as `PUT`, so the two cannot drift.
+    const savedCategory = await tx.category.findUnique({
+      where: { id: productData.categoryId },
+      include: { optionGroups: { select: { name: true } }, parent: { include: { optionGroups: { select: { name: true } } } } },
+    });
+    const inherited = inheritedGroupNames(productData.inheritCategoryGlobals !== false, savedCategory);
+    const { own: groups } = splitOwnFromInherited(options ?? [], inherited);
     for (let i = 0; i < groups.length; i++) {
       const g = groups[i];
       const group = await tx.optionGroup.create({

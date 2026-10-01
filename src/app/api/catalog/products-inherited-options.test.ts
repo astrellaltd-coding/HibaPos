@@ -3,6 +3,7 @@ import { signInAs, callJson, clearCookies } from "@/lib/route-harness";
 import { db } from "@/lib/db";
 import { hashPin } from "@/lib/auth";
 import { PUT } from "./products/[id]/route";
+import { POST } from "./products/route";
 
 // L-67 (Batch 5.8) — the guard in `PUT /api/catalog/products/[id]`, driven over
 // HTTP rather than asserted about.
@@ -203,5 +204,55 @@ describe("PUT /api/catalog/products/[id] — inherited option groups (L-67)", ()
     await callJson(PUT, { method: "PUT", params: { id: product.id }, body });
 
     expect(await productGroupNames(product.id)).toEqual(["Cuisson"]);
+  });
+});
+
+// L-251 — THE SAME RULE ON CREATE. Batch 5.8 put the guard on `PUT` only, and
+// « Chicago » was CREATED on the till on 2026-09-28 with its own required
+// `Taille` beside the `Pizzas` one it inherits. The POS hid the second and the
+// server refused every sale of it. These drive `POST` with the body the editor
+// sent that night: a group whose name the category already provides.
+describe("POST /api/catalog/products — inherited option groups (L-251)", () => {
+  /** A category providing « Sauces », with no product yet: POST makes the product. */
+  async function seedCategory(parentOwnsGroups = false) {
+    const { category, product } = await seed({ parentOwnsGroups });
+    await db.product.delete({ where: { id: product.id } });
+    created.products.length = 0;
+    return category;
+  }
+
+  async function create(categoryId: string, groupNames: string[], inherit = true) {
+    const res = await callJson<{ id: string }>(POST, {
+      method: "POST",
+      url: "http://localhost/api/catalog/products",
+      body: putBody(categoryId, groupNames, inherit),
+    });
+    expect(res.status).toBe(201);
+    created.products.push(res.body.id);
+    return res.body.id;
+  }
+
+  it("does not store a group the new product already inherits", async () => {
+    const category = await seedCategory();
+    const id = await create(category.id, ["Sauces"]);
+    expect(await productGroupNames(id)).toEqual([]);
+  });
+
+  it("still stores a group the category does not provide", async () => {
+    const category = await seedCategory();
+    const id = await create(category.id, ["Sauces", "Cuisson"]);
+    expect(await productGroupNames(id)).toEqual(["Cuisson"]);
+  });
+
+  it("resolves inheritance through the parent, as Chicago's « Creme Frech » under « Pizzas »", async () => {
+    const category = await seedCategory(true);
+    const id = await create(category.id, ["  sauces "]);
+    expect(await productGroupNames(id)).toEqual([]);
+  });
+
+  it("stores the group when the new product opts out of inheritance", async () => {
+    const category = await seedCategory();
+    const id = await create(category.id, ["Sauces"], false);
+    expect(await productGroupNames(id)).toEqual(["Sauces"]);
   });
 });
