@@ -14,8 +14,10 @@ zero, re-measured 2026-09-27. **On the FRANCE TILL it is not**: FACTICE is on an
 been testing since the 2026-09-20 reset, so its journal holds factice events. **How many is not
 measured**, and R6.1 is the step that clears them.
 
-> ### ▶ CURRENT TASK — **the go-live sequence, item 2 below, starting with the pull.** L-251
-> (Chicago could not be sold) was fixed and pushed on 2026-10-01 and travels with that pull.
+> ### ▶ CURRENT TASK — **the go-live, item 2 below: waiting on the owner's look at the paper.**
+> Steps 1 and 2 were done on the till on 2026-10-01: pulled to `03ed85a`, rebuilt (version
+> 1.0.0 on the Fiscal screen), the four settings set, Chicago (L-251) selling. A factice delivery
+> is printed and **the owner looks at it at 17:00**. Steps 4–7 follow only after he approves it.
 > Item 0, carrying the till's catalogue back, waits until after the go-live.
 >
 > **Every batch of Phases 8, 9 and 10 is finished** — read them in `REMEDIATION_DONE.md`, not
@@ -45,13 +47,14 @@ measured**, and R6.1 is the step that clears them.
 >    footer — and **L-248 took every piece of customer data out of the sealed text** with it.
 >    Verified end to end through the real renderers, which proves the BYTES AND NOT THE INK.
 >    **R6.4's standard is a person in the restaurant looking at paper**, and that has not
->    happened for this layout. It wants one factice delivery printed before the first real sale.
->    **`restaurantWebsite` is a NEW setting and arrives EMPTY** — until it is set in Réglages the
->    footer prints the thank-you and no URL.
-> 2. **THE GO-LIVE HAS NOT STARTED — nothing was done overnight, confirmed by the operator on
->    2026-10-01.** The till is unchanged: FACTICE on, the journal holding factice events, the key
->    unarmed, the four identity settings unset, and behind `origin/main` from `c464032`
->    onward — only `847fb95` changes what runs or prints.
+>    happened for this layout. **One factice delivery was printed on the till on 2026-10-01; the owner
+>    looks at it at 17:00.**
+>    **`restaurantWebsite` is set on the till since 2026-10-01**, through the Réglages field L-252
+>    added that morning; empty, the footer prints the thank-you and no URL.
+> 2. **THE GO-LIVE IS UNDER WAY — steps 1 and 2 done on 2026-10-01, stopped at step 3.** The till
+>    is at `03ed85a` and version 1.0.0, the four identity settings are set, and one factice
+>    delivery is printed for the owner to look at. **Still true:** FACTICE on, the journal holding
+>    factice events, the chain key unarmed. The backup (step 4) is taken just before the reset.
 >    **The sequence, in this order, and the order is a rule** (written out in full in `CLAUDE.md`
 >    Part Two): **(1)** pull and rebuild — stop the task, `bun run db:generate`, `bun run
 >    build` — first, because `restaurantWebsite` only exists on the till once `847fb95` is in;

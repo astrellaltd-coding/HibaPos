@@ -26,7 +26,7 @@ found in one week, and a reader had no way to know which side to believe.
 
 2. **Do one item.** Only what is in that item. Anything else you notice goes into FINDINGS.md's
    own tables with a new `L-` id continuing the same sequence — the audit ended at **L-182** and
-   the highest today is **L-252**. The plan's § 7 is closed to new rows until the operator
+   the highest today is **L-253**. The plan's § 7 is closed to new rows until the operator
    reopens it. You do not fix it now.
 
 3. **Then, in this order:** `bun run test` · `bun run typecheck` · `bun run lint` — all three
@@ -107,13 +107,22 @@ it.** Every one of those was caught that way and none would have been caught oth
 *Snapshot: **2026-10-01**. Perishable. If this disagrees with `REMEDIATION_PLAN.md` § 1, believe
 the plan.*
 
-## THE GO-LIVE HAS NOT STARTED. NOTHING WAS DONE ON 2026-09-30.
+## THE GO-LIVE IS UNDER WAY: STEPS 1 AND 2 DONE, STOPPED AT STEP 3 FOR THE OWNER'S EYES
 
-**Confirmed by the operator on 2026-10-01**: none of it ran overnight. So as of this snapshot the
-till is **unchanged** — FACTICE still on, the journal still holding the owner's factice events,
-the chain key not armed, the four identity settings not set, and the till still **behind
-`origin/main` from `c464032` onward** — of which only `847fb95` changes what runs or prints. The owner intends to trade and the operator is at the keyboard
-with remote access.
+**2026-10-01, by the operator over remote access, each step's raw output read:**
+
+- **Step 1 done.** The till is at `03ed85a`, `origin/main`, by `git log -1`. Rebuilt; the boot at
+  14:39:52 serves build `MX1HKLPc9NJzmQxo-HMf0` where every earlier boot served
+  `KGxjXvq4HhPmJ4qyLzaUe`, and the Fiscal screen reads **HibaPOS France v1.0.0**. No migration.
+- **Step 2 done.** The four identity settings are set and read back after a reload.
+- **Chicago (L-251) repaired and both new pizzas sell**, takeaway and delivery.
+- **Step 3 is waiting.** One factice delivery is printed; **the owner looks at it at 17:00.** If
+  he wants a change, it is made, pulled, rebuilt and printed again — possible only while FACTICE
+  is on and the reset has not run.
+
+**Not done: steps 4 to 7.** FACTICE is still on, the journal still holds factice events, the
+chain key is not armed. **The backup (step 4) is taken just before the reset, not earlier**, so
+that it holds everything up to the moment the reset runs.
 
 **THE ORDER IS R6.1 reset → R6.2 arm the chain key → R6.3 FACTICE off**, and it is a rule rather
 than a preference. Both halves were verified in the code on 2026-09-30:
@@ -158,29 +167,28 @@ The real values, given by the operator on 2026-09-30: **SIRET `93789365900014`**
 number on the ticket, and an empty field prints no line rather than a dangling label. The VAT
 **breakdown** (`Détail TVA`, `dont TVA`) is a separate thing and is unaffected.
 
-**The real values are NOT set anywhere as of 2026-10-01.** The till still carries the sequential
-dummies `812 345 678 00021` and `FR 12 345678901` and prints them on every ticket; this machine
-shows the same placeholders, and is not expected to change, being the developer copy that does
-not trade. All four identity fields are `SUPER_ADMIN`-only (`settings-authz.ts`), so the MANAGER
-account the till runs on cannot change them.
+**The real values are SET ON THE TILL since 2026-10-01** (step 2, by the operator). This machine
+still shows the placeholders `812 345 678 00021` and `FR 12 345678901`, and is not expected to
+change, being the developer copy that does not trade. All four identity fields are
+`SUPER_ADMIN`-only (`settings-authz.ts`), so the MANAGER account the till runs on cannot change
+them.
 
-**`restaurantWebsite` is new on 2026-09-30 and arrives EMPTY.** Until it is set, the footer prints
-the thank-you note and no URL.
+**`restaurantWebsite` had no field in Réglages until L-252 (2026-10-01)**, although L-249 added
+the setting the day before. Empty, the footer prints the thank-you note and no URL.
 
 ## The two installs
 
-**The till was current in code at 2026-09-28 (`471a5d0`) and is behind by everything since.**
-Only `847fb95` (the ticket) changes what runs or prints; every other commit after `471a5d0` is
-documents, plus the L-250 test. Measured 2026-10-01 with `git diff --stat 471a5d0..HEAD`.
-`C:\HibaPOS-app`, 20 migrations, boots itself fullscreen, tracks `origin/main`. It has **never traded a genuine sale**: FACTICE is on, the chain key is not
-armed, and its journal holds an unmeasured number of factice events from the owner's testing since
-the 2026-09-20 reset. `bun scripts/pre-golive-reset.ts` **without** `--apply` is a dry run and
+**The till is current in code since 2026-10-01 14:39: `03ed85a`, version 1.0.0** (see the
+go-live section above for how that was proved). `C:\HibaPOS-app`, 20 migrations, boots itself
+fullscreen, tracks `origin/main`. It has **never traded a genuine sale**: FACTICE is on, the chain
+key is not armed, and its journal holds an unmeasured number of factice events from the owner's
+testing since the 2026-09-20 reset. `bun scripts/pre-golive-reset.ts` **without** `--apply` is a dry run and
 prints exactly how many.
 
 **The catalogues diverged on 2026-09-28, deliberately.** The owner's menu was completed ON THE TILL
 — Kebab on the Tacos « Viande » group, the **Panini** category with its options and products, a
 saumon fumé add-on, two crème fraîche pizzas still without photographs. The till therefore holds
-more than 86 products and a fingerprint nobody has measured. **This machine is still
+**89 products in its export of 2026-10-01T02:29:45Z** and a fingerprint nobody has measured. **This machine is still
 `a38c95977b5e1122` at 86 products.** They are reconciled by **exporting from the till and importing
 here** — the only direction that works, this machine having never traded (so `empty-catalogue.ts`
 will run on it) and the till holding factice events (so it cannot receive an import).
@@ -237,8 +245,9 @@ Tasks — `HibaPOS Server` at boot, `HibaPOS Kiosk` at log on. **They had never 
 does nothing in `--app` mode, L-243 and L-244. **L-243 is the one to know**: the boot ran
 `bunx prisma migrate status`, and `bunx` resolves from npm — 698 s and still downloading when it
 was interrupted, against 5.1 s for the prisma installed in the tree. **The till could not boot
-without the Internet**, and had not been able to since commissioning; fixed and verified on the
-till at seven seconds. **Treat a comment in that directory as an intention, not as evidence.**
+without the Internet**, and had not been able to since commissioning; fixed, and verified on the
+till at seven seconds that evening — **but every boot in the till's log since reads 71–76 s in
+the same step (L-253, open, cause not established).** **Treat a comment in that directory as an intention, not as evidence.**
 
 **`pre-golive-reset.ts`** empties the fiscal journal, keeps the catalogue, users, settings and
 audit log, and runs **once**. It has already run twice — here 2026-09-10, on the till 2026-09-20 —
@@ -266,7 +275,8 @@ Open today, none of it phased: **L-211** (High — the category strip scrolls wi
 it does, and the owner meets it daily) · **L-204** (High — the launcher's third refusal never reads
 `secrets.json`) · **L-203** (the launcher refuses a pending migration where PREP-4 would apply it;
 « drop refusal 2 » is **not** sufficient on its own) · L-208 · L-209 · L-210 · L-223 · L-236 ·
-L-239 · L-244 · L-245 · L-247 · and L-207's other half. **L-248 and L-249 are DONE** (2026-09-30).
+L-239 · L-244 · L-245 · L-247 · **L-253** (the boot is back to ~72 s) · and L-207's other half.
+**L-248 and L-249 are DONE** (2026-09-30), **L-250, L-251 and L-252** (2026-10-01).
 
 **`VAT-METHOD` is the one that matters from the first real sale** (§ 8 of the plan): how a fixed
 menu price divides between 10 % and 5,5 %. The rates are settled; the division is the open claim,
