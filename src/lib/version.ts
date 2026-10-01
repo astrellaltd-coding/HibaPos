@@ -24,6 +24,8 @@
 
 export const SOFTWARE_NAME = "HibaPOS France";
 /** Must equal `package.json`'s `version` — `version.test.ts` enforces it. */
-export const SOFTWARE_VERSION = "0.2.1";
-/** « HibaPOS France v0.2.1 » — the one string every fiscal surface prints. */
+export const SOFTWARE_VERSION = "1.0.0";
+/** « HibaPOS France v1.0.0 » — the one string every fiscal surface prints.
+ *  1.0.0 on 2026-10-01, at the operator's request, for the go-live: the first
+ *  version under which a genuine sale will be recorded. 0.2.1 before. */
 export const SOFTWARE_IDENTITY = `${SOFTWARE_NAME} v${SOFTWARE_VERSION}`;

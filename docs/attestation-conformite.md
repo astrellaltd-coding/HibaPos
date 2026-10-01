@@ -23,7 +23,8 @@ les pièces comptables pour présentation lors d'un contrôle fiscal.
 > utilise ». Un PDF générique ne suffit pas. C'est aussi ce que l'administration
 > vérifie en contrôle : la correspondance entre les versions détenues et les
 > attestations détenues. **Depuis le lot 3.7 (2026-09-06, L-53), HibaPOS énonce
-> sa version** — `HibaPOS France v0.2.1` — en dernière ligne de chaque ticket,
+> sa version** — `HibaPOS France v1.0.0` depuis le 2026-10-01, `v0.2.1` auparavant —
+> sur le ticket Z (la ligne en pied du ticket client a été retirée le 2026-09-27, L-242),
 > sur l'écran Fiscal (JFP), dans la réponse de `GET /api/fiscal/verify` et dans
 > la notice et le champ `software` de l'archive annuelle. Les tickets et archives
 > produits avant ce lot n'en portent pas et ne sont pas réécrits. La valeur est
