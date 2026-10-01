@@ -3,6 +3,8 @@ import { db } from "@/lib/db";
 import { appendFiscalEvent, verifyFiscalChain, incrementGrandTotal, closeMonth } from "@/lib/services/fiscal";
 import { ensureFiscalCounter, nextReceiptNumber } from "@/lib/services/sequence";
 import type { Prisma } from "@prisma/client";
+import { businessDayOf } from "@/lib/period";
+import { DEFAULT_SETTINGS } from "@/lib/services/settings";
 
 // Service-layer integration tests for the fiscal journal (JFP).
 // Uses the throwaway test DB, set up in `test-setup.ts` (preloaded by
@@ -235,9 +237,21 @@ describe("fiscal journal (JFP) integration", () => {
     // its caisses are closed. This test seals the month the order is in, so it
     // runs on a clock at the first instant of the NEXT month — the earliest
     // legal moment — with the seeded caisse closed first.
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth() + 1;
+    //
+    // ── L-250: WHICH MONTH THE ORDER IS IN IS NOT « THE MONTH IT IS NOW » ────
+    //
+    // This read `new Date().getMonth()` and **failed for real on 2026-10-01 at
+    // 02:07**: the default trading-day cut-off is 05:00, so an order rung at
+    // 02:07 on the 1st belongs to the trading day of 30 September and to
+    // SEPTEMBER's month. The test sealed October and found `salesTotal` 0
+    // against the 1500 it had just rung. **The product was right and the test
+    // was wrong** — it assumed the calendar month and the trading month are
+    // the same, which they are not for `cutoffHour` hours on the 1st.
+    //
+    // It is fixed by asking the same question the product asks, rather than by
+    // choosing a kinder clock: the order's own trading day decides the month.
+    const tradingDay = businessDayOf(new Date(), DEFAULT_SETTINGS.businessDayCutoffHour);
+    const [year, month] = tradingDay.split("-").slice(0, 2).map(Number);
     await db.shift.update({
       where: { id: shift.id },
       data: { status: "CLOSED", closedById: user.id, closedAt: new Date() },
