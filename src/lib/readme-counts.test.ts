@@ -63,6 +63,12 @@ const DECLARATION =
 // against the loop it actually names.
 const EXPANSIONS = [
   {
+    where: "src/lib/settings-identity-fields.test.ts",
+    what: "it.each(identity) — the six restaurant* identity settings (L-252)",
+    marker: "is editable on the settings screen",
+    runs: 6,
+  },
+  {
     where: "src/hooks/use-keyboard-shortcuts.test.ts",
     what: 'it.each(["F1" … "F9"]) — seven function keys',
     marker: "it.each(",

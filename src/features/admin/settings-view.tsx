@@ -189,6 +189,20 @@ function SettingsForm({ initial }: { initial: SettingsDto }) {
                     placeholder="FR12345678901"
                   />
                 </div>
+                {/* L-252 — L-249 added this setting and printed it under the
+                    footer, and gave it no field: the till could not set it. */}
+                <div className="flex flex-col gap-1.5 md:col-span-2">
+                  <Label htmlFor="r-website">Site web (pied de ticket)</Label>
+                  <Input
+                    id="r-website"
+                    value={form.restaurantWebsite ?? ""}
+                    onChange={(e) =>
+                      update("restaurantWebsite", e.target.value || null)
+                    }
+                    maxLength={60}
+                    placeholder="www.hibafood.fr"
+                  />
+                </div>
               </div>
             </CardContent>
           </Card>
