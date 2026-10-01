@@ -111,8 +111,8 @@ the plan.*
 
 **Confirmed by the operator on 2026-10-01**: none of it ran overnight. So as of this snapshot the
 till is **unchanged** — FACTICE still on, the journal still holding the owner's factice events,
-the chain key not armed, the four identity settings not set, and the till still **two commits
-behind** (`c464032`, `847fb95`). The owner intends to trade and the operator is at the keyboard
+the chain key not armed, the four identity settings not set, and the till still **behind
+`origin/main` from `c464032` onward** — of which only `847fb95` changes what runs or prints. The owner intends to trade and the operator is at the keyboard
 with remote access.
 
 **THE ORDER IS R6.1 reset → R6.2 arm the chain key → R6.3 FACTICE off**, and it is a rule rather
@@ -169,8 +169,9 @@ the thank-you note and no URL.
 
 ## The two installs
 
-**The till was current in code at 2026-09-28 and is now behind by the 2026-09-30 commits** —
-`c464032` (this file) and `847fb95` (the ticket), the second of which changes what prints.
+**The till was current in code at 2026-09-28 (`471a5d0`) and is behind by everything since.**
+Only `847fb95` (the ticket) changes what runs or prints; every other commit after `471a5d0` is
+documents, plus the L-250 test. Measured 2026-10-01 with `git diff --stat 471a5d0..HEAD`.
 `C:\HibaPOS-app`, 20 migrations, boots itself fullscreen, tracks `origin/main`. It has **never traded a genuine sale**: FACTICE is on, the chain key is not
 armed, and its journal holds an unmeasured number of factice events from the owner's testing since
 the 2026-09-20 reset. `bun scripts/pre-golive-reset.ts` **without** `--apply` is a dry run and

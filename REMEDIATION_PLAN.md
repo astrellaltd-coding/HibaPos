@@ -48,7 +48,8 @@ measured**, and R6.1 is the step that clears them.
 >    footer prints the thank-you and no URL.
 > 2. **THE GO-LIVE HAS NOT STARTED — nothing was done overnight, confirmed by the operator on
 >    2026-10-01.** The till is unchanged: FACTICE on, the journal holding factice events, the key
->    unarmed, the four identity settings unset, and two commits behind (`c464032`, `847fb95`).
+>    unarmed, the four identity settings unset, and behind `origin/main` from `c464032`
+>    onward — only `847fb95` changes what runs or prints.
 >    **The sequence, in this order, and the order is a rule** (written out in full in `CLAUDE.md`
 >    Part Two): **(1)** pull and rebuild — stop the task, `bun run db:generate`, `bun run
 >    build` — first, because `restaurantWebsite` only exists on the till once `847fb95` is in;
