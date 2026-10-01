@@ -34,22 +34,33 @@ measured**, and R6.1 is the step that clears them.
 >    menu was finished ON THE TILL, 2026-09-28: Kebab on the Tacos `Viande` group, the **Panini**
 >    category with options and products, a saumon fume add-on, two creme fraiche pizzas **with no
 >    photographs yet**. The till therefore holds more than 86 products and **no longer prints
->    `a38c95977b5e1122`**; this machine still does. **`CLAUDE.md`'s « Both installs now print the
->    same catalogue fingerprint » is FALSE — the correction is drafted and waiting**, that file
->    being the operator's. **Export from the till, import here**: the only direction that works,
->    this machine never having traded and the till holding factice events.
-> 1. **NOBODY HAS SEEN THE NEW TICKET ON PAPER** -- the only unverified part of 2026-09-27.
->    L-241/L-242 changed what the customer is handed, and the tests prove the bytes, not ink.
->    The owner checks it in the morning; **R6.4's standard is a person looking at paper.**
->    *(The rest of that evening IS verified: a remote reboot brought the till up on the caisse,
->    fullscreen, no error page -- L-243.)*
-> 2. **THE GO-LIVE IS POSTPONED** (operator, 2026-09-25) — the owner is still testing and his
->    feedback is awaited. **Do not start R6.1, do not arm the chain key, do not turn FACTICE off.**
->    The till is current in **data and code** since 2026-09-27, and the owner **confirmed it
->    working** on 2026-09-25 — menu, Tacos, printing.
->    When it does happen: **R6.1 → R6.2 → R6.3, in that order**, which is a rule and not a
->    preference — arming the key before the reset makes the reset refuse. Also open before trading
->    for real: **`VAT-METHOD`** (§ 8) and **a fresh verified backup off this machine**.
+>    `a38c95977b5e1122`**; this machine still does, re-measured 2026-10-01. **Export from the
+>    till, import here**: the only direction that works, this machine never having traded and the
+>    till holding factice events. *(`CLAUDE.md` was corrected on 2026-09-30.)*
+> 1. **NOBODY HAS SEEN THE NEW TICKET ON PAPER.** The owner saw the 2026-09-27 ticket and asked
+>    for it to be redesigned; **L-249 rebuilt it on 2026-09-30** — framed sections, the client
+>    block high on the ticket, the long date, unit prices, `TOTAL À PAYER`, the website in the
+>    footer — and **L-248 took every piece of customer data out of the sealed text** with it.
+>    Verified end to end through the real renderers, which proves the BYTES AND NOT THE INK.
+>    **R6.4's standard is a person in the restaurant looking at paper**, and that has not
+>    happened for this layout. It wants one factice delivery printed before the first real sale.
+>    **`restaurantWebsite` is a NEW setting and arrives EMPTY** — until it is set in Réglages the
+>    footer prints the thank-you and no URL.
+> 2. **THE GO-LIVE HAS NOT STARTED — nothing was done overnight, confirmed by the operator on
+>    2026-10-01.** The till is unchanged: FACTICE on, the journal holding factice events, the key
+>    unarmed, the four identity settings unset, and two commits behind (`c464032`, `847fb95`).
+>    **The sequence, in this order, and the order is a rule** (written out in full in `CLAUDE.md`
+>    Part Two): **(1)** the four settings as SUPER_ADMIN — SIRET `93789365900014`, phone
+>    `0238874409`, `restaurantTva` **cleared**, `restaurantWebsite` set; **(2)** pull and rebuild
+>    — stop the task, `bun run db:generate`, `bun run build`; **(3)** print one factice delivery
+>    and look at the paper — the last free look; **(4)** a backup, **copied off the till** —
+>    `pre-golive-reset.ts` asks whether one exists and trusts the answer; **(5)** R6.1, dry run
+>    first; **(6)** R6.2, the key leaving the till before that screen closes; **(7)** R6.3,
+>    FACTICE off, last. Steps 1–3 precede the reset because the reset erases the evidence.
+>    R6.1 → R6.2 → R6.3 cannot be reordered: `POST /api/setup/chain-key` answers 409 while any
+>    `FiscalEvent` exists, and `pre-golive-reset.ts` refuses once the key is armed, so FACTICE
+>    off before the reset shuts both doors permanently. Also open before trading for real:
+>    **`VAT-METHOD`** (§ 8).
 > 3. **L-203'S DISAGREEMENT IS UNRESOLVED, AND THE OBVIOUS FIX HAS A TRAP IN IT.** The launcher
 >    still refuses to boot what PREP-4 would have applied. « Drop refusal 2 » is **not sufficient
 >    on its own**: `instrumentation.ts` deliberately lets the app start when the gate REFUSES for
@@ -137,17 +148,11 @@ document and is left as written. **Do not take a View A row as work without chec
   save that omits the key no longer performs this row by accident (L-93). **DD-27 applies from
   here on**: once the journal holds a non-factice event, only a SUPER_ADMIN can turn the stamp
   back on. Still the operator's action, and still last of the three.
-- **R6.4** printer — **done, and confirmed on paper.** The queue is `SUNSO WTP-801` on
-  `USB001`, chosen in Réglages on 2026-09-16; on 2026-09-17 the owner found **two test
-  tickets** on the printer, one per attempt. Moved to `REMEDIATION_DONE.md`. **This**
-  machine's `SUNSO WTP-800` queue still sits on `COM1:`, `Error`, with no `USBPRINT`
-  device — a developer artefact, and the reason § 4a warns that a `COM1:` queue « prints
-  nothing and reports success ». **L-101** (R8.1) and **L-96** (R9.1) were both fixed
-  first, which is what made the row attemptable at all.
-- **R6.5** — **done on the till 2026-09-16 and moved to `REMEDIATION_DONE.md`.** The restaurant's
-  `BACKUP_LOCATION` is `D:\HibaPOS-Sauvegardes`, a second volume, and its first backup was
-  decrypted back to valid SQLite. **This** machine's is set (`docs/BASELINES.md`); see its
-  backup-gap row for what is still outstanding here.
+- **R6.4** printer and **R6.5** backup volume — **both DONE on the till 2026-09-16**, R6.4
+  confirmed on paper 2026-09-17, both recorded in full in `REMEDIATION_DONE.md`. Kept here as
+  one line because the phase is read as a whole: **this** machine's `SUNSO WTP-800` queue
+  still sits on `COM1:`, `Error`, which is a developer artefact and the reason a `COM1:` queue
+  « prints nothing and reports success » is worth remembering.
 
 ### Awaiting the operator
 
@@ -196,16 +201,7 @@ catalogue can be emptied on an install that has not traded. Untested against the
 false from R9.9 and it nearly produced a whole-database copy onto the restaurant's till.)*
 `FISCAL_CHAIN_KEY` is in `.env`, `factice` is in the database: they do not travel together.
 
-**Last updated:** 2026-09-28. **The queue is NOT down to decisions.** Closed 2026-09-27/28:
-the state audit · **L-238** the reset verifies content not row counts · **L-241 + L-242** the
-owner's ticket, one slip and no version line · **L-243 the till could not boot without the
-Internet**, true since commissioning · **L-240** the till is current in code · **L-246 an
-uploaded image was served by nobody**, also true since commissioning. Opened: **L-239**,
-**L-244**, **L-245**, **L-247**. **The go-live is postponed, not next.** *(This said « the go-live is the next decision » under the date
-2026-09-25, while item 1 above recorded the operator postponing it that same day — the plan
-asserting both halves of a contradiction, again.)* Closed 2026-09-25: **L-225, L-226, L-232,
-L-206, L-237**, plus L-207's cheap half; **L-234 not a defect** — **all in this repository, none
-of them on the till.**
+**Last updated:** 2026-10-01. **THE GO-LIVE WAS DUE OVERNIGHT AND THIS FILE DOES NOT KNOW WHETHER IT HAPPENED** — ask, and read the till. Closed 2026-09-27/30: the state audit · **L-238** the reset verifies content not row counts · **L-240** the till is current in code · **L-243 the till could not boot without the Internet**, true since commissioning · **L-246 an uploaded image was served by nobody**, also true since commissioning · **L-248** no customer data in the sealed record · **L-249** the owner's ticket rebuilt. Opened: **L-239**, **L-244**, **L-245**, **L-247**. **The queue is NOT down to decisions**, and `VAT-METHOD` stops being theoretical at the first real sale.
 
 ## 2. HOW TO WORK HERE
 

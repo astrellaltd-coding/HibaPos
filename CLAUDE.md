@@ -26,7 +26,7 @@ found in one week, and a reader had no way to know which side to believe.
 
 2. **Do one item.** Only what is in that item. Anything else you notice goes into FINDINGS.md's
    own tables with a new `L-` id continuing the same sequence — the audit ended at **L-182** and
-   the highest today is **L-247**. The plan's § 7 is closed to new rows until the operator
+   the highest today is **L-250**. The plan's § 7 is closed to new rows until the operator
    reopens it. You do not fix it now.
 
 3. **Then, in this order:** `bun run test` · `bun run typecheck` · `bun run lint` — all three
@@ -104,41 +104,73 @@ it.** Every one of those was caught that way and none would have been caught oth
 
 # PART TWO — WHERE THINGS STAND
 
-*Snapshot: **2026-09-30**. Perishable. If this disagrees with `REMEDIATION_PLAN.md` § 1, believe
+*Snapshot: **2026-10-01**. Perishable. If this disagrees with `REMEDIATION_PLAN.md` § 1, believe
 the plan.*
 
-## THE GO-LIVE IS IMMINENT, AND ITS ORDER IS NOT A PREFERENCE
+## THE GO-LIVE HAS NOT STARTED. NOTHING WAS DONE ON 2026-09-30.
 
-**The restaurant's owner intends to begin real trading on 2026-10-01** and has said he will turn
-FACTICE off himself. **He must not.** The order is **R6.1 reset → R6.2 arm the chain key → R6.3
-FACTICE off**, and both halves were verified in the code on 2026-09-30:
+**Confirmed by the operator on 2026-10-01**: none of it ran overnight. So as of this snapshot the
+till is **unchanged** — FACTICE still on, the journal still holding the owner's factice events,
+the chain key not armed, the four identity settings not set, and the till still **two commits
+behind** (`c464032`, `847fb95`). The owner intends to trade and the operator is at the keyboard
+with remote access.
 
-- `POST /api/setup/chain-key` counts `FiscalEvent` rows and answers **409** if there are any. The
-  till's journal holds his test sales, so **arming the key is impossible until the reset clears
-  them** — not difficult, impossible.
-- `scripts/pre-golive-reset.ts` refuses while `FISCAL_CHAIN_KEY` is armed (guard 1), and must
-  never run after a genuine sale.
+**THE ORDER IS R6.1 reset → R6.2 arm the chain key → R6.3 FACTICE off**, and it is a rule rather
+than a preference. Both halves were verified in the code on 2026-09-30:
 
-So FACTICE off first, followed by one real sale, leaves the restaurant permanently trading on a
+- `POST /api/setup/chain-key` counts `FiscalEvent` rows and answers **409** if there are any, so
+  **arming is impossible until the reset clears them** — not difficult, impossible.
+- `scripts/pre-golive-reset.ts` refuses while `FISCAL_CHAIN_KEY` is armed, and must never run
+  after a genuine sale.
+
+FACTICE off first, followed by one real sale, leaves the restaurant permanently trading on a
 journal containing test events, with an **unkeyed** chain and receipt numbers continuing from the
-factice ones instead of starting at #1. Neither door reopens.
+factice ones. Neither door reopens.
 
-**`FISCAL_CHAIN_KEY` must be copied off the till the moment it is armed.** Lose it and the journal
-can never be verified again. The same is true of `BACKUP_ENCRYPTION_KEY`, which is what makes the
-backups readable.
+**`FISCAL_CHAIN_KEY` must leave the till the moment it is armed** — it is shown once, and without
+it the journal can never be verified. The same goes for `BACKUP_ENCRYPTION_KEY`.
 
-## THE SIRET AND TVA ON THE TICKET ARE PLACEHOLDERS
+**THE SEQUENCE, in this order, and the order is a rule.** Steps 1–3 come before the reset
+because the reset erases the evidence; after FACTICE goes off there is no such thing as a test
+sale.
 
-Measured 2026-09-30: `restaurantSiret` is `812 345 678 00021` and `restaurantTva` is
-`FR 12 345678901` — the sequential dummies — and the owner's printed ticket shows the till carries
-the same. **They are fiscal identifiers on a customer document and must be the restaurant's real
-ones before the first real sale.** Both are `SUPER_ADMIN`-only (`settings-authz.ts`), and the
-till's only operational account is MANAGER, so the owner cannot correct them himself.
+1. **Four settings, as SUPER_ADMIN** — SIRET `93789365900014`, telephone `0238874409`,
+   `restaurantTva` **cleared**, `restaurantWebsite` set. The till's MANAGER account cannot.
+2. **Pull and rebuild**, per *Updating the France till* above: stop the Scheduled Task first,
+   `bun run db:generate` and never `bunx prisma generate`, and `bun run build` or the till
+   serves the old code.
+3. **Print one factice delivery and look at the paper.** L-249 rebuilt the ticket and L-248 took
+   every piece of customer data out of the sealed text; both are verified through the real
+   renderers, which proves the bytes and not the ink. R6.4's standard is a person in the
+   restaurant looking at paper, and this layout has never met it. This is the last free look.
+4. **A backup, copied off the till.** `pre-golive-reset.ts` asks whether one exists and trusts
+   the answer (« La sauvegarde est-elle faite, verifiee et copiee ailleurs ? ») — it takes no
+   restore point of its own.
+5. **R6.1** — dry run first (no `--apply`), read it, then `--apply`.
+6. **R6.2** — the key is shown once and must leave the till before that screen closes.
+7. **R6.3** — FACTICE off, last.
+
+## THE ESTABLISHMENT'S IDENTITY ON THE TICKET
+
+The real values, given by the operator on 2026-09-30: **SIRET `93789365900014`**, **telephone
+`0238874409`**, and **`restaurantTva` deliberately EMPTY** — the owner does not want the VAT
+number on the ticket, and an empty field prints no line rather than a dangling label. The VAT
+**breakdown** (`Détail TVA`, `dont TVA`) is a separate thing and is unaffected.
+
+**The real values are NOT set anywhere as of 2026-10-01.** The till still carries the sequential
+dummies `812 345 678 00021` and `FR 12 345678901` and prints them on every ticket; this machine
+shows the same placeholders, and is not expected to change, being the developer copy that does
+not trade. All four identity fields are `SUPER_ADMIN`-only (`settings-authz.ts`), so the MANAGER
+account the till runs on cannot change them.
+
+**`restaurantWebsite` is new on 2026-09-30 and arrives EMPTY.** Until it is set, the footer prints
+the thank-you note and no URL.
 
 ## The two installs
 
-**The till is current in code and data.** `C:\HibaPOS-app`, 20 migrations, boots itself fullscreen,
-tracks `origin/main`. It has **never traded a genuine sale**: FACTICE is on, the chain key is not
+**The till was current in code at 2026-09-28 and is now behind by the 2026-09-30 commits** —
+`c464032` (this file) and `847fb95` (the ticket), the second of which changes what prints.
+`C:\HibaPOS-app`, 20 migrations, boots itself fullscreen, tracks `origin/main`. It has **never traded a genuine sale**: FACTICE is on, the chain key is not
 armed, and its journal holds an unmeasured number of factice events from the owner's testing since
 the 2026-09-20 reset. `bun scripts/pre-golive-reset.ts` **without** `--apply` is a dry run and
 prints exactly how many.
@@ -154,19 +186,34 @@ will run on it) and the till holding factice events (so it cannot receive an imp
 
 ## The printed paper
 
-**The owner confirmed on 2026-09-30 that the ticket prints correctly and that he wants it
-changed**, and is sending the ticket his website produces as the model. Two things to know before
-touching it: a sealed `Receipt.content` is **never re-rendered** — `buildAnnualArchive` copies it
-verbatim — so a layout change applies to future tickets only and the first real ones should
-already be right. And `services/ticket-layout.ts` is shared by all three renderers; change it
-there or not at all.
+**Rebuilt on 2026-09-30 (L-249), to the owner's design, agreed layout by layout before a line was
+written.** Framed sections — `DÉTAILS DE LA COMMANDE`, `INFORMATIONS CLIENT`, `ARTICLES`,
+`TOTAUX`, `PAIEMENT` — the name letter-spaced, a long date with a fallback when it will not fit,
+the unit price under any article bought more than once, `TOTAL À PAYER` between `=` rules, and the
+website in the footer. **Frames are ASCII `+ - |`**: `escpos.ts` prints in Windows-1252, which has
+no box-drawing glyphs. **`escpos.ts` has no bold and no double-height**, so letter-spacing and
+doubled rules are the only emphasis available.
 
-Since 2026-09-27 a delivery prints as **one slip**: the ticket, a rule, then `LIVRAISON` with the
-name, telephone and address (L-241). The address is appended at PRINT time and **never enters
-`Receipt.content`**, so no customer's home reaches the annual archive — the operator's decision of
-2026-09-18, reaffirmed on 2026-09-27 when the alternative was on the table. The software version
-line was removed from the customer's ticket (L-242); the Z slip, the annual archive and
-`/api/fiscal/verify` still state it.
+**NO CUSTOMER DATA IS SEALED (L-248).** Name, telephone, address and the order note are printed in
+the `INFORMATIONS CLIENT` frame and **stored nowhere**; `deliveryPaper()` inserts them into the
+paper at print time. The operator researched the question rather than guessing: the fiscal
+obligation can justify keeping data necessary to a retained document, but delivery data is not
+fiscal, so even the NAME came out — it had been sealed since 2026-09-18. **Measured while
+deciding:** the `VENTE` payload never carried customer data (`sale-journal.ts`), so the ticket
+text was the only route into the archive. Closing it means a deletion request genuinely erases
+someone; before, their name was frozen for the retention period.
+
+**Three things follow that are the operator's, not the software's**: a retention period for the
+delivery data, an RGPD register entry justifying each field, and an information notice.
+
+Two rules that have not changed: a sealed `Receipt.content` is **never re-rendered** —
+`buildAnnualArchive` copies it verbatim — so a layout change applies to future tickets only; and
+`services/ticket-layout.ts` is shared by all three renderers, so a frame drawn in one of them
+would drift from the others.
+
+**A reprint of a ticket sealed before 2026-09-30 still works.** The client block is inserted by
+finding the `ARTICLES` frame, and an older ticket has none, so it is appended at the foot as it
+used to be.
 
 ## Operations
 
@@ -217,7 +264,7 @@ Open today, none of it phased: **L-211** (High — the category strip scrolls wi
 it does, and the owner meets it daily) · **L-204** (High — the launcher's third refusal never reads
 `secrets.json`) · **L-203** (the launcher refuses a pending migration where PREP-4 would apply it;
 « drop refusal 2 » is **not** sufficient on its own) · L-208 · L-209 · L-210 · L-223 · L-236 ·
-L-239 · L-244 · L-245 · L-247 · and L-207's other half.
+L-239 · L-244 · L-245 · L-247 · and L-207's other half. **L-248 and L-249 are DONE** (2026-09-30).
 
 **`VAT-METHOD` is the one that matters from the first real sale** (§ 8 of the plan): how a fixed
 menu price divides between 10 % and 5,5 %. The rates are settled; the division is the open claim,
