@@ -120,6 +120,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - L-243 — the till was fetching Prisma from npm before it would boot
 - L-246 — an uploaded image was served by nobody
 - L-251 — Chicago could be rung up and not sold, and a new product could store a group it inherits
+- L-252 — the website setting had no field
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -7307,6 +7308,25 @@ visible. With both write paths guarded it cannot recur through the app; an impor
 database edit could still produce one. Not fixed here; it is a change to how every sale is
 built, and wants its own item. **Chicago's delivery price** was 0 € in the export — the operator
 should confirm it reads 9,90 € on the till.
+
+---
+
+### L-252 — the website setting had no field
+**Done:** 2026-10-01 · **Commit:** `71a42bf` · **Finding:** L-252
+
+**What changed.** `settings-view.tsx` gains « Site web (pied de ticket) » beside the TVA number.
+L-249 had added `restaurantWebsite` everywhere except the screen, so the go-live's step 2 could
+not be done on the till. Found while writing the operator's guide, not reported.
+
+**How it was verified.** `settings-identity-fields.test.ts`, list derived from
+`SUPER_ADMIN_ONLY_SETTINGS`: red against the old screen on the website row only, green now.
+Walked on the scratch copy with the real go-live values: saved through Réglages, read back from
+`GET /api/settings` as set, TVA null. Gates 2156 / 0, typecheck 0, lint 0.
+
+**Left behind.** `currency` and `discountApprovalThreshold` also have no field; neither prints.
+Recorded in L-252's row, not changed.
+
+**Version 1.0.0 (`3eef0ef`) went out the same day**, before this, at the operator's request.
 
 ---
 
