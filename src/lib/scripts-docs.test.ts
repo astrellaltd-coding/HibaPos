@@ -431,14 +431,25 @@ describe("L-146 — the irreversible script states a true reason for its order",
     expect(src).toMatch(/onDelete: SetNull/);
   });
 
-  it("still deletes Order before Customer", () => {
-    // The property the comment exists to protect. The reason was wrong; the
-    // order was right, and correcting the prose must not have moved the rows.
-    const order = src.indexOf('\n  "Order",');
-    const customer = src.indexOf('\n  "Customer",');
-    expect(order, "Order left DELETION_ORDER").toBeGreaterThan(-1);
-    expect(customer, "Customer left DELETION_ORDER").toBeGreaterThan(-1);
-    expect(order, "Customer is now deleted before Order").toBeLessThan(customer);
+  // REPLACED 2026-10-03 (L-254). This was « still deletes Order before
+  // Customer », pinning L-73's decision that clients go with the sales. The
+  // operator reversed it on the day of the till's reset: the 23 clients stay,
+  // with no history. The pin now holds the new decision instead of the old one.
+  const block = (name: string) => {
+    const start = src.indexOf(`const ${name} = [`);
+    expect(start, `${name} is gone`).toBeGreaterThan(-1);
+    return src.slice(start, src.indexOf("] as const", start));
+  };
+  // Comments dropped first: the kept list's own comment names Customer.
+  const listed = (list: string) => list.replace(/\/\/[^\n]*/g, "");
+
+  it("keeps Customer: not deleted, and verified among the kept tables (L-254)", () => {
+    expect(listed(block("DELETION_ORDER")), "Customer is back on the delete list").not.toMatch(/"Customer"/);
+    expect(listed(block("PRESERVED_ORDER")), "Customer left the kept list").toMatch(/"Customer"/);
+  });
+
+  it("still deletes Order, which is what takes a client's history with it", () => {
+    expect(listed(block("DELETION_ORDER"))).toMatch(/"Order"/);
   });
 });
 

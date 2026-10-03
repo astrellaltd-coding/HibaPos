@@ -21,7 +21,6 @@
  * WHAT IT DELETES — the operator's decision of 2026-09-03 plus three
  * amendments, each written when the table in question was added:
  *   Order, OrderItem, Payment, Receipt, Refund, Shift, ZReport,
- *   Customer (L-73, 2026-09-09 — the operator asked for clients to go too),
  *   FiscalEvent, DailyClose (3.8), MonthlyClose, AnnualClose,
  *   FiscalArchive (rows AND files), CashMovement (5.5), GrandTotal,
  *   Table (5.2 — the one stale `T1 / Salle` row),
@@ -33,8 +32,15 @@
  *   (L-72, 2026-09-09), users, settings — the catalogue is real work recovered
  *   in commit `0c5ede6`; only the trading is fake.
  *
- *   NOT customers any more: they moved to the delete list on 2026-09-09 at the
- *   operator’s request (L-73), superseding the ruling of 2026-09-03.
+ *   AND CUSTOMERS, again (L-254, 2026-10-03). They went on the delete list on
+ *   2026-09-09 at the operator's request (L-73). On the day of the till's reset
+ *   the dry run showed 23 of them, entered by the owner, and the operator asked
+ *   for them to stay so he need not type them again — WITHOUT their history.
+ *   That needs nothing but leaving them alone: a `Customer` row holds no order
+ *   count, total or date; every figure a screen shows for a client is computed
+ *   from `Order`, which this script empties. Deleting an order does not touch
+ *   the customer it pointed at, so the kept rows are byte-identical and the
+ *   content digest below proves it like any other kept table.
  *
  *   AND **AuditLog**, which P-04 does not list and this script does not touch.
  *   468 rows of development history stay. Deleting an audit trail is the exact
@@ -91,20 +97,11 @@ const DELETION_ORDER = [
   "Payment",
   "Refund",
   "Order",
-  // L-73 (Batch 8.0, 2026-09-09): the operator asked for « clients » to go
-  // with the sales. AFTER "Order", never before.
-  //
-  // CORRECTED 2026-09-14 (R10.2 / L-146). This said « deleting it first is an
-  // FK violation, not a cascade ». It is NEITHER: `Order.customerId` is
-  // `onDelete: SetNull`, so deleting Customer first would SUCCEED and quietly
-  // null every link. **The ordering is right and the outcome is unchanged** —
-  // but the reason was wrong at exactly the line a future editor reads before
-  // reordering it, in the one script here that cannot be undone.
-  //
-  // The real reason to keep this order: an Order whose customer has been
-  // nulled is no longer traceable to the person who placed it, and this script
-  // runs once, before the first genuine sale, with nothing to recover from.
-  "Customer",
+  // L-254 (2026-10-03): « Customer » stood here from L-73 (2026-09-09) until
+  // the morning of the till's reset, and is KEPT now — see the header. Nothing
+  // else needs to change for it: `Order.customerId` is `onDelete: SetNull`,
+  // which acts when a CUSTOMER is deleted, never when an order is, so emptying
+  // `Order` above leaves every kept client row exactly as it was.
   "ZReport",
   "CashMovement",
   "Shift",
@@ -146,6 +143,8 @@ const PRESERVED_ORDER = [
   "ComboSlot",
   "ComboSlotChoice",
   "ComboSlotOptionRule",
+  // L-254: kept since 2026-10-03, without history — see the header.
+  "Customer",
   "Setting",
   "AuditLog",
   "TechnicalLog",
