@@ -42,11 +42,15 @@
  *   the customer it pointed at, so the kept rows are byte-identical and the
  *   content digest below proves it like any other kept table.
  *
- *   AND **AuditLog**, which P-04 does not list and this script does not touch.
- *   468 rows of development history stay. Deleting an audit trail is the exact
- *   thing this application forbids everywhere else, and the audit log is not
- *   fiscal data — the fiscal journal is, and that is what is being reset. Same
- *   for `TechnicalLog`, `Session` and `Backup`: operational, not fiscal.
+ *   NOT **AuditLog** any more (L-255, 2026-10-03). It was kept from the start
+ *   on the ground that « deleting an audit trail is the exact thing this
+ *   application forbids everywhere else » — which overstated it: the app
+ *   prunes the audit log itself by retention (`log-retention.ts`), and the
+ *   table that is never pruned is `FiscalEvent`. On the morning of the till's
+ *   reset the operator asked for its 878 rows of setup and testing history to
+ *   go. They survive in the backup this script requires, and ONE row is
+ *   written back recording the reset itself (`RESET_RECORD`).
+ *   `TechnicalLog`, `Session` and `Backup` stay: operational, not fiscal.
  *
  * USAGE
  *   bun scripts/pre-golive-reset.ts                 # dry run, changes nothing
@@ -112,7 +116,24 @@ const DELETION_ORDER = [
   "FiscalArchive",
   "GrandTotal",
   "Table",
+  // L-255 (2026-10-03): the audit log goes too, at the operator's request on
+  // the morning of the till's reset — 878 rows of setup and testing history.
+  // It is not fiscal (the app already prunes it by retention, `log-retention.ts`;
+  // the never-pruned table is `FiscalEvent`), and the rows survive in the
+  // backup the reset requires. ONE row is written back afterwards, recording
+  // the reset itself — see `RESET_RECORD` — so the till keeps evidence that it ran.
+  "AuditLog",
 ] as const;
+
+/**
+ * L-255 — the rows each emptied table is EXPECTED to hold afterwards.
+ *
+ * Zero everywhere, except the single `AuditLog` row this script writes to
+ * record that the reset happened and what it removed. Without this the
+ * leftover check would report the script's own record as a defect.
+ */
+const EXPECTED_AFTER: Partial<Record<(typeof DELETION_ORDER)[number], number>> = { AuditLog: 1 };
+const RESET_RECORD = "PRE_GOLIVE_RESET";
 
 /**
  * The order the « A CONSERVER » report reads in — **a display hint, and since
@@ -146,7 +167,6 @@ const PRESERVED_ORDER = [
   // L-254: kept since 2026-10-03, without history — see the header.
   "Customer",
   "Setting",
-  "AuditLog",
   "TechnicalLog",
   "Session",
   "Backup",
@@ -366,6 +386,18 @@ async function main() {
       },
     });
     console.log(`    ${"FiscalCounter".padEnd(16)} ${"0/0/0/0".padStart(6)} remis a zero`);
+    // L-255: the one audit row the till keeps from before go-live — that this
+    // reset ran, and what it removed. Inside the transaction, so the log is
+    // never empty of it: either everything above happened and this says so,
+    // or nothing happened.
+    await tx.auditLog.create({
+      data: {
+        action: RESET_RECORD,
+        entity: "FiscalJournal",
+        details: JSON.stringify({ deleted, preservedDigestBefore: overallDigest(digestsBefore) }),
+      },
+    });
+    console.log(`    ${"AuditLog".padEnd(16)} ${"1".padStart(6)} entree ${RESET_RECORD} ecrite`);
   });
 
   // Archive FILES, after the rows and outside the transaction — a filesystem
@@ -383,7 +415,9 @@ async function main() {
   const digestsAfter: Digests = await digestTables(snapshotReader, toVerify);
   const counterAfter = await db.fiscalCounter.findFirst();
 
-  const leftovers = Object.entries(after).filter(([, n]) => n > 0);
+  const leftovers = Object.entries(after).filter(
+    ([t, n]) => n !== (EXPECTED_AFTER[t as (typeof DELETION_ORDER)[number]] ?? 0),
+  );
   // L-238. This compared row COUNTS — sixteen integers — and the line below
   // called the result « aucun changement ». It now compares content.
   const catalogueChanged = changedTables(digestsBefore, digestsAfter);
@@ -423,16 +457,18 @@ async function main() {
     );
   }
 
+  // L-255 (2026-10-03). These said « openssl rand -hex 32 » and « coller dans
+  // .env » — the procedure from before the Réglages card existed. Printed at
+  // the one moment the operator reads instructions most literally, on the till
+  // that arms its key through the card (`POST /api/setup/chain-key`).
   console.log(`\n  ${YEL}ETAPES SUIVANTES, DANS CET ORDRE (P-04) :${OFF}`);
-  console.log(`    1. Generer la cle : openssl rand -hex 32`);
-  console.log(`    2. La coller dans .env comme FISCAL_CHAIN_KEY`);
-  console.log(`    3. La sauvegarder AILLEURS QUE SUR CETTE MACHINE`);
-  console.log(`       (perdue, le journal ne sera plus jamais verifiable)`);
-  console.log(`    4. Redemarrer l'application`);
-  console.log(`    5. GET /api/fiscal/verify doit repondre "chainKeyed": true,`);
-  console.log(`       chaine ok, lastSequence 0`);
-  console.log(`    6. Reglages : FACTICE sur OFF avant la premiere vente reelle`);
-  console.log(`    7. Reporter les chiffres ci-dessus dans REMEDIATION_PLAN.md (P-04)\n`);
+  console.log(`    1. Redemarrer l'application (Start-ScheduledTask "HibaPOS Server")`);
+  console.log(`    2. Reglages, en SUPER_ADMIN : « Armer la cle de chainage »`);
+  console.log(`    3. La cle s'affiche UNE FOIS : la copier AILLEURS QUE SUR CETTE MACHINE`);
+  console.log(`       avant de fermer (perdue, le journal ne sera plus jamais verifiable)`);
+  console.log(`    4. Cocher « J'ai enregistre ces cles… » puis « Confirmer et masquer »`);
+  console.log(`    5. Reglages : FACTICE sur OFF, en dernier, avant la premiere vente reelle`);
+  console.log(`    6. Reporter les chiffres ci-dessus dans REMEDIATION_PLAN.md (P-04)\n`);
 
   await db.$disconnect();
 }

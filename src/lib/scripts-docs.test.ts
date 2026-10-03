@@ -451,6 +451,21 @@ describe("L-146 — the irreversible script states a true reason for its order",
   it("still deletes Order, which is what takes a client's history with it", () => {
     expect(listed(block("DELETION_ORDER"))).toMatch(/"Order"/);
   });
+
+  // L-255 (2026-10-03): the audit log goes, and one row recording the reset
+  // is written back. The leftover check must expect exactly that row.
+  it("empties AuditLog and expects exactly the one row it writes back (L-255)", () => {
+    expect(listed(block("DELETION_ORDER")), "AuditLog left the delete list").toMatch(/"AuditLog"/);
+    expect(listed(block("PRESERVED_ORDER")), "AuditLog is back on the kept list").not.toMatch(/"AuditLog"/);
+    expect(src).toMatch(/EXPECTED_AFTER[^=]*=\s*\{\s*AuditLog:\s*1\s*\}/);
+    expect(src).toMatch(/tx\.auditLog\.create\(/);
+  });
+
+  it("no longer tells the operator to paste a key into .env (L-255)", () => {
+    const printed = src.split("\n").filter((l) => /console\.log\(/.test(l)).join("\n");
+    expect(printed, "the old key procedure is printed again").not.toMatch(/openssl rand|coller dans \.env/);
+    expect(printed).toMatch(/Armer la cle de chainage/);
+  });
 });
 
 describe("L-168 — the index never offers what § 5 forbids on this machine", () => {

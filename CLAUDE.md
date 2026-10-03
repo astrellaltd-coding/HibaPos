@@ -26,7 +26,7 @@ found in one week, and a reader had no way to know which side to believe.
 
 2. **Do one item.** Only what is in that item. Anything else you notice goes into FINDINGS.md's
    own tables with a new `L-` id continuing the same sequence — the audit ended at **L-182** and
-   the highest today is **L-254**. The plan's § 7 is closed to new rows until the operator
+   the highest today is **L-255**. The plan's § 7 is closed to new rows until the operator
    reopens it. You do not fix it now.
 
 3. **Then, in this order:** `bun run test` · `bun run typecheck` · `bun run lint` — all three
@@ -249,15 +249,17 @@ without the Internet**, and had not been able to since commissioning; fixed, and
 till at seven seconds that evening — **but every boot in the till's log since reads 71–76 s in
 the same step (L-253, open, cause not established).** **Treat a comment in that directory as an intention, not as evidence.**
 
-**`pre-golive-reset.ts`** empties the fiscal journal, keeps the catalogue, users, settings, audit
-log and (since L-254) customers, and runs **once**. It has already run twice — here 2026-09-10, on the till 2026-09-20 —
+**`pre-golive-reset.ts`** empties the fiscal journal **and, since L-255, the audit log** — writing
+back one `PRE_GOLIVE_RESET` row that records the reset — keeps the catalogue, users, settings and
+(since L-254) customers, and runs **once**. It has already run twice — here 2026-09-10, on the till 2026-09-20 —
 and neither makes R6.1's target empty today, because the till has been tested on since. Since
 2026-09-27 it proves what it kept **by content**, not by row count: it digests every table the
-schema has except the ones it empties, and ends « 18 tables, contenu inchange, empreinte … ».
+schema has except the ones it empties, and ends « 17 tables, contenu inchange, empreinte … ».
 The list is derived from the schema, which is how `ProductOptionQuota`, in neither of its two
-hand-written lists, came to be checked (L-238). **Eighteen since 2026-10-03: `Customer` is KEPT
-again (L-254)** — the owner's clients stay, without history, at the operator's request on the
-morning of the till's reset.
+hand-written lists, came to be checked (L-238). **Both changed on the morning of the till's reset,
+2026-10-03, at the operator's request**: `Customer` is KEPT (L-254 — the owner's clients stay,
+without history) and `AuditLog` is EMPTIED (L-255 — its rows survive in the required backup). One
+in, one out: still seventeen, but not the same seventeen.
 
 **`bun run test:e2e` is safe for the database** — it builds its own under the OS temp directory and
 refuses to start otherwise. **It is not hermetic** (L-239): `next start` fills every key
