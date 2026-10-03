@@ -122,6 +122,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - L-251 — Chicago could be rung up and not sold, and a new product could store a group it inherits
 - L-252 — the website setting had no field
 - L-254 — the reset keeps the owner's customers, without their history
+- L-255 — the reset empties the audit log, keeps one record of itself, and prints the right key steps
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -7348,6 +7349,25 @@ contenu inchange » with the fingerprint unchanged; the clients read back whole,
 
 **Left behind.** The till's dry run must be **run again** after the pull: its « avant »
 fingerprint changes and the rows to delete fall from 498 to 475.
+
+---
+
+### L-255 — the reset empties the audit log, keeps one record of itself, and prints the right key steps
+**Done:** 2026-10-03 · **Commit:** `102c17f` · **Finding:** L-255
+
+**What changed.** `AuditLog` joins the reset's delete list at the operator's request; one
+`PRE_GOLIVE_RESET` row is written back in the same transaction, recording the counts deleted and
+the kept-content fingerprint, and `EXPECTED_AFTER` lets the leftover check expect it. The closing
+« ETAPES SUIVANTES » stop telling the operator to paste an `openssl` key into `.env` and describe
+the Réglages card instead.
+
+**How it was verified.** Three reverts, each red (one also failing a real run with « RESTE DES
+LIGNES : {"AuditLog":1} »). The real script on a scratch copy: 621 rows deleted, one record
+written, clients kept with 0 orders, « 17 tables, contenu inchange ». Gates 2159 / 0, typecheck 0,
+lint 0.
+
+**Left behind.** The till's dry run must be run again after the pull: AuditLog moves to « A
+SUPPRIMER » (878), 1353 rows to delete, a new fingerprint over 17 tables.
 
 ---
 
