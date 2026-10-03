@@ -121,6 +121,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - L-246 — an uploaded image was served by nobody
 - L-251 — Chicago could be rung up and not sold, and a new product could store a group it inherits
 - L-252 — the website setting had no field
+- L-254 — the reset keeps the owner's customers, without their history
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -7327,6 +7328,26 @@ Walked on the scratch copy with the real go-live values: saved through Réglages
 Recorded in L-252's row, not changed.
 
 **Version 1.0.0 (`3eef0ef`) went out the same day**, before this, at the operator's request.
+
+---
+
+### L-254 — the reset keeps the owner's customers, without their history
+**Done:** 2026-10-03 · **Commit:** `5327aa4` · **Finding:** L-254
+
+**What changed.** `Customer` leaves `DELETION_ORDER` in `pre-golive-reset.ts`, reversing L-73 at
+the operator's request on the morning of R6.1: the till's dry run listed 23 clients for deletion
+and the owner wants them kept, with no history. A `Customer` row carries no history to clear —
+every client figure is computed from `Order`, which the reset empties — so nothing else changed.
+The content check now covers 18 tables.
+
+**How it was verified.** The real script, on a scratch copy seeded with three clients and three
+orders: dry run lists `Customer 3` under « A CONSERVER »; `--apply --yes` ends « 18 tables,
+contenu inchange » with the fingerprint unchanged; the clients read back whole, 0 orders each.
+`scripts-docs.test.ts` pins the decision, red when Customer returns to the delete list. Gates
+2157 / 0, typecheck 0, lint 0.
+
+**Left behind.** The till's dry run must be **run again** after the pull: its « avant »
+fingerprint changes and the rows to delete fall from 498 to 475.
 
 ---
 
