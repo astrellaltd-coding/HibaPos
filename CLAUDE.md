@@ -26,7 +26,7 @@ found in one week, and a reader had no way to know which side to believe.
 
 2. **Do one item.** Only what is in that item. Anything else you notice goes into FINDINGS.md's
    own tables with a new `L-` id continuing the same sequence — the audit ended at **L-182** and
-   the highest today is **L-255**. The plan's § 7 is closed to new rows until the operator
+   the highest today is **L-256**. The plan's § 7 is closed to new rows until the operator
    reopens it. You do not fix it now.
 
 3. **Then, in this order:** `bun run test` · `bun run typecheck` · `bun run lint` — all three
@@ -107,22 +107,36 @@ it.** Every one of those was caught that way and none would have been caught oth
 *Snapshot: **2026-10-01**. Perishable. If this disagrees with `REMEDIATION_PLAN.md` § 1, believe
 the plan.*
 
-## THE GO-LIVE IS UNDER WAY: STEPS 1 AND 2 DONE, STOPPED AT STEP 3 FOR THE OWNER'S EYES
+## THE TILL WENT LIVE ON 2026-10-03. EVERY SALE FROM NOW ON IS REAL.
 
-**2026-10-01, by the operator over remote access, each step's raw output read:**
+**R6.1 → R6.2 → R6.3 done on 2026-10-03**, by the operator over remote access, each step's raw
+output read before the next:
+
+- **Backup**: `hibapos-backup-2026-10-03T09-37-28-428Z.dbenc` (1.11 Mo) and the media archive,
+  decrypted on the till (« Format SQLite valide ») and **copied to the operator's PC**.
+- **R6.1 reset**: 1353 rows deleted, matching the dry run table by table — the factice trading
+  and, at the operator's request, the 878 audit rows (L-255); **the 23 customers kept** with no
+  history (L-254). One `PRE_GOLIVE_RESET` audit row records it. FiscalCounter 0/0/0/0.
+  « Catalogue intact (17 tables, contenu inchange, empreinte `d91846860aaa5fd7`) », the same
+  fingerprint as the dry run.
+- **R6.2**: the chain key armed through Réglages and **saved on the operator's PC**.
+- **R6.3**: FACTICE off.
+- **Not yet confirmed at this snapshot**: the first real ticket's number (expected #1) and the
+  Fiscal screen's chain verdict after it.
+
+**`db/custom.db` on the till is now an append-only fiscal record.** `pre-golive-reset.ts` must
+never run there again, and refuses to while the key is armed.
+
+### How it got here — 2026-10-01
+
+**By the operator over remote access, each step's raw output read:**
 
 - **Step 1 done.** The till is at `03ed85a`, `origin/main`, by `git log -1`. Rebuilt; the boot at
   14:39:52 serves build `MX1HKLPc9NJzmQxo-HMf0` where every earlier boot served
   `KGxjXvq4HhPmJ4qyLzaUe`, and the Fiscal screen reads **HibaPOS France v1.0.0**. No migration.
 - **Step 2 done.** The four identity settings are set and read back after a reload.
 - **Chicago (L-251) repaired and both new pizzas sell**, takeaway and delivery.
-- **Step 3 is waiting.** One factice delivery is printed; **the owner looks at it at 17:00.** If
-  he wants a change, it is made, pulled, rebuilt and printed again — possible only while FACTICE
-  is on and the reset has not run.
-
-**Not done: steps 4 to 7.** FACTICE is still on, the journal still holds factice events, the
-chain key is not armed. **The backup (step 4) is taken just before the reset, not earlier**, so
-that it holds everything up to the moment the reset runs.
+- **Step 3**: one factice delivery printed; **the owner approved the paper** before the reset.
 
 **THE ORDER IS R6.1 reset → R6.2 arm the chain key → R6.3 FACTICE off**, and it is a rule rather
 than a preference. Both halves were verified in the code on 2026-09-30:
@@ -180,10 +194,9 @@ the setting the day before. Empty, the footer prints the thank-you note and no U
 
 **The till is current in code since 2026-10-01 14:39: `03ed85a`, version 1.0.0** (see the
 go-live section above for how that was proved). `C:\HibaPOS-app`, 20 migrations, boots itself
-fullscreen, tracks `origin/main`. It has **never traded a genuine sale**: FACTICE is on, the chain
-key is not armed, and its journal holds an unmeasured number of factice events from the owner's
-testing since the 2026-09-20 reset. `bun scripts/pre-golive-reset.ts` **without** `--apply` is a dry run and
-prints exactly how many.
+fullscreen, tracks `origin/main`. **It went live on 2026-10-03**: journal reset,
+chain key armed, FACTICE off (see the top of Part Two). The till pulled to `66998e8` for the reset
+script; nothing the app runs changed after `03ed85a`, so its build is the 2026-10-01 one.
 
 **The catalogues diverged on 2026-09-28, deliberately.** The owner's menu was completed ON THE TILL
 — Kebab on the Tacos « Viande » group, the **Panini** category with its options and products, a
@@ -279,8 +292,8 @@ Open today, none of it phased: **L-211** (High — the category strip scrolls wi
 it does, and the owner meets it daily) · **L-204** (High — the launcher's third refusal never reads
 `secrets.json`) · **L-203** (the launcher refuses a pending migration where PREP-4 would apply it;
 « drop refusal 2 » is **not** sufficient on its own) · L-208 · L-209 · L-210 · L-223 · L-236 ·
-L-239 · L-244 · L-245 · L-247 · **L-253** (the boot is back to ~72 s) · and L-207's other half.
-**L-248 and L-249 are DONE** (2026-09-30), **L-250, L-251 and L-252** (2026-10-01).
+L-239 · L-244 · L-245 · L-247 · **L-253** (the boot is back to ~72 s) · L-256 · and L-207's other half.
+**L-248 and L-249 are DONE** (2026-09-30), **L-250, L-251 and L-252** (2026-10-01), **L-254 and L-255** (2026-10-03).
 
 **`VAT-METHOD` is the one that matters from the first real sale** (§ 8 of the plan): how a fixed
 menu price divides between 10 % and 5,5 %. The rates are settled; the division is the open claim,

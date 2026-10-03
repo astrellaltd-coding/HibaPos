@@ -8,17 +8,17 @@ Completed work lives in **`REMEDIATION_DONE.md`**. This file only ever shows out
 
 ## 1. CURRENT STATUS
 
-**Overall:** NOT READY FOR PRODUCTION, and **not trading** — no genuine sale has been rung on
-either install. **On THIS machine** the fiscal journal is empty and every trading table is at
-zero, re-measured 2026-09-27. **On the FRANCE TILL it is not**: FACTICE is on and the owner has
-been testing since the 2026-09-20 reset, so its journal holds factice events. **How many is not
-measured**, and R6.1 is the step that clears them.
+**Overall: THE FRANCE TILL IS TRADING, since 2026-10-03.** R6.1 (reset), R6.2 (chain key armed,
+saved off the till) and R6.3 (FACTICE off) were done that day, in that order, each step's raw
+output read — the detail is at the top of `CLAUDE.md` Part Two. **Its database is now an
+append-only fiscal record.** **THIS machine** has never traded: its journal is empty and every
+trading table is at zero, re-measured 2026-09-27. What is still open is § 8's `VAT-METHOD`, for
+the accountant, and the findings below — none of which stops trading.
 
-> ### ▶ CURRENT TASK — **the go-live, item 2 below: waiting on the owner's look at the paper.**
-> Steps 1 and 2 were done on the till on 2026-10-01: pulled to `03ed85a`, rebuilt (version
-> 1.0.0 on the Fiscal screen), the four settings set, Chicago (L-251) selling. A factice delivery
-> is printed and **the owner looks at it at 17:00**. Steps 4–7 follow only after he approves it.
-> Item 0, carrying the till's catalogue back, waits until after the go-live.
+> ### ▶ CURRENT TASK — **confirm the first real ticket, then item 0: carry the till's catalogue back.**
+> The till went live on 2026-10-03. Still to read back from it: the first genuine ticket is **#1**
+> with no FACTICE stamp, and the Fiscal screen verifies the chain as keyed. Then item 0 — and
+> **the import direction is unchanged**: export from the till, import here, never the reverse.
 >
 > **Every batch of Phases 8, 9 and 10 is finished** — read them in `REMEDIATION_DONE.md`, not
 > from a second copy here. The only § 6 row that is not the operator's is R10.3. The work now
@@ -51,10 +51,11 @@ measured**, and R6.1 is the step that clears them.
 >    looks at it at 17:00.**
 >    **`restaurantWebsite` is set on the till since 2026-10-01**, through the Réglages field L-252
 >    added that morning; empty, the footer prints the thank-you and no URL.
-> 2. **THE GO-LIVE IS UNDER WAY — steps 1 and 2 done on 2026-10-01, stopped at step 3.** The till
->    is at `03ed85a` and version 1.0.0, the four identity settings are set, and one factice
->    delivery is printed for the owner to look at. **Still true:** FACTICE on, the journal holding
->    factice events, the chain key unarmed. The backup (step 4) is taken just before the reset.
+> 2. **THE GO-LIVE IS DONE — 2026-10-03.** Steps 1–3 on 2026-10-01 (pull to `03ed85a`, version
+>    1.0.0, the four settings, the owner approved the paper); on 2026-10-03 the backup copied off
+>    the till, R6.1 (1353 rows, customers kept — L-254 — and the audit log emptied — L-255),
+>    R6.2 (key saved on the operator's PC) and R6.3. **What follows is kept as the record of the
+>    order it was done in.**
 >    **The sequence, in this order, and the order is a rule** (written out in full in `CLAUDE.md`
 >    Part Two): **(1)** pull and rebuild — stop the task, `bun run db:generate`, `bun run
 >    build` — first, because `restaurantWebsite` only exists on the till once `847fb95` is in;
