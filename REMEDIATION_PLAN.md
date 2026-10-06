@@ -15,8 +15,8 @@ append-only fiscal record.** **THIS machine** has never traded: its journal is e
 trading table is at zero, re-measured 2026-09-27. What is still open is § 8's `VAT-METHOD`, for
 the accountant, and the findings below — none of which stops trading.
 
-> ### ▶ CURRENT TASK — **read back the first real ticket, then item 0.** L-257 (Windows killed the
-> till's server after 72 hours) was fixed on the till on 2026-10-06 and the task restarted. Then: the first genuine ticket is
+> ### ▶ CURRENT TASK — **item 0: carry the till's catalogue back.** The till is trading: ticket #1
+> on 2026-10-03, chain intact and totals reconciled on 2026-10-06. L-257 was fixed on the till. Then: the first genuine ticket is
 > **#1** with no FACTICE stamp and the Fiscal screen verifies the chain as keyed; then item 0 —
 > export from the till, import here, never the reverse.
 >

@@ -26,7 +26,7 @@ found in one week, and a reader had no way to know which side to believe.
 
 2. **Do one item.** Only what is in that item. Anything else you notice goes into FINDINGS.md's
    own tables with a new `L-` id continuing the same sequence — the audit ended at **L-182** and
-   the highest today is **L-257**. The plan's § 7 is closed to new rows until the operator
+   the highest today is **L-258**. The plan's § 7 is closed to new rows until the operator
    reopens it. You do not fix it now.
 
 3. **Then, in this order:** `bun run test` · `bun run typecheck` · `bun run lint` — all three
@@ -121,8 +121,15 @@ output read before the next:
   fingerprint as the dry run.
 - **R6.2**: the chain key armed through Réglages and **saved on the operator's PC**.
 - **R6.3**: FACTICE off.
-- **Not yet confirmed at this snapshot**: the first real ticket's number (expected #1) and the
-  Fiscal screen's chain verdict after it.
+- **The first genuine ticket is #1, 2026-10-03 18:36**, and #1–#8 run without a gap over the
+  3rd and 4th. Read on the till's Fiscal screen 2026-10-06: journal **12 entries, chain intact**
+  (8 `VENTE`, a `CLOTURE_Z` and a `CLOTURE_J` per day), daily closes **2, intact**, grand total
+  **187,50 €** = 91,60 + 95,90, cash 8,90 + card 178,60, VAT 16,97 — all reconciled by hand.
+  **Whether the chain is KEYED is not shown on that screen** (L-258); the arming preceded the
+  first event, so it should be.
+- **The restaurant rests every Monday.** A day with no operations is not sealed and need not
+  be: the till refuses only to open a caisse past an ended day WITH operations. Monday the 5th
+  was empty and the 4th was sealed on Tuesday morning before caisse #3 opened.
 
 **`db/custom.db` on the till is now an append-only fiscal record.** `pre-golive-reset.ts` must
 never run there again, and refuses to while the key is armed.
@@ -304,7 +311,7 @@ Open today, none of it phased: **L-211** (High — the category strip scrolls wi
 it does, and the owner meets it daily) · **L-204** (High — the launcher's third refusal never reads
 `secrets.json`) · **L-203** (the launcher refuses a pending migration where PREP-4 would apply it;
 « drop refusal 2 » is **not** sufficient on its own) · L-208 · L-209 · L-210 · L-223 · L-236 ·
-L-239 · L-244 · L-245 · L-247 · **L-253** (the boot is back to ~72 s) · L-256 · and L-207's other half.
+L-239 · L-244 · L-245 · L-247 · **L-253** (the boot is back to ~72 s) · L-256 · L-258 · and L-207's other half.
 **L-248 and L-249 are DONE** (2026-09-30), **L-250, L-251 and L-252** (2026-10-01), **L-254 and L-255** (2026-10-03), **L-257** on the till (2026-10-06).
 
 **`VAT-METHOD` is the one that matters from the first real sale** (§ 8 of the plan): how a fixed
