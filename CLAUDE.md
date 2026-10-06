@@ -26,7 +26,7 @@ found in one week, and a reader had no way to know which side to believe.
 
 2. **Do one item.** Only what is in that item. Anything else you notice goes into FINDINGS.md's
    own tables with a new `L-` id continuing the same sequence — the audit ended at **L-182** and
-   the highest today is **L-256**. The plan's § 7 is closed to new rows until the operator
+   the highest today is **L-257**. The plan's § 7 is closed to new rows until the operator
    reopens it. You do not fix it now.
 
 3. **Then, in this order:** `bun run test` · `bun run typecheck` · `bun run lint` — all three
@@ -126,6 +126,15 @@ output read before the next:
 
 **`db/custom.db` on the till is now an append-only fiscal record.** `pre-golive-reset.ts` must
 never run there again, and refuses to while the key is armed.
+
+**THE TILL'S SERVER DIED ON 2026-10-06 — L-257, CRITICAL.** Windows stops the `HibaPOS Server`
+task after **72 hours** (`ExecutionTimeLimit` `PT72H`, measured on the till), killing the server
+with it and leaving no line in `server.log`. The caisse still LOOKS alive — the cart is
+client-side — and fails at the first thing that needs the server; the owner met it as « Erreur
+lors de la création » on a new delivery client. Restarted the same day (`/api` 200). **Until the
+operator removes the limit in `taskschd.msc` and restarts the task once, it dies again about
+2026-10-09 14:10.** The quick check, any time: `Invoke-WebRequest http://127.0.0.1:3000/api
+-UseBasicParsing` must answer 200.
 
 ### How it got here — 2026-10-01
 
@@ -292,7 +301,7 @@ Open today, none of it phased: **L-211** (High — the category strip scrolls wi
 it does, and the owner meets it daily) · **L-204** (High — the launcher's third refusal never reads
 `secrets.json`) · **L-203** (the launcher refuses a pending migration where PREP-4 would apply it;
 « drop refusal 2 » is **not** sufficient on its own) · L-208 · L-209 · L-210 · L-223 · L-236 ·
-L-239 · L-244 · L-245 · L-247 · **L-253** (the boot is back to ~72 s) · L-256 · and L-207's other half.
+L-239 · L-244 · L-245 · L-247 · **L-253** (the boot is back to ~72 s) · L-256 · **L-257** (CRITICAL — the server task's 72-hour limit) · and L-207's other half.
 **L-248 and L-249 are DONE** (2026-09-30), **L-250, L-251 and L-252** (2026-10-01), **L-254 and L-255** (2026-10-03).
 
 **`VAT-METHOD` is the one that matters from the first real sale** (§ 8 of the plan): how a fixed

@@ -15,10 +15,11 @@ append-only fiscal record.** **THIS machine** has never traded: its journal is e
 trading table is at zero, re-measured 2026-09-27. What is still open is § 8's `VAT-METHOD`, for
 the accountant, and the findings below — none of which stops trading.
 
-> ### ▶ CURRENT TASK — **confirm the first real ticket, then item 0: carry the till's catalogue back.**
-> The till went live on 2026-10-03. Still to read back from it: the first genuine ticket is **#1**
-> with no FACTICE stamp, and the Fiscal screen verifies the chain as keyed. Then item 0 — and
-> **the import direction is unchanged**: export from the till, import here, never the reverse.
+> ### ▶ CURRENT TASK — **L-257: the till's task limit read back as `PT0S`, and the task restarted once.**
+> Windows' 72-hour task limit killed the till's server on 2026-10-06; restarted the same day, it
+> dies again about 2026-10-09 14:10 without the operator's fix. Then: the first genuine ticket is
+> **#1** with no FACTICE stamp and the Fiscal screen verifies the chain as keyed; then item 0 —
+> export from the till, import here, never the reverse.
 >
 > **Every batch of Phases 8, 9 and 10 is finished** — read them in `REMEDIATION_DONE.md`, not
 > from a second copy here. The only § 6 row that is not the operator's is R10.3. The work now
