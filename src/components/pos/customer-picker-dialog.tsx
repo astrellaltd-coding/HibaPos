@@ -45,7 +45,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { EmptyState } from "@/components/shared/empty-state";
-import { UserPlus, Search, Check, User, MapPin, Phone, Pencil, AlertTriangle } from "lucide-react";
+import { UserPlus, Search, Check, User, MapPin, Phone, Pencil, Trash2, AlertTriangle } from "lucide-react";
+import { CUSTOMER_ERASE_CONSEQUENCE } from "@/lib/customer-erasure";
 import { toast } from "sonner";
 import {
   customerFormBlocked,
@@ -86,6 +87,7 @@ export function CustomerPickerDialog({
    */
   const close = () => {
     setEditing(null);
+    setErasing(null);
     setForm({ name: "", phone: "", address: "", city: "" });
     onOpenChange(false);
   };
@@ -139,6 +141,28 @@ export function CustomerPickerDialog({
     },
   });
 
+  /**
+   * L-260 — erasing a client from the caisse, at the operator's request
+   * (2026-10-06). The confirmation REPLACES the list inside this dialog rather
+   * than opening a second one over it: the only dialog-over-dialog handoff in
+   * the codebase is L-247's unexplained dead button.
+   */
+  const [erasing, setErasing] = useState<CustomerDto | null>(null);
+  const eraseMutation = useMutation({
+    mutationFn: (id: string) => api.delete<{ ok: true }>(`/api/customers/${id}`),
+    onSuccess: (_r, id) => {
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
+      queryClient.invalidateQueries({ queryKey: ["customer", id] });
+      // The cart must not go on pointing at a client who no longer exists.
+      if (selectedId === id) onSelect(null);
+      toast.success("Client supprimé");
+      setErasing(null);
+    },
+    onError: (e) => {
+      toast.error(e instanceof ApiError ? e.message : "Erreur lors de la suppression");
+    },
+  });
+
   const pending = createMutation.isPending || updateMutation.isPending;
   const draft = {
     name: form.name.trim(),
@@ -176,10 +200,12 @@ export function CustomerPickerDialog({
         <DialogHeader className="border-b border-border p-5">
           <DialogTitle className="flex items-center gap-2">
             <User className="h-5 w-5 text-primary" />
-            {isNew ? "Nouveau client" : editing ? "Modifier le client" : "Sélectionner un client"}
+            {isNew ? "Nouveau client" : editing ? "Modifier le client" : erasing ? "Supprimer le client" : "Sélectionner un client"}
           </DialogTitle>
           <p className="text-sm text-muted-foreground">
-            {editing
+            {erasing
+              ? "Cette action est irréversible."
+              : editing
               ? forDelivery
                 ? "Une livraison demande le nom, le téléphone, l'adresse et la ville."
                 : "Le nom suffit pour une commande sur place ou à emporter."
@@ -279,6 +305,31 @@ export function CustomerPickerDialog({
               </Button>
             </div>
           </div>
+        ) : erasing ? (
+          <div className="space-y-4 p-5">
+            <p className="text-sm text-foreground">
+              Supprimer <span className="font-semibold">{erasing.name}</span> ?
+            </p>
+            <p className="text-sm text-muted-foreground">{CUSTOMER_ERASE_CONSEQUENCE}</p>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="h-11 min-h-[44px] flex-1"
+                onClick={() => setErasing(null)}
+                disabled={eraseMutation.isPending}
+              >
+                Annuler
+              </Button>
+              <Button
+                variant="destructive"
+                className="h-11 min-h-[44px] flex-1"
+                onClick={() => eraseMutation.mutate(erasing.id)}
+                disabled={eraseMutation.isPending}
+              >
+                {eraseMutation.isPending ? "Suppression…" : "Supprimer"}
+              </Button>
+            </div>
+          </div>
         ) : (
           <>
             <div className="border-b border-border p-3">
@@ -373,6 +424,14 @@ export function CustomerPickerDialog({
                         >
                           <Pencil className="h-4 w-4" />
                         </button>
+                        <button
+                          onClick={() => setErasing(c)}
+                          aria-label={`Supprimer ${c.name}`}
+                          title={`Supprimer ${c.name}`}
+                          className="grid min-h-[44px] w-11 shrink-0 place-items-center border-l border-border text-destructive/80 transition-colors hover:bg-destructive/10 hover:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
                       </div>
                     );
                   })}
@@ -390,7 +449,7 @@ export function CustomerPickerDialog({
           </>
         )}
 
-        {selectedId && !editing && (
+        {selectedId && !editing && !erasing && (
           <DialogFooter className="border-t border-border p-3">
             <Button
               variant="outline"

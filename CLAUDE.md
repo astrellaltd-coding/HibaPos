@@ -26,7 +26,7 @@ found in one week, and a reader had no way to know which side to believe.
 
 2. **Do one item.** Only what is in that item. Anything else you notice goes into FINDINGS.md's
    own tables with a new `L-` id continuing the same sequence — the audit ended at **L-182** and
-   the highest today is **L-259**. The plan's § 7 is closed to new rows until the operator
+   the highest today is **L-260**. The plan's § 7 is closed to new rows until the operator
    reopens it. You do not fix it now.
 
 3. **Then, in this order:** `bun run test` · `bun run typecheck` · `bun run lint` — all three
@@ -243,7 +243,10 @@ obligation can justify keeping data necessary to a retained document, but delive
 fiscal, so even the NAME came out — it had been sealed since 2026-09-18. **Measured while
 deciding:** the `VENTE` payload never carried customer data (`sale-journal.ts`), so the ticket
 text was the only route into the archive. Closing it means a deletion request genuinely erases
-someone; before, their name was frozen for the retention period.
+someone; before, their name was frozen for the retention period. **That was true only on paper
+until L-260 (2026-10-06)**: « Supprimer » was a soft-delete no list read, and refused any client
+who had ordered. It now erases the row and the name in the audit log, from « Clients » and from
+the caisse's picker; past orders stay, unlinked.
 
 **Three things follow that are the operator's, not the software's**: a retention period for the
 delivery data, an RGPD register entry justifying each field, and an information notice.

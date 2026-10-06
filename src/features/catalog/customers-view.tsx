@@ -39,6 +39,7 @@ import {
 import { toast } from "sonner";
 import { formatRelativeDateTime } from "@/lib/format";
 import { CustomerDetailDialog } from "@/components/pos/customer-detail-dialog";
+import { CUSTOMER_ERASE_CONSEQUENCE } from "@/lib/customer-erasure";
 import {
   Users,
   Plus,
@@ -476,7 +477,7 @@ export function CustomersView() {
               <span className="font-semibold text-foreground">
                 {deleteTarget?.name}
               </span>{" "}
-              ? Cette action est irréversible.
+              ? {CUSTOMER_ERASE_CONSEQUENCE}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
