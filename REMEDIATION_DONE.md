@@ -125,6 +125,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - L-255 — the reset empties the audit log, keeps one record of itself, and prints the right key steps
 - L-257 — Windows stopped the till's server every 72 hours
 - L-259 — the order's detail window shows the sealed ticket, and its buttons fit
+- L-260 — deleting a client erases them, from Clients and from the caisse
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -7405,6 +7406,23 @@ sale rung through the real checkout on a scratch copy, opened in the dialog: sea
 48-column lines unclipped, all five buttons inside. Gates 2161 / 0, typecheck 0, lint 0.
 
 **Left behind.** The till needs a pull and a rebuild to show it — the app's code changed.
+
+---
+
+### L-260 — deleting a client erases them, from Clients and from the caisse
+**Done:** 2026-10-06 · **Commit:** `f5b60ba` · **Finding:** L-260
+
+**What changed.** The customer DELETE route erases the row instead of flagging it, also for
+clients with past orders, scrubs the name from that client's audit rows and logs the erasure
+without it. The caisse's client picker gains a delete button with an in-dialog confirmation.
+
+**How it was verified.** `customer-erasure.test.ts`, red three ways (old route, no scrub,
+orders erased too). A client with a real order erased on a scratch copy: gone from the list,
+cart cleared, the order and its sealed ticket intact. Gates 2165 / 0, typecheck 0, lint 0.
+
+**Left behind.** The till needs a pull and a rebuild. The erasure is the operator's decision on
+the strength of L-248's research; whether the law requires keeping client data is not a claim
+the software makes.
 
 ---
 
