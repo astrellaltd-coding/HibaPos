@@ -131,9 +131,11 @@ never run there again, and refuses to while the key is armed.
 task after **72 hours** (`ExecutionTimeLimit` `PT72H`, measured on the till), killing the server
 with it and leaving no line in `server.log`. The caisse still LOOKS alive — the cart is
 client-side — and fails at the first thing that needs the server; the owner met it as « Erreur
-lors de la création » on a new delivery client. Restarted the same day (`/api` 200). **Until the
-operator removes the limit in `taskschd.msc` and restarts the task once, it dies again about
-2026-10-09 14:10.** The quick check, any time: `Invoke-WebRequest http://127.0.0.1:3000/api
+lors de la création » on a new delivery client. Restarted the same day (`/api` 200). **The task had been made by hand in
+`taskschd.msc`, not by `install-windows.ps1`, and that window's defaults are the cause.** The
+operator removed the limit and set restart-on-failure the same day — read back `PT0S`, 3 ×
+`PT1M`. **One restart of the task is still owed before 2026-10-09 14:00**: the run started at
+14:09 keeps the limit it started with. The quick check, any time: `Invoke-WebRequest http://127.0.0.1:3000/api
 -UseBasicParsing` must answer 200.
 
 ### How it got here — 2026-10-01
