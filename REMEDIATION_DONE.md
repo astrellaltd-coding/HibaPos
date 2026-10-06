@@ -124,6 +124,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - L-254 — the reset keeps the owner's customers, without their history
 - L-255 — the reset empties the audit log, keeps one record of itself, and prints the right key steps
 - L-257 — Windows stopped the till's server every 72 hours
+- L-259 — the order's detail window shows the sealed ticket, and its buttons fit
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -7389,6 +7390,21 @@ exit line in `server.log`, `PT72H`, 72 h to the hour — is in L-257's row.
 **Left behind.** Two items, not done: `install-windows.ps1` should read the limit back after
 registering and refuse if it is not `PT0S`; and the caisse should say when its server is gone,
 instead of failing at the first button that needs it.
+
+---
+
+### L-259 — the order's detail window shows the sealed ticket, and its buttons fit
+**Done:** 2026-10-06 · **Commit:** `69377dc` · **Finding:** L-259
+
+**What changed.** `GET /api/orders/[id]` sends `Receipt.content`; the « Commandes » detail dialog
+shows it verbatim instead of rebuilding a ticket, with the client's name beside it and the refund
+history below; the footer wraps so « Imprimer » is no longer cut off the left edge.
+
+**How it was verified.** `order-detail-receipt.test.ts`, red when the route drops the field. A
+sale rung through the real checkout on a scratch copy, opened in the dialog: sealed frames shown,
+48-column lines unclipped, all five buttons inside. Gates 2161 / 0, typecheck 0, lint 0.
+
+**Left behind.** The till needs a pull and a rebuild to show it — the app's code changed.
 
 ---
 
