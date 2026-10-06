@@ -166,6 +166,55 @@ function orderTypeBadge(orderType: OrderDto["orderType"]) {
   );
 }
 
+/** The refund history under a ticket — not part of the sealed text, so shown
+ *  beside it in either view of the order. */
+function RefundHistory({ refunds }: { refunds: RefundDto[] }) {
+  if (refunds.length === 0) return null;
+  return (
+    <>
+      <div className="my-2 border-t border-dashed border-foreground/40" />
+      <p className="font-bold text-destructive">Remboursements</p>
+      {refunds.map((r) => (
+        <div key={r.id}>
+          <div className="flex justify-between text-destructive">
+            <span>
+              -{formatEuro(r.amount)} · {r.cashier?.name ?? "—"}
+            </span>
+            <span>{formatDateTime(r.createdAt)}</span>
+          </div>
+          <div className="pl-2 text-[11px] italic text-foreground/70">
+            « {r.reason} »
+          </div>
+          {/* L-171 — which items came back. Shown because a column
+              nothing reads is a column nobody maintains: L-143's
+              `printStatus` had three writers and zero readers, and
+              this is the answer an inspection asks for, so it
+              belongs on the screen and not only in the journal. */}
+          {(() => {
+            const items = refundItems(r.itemsJson);
+            if (!items) {
+              return (
+                <div className="pl-2 text-[11px] text-foreground/50">
+                  Articles non précisés — réparti au prorata
+                </div>
+              );
+            }
+            return (
+              <div className="pl-2 text-[11px] text-foreground/70">
+                {items.map((it) => (
+                  <div key={it.orderItemId}>
+                    ↩ {it.quantity}× {it.productName}
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+        </div>
+      ))}
+    </>
+  );
+}
+
 export function OrdersView() {
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
@@ -592,6 +641,29 @@ export function OrdersView() {
               id="receipt-print"
               className="receipt-paper min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-5 font-mono text-[12px] leading-relaxed text-foreground print:max-h-none print:overflow-visible"
             >
+              {/* L-259 — THE SEALED TICKET, AS IT WAS ISSUED. This window used to
+                  rebuild a ticket of its own from the order's fields, so it never
+                  took L-249's layout and never showed the FACTICE stamp, the
+                  per-rate VAT or the caisse. « Imprimer » already reprinted the
+                  sealed text; now the screen shows the same text. The rebuilt
+                  view below remains only for an order with no sealed receipt. */}
+              {detail.receipt?.content ? (
+                <>
+                  <div className="mb-3 flex items-center justify-between gap-2 font-sans">
+                    <OrderStatusBadge status={detail.status} />
+                    {/* L-248: the client is printed, never sealed — so it is
+                        shown beside the ticket, not in it. */}
+                    {detail.customer?.name ? (
+                      <span className="text-xs text-foreground/70">Client : {detail.customer.name}</span>
+                    ) : null}
+                  </div>
+                  <pre className="overflow-x-auto whitespace-pre text-[11px] leading-snug">
+                    {detail.receipt.content}
+                  </pre>
+                  <RefundHistory refunds={detail.refunds} />
+                </>
+              ) : (
+              <>
               <div className="text-center">
                 <p className="text-base font-bold">Reçu N° {detail.number}</p>
                 <p className="text-[11px] text-foreground/70">
@@ -705,49 +777,7 @@ export function OrdersView() {
                 </div>
               ))}
 
-              {detail.refunds.length > 0 && (
-                <>
-                  <div className="my-2 border-t border-dashed border-foreground/40" />
-                  <p className="font-bold text-destructive">Remboursements</p>
-                  {detail.refunds.map((r) => (
-                    <div key={r.id}>
-                      <div className="flex justify-between text-destructive">
-                        <span>
-                          -{formatEuro(r.amount)} · {r.cashier?.name ?? "—"}
-                        </span>
-                        <span>{formatDateTime(r.createdAt)}</span>
-                      </div>
-                      <div className="pl-2 text-[11px] italic text-foreground/70">
-                        « {r.reason} »
-                      </div>
-                      {/* L-171 — which items came back. Shown because a column
-                          nothing reads is a column nobody maintains: L-143's
-                          `printStatus` had three writers and zero readers, and
-                          this is the answer an inspection asks for, so it
-                          belongs on the screen and not only in the journal. */}
-                      {(() => {
-                        const items = refundItems(r.itemsJson);
-                        if (!items) {
-                          return (
-                            <div className="pl-2 text-[11px] text-foreground/50">
-                              Articles non précisés — réparti au prorata
-                            </div>
-                          );
-                        }
-                        return (
-                          <div className="pl-2 text-[11px] text-foreground/70">
-                            {items.map((it) => (
-                              <div key={it.orderItemId}>
-                                ↩ {it.quantity}× {it.productName}
-                              </div>
-                            ))}
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  ))}
-                </>
-              )}
+              <RefundHistory refunds={detail.refunds} />
 
               <div className="my-3 border-t border-dashed border-foreground/40" />
               <div className="text-center text-[11px] text-foreground/70">
@@ -756,10 +786,15 @@ export function OrdersView() {
                 </p>
                 <p className="mt-1">Merci de votre visite !</p>
               </div>
+              </>
+              )}
             </div>
           ) : null}
 
-          <DialogFooter className="shrink-0 flex-row gap-2 border-t border-border p-4 print:hidden">
+          {/* L-259: `flex-wrap`. Five buttons in a 460 px dialog overflowed, and
+              `justify-end` pushed the overflow off the LEFT edge — « Imprimer »
+              was half cut on the till. They now wrap onto a second row. */}
+          <DialogFooter className="shrink-0 flex-row flex-wrap gap-2 border-t border-border p-4 print:hidden">
             <Button
               variant="outline"
               className="flex-1 gap-2"

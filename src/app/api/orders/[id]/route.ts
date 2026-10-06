@@ -13,6 +13,9 @@ export const GET = withAuthParams(async (_req, { params }) => {
       customer: { select: { name: true, phone: true, address: true, city: true } },
       shift: { select: { number: true } },
       refunds: { include: { cashier: { select: { name: true } } } },
+      // L-259: the sealed text, so the order's detail window shows the ticket
+      // as issued rather than rebuilding one of its own.
+      receipt: { select: { content: true } },
     },
   });
   if (!order) return NextResponse.json({ error: "Commande introuvable" }, { status: 404 });
