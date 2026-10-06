@@ -123,6 +123,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - L-252 — the website setting had no field
 - L-254 — the reset keeps the owner's customers, without their history
 - L-255 — the reset empties the audit log, keeps one record of itself, and prints the right key steps
+- L-257 — Windows stopped the till's server every 72 hours
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -7368,6 +7369,26 @@ lint 0.
 
 **Left behind.** The till's dry run must be run again after the pull: AuditLog moves to « A
 SUPPRIMER » (878), 1353 rows to delete, a new fingerprint over 17 tables.
+
+---
+
+### L-257 — Windows stopped the till's server every 72 hours
+**Done:** 2026-10-06 · **Commit:** none — the operator's change on the till; recorded in `9016003`
+and `2f87bce` · **Finding:** L-257
+
+**What changed.** On the till, in `taskschd.msc`, the `HibaPOS Server` task's « Arrêter la tâche
+si elle s'exécute plus de : 3 jours » was unticked and « Si la tâche échoue, recommencer » set to
+3 × 1 minute. The task had been created by hand in that window, whose defaults are the 3-day stop
+and no restart on failure; the install script, which asks for neither, was never what made it.
+
+**How it was verified.** Read back on the till: `ExecutionTimeLimit PT0S`, `RestartCount 3`,
+`RestartInterval PT1M`. The task was then stopped and started so the running instance carries the
+new setting, and `/api` answered 200. The diagnosis behind it — connection refused on :3000, no
+exit line in `server.log`, `PT72H`, 72 h to the hour — is in L-257's row.
+
+**Left behind.** Two items, not done: `install-windows.ps1` should read the limit back after
+registering and refuse if it is not `PT0S`; and the caisse should say when its server is gone,
+instead of failing at the first button that needs it.
 
 ---
 
