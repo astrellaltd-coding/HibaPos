@@ -127,6 +127,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - L-259 — the order's detail window shows the sealed ticket, and its buttons fit
 - L-260 — deleting a client erases them, from Clients and from the caisse
 - L-263 — the on-screen keyboard opens on a tap, not on any focus
+- L-265 — the client picker finds regulars by any phone format, shows who they are, and stops duplicates
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -7439,6 +7440,21 @@ half reverted in turn with the matching tests red. Gates 2170 / 0, typecheck 0, 
 browser suite's four other failures predate this (L-264).
 
 **Left behind.** The till needs a pull and a rebuild, with the L-262 procedure.
+
+---
+
+### L-265 — the client picker finds regulars by any phone format, shows who they are, and stops duplicates
+**Done:** 2026-10-15 · **Commit:** `ef7feb4` · **Finding:** L-265
+
+**What changed.** Phone search on digits (any spacing, `+33`, last four digits), names without
+accents; regulars first; each client card shows order count, last order and note in a wider,
+two-column picker; creating a client whose number exists offers to choose them or create anyway.
+
+**How it was verified.** 19 rule tests and 6 route tests, five reverts each red. Walked at till
+size on a scratch copy. Gates 2195 / 0, typecheck 0, lint 0.
+
+**Left behind.** Editing a client onto another's number is unchecked; the till needs a pull and a
+rebuild (L-262 procedure), together with L-263.
 
 ---
 
