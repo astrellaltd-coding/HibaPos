@@ -92,6 +92,30 @@ Start-ScheduledTask -TaskName 'HibaPOS Server'
   and was the shape of L-243.
 - Then read `C:\HibaPOS-app\logs\server.log`. It timestamps every step and every refusal.
 
+**Keep the working build until the new one exists (L-262).** *(Added 2026-10-15 at the
+operator's approval, after a Bun crash mid-build left the trading till unable to sell: `next
+build` empties `.next` before it builds.)* Inside the update sequence, **with the server stopped
+and the caisse window closed**, after `bun run db:generate` and before `bun run build`:
+
+```
+Remove-Item C:\HibaPOS-build-precedent -Recurse -Force -ErrorAction SilentlyContinue
+Copy-Item C:\HibaPOS-app\.next C:\HibaPOS-build-precedent -Recurse
+bun run build
+```
+
+If the build fails, put the old one back, then start the server:
+
+```
+Remove-Item C:\HibaPOS-app\.next -Recurse -Force
+Copy-Item C:\HibaPOS-build-precedent C:\HibaPOS-app\.next -Recurse
+Start-ScheduledTask -TaskName 'HibaPOS Server'
+```
+
+- **Never run `bun run build` while the server is running**: it replaces the files the server is
+  serving. Restart the task after any build.
+- **Only for an update with no database change** — with a migration the launcher refuses the old
+  build (L-203), and such an update is planned on its own.
+
 ## When something looks like it worked
 
 Three times in one evening a command printed enough success to look finished while doing nothing:
