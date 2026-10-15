@@ -126,6 +126,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - L-257 — Windows stopped the till's server every 72 hours
 - L-259 — the order's detail window shows the sealed ticket, and its buttons fit
 - L-260 — deleting a client erases them, from Clients and from the caisse
+- L-263 — the on-screen keyboard opens on a tap, not on any focus
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -7423,6 +7424,21 @@ cart cleared, the order and its sealed ticket intact. Gates 2165 / 0, typecheck 
 **Left behind.** The till needs a pull and a rebuild. The erasure is the operator's decision on
 the strength of L-248's research; whether the law requires keeping client data is not a claim
 the software makes.
+
+---
+
+### L-263 — the on-screen keyboard opens on a tap, not on any focus
+**Done:** 2026-10-15 · **Commit:** `c2ba676` · **Finding:** L-263
+
+**What changed.** The keyboard used to open on any focus, so the ten auto-focused fields threw
+it over the screen. It now opens when a tap focused the field, or on a tap on a field that already
+had focus. The operator's decision, reversing L-213's « every typed field ».
+
+**How it was verified.** Five unit tests on `focusOpensKeyboard`; four Playwright tests, each
+half reverted in turn with the matching tests red. Gates 2170 / 0, typecheck 0, lint 0. The
+browser suite's four other failures predate this (L-264).
+
+**Left behind.** The till needs a pull and a rebuild, with the L-262 procedure.
 
 ---
 
