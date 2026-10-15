@@ -26,7 +26,7 @@ found in one week, and a reader had no way to know which side to believe.
 
 2. **Do one item.** Only what is in that item. Anything else you notice goes into FINDINGS.md's
    own tables with a new `L-` id continuing the same sequence — the audit ended at **L-182** and
-   the highest today is **L-262**. The plan's § 7 is closed to new rows until the operator
+   the highest today is **L-264**. The plan's § 7 is closed to new rows until the operator
    reopens it. You do not fix it now.
 
 3. **Then, in this order:** `bun run test` · `bun run typecheck` · `bun run lint` — all three
@@ -348,7 +348,7 @@ Open today, none of it phased: **L-211** (High — the category strip scrolls wi
 it does, and the owner meets it daily) · **L-204** (High — the launcher's third refusal never reads
 `secrets.json`) · **L-203** (the launcher refuses a pending migration where PREP-4 would apply it;
 « drop refusal 2 » is **not** sufficient on its own) · L-208 · L-209 · L-210 · L-223 · L-236 ·
-L-239 · L-244 · L-245 · L-247 · **L-253** (the boot is back to ~72 s) · L-256 · L-258 · L-261 · **L-262** (a failed build leaves the till unable to sell) · and L-207's other half.
+L-239 · L-244 · L-245 · L-247 · **L-253** (the boot is back to ~72 s) · L-256 · L-258 · L-261 · **L-262** (a failed build leaves the till unable to sell) · **L-264** (four browser tests red on `main`) · and L-207's other half.
 **L-248 and L-249 are DONE** (2026-09-30), **L-250, L-251 and L-252** (2026-10-01), **L-254 and L-255** (2026-10-03), **L-257** on the till (2026-10-06).
 
 **`VAT-METHOD` is the one that matters from the first real sale** (§ 8 of the plan): how a fixed

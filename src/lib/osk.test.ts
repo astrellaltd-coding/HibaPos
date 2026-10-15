@@ -7,8 +7,10 @@ import {
   NUMERIC_ROWS,
   OSK_BACKSPACE,
   OSK_ENTER,
+  TAP_FOCUS_WINDOW_MS,
   applyKey,
   armsSeparator,
+  focusOpensKeyboard,
   decimalSeparatorFor,
   isFromOsk,
   isNumericDraft,
@@ -440,5 +442,32 @@ describe("L-213 — a key tap does not dismiss the dialog it is typing into", ()
     expect(src, "the opt-out attribute is not on the field").toMatch(/^\s*data-osk="off"\s*$/m);
     // And its own keypad is still there — this fix must not have replaced it.
     expect(src).toContain('aria-label="Pavé numérique"');
+  });
+});
+
+// L-263 — the pad waits for a finger. Reported from the till 2026-10-15: the
+// client picker opened with the keyboard already covering the screen, because
+// its search box takes focus by itself and the keyboard opened on any focus.
+describe("L-263 — only a tap opens the keyboard", () => {
+  it("does not open on focus nobody tapped for — autoFocus, a dialog opening", () => {
+    expect(focusOpensKeyboard(null)).toBe(false);
+  });
+
+  it("opens when the focus follows a tap on that field", () => {
+    expect(focusOpensKeyboard({ onField: true, ageMs: 0 })).toBe(true);
+    expect(focusOpensKeyboard({ onField: true, ageMs: 40 })).toBe(true);
+  });
+
+  it("does not open when the last tap was somewhere else — the button that opened the dialog", () => {
+    expect(focusOpensKeyboard({ onField: false, ageMs: 20 })).toBe(false);
+  });
+
+  it("does not open on a tap too old to have caused this focus", () => {
+    expect(focusOpensKeyboard({ onField: true, ageMs: TAP_FOCUS_WINDOW_MS })).toBe(true);
+    expect(focusOpensKeyboard({ onField: true, ageMs: TAP_FOCUS_WINDOW_MS + 1 })).toBe(false);
+  });
+
+  it("does not trust a clock that ran backwards", () => {
+    expect(focusOpensKeyboard({ onField: true, ageMs: -5 })).toBe(false);
   });
 });

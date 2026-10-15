@@ -144,6 +144,31 @@ export function layoutFor(f: FieldFacts): OskLayout {
 }
 
 /**
+ * L-263 — how recent a tap must be for the focus that follows it to count as
+ * the cashier's own. A tap focuses its field within a frame or two; a second is
+ * a generous ceiling that still excludes a dialog opening seconds later.
+ */
+export const TAP_FOCUS_WINDOW_MS = 1000;
+
+/**
+ * L-263 — DOES THIS FOCUS OPEN THE KEYBOARD? Only when the cashier caused it.
+ *
+ * The keyboard opened on EVERY `focusin`, including focus a component gives
+ * itself: ten fields carry `autoFocus`, so opening the client picker, the
+ * discount dialog or the caisse dialogs threw the pad over the screen before
+ * anyone touched anything. Reported from the till, 2026-10-15. Automatic focus
+ * stays — a wired keyboard or a scanner still types straight in — but the pad
+ * waits for a finger.
+ *
+ * `tap` is the last pointer-down the component saw: whether it landed on this
+ * field (or on a label for it) and how long ago. No tap, a tap elsewhere, or a
+ * stale one means the focus was not the cashier's.
+ */
+export function focusOpensKeyboard(tap: { onField: boolean; ageMs: number } | null): boolean {
+  return tap !== null && tap.onField && tap.ageMs >= 0 && tap.ageMs <= TAP_FOCUS_WINDOW_MS;
+}
+
+/**
  * Whether `setSelectionRange` may be called on this field.
  *
  * NOT a nicety. On `<input type="number">` reading `selectionStart` gives

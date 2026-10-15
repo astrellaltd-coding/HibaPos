@@ -326,4 +326,61 @@ test.describe("L-213 — the on-screen keyboard", () => {
     await page.getByRole("button").first().click();
     await expect(page.locator(KEYBOARD)).toHaveCount(0);
   });
+
+  // L-263 — ONLY A TAP OPENS THE PAD. Reported from the till 2026-10-15: the
+  // client picker opened with the keyboard already over the screen, because its
+  // search box focuses itself and the pad opened on any focus. The operator's
+  // decision: tap to show, everywhere. These are the three cases the unit test
+  // on `focusOpensKeyboard` cannot see — they live in the listeners.
+  test("L-263 — a field that focuses ITSELF does not open the keyboard", async ({ page }) => {
+    await page.goto("/#/customers");
+    await page.getByRole("button", { name: "Nouveau client" }).first().click();
+    const name = page.locator("#cust-name");
+    await expect(name, "the field should still take focus by itself").toBeFocused();
+    // Nothing was tapped: the dialog's own `autoFocus` put the caret there.
+    await expect(page.locator(KEYBOARD)).toHaveCount(0);
+    await page.keyboard.press("Escape");
+  });
+
+  test("L-263 — a tap on that already-focused field opens it", async ({ page }) => {
+    await page.goto("/#/customers");
+    await page.getByRole("button", { name: "Nouveau client" }).first().click();
+    const name = page.locator("#cust-name");
+    await expect(name).toBeFocused();
+    // No `focusin` fires here — the field already has focus — so this is the
+    // click listener's case, not the focus listener's.
+    await name.click();
+    await expect(page.locator(KEYBOARD)).toBeVisible();
+    await page.locator(letter("a")).click();
+    await expect(name).toHaveValue("a");
+    await page.keyboard.press("Escape");
+  });
+
+  test("L-263 — closed with « Fermer le clavier », a tap on the same field brings it back", async ({ page }) => {
+    await page.goto("/#/pos");
+    const search = page.locator("#pos-search-input");
+    await expect(search).toBeVisible({ timeout: 30_000 });
+    await search.click();
+    await expect(page.locator(KEYBOARD)).toBeVisible();
+    await page.locator(`${KEYBOARD} button[aria-label="Fermer le clavier"]`).click();
+    await expect(page.locator(KEYBOARD)).toHaveCount(0);
+    // The field kept its focus through the close; the old `dismissed` guard
+    // meant only leaving and coming back could reopen it.
+    await search.click();
+    await expect(page.locator(KEYBOARD)).toBeVisible();
+  });
+
+  test("L-263 — THE REPORTED CASE: the client picker on a delivery opens without a keyboard", async ({ page }) => {
+    await page.goto("/#/pos");
+    await expect(page.getByText("E2E Tacos")).toBeVisible({ timeout: 30_000 });
+    await page.getByText("E2E Tacos").click();
+    await page.getByRole("button", { name: "Livraison", exact: true }).click();
+    await page.getByRole("button", { name: "Client" }).click();
+    const search = page.getByPlaceholder("Rechercher par nom, téléphone…");
+    await expect(search).toBeFocused();
+    await expect(page.locator(KEYBOARD), "the pad opened with the picker").toHaveCount(0);
+    await search.click();
+    await expect(page.locator(KEYBOARD)).toBeVisible();
+    await page.keyboard.press("Escape");
+  });
 });

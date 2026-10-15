@@ -47,6 +47,8 @@ import {
   applyKey,
   armsSeparator,
   decimalSeparatorFor,
+  focusOpensKeyboard,
+  isFromOsk,
   layoutFor,
   resolveKey,
   shiftChar,
@@ -451,8 +453,9 @@ export function OnScreenKeyboard() {
    */
   const [fieldType, setFieldType] = useState("");
   const target = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
-  /** The field the operator closed the keyboard on, so it does not spring back. */
-  const dismissed = useRef<Element | null>(null);
+  /** L-263: the last pointer-down outside the keyboard, so a focus can be told
+   *  apart from the cashier's tap. */
+  const lastTap = useRef<{ el: Element; at: number } | null>(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const panel = useRef<HTMLDivElement | null>(null);
 
@@ -497,18 +500,16 @@ export function OnScreenKeyboard() {
       }
     };
 
-    const onFocusIn = (e: FocusEvent) => {
-      const el = e.target;
-      if (!(el instanceof HTMLElement)) return;
-      cancelHide();
-      const next = layoutFor(factsOf(el));
-      if (next === "none") {
-        target.current = null;
-        setLayout("none");
-        return;
-      }
-      if (dismissed.current === el) return;
-      dismissed.current = null;
+    /** Did the last tap land on this field, or on a label that points at it? */
+    const tapOn = (el: HTMLElement): { onField: boolean; ageMs: number } | null => {
+      const tap = lastTap.current;
+      if (!tap) return null;
+      const label = tap.el.closest("label");
+      const onField = tap.el === el || el.contains(tap.el) || (label instanceof HTMLLabelElement && label.control === el);
+      return { onField, ageMs: performance.now() - tap.at };
+    };
+
+    const openFor = (el: HTMLElement, next: OskLayout) => {
       target.current = el as HTMLInputElement | HTMLTextAreaElement;
       setShifted(false);
       setSeparatorArmed(false);
@@ -522,6 +523,53 @@ export function OnScreenKeyboard() {
        * that till is often behind the keyboard.
        */
       requestAnimationFrame(() => el.scrollIntoView({ block: "center", behavior: "smooth" }));
+    };
+
+    /**
+     * L-263 — ONLY A TAP OPENS THE PAD. Until 2026-10-15 every `focusin` did,
+     * the operator's choice of 2026-09-17 (L-213, « every typed field »); the
+     * operator reversed it on seeing the client picker open under a keyboard
+     * nobody had asked for. Focus a component gives itself — `autoFocus`, a
+     * dialog opening — still lands, so a wired keyboard types straight in; it
+     * just no longer throws the pad over the screen.
+     */
+    const onFocusIn = (e: FocusEvent) => {
+      const el = e.target;
+      if (!(el instanceof HTMLElement)) return;
+      cancelHide();
+      const next = layoutFor(factsOf(el));
+      if (next === "none" || !focusOpensKeyboard(tapOn(el))) {
+        target.current = null;
+        setLayout("none");
+        return;
+      }
+      // A `dismissed` ref used to stop the pad springing back on a field the
+      // cashier had closed it on, when focus returned by itself. Focus that
+      // returns by itself no longer opens anything, and a TAP on that field is
+      // the cashier asking for it back — so the ref went with the old rule.
+      openFor(el, next);
+    };
+
+    const onPointerDown = (e: PointerEvent) => {
+      if (isFromOsk(e.target)) return;
+      if (e.target instanceof Element) lastTap.current = { el: e.target, at: performance.now() };
+    };
+
+    /**
+     * L-263 — A TAP ON A FIELD THAT ALREADY HAS FOCUS. No `focusin` fires for
+     * it, so without this an auto-focused field could never get its pad, and a
+     * field whose pad the cashier had closed could not get it back without
+     * leaving and returning. `click` rather than `pointerup`: it arrives after
+     * the focus has settled, so `activeElement` is the honest answer.
+     */
+    const onClick = (e: MouseEvent) => {
+      const el = e.target;
+      if (!(el instanceof HTMLElement) || el !== document.activeElement) return;
+      if (target.current === el) return;
+      const next = layoutFor(factsOf(el));
+      if (next === "none") return;
+      cancelHide();
+      openFor(el, next);
     };
 
     /**
@@ -539,11 +587,17 @@ export function OnScreenKeyboard() {
       }, 120);
     };
 
+    // Capture phase for the pointer, so a component that stops propagation
+    // cannot hide a tap from the rule.
+    document.addEventListener("pointerdown", onPointerDown, true);
     document.addEventListener("focusin", onFocusIn);
     document.addEventListener("focusout", onFocusOut);
+    document.addEventListener("click", onClick);
     return () => {
+      document.removeEventListener("pointerdown", onPointerDown, true);
       document.removeEventListener("focusin", onFocusIn);
       document.removeEventListener("focusout", onFocusOut);
+      document.removeEventListener("click", onClick);
       cancelHide();
     };
   }, []);
@@ -615,7 +669,6 @@ export function OnScreenKeyboard() {
   }, [separatorArmed]);
 
   const close = useCallback(() => {
-    dismissed.current = target.current;
     target.current = null;
     setSeparatorArmed(false);
     setLayout("none");
