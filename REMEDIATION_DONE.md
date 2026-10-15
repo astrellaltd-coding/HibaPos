@@ -128,6 +128,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - L-260 — deleting a client erases them, from Clients and from the caisse
 - L-263 — the on-screen keyboard opens on a tap, not on any focus
 - L-265 — the client picker finds regulars by any phone format, shows who they are, and stops duplicates
+- L-266 — larger text on the client cards, without cutting anything off
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -7455,6 +7456,17 @@ size on a scratch copy. Gates 2195 / 0, typecheck 0, lint 0.
 
 **Left behind.** Editing a client onto another's number is unchecked; the till needs a pull and a
 rebuild (L-262 procedure), together with L-263.
+
+---
+
+### L-266 — larger text on the client cards, without cutting anything off
+**Done:** 2026-10-15 · **Commit:** `050cf58` · **Finding:** L-266
+
+**What changed.** Every client card element one size up, at the owner's request; the picker 1024 px
+wide and its history and address lines wrapping, because the larger text was cut off at 768 px.
+
+**How it was verified.** Measured at 1366×768: nothing cut, no overflow. No automated test for a
+styling change. Gates 2195 / 0, typecheck 0, lint 0.
 
 ---
 
