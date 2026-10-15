@@ -216,8 +216,10 @@ export function CustomerPickerDialog({
   return (
     <Dialog open={open} onOpenChange={(v) => (v ? onOpenChange(true) : close())}>
       {/* L-265 — WIDER, so the regulars fit two to a row with their history.
-        * `sm:` because the base dialog caps itself at `sm:max-w-lg`. */}
-      <DialogContent className="max-w-md gap-0 p-0 sm:max-w-3xl">
+        * `sm:` because the base dialog caps itself at `sm:max-w-lg`. L-266: 5xl
+        * (1024 px) once the text grew — at 3xl, measured at 1366×768, every
+        * history line and four addresses in five were cut off. */}
+      <DialogContent className="max-w-md gap-0 p-0 sm:max-w-5xl">
         <DialogHeader className="border-b border-border p-5">
           <DialogTitle className="flex items-center gap-2">
             <User className="h-5 w-5 text-primary" />
@@ -432,7 +434,7 @@ export function CustomerPickerDialog({
             <ScrollArea className="max-h-[55vh]">
               {customers && customers.length > 0 ? (
                 <>
-                <p className="px-4 pt-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <p className="px-4 pt-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
                   {search.trim() ? `${customers.length} résultat${customers.length > 1 ? "s" : ""}` : "Clients habituels"}
                 </p>
                 <div className="grid grid-cols-1 gap-2 p-3 sm:grid-cols-2">
@@ -454,40 +456,42 @@ export function CustomerPickerDialog({
                           }}
                           className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/50"
                         >
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-base font-semibold text-primary">
                             {c.name.slice(0, 2).toUpperCase()}
                           </div>
                           <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-medium text-foreground">{c.name}</p>
+                            {/* L-266 — one size up across the card, at the owner's request after
+                              * using it (2026-10-15): the text was hard to read at the till. */}
+                            <p className="truncate text-base font-semibold text-foreground">{c.name}</p>
                             {/* L-214 — THE ADDRESS IS ON THE ROW. The list showed
                               * phone and email and never the address, so on a
                               * delivery there was no way to tell which of these
                               * people could be delivered to. */}
-                            <p className="flex items-center gap-1 truncate text-xs text-muted-foreground">
-                              <Phone className="h-3 w-3 shrink-0" />
+                            <p className="flex items-center gap-1.5 truncate text-sm text-muted-foreground">
+                              <Phone className="h-3.5 w-3.5 shrink-0" />
                               {c.phone || "—"}
                             </p>
                             {/* L-221: the town is on the row beside the street.
                                * The row exists (L-214) so a cashier can see which
                                * regulars are deliverable; a street with no town is
                                * a street in every town. */}
-                            <p className="flex items-center gap-1 truncate text-xs text-muted-foreground">
-                              <MapPin className="h-3 w-3 shrink-0" />
+                            <p className="flex items-start gap-1.5 break-words text-sm text-muted-foreground">
+                              <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                               {[c.address, c.city].filter(Boolean).join(", ") || "—"}
                             </p>
                             {/* L-265 — WHO THIS IS, at a glance: how often and how
                               * lately they order, and their note (a door code, a
                               * floor) — the details a driver asks for. */}
-                            <p className="mt-0.5 truncate text-[11px] font-medium text-primary">
+                            <p className="mt-0.5 break-words text-[13px] font-medium text-primary">
                               {orderHistoryLabel(c.orderCount ?? 0, c.lastOrderAt ?? null, new Date())}
                             </p>
                             {c.notes && (
-                              <p className="truncate text-[11px] italic text-muted-foreground" title={c.notes}>
+                              <p className="truncate text-[13px] italic text-muted-foreground" title={c.notes}>
                                 « {c.notes} »
                               </p>
                             )}
                             {forDelivery && !deliverable && (
-                              <p className="mt-0.5 text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                              <p className="mt-0.5 text-[13px] font-medium text-amber-600 dark:text-amber-400">
                                 {deliveryMissingMessage(short)}
                               </p>
                             )}
