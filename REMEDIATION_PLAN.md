@@ -15,10 +15,12 @@ append-only fiscal record.** **THIS machine** has never traded: its journal is e
 trading table is at zero, re-measured 2026-09-27. What is still open is § 8's `VAT-METHOD`, for
 the accountant, and the findings below — none of which stops trading.
 
-> ### ▶ CURRENT TASK — **the till takes L-263 + L-265 (pull and rebuild, L-262 procedure); then item 0.**
+> ### ▶ CURRENT TASK — **the till takes L-266 + L-211 (pull and rebuild, L-262 procedure, then its zoom back to 100 %); then item 0.**
 > Trading since 2026-10-03, ticket #1, chain intact. The keyboard on tap and the new client picker
-> are pushed (`ad9b987`), not yet on the till; the operator creates the Double Kiff there. Item 0:
-> export the till's catalogue, import here, never the reverse.
+> (L-263, L-265) are on the till since 2026-10-15 and the owner approved them; the Double Kiff
+> Senior and Mega are on sale there, and Junior is still the operator's to create. Larger client
+> text and the category strip that always fits are pushed, not yet on the till. Item 0: export
+> the till's catalogue, import here, never the reverse.
 >
 > **Every batch of Phases 8, 9 and 10 is finished** — read them in `REMEDIATION_DONE.md`, not
 > from a second copy here. The only § 6 row that is not the operator's is R10.3. The work now
