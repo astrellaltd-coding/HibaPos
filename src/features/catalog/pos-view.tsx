@@ -199,10 +199,17 @@ export function PosView() {
     <div className="flex h-full min-h-0" style={{ touchAction: "none" }}>
       {/* Catalog side */}
       <div className="flex min-w-0 flex-1 flex-col bg-muted/20">
-        {/* Category cards — horizontal scroll row */}
+        {/* L-211 — THE CATEGORIES ALWAYS FIT. This was a horizontal scroller of
+          * fixed 88 px cards: ten of them need about 988 px, and at 1366 px with
+          * the 400 px order panel the strip has about 908 — so Boissons sat off
+          * the right edge with nothing to say so, and the till only showed it at
+          * 75 % zoom, which shrank everything else. The cards now share the
+          * width (`flex-1`, 64 px to 96 px each) and WRAP to a second row before
+          * any of them would be cut, so every category is always on screen at
+          * 100 %. Nothing scrolls sideways any more. */}
         <div className="shrink-0 px-4 pt-4 pb-2">
-          <div className="overflow-x-auto scroll-thin rounded-2xl bg-card/60 backdrop-blur-xl border border-border/50 shadow-sm p-3" style={{ touchAction: "pan-x" }}>
-            <div className="flex justify-between gap-3 min-w-full">
+          <div className="rounded-2xl bg-card/60 backdrop-blur-xl border border-border/50 shadow-sm p-3" data-testid="category-strip">
+            <div className="flex flex-wrap justify-between gap-2">
             <CategoryTab
               active={activeCategory === "all"}
               onClick={() => { setActiveCategory("all"); setActiveSubCategory(null); }}
@@ -436,11 +443,11 @@ function CategoryTab({
   return (
     <button
       onClick={onClick}
-      className="flex h-[88px] w-[88px] shrink-0 flex-col items-center gap-1.5 transition-all outline-none focus:outline-none"
+      className="flex min-w-[64px] max-w-[96px] flex-1 basis-0 flex-col items-center gap-1.5 transition-all outline-none focus:outline-none"
     >
-      {/* Image / icon area */}
+      {/* Image / icon area — square, as wide as the card allows up to 64 px (L-211). */}
       <div
-        className="flex h-[64px] w-[64px] items-center justify-center overflow-hidden rounded-xl"
+        className="flex aspect-square w-full max-w-[64px] items-center justify-center overflow-hidden rounded-xl"
         style={{ backgroundColor: isImage ? "transparent" : "hsl(var(--muted) / 0.4)" }}
       >
         {isImage ? (
@@ -457,7 +464,7 @@ function CategoryTab({
       {/* Label */}
       <span
         className={cn(
-          "w-20 truncate text-center text-[12px] font-semibold leading-tight",
+          "w-full truncate text-center text-[12px] font-semibold leading-tight",
           active ? "text-foreground" : "text-muted-foreground",
         )}
         style={active ? { color } : undefined}

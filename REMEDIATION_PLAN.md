@@ -90,8 +90,8 @@ the accountant, and the findings below — none of which stops trading.
 anyone who remote-accesses the till leaves a window over it that is not fullscreen; confirmed on
 the till 2026-09-27 and **left unfixed deliberately**, it wants a decision between refusing the
 second launch and giving the kiosk its own `--user-data-dir`),
-**L-211** (High — the category strip scrolls sideways with
-nothing to show it does), **L-204** (High — the launcher's third refusal never reads
+**L-211** (High — its category-strip half fixed 2026-10-15; the home dashboard's third row
+below the fold is still open), **L-204** (High — the launcher's third refusal never reads
 `secrets.json`), **L-208 · L-209 · L-210** (Medium — a stale baselines file, a build script that
 never checks an exit code, and `dev.ps1`'s uncovered seed path), **L-223** (Low-Med) and
 **L-239** (Medium — the e2e server takes every key `e2eServerEnv()` omits from the real `.env`,
