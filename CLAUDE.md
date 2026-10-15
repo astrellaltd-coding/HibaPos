@@ -26,7 +26,7 @@ found in one week, and a reader had no way to know which side to believe.
 
 2. **Do one item.** Only what is in that item. Anything else you notice goes into FINDINGS.md's
    own tables with a new `L-` id continuing the same sequence — the audit ended at **L-182** and
-   the highest today is **L-260**. The plan's § 7 is closed to new rows until the operator
+   the highest today is **L-261**. The plan's § 7 is closed to new rows until the operator
    reopens it. You do not fix it now.
 
 3. **Then, in this order:** `bun run test` · `bun run typecheck` · `bun run lint` — all three
@@ -217,6 +217,16 @@ fullscreen, tracks `origin/main`. **It went live on 2026-10-03**: journal reset,
 chain key armed, FACTICE off (see the top of Part Two). The till pulled to `66998e8` for the reset
 script; nothing the app runs changed after `03ed85a`, so its build is the 2026-10-01 one.
 
+**THE DOUBLE KIFF (2026-10-15) is three « menu composé » products, not new code** — the owner's
+half-and-half pizza, at the operator's decision. `Double Kiff Junior / Senior / Mega` in a
+`Double Kiff` sub-category of `Pizzas`, each priced at that size + 1 € (9,90 / 12,90 / 16,90, delivery
+10,90 / 14,50 / 19,90), two seats « 1ère moitié » / « 2e moitié » drawing on all of `Pizzas` with
+nothing ticked (so new pizzas appear by themselves), Taille « Imposé par le menu ». Extras are per
+half at 1,50 €. **Rehearsed on a scratch copy the same day**: totals 14,40 and 19,90 exact, all
+10 %, refused inside Menu Chill. **Created on the till by the operator, as a live catalogue edit**
+— and its prices must be moved by hand if the pizza prices ever change. The ticket does not print
+the half names (L-261).
+
 **The catalogues diverged on 2026-09-28, deliberately.** The owner's menu was completed ON THE TILL
 — Kebab on the Tacos « Viande » group, the **Panini** category with its options and products, a
 saumon fumé add-on, two crème fraîche pizzas still without photographs. The till therefore holds
@@ -314,7 +324,7 @@ Open today, none of it phased: **L-211** (High — the category strip scrolls wi
 it does, and the owner meets it daily) · **L-204** (High — the launcher's third refusal never reads
 `secrets.json`) · **L-203** (the launcher refuses a pending migration where PREP-4 would apply it;
 « drop refusal 2 » is **not** sufficient on its own) · L-208 · L-209 · L-210 · L-223 · L-236 ·
-L-239 · L-244 · L-245 · L-247 · **L-253** (the boot is back to ~72 s) · L-256 · L-258 · and L-207's other half.
+L-239 · L-244 · L-245 · L-247 · **L-253** (the boot is back to ~72 s) · L-256 · L-258 · L-261 · and L-207's other half.
 **L-248 and L-249 are DONE** (2026-09-30), **L-250, L-251 and L-252** (2026-10-01), **L-254 and L-255** (2026-10-03), **L-257** on the till (2026-10-06).
 
 **`VAT-METHOD` is the one that matters from the first real sale** (§ 8 of the plan): how a fixed
