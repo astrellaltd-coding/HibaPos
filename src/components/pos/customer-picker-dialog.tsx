@@ -47,6 +47,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { EmptyState } from "@/components/shared/empty-state";
 import { UserPlus, Search, Check, User, MapPin, Phone, Pencil, Trash2, AlertTriangle } from "lucide-react";
 import { CUSTOMER_ERASE_CONSEQUENCE } from "@/lib/customer-erasure";
+import { orderHistoryLabel } from "@/lib/customer-match";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
   customerFormBlocked,
@@ -88,6 +90,7 @@ export function CustomerPickerDialog({
   const close = () => {
     setEditing(null);
     setErasing(null);
+    setTwin(null);
     setForm({ name: "", phone: "", address: "", city: "" });
     onOpenChange(false);
   };
@@ -105,8 +108,16 @@ export function CustomerPickerDialog({
     city: form.city.trim() || null,
   });
 
+  /**
+   * L-265 — the client who already holds the number being typed. The server
+   * refuses a duplicate with that client named (409 `duplicateOf`); the form
+   * then offers to choose them instead, or to create anyway.
+   */
+  const [twin, setTwin] = useState<{ id: string; name: string } | null>(null);
+
   const createMutation = useMutation({
-    mutationFn: () => api.post<CustomerDto>("/api/customers", body()),
+    mutationFn: (allowDuplicatePhone: boolean) =>
+      api.post<CustomerDto>("/api/customers", { ...body(), ...(allowDuplicatePhone ? { allowDuplicatePhone } : {}) }),
     onSuccess: (customer) => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       toast.success(`Client « ${customer.name} » créé`);
@@ -114,6 +125,14 @@ export function CustomerPickerDialog({
       close();
     },
     onError: (e) => {
+      const dup =
+        e instanceof ApiError && e.status === 409
+          ? (e.body as { duplicateOf?: { id: string; name: string } } | null)?.duplicateOf
+          : undefined;
+      if (dup) {
+        setTwin(dup);
+        return;
+      }
       toast.error(e instanceof ApiError ? e.message : "Erreur lors de la création");
     },
   });
@@ -188,7 +207,7 @@ export function CustomerPickerDialog({
 
   const submit = () => {
     if (blocked || pending) return;
-    if (editing === "new") createMutation.mutate();
+    if (editing === "new") createMutation.mutate(false);
     else if (editing) updateMutation.mutate(editing.id);
   };
 
@@ -196,7 +215,9 @@ export function CustomerPickerDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => (v ? onOpenChange(true) : close())}>
-      <DialogContent className="max-w-md gap-0 p-0">
+      {/* L-265 — WIDER, so the regulars fit two to a row with their history.
+        * `sm:` because the base dialog caps itself at `sm:max-w-lg`. */}
+      <DialogContent className="max-w-md gap-0 p-0 sm:max-w-3xl">
         <DialogHeader className="border-b border-border p-5">
           <DialogTitle className="flex items-center gap-2">
             <User className="h-5 w-5 text-primary" />
@@ -240,7 +261,10 @@ export function CustomerPickerDialog({
               <Input
                 id="customer-picker-telephone"
                 value={form.phone}
-                onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+                onChange={(e) => {
+                  setTwin(null);
+                  setForm((f) => ({ ...f, phone: e.target.value }));
+                }}
                 placeholder="06 12 34 56 78"
                 inputMode="tel"
               />
@@ -291,11 +315,49 @@ export function CustomerPickerDialog({
               </div>
             )}
 
+            {/* L-265 — THE NUMBER IS ALREADY SOMEBODY'S. Choosing them is the
+              * likely answer: the cashier searched, found nobody because the
+              * number was typed differently, and started to create the client
+              * again. « Créer quand même » stays, for a shared landline. */}
+            {twin && (
+              <div
+                role="alert"
+                className="space-y-2 rounded-lg border border-amber-500/60 bg-amber-500/10 px-3 py-2.5 text-sm text-amber-800 dark:text-amber-300"
+              >
+                <p className="flex items-start gap-1.5 font-medium">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>Ce numéro est déjà celui de « {twin.name} ».</span>
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    className="h-11 min-h-[44px] flex-1"
+                    onClick={() => {
+                      onSelect(twin.id);
+                      close();
+                    }}
+                  >
+                    Choisir {twin.name}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-11 min-h-[44px] flex-1"
+                    disabled={pending}
+                    onClick={() => createMutation.mutate(true)}
+                  >
+                    Créer quand même
+                  </Button>
+                </div>
+              </div>
+            )}
+
             <div className="flex gap-2">
               <Button
                 variant="outline"
                 className="h-11 min-h-[44px] flex-1"
-                onClick={() => setEditing(null)}
+                onClick={() => {
+                  setTwin(null);
+                  setEditing(null);
+                }}
                 disabled={pending}
               >
                 Retour
@@ -367,14 +429,24 @@ export function CustomerPickerDialog({
               </Button>
             </div>
 
-            <ScrollArea className="max-h-[45vh]">
+            <ScrollArea className="max-h-[55vh]">
               {customers && customers.length > 0 ? (
-                <div className="divide-y divide-border">
+                <>
+                <p className="px-4 pt-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  {search.trim() ? `${customers.length} résultat${customers.length > 1 ? "s" : ""}` : "Clients habituels"}
+                </p>
+                <div className="grid grid-cols-1 gap-2 p-3 sm:grid-cols-2">
                   {customers.map((c) => {
                     const short = missingForDelivery(c);
                     const deliverable = isDeliverable(c);
                     return (
-                      <div key={c.id} className="flex items-stretch">
+                      <div
+                        key={c.id}
+                        className={cn(
+                          "flex items-stretch overflow-hidden rounded-lg border",
+                          selectedId === c.id ? "border-primary bg-primary/5" : "border-border",
+                        )}
+                      >
                         <button
                           onClick={() => {
                             onSelect(c.id);
@@ -403,6 +475,17 @@ export function CustomerPickerDialog({
                               <MapPin className="h-3 w-3 shrink-0" />
                               {[c.address, c.city].filter(Boolean).join(", ") || "—"}
                             </p>
+                            {/* L-265 — WHO THIS IS, at a glance: how often and how
+                              * lately they order, and their note (a door code, a
+                              * floor) — the details a driver asks for. */}
+                            <p className="mt-0.5 truncate text-[11px] font-medium text-primary">
+                              {orderHistoryLabel(c.orderCount ?? 0, c.lastOrderAt ?? null, new Date())}
+                            </p>
+                            {c.notes && (
+                              <p className="truncate text-[11px] italic text-muted-foreground" title={c.notes}>
+                                « {c.notes} »
+                              </p>
+                            )}
                             {forDelivery && !deliverable && (
                               <p className="mt-0.5 text-[11px] font-medium text-amber-600 dark:text-amber-400">
                                 {deliveryMissingMessage(short)}
@@ -436,6 +519,7 @@ export function CustomerPickerDialog({
                     );
                   })}
                 </div>
+                </>
               ) : (
                 <div className="p-4">
                   <EmptyState

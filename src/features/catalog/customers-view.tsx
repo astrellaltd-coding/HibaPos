@@ -125,14 +125,24 @@ export function CustomersView() {
   };
 
   const createMut = useMutation({
-    mutationFn: (body: CustomerForm) =>
+    mutationFn: (body: CustomerForm & { allowDuplicatePhone?: boolean }) =>
       api.post<CustomerDto>("/api/customers", body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["customers"] });
       toast.success("Client créé");
       closeDialog();
     },
-    onError: (e: ApiError) => toast.error(e.message || "Erreur lors de la création"),
+    onError: (e: ApiError, body) => {
+      // L-265 — the number already belongs to a client. The server names them;
+      // « Créer quand même » is for a shared landline.
+      if (e.status === 409 && (e.body as { duplicateOf?: unknown } | null)?.duplicateOf) {
+        toast.error(e.message, {
+          action: { label: "Créer quand même", onClick: () => createMut.mutate({ ...body, allowDuplicatePhone: true }) },
+        });
+        return;
+      }
+      toast.error(e.message || "Erreur lors de la création");
+    },
   });
 
   const updateMut = useMutation({

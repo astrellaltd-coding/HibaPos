@@ -158,6 +158,8 @@ export type CustomerDto = {
   notes: string | null;
   createdAt: string;
   orderCount?: number;
+  /** L-265 — when this client last ordered; null for none. Only the list sends it. */
+  lastOrderAt?: string | null;
 };
 
 export type OrderItemDto = {
