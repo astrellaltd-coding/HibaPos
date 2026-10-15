@@ -129,6 +129,7 @@ that test fails. Headings inside the fenced template above are deliberately excl
 - L-263 — the on-screen keyboard opens on a tap, not on any focus
 - L-265 — the client picker finds regulars by any phone format, shows who they are, and stops duplicates
 - L-266 — larger text on the client cards, without cutting anything off
+- L-211 — the category strip always fits at 100 %, wrapping instead of scrolling
 
 **Carried forward — the 2026-09-03 → 2026-09-09 remediation**
 
@@ -7467,6 +7468,27 @@ wide and its history and address lines wrapping, because the larger text was cut
 
 **How it was verified.** Measured at 1366×768: nothing cut, no overflow. No automated test for a
 styling change. Gates 2195 / 0, typecheck 0, lint 0.
+
+---
+
+### L-211 — the category strip always fits at 100 %, wrapping instead of scrolling
+**Done:** 2026-10-15 · **Commit:** `8be7d81` · **Finding:** L-211 (the strip; the home dashboard's half stays open)
+
+**What changed.** The category cards were a fixed 88 px in a sideways scroller; ten need about
+988 px where 1366 px with the order panel leaves the strip about 908, so Boissons sat off the edge
+and the till ran at `Ctrl −`, which shrank everything else. The cards now share the width (64 to
+96 px each) and wrap to a second row only where even 64 px will not fit. Nothing scrolls sideways.
+
+**How it was verified.** `tests/e2e/07-category-strip.spec.ts`, ten top-level categories as on the
+till: every card inside the strip, no sideways scroll, and the row count pinned — one at 1366×768
+and 1280×800, two at 1024×768. Reverted three ways: the old sizing → all three red, « the strip
+scrolls sideways again »; the scroller alone → 1024 red; the fixed 88 px cards alone → 1366 and
+1280 red, two rows where one is pinned. The first two ran before the row check was added, which
+sits after the assertion that fired. Gates 2195 / 0, typecheck 0, lint 0.
+
+**Left behind.** The till needs a pull and a rebuild (L-262 procedure), with L-266, and then its
+zoom back to 100 % (`Ctrl 0`): the zoom is kept per origin and an update does not reset it. The
+home dashboard's third row is untouched, and the till's `innerWidth` is still unmeasured.
 
 ---
 
